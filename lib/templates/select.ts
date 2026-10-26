@@ -1,12 +1,12 @@
-// Choosing a template for a new inspection (BUILD_SPEC 4.4). The inspector
-// picks client, manufacturer and product type; the most specific active
-// template wins:
-//   1. scoped to that client and that manufacturer,
-//   2. scoped to that client only,
-//   3. scoped to that manufacturer only,
-//   4. the standard template for the product type (no client, no manufacturer).
-// A template scoped to another client or manufacturer never applies. An
-// admin can override the choice with any template that is not retired.
+// Choosing a template for a new inspection (BUILD_SPEC 4.4). Every client
+// uses the standard template of the product type: the active template for it
+// with no client and no manufacturer. Kenneth, 26 October 2026: "all the
+// inspection flow will be standardized". Until then a template scoped to the
+// client, the manufacturer or both won over the standard one. A scoped
+// template (SAFEDON_EG, retired) now never applies, whoever the inspection is
+// for. Client and manufacturer are still asked for: they go into the header,
+// not into the choice. An admin can override the choice with any template
+// that is not retired.
 import type { ProductType, Standard } from "@/lib/schemas/common";
 import type { Tables } from "@/lib/supabase/database.types";
 
@@ -25,13 +25,12 @@ export type TemplateCandidate = {
 
 export type SelectionCriteria = {
   productType: ProductType;
-  clientId?: string | null;
-  manufacturerId?: string | null;
   /** Admin override: this template id, whatever its scope. */
   overrideTemplateId?: string | null;
 };
 
-export const SPECIFICITY = ["client_manufacturer", "client", "manufacturer", "standard"] as const;
+/** How the rule found a template: only the standard one applies (26 October 2026). */
+export const SPECIFICITY = ["standard"] as const;
 export type Specificity = (typeof SPECIFICITY)[number];
 
 export type RankedTemplate = { template: TemplateCandidate; specificity: Specificity };
@@ -41,7 +40,7 @@ export type TemplateSelection =
       ok: true;
       template: TemplateCandidate;
       specificity: Specificity | "override";
-      /** Other active templates just as specific: the choice was a tie broken by code. Show it to an admin. */
+      /** Other active standard templates for the product type: the choice was a tie broken by code. Show it to an admin. */
       ties: TemplateCandidate[];
     }
   | { ok: false; reason: "none" | "override_not_found" | "override_retired"; message: string };
@@ -64,22 +63,17 @@ export function templateCandidateFromRow(
   };
 }
 
-/** How specifically a template fits the criteria, or null when it does not apply. */
+/**
+ * How a template fits the criteria: "standard" for a template of the
+ * product type with no client and no manufacturer, else null (it never
+ * applies).
+ */
 export function specificityOf(template: TemplateCandidate, criteria: SelectionCriteria): Specificity | null {
   if (template.productType !== criteria.productType) return null;
-  const clientId = criteria.clientId ?? null;
-  const manufacturerId = criteria.manufacturerId ?? null;
-  const client = template.clientId === null ? "any" : template.clientId === clientId ? "match" : "other";
-  const manufacturer =
-    template.manufacturerId === null ? "any" : template.manufacturerId === manufacturerId ? "match" : "other";
-  if (client === "other" || manufacturer === "other") return null;
-  if (client === "match" && manufacturer === "match") return "client_manufacturer";
-  if (client === "match") return "client";
-  if (manufacturer === "match") return "manufacturer";
-  return "standard";
+  return template.clientId === null && template.manufacturerId === null ? "standard" : null;
 }
 
-/** Active templates that apply, most specific first; ties by code, then the higher version. */
+/** Active templates that apply, by code, then the higher version first. */
 export function rankTemplates(
   candidates: readonly TemplateCandidate[],
   criteria: SelectionCriteria,
@@ -90,12 +84,7 @@ export function rankTemplates(
       const specificity = specificityOf(template, criteria);
       return specificity ? [{ template, specificity }] : [];
     })
-    .sort(
-      (a, b) =>
-        SPECIFICITY.indexOf(a.specificity) - SPECIFICITY.indexOf(b.specificity) ||
-        a.template.code.localeCompare(b.template.code) ||
-        b.template.version - a.template.version,
-    );
+    .sort((a, b) => a.template.code.localeCompare(b.template.code) || b.template.version - a.template.version);
 }
 
 export function selectTemplate(
@@ -124,9 +113,6 @@ export function selectTemplate(
       message: `No active template for ${criteria.productType} gloves. An admin needs to activate one.`,
     };
   }
-  const ties = ranked
-    .slice(1)
-    .filter((entry) => entry.specificity === best.specificity)
-    .map((entry) => entry.template);
+  const ties = ranked.slice(1).map((entry) => entry.template);
   return { ok: true, template: best.template, specificity: best.specificity, ties };
 }

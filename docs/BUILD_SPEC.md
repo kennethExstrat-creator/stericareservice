@@ -201,7 +201,7 @@ type Field = {
 
 ### 4.4 Choosing a template
 
-The inspector picks client, manufacturer and product type. The most specific active template wins: client and manufacturer, then client, then manufacturer, then the standard template for the product type. Admin can override. Admin can also switch a module off for one inspection, with a reason that is logged and exported.
+Every client uses the standard template of the product type: the active template for it with no client and no manufacturer (Kenneth, 26 October 2026: "all the inspection flow will be standardized"). The inspector still picks client, manufacturer and product type: client and manufacturer go into the header, and the product type picks the template. Until then the most specific active template won (client and manufacturer, then client, then manufacturer, then the standard template); a template scoped to a client or a manufacturer now never applies. Admin can override. Admin can also switch a module off for one inspection, with a reason that is logged and exported.
 
 ### 4.5 Adding a new form (admin flow)
 
@@ -413,13 +413,13 @@ An AI reviews each submitted inspection on top of the inspector's results and co
 Build every seed template field for field from `docs/forms/reports/` first, then `docs/forms/onsite/`: every label in the form's words (fix only the `[sic]` typos), written in Title Case (rule 4.2.3; the coverage matrix keeps them verbatim), every column, the same row counts as defaults.
 
 - **Manufacturers:** Hartalega NGC; Terang Nusa Sdn. Bhd. (TG Factory 40). Addresses from the example reports.
-- **Clients:** the client of `SAFEDON_EG` (the report carries the Polyco Healthline logo; confirm in section 13).
+- **Clients:** the client of `SAFEDON_EG` (the report carries the Polyco Healthline logo), retired with its template on 26 October 2026.
 - **Templates:**
 
 | Template | Scope | Built from | Modules on (in order) |
 |---|---|---|---|
-| `STD_EG` | examination, EN 455 | `reports/STD_EG.md`, `onsite/EG.md` | header (+ client, factory glove code), glove_info, order_lots, packing_config (inner box), sampling_plan, carton_sampling, dimensions (median; length, width, finger, palm, cuff), force_at_break (≥ 6 N), weight (the sampling plan's gloves for weight, 13 by default), watertight, visual (critical, major, minor), dispensing_packing, labeling (dispenser box: lot, mfg, artwork; carton: + box/carton # printed), conclusion |
-| `SAFEDON_EG` | examination, ASTM D6319, client scoped; extends `STD_EG` | `reports/SAFEDON_EG.md`, `onsite/SAFEDON_EG.md` | as STD_EG, with: header + inspected by and client logo; order_lots + packing site; inner unit "plastic pack"; dimensions average (length, width, finger, palm, no cuff); weight 1 value (no gloves for weight in the sampling plan); tensile instead of force_at_break; watertight + glove burst; dispensing_safedon instead of dispensing_packing (125 per pack, ≤ 5%); labeling + expiry date at both levels |
+| `STD_EG` | examination, ASTM D6319: the standard template for every client | `reports/SAFEDON_EG.md`, `onsite/SAFEDON_EG.md`: SAFEDON_EG's flow since 26 October 2026 (Kenneth: "use the flow that I have asked u to tweak as the standard form") | as SAFEDON_EG (below), with the header's client row on, the report title "Preshipment Inspection: Nitrile Disposable Examination Gloves" and no client logo. Versions 1 to 4, which their inspections keep, ran the STD_EG report's flow (`reports/STD_EG.md`, `onsite/EG.md`): header (+ client, factory glove code), glove_info, order_lots, packing_config (inner box), sampling_plan, carton_sampling, dimensions (median; length, width, finger, palm, cuff), force_at_break (≥ 6 N), weight (the sampling plan's gloves for weight, 13 by default), watertight, visual (critical, major, minor), dispensing_packing, labeling (dispenser box: lot, mfg, artwork; carton: + box/carton # printed), conclusion |
+| `SAFEDON_EG` | examination, ASTM D6319, client scoped; extends `STD_EG`'s report flow. Retired 26 October 2026: its flow is STD_EG's, and its versions stay for the inspections that use them | `reports/SAFEDON_EG.md`, `onsite/SAFEDON_EG.md` | as STD_EG's report flow, with: header + inspected by and client logo (no client row, no factory glove code); order_lots + packing site; inner unit "plastic pack"; dimensions average (length, width, finger, palm, no cuff); weight 1 value (no gloves for weight in the sampling plan); tensile instead of force_at_break; watertight + glove burst; dispensing_safedon instead of dispensing_packing (125 per pack, ≤ 5%) and its onsite notes; labeling + expiry date at both levels |
 | `STD_SG` | surgical | `onsite/SG.md` | header, order_lots, packing_config (pouch), sampling_plan (+ pouches), watertight (handSplit), visual (handSplit), dimensions, dye_leak, conclusion. No filled SG report yet: specs to confirm |
 
 - **Defect codes** (one master list; labels map per template; severity per template):
@@ -483,7 +483,7 @@ Build every seed template field for field from `docs/forms/reports/` first, then
 
 ## 13. Open items for Kenneth
 
-- Client for `SAFEDON_EG`: the report carries the Polyco Healthline logo. Is the client Polyco, and does the Safedon dispensing check apply to all its products?
+- Client for `SAFEDON_EG`: the report carries the Polyco Healthline logo. Is the client Polyco, and does the Safedon dispensing check apply to all its products? (Settled 26 October 2026: every client uses SAFEDON_EG's flow as the standard, the dispensing check included.)
 - Inspection level per client. The SAFEDON_EG example sampled 80 and 200 where ISO 2859-1 level I gives 200 and 500; the STD_EG example matches level I.
 - Spec limits per product for dimensions, weight and physical tests
 - Final defect lists and severities per client

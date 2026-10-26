@@ -154,6 +154,7 @@ test("the most specific template wins: client and manufacturer, client, manufact
   context,
   baseURL,
 }) => {
+  test.skip(true, "Kenneth, 26 October 2026: every client uses the standard template of the product type: the fixture's scoped templates never apply. Rewrite for the standard rule.");
   const hydration = watchConsole(page);
   await signIn(context, baseURL!, TEST_ACCOUNTS.inspector);
   await page.goto("/inspections/new");
@@ -249,21 +250,21 @@ test("once seeded, the seed templates apply as BUILD_SPEC 11 scopes them", async
   test.skip(test.info().project.name !== "desktop", "Reads only: one size is enough.");
   test.skip(
     !(await seedTemplatesLive()),
-    "STD_EG, SAFEDON_EG and STD_SG are not active yet (npm run seed:templates -- --apply, README.md step 7).",
+    "STD_EG and STD_SG are not active yet (npm run seed:templates -- --apply, README.md step 7).",
   );
   await signIn(context, baseURL!, TEST_ACCOUNTS.inspector);
   await page.goto("/inspections/new");
 
-  // Polyco Healthline at a manufacturer with no template: its own, SAFEDON_EG.
+  // Polyco Healthline, SAFEDON_EG's client until 26 October 2026: the standard template, as every client.
+  const [examination] = await standardTemplates("examination");
   await choose(page, "Client", POLYCO.label);
   await choose(page, "Manufacturer", fixture.manufacturerB.label);
   await press(productTypeCard(page, "examination"));
-  await expectTemplate(page, "SAFEDON_EG", `For ${POLYCO.label}`);
+  await expectTemplate(page, examination.code, "Standard Template for Examination Gloves");
   await shot(page, "seeded");
 
-  // Anyone else: the standard template for the product type.
+  // No client: the same standard template for the product type.
   await choose(page, "Client", "No Client");
-  const [examination] = await standardTemplates("examination");
   await expectTemplate(page, examination.code, "Standard Template for Examination Gloves");
   await press(productTypeCard(page, "surgical"));
   const [surgical] = await standardTemplates("surgical");
@@ -316,6 +317,7 @@ test("a failed Create keeps every choice and says why", async ({ page, context, 
 
 test("the inspector creates an inspection from the manufacturer's template and lands on it", async ({ page, context, baseURL }) => {
   test.skip(test.info().project.name !== "ipad-portrait", "Creates an inspection: one size only (e2e/README.md).");
+  test.skip(true, "Kenneth, 26 October 2026: every client uses the standard template of the product type: a manufacturer's template never applies. Rewrite to create from the standard template.");
   await signIn(context, baseURL!, TEST_ACCOUNTS.inspector);
   await page.goto("/inspections/new");
   // No client at manufacturer A: the server picks the manufacturer's template again, past the
@@ -364,6 +366,7 @@ test("the inspector creates an inspection from the manufacturer's template and l
 
 test("an admin can choose another template", async ({ page, context, baseURL }) => {
   test.skip(test.info().project.name === "ipad-landscape", "The admin's view once on each layout.");
+  test.skip(true, "Kenneth, 26 October 2026: every client uses the standard template of the product type: Automatic is the standard template, not the fixture's. Rewrite for the standard rule.");
   await signIn(context, baseURL!, TEST_ACCOUNTS.admin);
   await page.goto("/inspections/new");
   await pickFixtureOrder(page);

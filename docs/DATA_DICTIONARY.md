@@ -608,6 +608,17 @@ Note: Not on any current form: the website's QC scope. Loading-stage photos are 
 
 ## Templates
 
+The tables below are each template as its source documents built it. **Since 26 October 2026 every
+client uses one standard flow** (Kenneth: "all the inspection flow will be standardized", with "the flow
+that I have asked u to tweak as the standard form", the one INS-2026-2210 uses). The STD_EG seed runs
+`SAFEDON_EG`'s flow under STD_EG's identity: SAFEDON_EG's modules, order, wording, config, specs (ASTM
+D6319), defect lists and AQLs, with no client, the STD_EG report's title, no client logo, and the
+header's client row on (`lib/templates/definitions/std-eg.ts`, `definitionWithFlow`). `STD_EG` below is
+the report flow of STD_EG's versions 1 to 4, which the inspections made on them keep
+(`STD_EG_REPORT_SEED`), and the STD_EG example report's fixtures use. `SAFEDON_EG` is retired: the seed
+retires its active version and writes no new one. Its versions stay for the inspections that use them.
+The admin editor's coverage checklist still lists, for STD_EG, the STD_EG report's forms.
+
 <!-- generated:templates -->
 
 ### `STD_EG`: Standard examination gloves (EN 455)

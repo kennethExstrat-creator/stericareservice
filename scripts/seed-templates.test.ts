@@ -33,6 +33,13 @@ const POLYCO = "20000000-0000-4000-8000-000000000001";
 
 const bundle = (): Bundle => parseBundle(BUNDLE_TEXT);
 
+/** The bundle with SAFEDON_EG seeded as it was until 26 October 2026, a child written with its base. */
+function childBundle(): Bundle {
+  const withChild = bundle();
+  delete withChild.templates[1].retired;
+  return withChild;
+}
+
 type Row = VersionRow & { code: string; client_id: string | null };
 
 function fakeDatabase() {
@@ -70,17 +77,17 @@ const DRAFTS: SeedOptions = { ...RUN, drafts: true };
 
 const statuses = (rows: readonly Row[]) => rows.map((row) => `${row.code} v${row.version} ${row.status}`).sort();
 
-/** The bundle with STD_EG renamed: a changed definition. */
+/** The child bundle with STD_EG renamed: a changed definition. */
 function renamed(): Bundle {
-  const changed = bundle();
-  changed.templates[0].definition.name = "Standard examination gloves (EN 455), revised";
+  const changed = childBundle();
+  changed.templates[0].definition.name = "Standard examination gloves (ASTM D6319), revised";
   return changed;
 }
 
 describe("seeding drafts (--drafts)", () => {
   it("adds every template as a draft, SAFEDON_EG for its client and resolved against the STD_EG draft", async () => {
     const { db, rows, writes } = fakeDatabase();
-    const report = await seedTemplates(db, bundle(), DRAFTS);
+    const report = await seedTemplates(db, childBundle(), DRAFTS);
     expect(report.written).toBe(true);
     expect(writes).toEqual(["insert STD_EG v1 draft", "insert SAFEDON_EG v1 draft", "insert STD_SG v1 draft"]);
     expect(statuses(rows)).toEqual(["SAFEDON_EG v1 draft", "STD_EG v1 draft", "STD_SG v1 draft"]);
@@ -96,7 +103,7 @@ describe("seeding drafts (--drafts)", () => {
 
   it("says what a dry run would add, and writes nothing", async () => {
     const { db, writes } = fakeDatabase();
-    const report = await seedTemplates(db, bundle(), { ...DRAFTS, dryRun: true });
+    const report = await seedTemplates(db, childBundle(), { ...DRAFTS, dryRun: true });
     expect(report.written).toBe(false);
     expect(writes).toEqual([]);
     expect(report.outcomes.map((outcome) => describeOutcome(outcome, true))).toEqual([
@@ -108,9 +115,9 @@ describe("seeding drafts (--drafts)", () => {
 
   it("is idempotent: the drafts are kept, so a second run writes nothing", async () => {
     const { db, writes } = fakeDatabase();
-    await seedTemplates(db, bundle(), DRAFTS);
+    await seedTemplates(db, childBundle(), DRAFTS);
     writes.length = 0;
-    const report = await seedTemplates(db, bundle(), DRAFTS);
+    const report = await seedTemplates(db, childBundle(), DRAFTS);
     expect(writes).toEqual([]);
     expect(report.outcomes.map((outcome) => describeOutcome(outcome, false))).toEqual([
       "STD_EG       version 1  unchanged, draft",
@@ -121,11 +128,11 @@ describe("seeding drafts (--drafts)", () => {
 
   it("keeps a version an admin has activated since, and never activates or retires anything", async () => {
     const { db, rows, writes } = fakeDatabase();
-    await seedTemplates(db, bundle(), DRAFTS);
+    await seedTemplates(db, childBundle(), DRAFTS);
     // The admin checked STD_EG and activated it.
     rows.find((row) => row.code === "STD_EG")!.status = "active";
     writes.length = 0;
-    const same = await seedTemplates(db, bundle(), DRAFTS);
+    const same = await seedTemplates(db, childBundle(), DRAFTS);
     expect(writes).toEqual([]);
     expect(describeOutcome(same.outcomes[0], false)).toBe("STD_EG       version 1  unchanged, active");
 
@@ -145,9 +152,22 @@ describe("seeding drafts (--drafts)", () => {
     expect((safedon?.resolved as { bases: unknown }).bases).toEqual([{ code: "STD_EG", version: 2 }]);
   });
 
+  it("leaves a retired template's active version as it is", async () => {
+    const { db, writes } = fakeDatabase();
+    await seedTemplates(db, childBundle(), RUN);
+    writes.length = 0;
+    const report = await seedTemplates(db, bundle(), DRAFTS);
+    expect(writes).toEqual([]);
+    expect(report.outcomes.map((outcome) => describeOutcome(outcome, false))).toEqual([
+      "STD_EG       version 1  unchanged, active",
+      "SAFEDON_EG   version 1  no longer seeded, left active (--drafts retires nothing)",
+      "STD_SG       version 1  unchanged, active",
+    ]);
+  });
+
   it("does not go with --replace", async () => {
     const { db, writes } = fakeDatabase();
-    await expect(seedTemplates(db, bundle(), { ...DRAFTS, replace: true })).rejects.toThrow(
+    await expect(seedTemplates(db, childBundle(), { ...DRAFTS, replace: true })).rejects.toThrow(
       "Use --drafts or --replace, not both: drafts never retire an active version.",
     );
     expect(writes).toEqual([]);

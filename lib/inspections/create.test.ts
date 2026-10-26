@@ -2,8 +2,9 @@ import { describe, expect, it } from "vitest";
 import { lowerCaseWords } from "@/lib/design/capitalisation";
 import type { ModuleKey } from "@/lib/schemas/module-result";
 import type { ResolvedTemplate } from "@/lib/schemas/template";
+import { lookupFrom, resolveTemplateOrThrow } from "@/lib/templates";
 import type { TemplateCandidate } from "@/lib/templates/select";
-import { buildSeedBundle, SEED_TEMPLATES } from "@/lib/templates/definitions";
+import { buildSeedBundle, SEED_TEMPLATES, STD_EG_REPORT_SEED } from "@/lib/templates/definitions";
 import { parseModuleData, readModuleEntry, type InspectionData } from "@/modules/_framework";
 import { TEST_CLIENT_ID, TEST_MANUFACTURER_ID, TEST_REGISTRY } from "@/modules/_framework/__fixtures__/test-registry";
 import { makeTestTemplate } from "@/modules/_framework/testing";
@@ -39,7 +40,6 @@ import {
 } from "./create";
 
 const CLIENT = "20000000-0000-4000-8000-000000000001";
-const OTHER_CLIENT = "20000000-0000-4000-8000-000000000002";
 const MANUFACTURER = "10000000-0000-4000-8000-000000000001";
 const OTHER_MANUFACTURER = "10000000-0000-4000-8000-000000000002";
 
@@ -55,7 +55,12 @@ function parse(values: Record<string, string>) {
 
 /** The seed templates as the real registry resolves them today. */
 const seeds = new Map(buildSeedBundle(SEED_TEMPLATES, MODULE_REGISTRY).templates.map((entry) => [entry.code, entry.resolved]));
-const STD_EG = seeds.get("STD_EG")!;
+/**
+ * STD_EG as versions 1 to 4 have it (its report's flow): a template that
+ * keeps every copied field. The STD_EG seed runs SAFEDON_EG's flow since 26
+ * October 2026.
+ */
+const STD_EG = resolveTemplateOrThrow(STD_EG_REPORT_SEED.definition(), { getBase: lookupFrom([]), registry: MODULE_REGISTRY });
 const STD_SG = seeds.get("STD_SG")!;
 
 /**
@@ -152,13 +157,14 @@ describe("choosing the template (BUILD_SPEC 4.4)", () => {
     candidate("00000000-0000-4000-8000-000000000004", "DRAFT_EG", { status: "draft", clientId: CLIENT }),
     candidate("00000000-0000-4000-8000-000000000005", "OLD_EG", { status: "retired" }),
   ];
-  const picks = { productType: "examination" as const, clientId: CLIENT, manufacturerId: MANUFACTURER, templateId: undefined };
+  const picks = { productType: "examination" as const, templateId: undefined };
 
-  it("takes the most specific active template", () => {
+  // Kenneth, 26 October 2026: "all the inspection flow will be standardized".
+  it("takes the standard template of the product type, for every client: a client's own template never applies", () => {
     const choice = chooseTemplate(candidates, picks, "inspector");
-    expect(choice.ok && [choice.template.code, choice.specificity]).toEqual(["SAFEDON_EG", "client"]);
-    const standard = chooseTemplate(candidates, { ...picks, clientId: OTHER_CLIENT }, "inspector");
-    expect(standard.ok && [standard.template.code, standard.specificity]).toEqual(["STD_EG", "standard"]);
+    expect(choice.ok && [choice.template.code, choice.specificity]).toEqual(["STD_EG", "standard"]);
+    const surgical = chooseTemplate(candidates, { ...picks, productType: "surgical" }, "inspector");
+    expect(surgical.ok && [surgical.template.code, surgical.specificity]).toEqual(["STD_SG", "standard"]);
   });
 
   it("lets only an admin choose, from templates that are not retired and are for the same product", () => {
@@ -185,22 +191,18 @@ describe("choosing the template (BUILD_SPEC 4.4)", () => {
   it("says when no template applies", () => {
     expect(chooseTemplate(candidates.slice(0, 2), { ...picks, productType: "surgical" }, "inspector")).toEqual({
       ok: false,
-      message: "No active template for surgical gloves fits these choices. An admin needs to activate one.",
+      message: "No active template for surgical gloves. An admin needs to activate one.",
     });
+    // SAFEDON_EG, scoped to its client, is no standard template.
+    expect(chooseTemplate(candidates.slice(1, 2), picks, "inspector")).toMatchObject({ ok: false });
   });
 
   it("explains each choice in plain words", () => {
-    const names = { client: "Polyco Healthline", manufacturer: "Hartalega NGC" };
-    expect(choiceReason("client_manufacturer", names, "examination")).toBe("For Polyco Healthline at Hartalega NGC");
-    expect(choiceReason("client", names, "examination")).toBe("For Polyco Healthline");
-    expect(choiceReason("manufacturer", names, "examination")).toBe("For Hartalega NGC");
-    expect(choiceReason("standard", names, "surgical")).toBe("Standard Template for Surgical Gloves");
-    expect(choiceReason("override", names, "examination")).toBe("Chosen by an Admin");
-    // The chip names a missing name in its own Title Case words.
-    const none = { client: null, manufacturer: null };
-    expect(choiceReason("client_manufacturer", none, "examination")).toBe("For This Client at This Manufacturer");
-    for (const specificity of ["client_manufacturer", "client", "manufacturer", "standard", "override"] as const) {
-      expect(lowerCaseWords(choiceReason(specificity, none, "surgical"))).toEqual([]);
+    expect(choiceReason("standard", "surgical")).toBe("Standard Template for Surgical Gloves");
+    expect(choiceReason("standard", "examination")).toBe("Standard Template for Examination Gloves");
+    expect(choiceReason("override", "examination")).toBe("Chosen by an Admin");
+    for (const specificity of ["standard", "override"] as const) {
+      expect(lowerCaseWords(choiceReason(specificity, "surgical"))).toEqual([]);
     }
   });
 });
@@ -390,6 +392,8 @@ describe("start from previous: what is copied", () => {
     });
     expect(copiedFieldsOff(STD_EG)).toEqual({});
     expect([...(copiedFieldsOff(STD_SG).header ?? [])].sort()).toEqual(["client", "factoryAddress", "factoryGloveCode"]);
+    // The standard examination template runs SAFEDON_EG's flow, which has no factory glove code.
+    expect(copiedFieldsOff(seeds.get("STD_EG")!)).toEqual({ header: ["factoryGloveCode"] });
 
     expect(plannedCopy(copies, option(STD_EG)).map(({ key, fields }) => `${key}: ${copiedInWords(key, fields)}`)).toEqual([
       "header: factory address, product name, product code and factory glove code",

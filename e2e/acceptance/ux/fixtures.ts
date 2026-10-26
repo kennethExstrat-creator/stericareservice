@@ -184,6 +184,19 @@ async function activeTemplateId(admin: AdminClient, code: string): Promise<strin
   return data.id;
 }
 
+/** SAFEDON_EG's newest version: retired since 26 October 2026, it stands for the old Safedon inspections. */
+async function newestTemplateId(admin: AdminClient, code: string): Promise<string> {
+  const { data, error } = await admin
+    .from("templates")
+    .select("id")
+    .eq("code", code)
+    .order("version", { ascending: false })
+    .limit(1)
+    .single();
+  if (error) fail(`finding ${code}`, error);
+  return data.id;
+}
+
 type Spec = {
   key: InspectionKey;
   owner: "inspector" | "member";
@@ -286,7 +299,7 @@ export async function createUxFixture(project: string): Promise<UxFixture> {
 
   const [stdEg, safedon, stdSg] = await Promise.all([
     activeTemplateId(admin, "STD_EG"),
-    activeTemplateId(admin, "SAFEDON_EG"),
+    newestTemplateId(admin, "SAFEDON_EG"),
     activeTemplateId(admin, "STD_SG"),
   ]);
   const { data: inspector, error: inspectorError } = await admin

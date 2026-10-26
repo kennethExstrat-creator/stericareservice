@@ -32,7 +32,7 @@ const optionalId = z
   .transform((value) => (value === "" ? undefined : value))
   .pipe(z.uuid().optional());
 
-/** What /inspections/new posts. The client is a deliberate choice: a client's own template must not be missed. */
+/** What /inspections/new posts. The client is a deliberate choice (or No Client): the header names who the report is for. */
 export const NewInspectionInputSchema = z.object({
   clientId: z
     .string()
@@ -97,19 +97,20 @@ export type TemplateChoice =
       ok: true;
       template: TemplateCandidate;
       specificity: Specificity | "override";
-      /** Other active templates just as specific: the tie was broken by code. */
+      /** Other active standard templates for the product type: the tie was broken by code. */
       ties: TemplateCandidate[];
     }
   | { ok: false; message: string; field?: "templateId" };
 
 /**
- * The most specific active template for client, manufacturer and product
- * type; or, for an admin only, the template they chose, which must be for the
- * same product type and not retired.
+ * The standard template for the product type, whoever the inspection is for
+ * (Kenneth, 26 October 2026: one flow for every client); or, for an admin
+ * only, the template they chose, which must be for the same product type and
+ * not retired.
  */
 export function chooseTemplate(
   candidates: readonly TemplateCandidate[],
-  input: Pick<NewInspectionInput, "productType" | "clientId" | "manufacturerId" | "templateId">,
+  input: Pick<NewInspectionInput, "productType" | "templateId">,
   role: "inspector" | "admin",
 ): TemplateChoice {
   if (input.templateId && role !== "admin") {
@@ -117,8 +118,6 @@ export function chooseTemplate(
   }
   const selection = selectTemplate(candidates, {
     productType: input.productType,
-    clientId: input.clientId,
-    manufacturerId: input.manufacturerId,
     overrideTemplateId: input.templateId ?? null,
   });
   if (!selection.ok) {
@@ -126,7 +125,7 @@ export function chooseTemplate(
       ? { ok: false, message: selection.message, field: "templateId" }
       : {
           ok: false,
-          message: `No active template for ${PRODUCT_TYPE_LABEL[input.productType].toLowerCase()} fits these choices. An admin needs to activate one.`,
+          message: `No active template for ${PRODUCT_TYPE_LABEL[input.productType].toLowerCase()}. An admin needs to activate one.`,
         };
   }
   if (selection.template.productType !== input.productType) {
@@ -139,22 +138,9 @@ export function chooseTemplate(
   return { ok: true, template: selection.template, specificity: selection.specificity, ties: selection.ties };
 }
 
-/**
- * Why this template, the chip under it (Title Case): "For Polyco Healthline at
- * Hartalega NGC", "Standard Template for Examination Gloves", "Chosen by an Admin".
- */
-export function choiceReason(
-  specificity: Specificity | "override",
-  names: { client: string | null; manufacturer: string | null },
-  productType: ProductType,
-): string {
+/** Why this template, the chip under it (Title Case): "Standard Template for Examination Gloves", "Chosen by an Admin". */
+export function choiceReason(specificity: Specificity | "override", productType: ProductType): string {
   switch (specificity) {
-    case "client_manufacturer":
-      return `For ${names.client ?? "This Client"} at ${names.manufacturer ?? "This Manufacturer"}`;
-    case "client":
-      return `For ${names.client ?? "This Client"}`;
-    case "manufacturer":
-      return `For ${names.manufacturer ?? "This Manufacturer"}`;
     case "standard":
       return `Standard Template for ${PRODUCT_TYPE_LABEL[productType]}`;
     case "override":

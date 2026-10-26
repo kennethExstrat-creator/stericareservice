@@ -8,10 +8,10 @@
       "client": null,
       "definition": {
         "code": "STD_EG",
-        "name": "Standard examination gloves (EN 455)",
+        "name": "Standard examination gloves (ASTM D6319)",
         "scope": {
           "productType": "examination",
-          "standard": "EN455"
+          "standard": "ASTM_D6319"
         },
         "unit": "pcs",
         "sizes": [
@@ -36,6 +36,10 @@
             "key": "header",
             "include": true,
             "title": "Manufacturer Information",
+            "labels": {
+              "poNo": "PO Number",
+              "productName": "Product Name (Brand & Code)"
+            },
             "config": {
               "fields": {
                 "manufacturer": true,
@@ -44,13 +48,13 @@
                 "productName": true,
                 "productCode": true,
                 "client": true,
-                "factoryGloveCode": true,
+                "factoryGloveCode": false,
                 "inspectionDate": true,
                 "mfgDate": true,
                 "expiryDate": true,
                 "inspector": true
               },
-              "mfgExpiryPrecision": "day"
+              "mfgExpiryPrecision": "month"
             }
           },
           {
@@ -74,7 +78,7 @@
             "title": "Order",
             "config": {
               "fields": {
-                "packingSite": false
+                "packingSite": true
               }
             }
           },
@@ -82,8 +86,12 @@
             "key": "packing_config",
             "include": true,
             "title": "Packing Configuration",
+            "labels": {
+              "glovesPerInner": "# Glove per Plastic Pack",
+              "innersPerCase": "# Packs per Case"
+            },
             "config": {
-              "innerUnit": "inner_box",
+              "innerUnit": "plastic_pack",
               "fields": {
                 "packingMode": true
               }
@@ -93,6 +101,11 @@
             "key": "sampling_plan",
             "include": true,
             "title": "Sampling Plan",
+            "labels": {
+              "innerUnits": "Inner Pack",
+              "glovesPhysical": "# Gloves for Tensile",
+              "innerUnitsDispensing": "# Inner Packs for Packaging & Dispensing Inspection"
+            },
             "config": {
               "columns": {
                 "cases": true,
@@ -101,7 +114,7 @@
                 "glovesWatertightVisual": true,
                 "glovesDimensions": true,
                 "glovesPhysical": true,
-                "glovesWeight": true,
+                "glovesWeight": false,
                 "innerUnitsDispensing": true,
                 "pouches": false,
                 "pouchesDyeLeak": false
@@ -118,35 +131,42 @@
             "key": "dimensions",
             "include": true,
             "title": "Dimension",
+            "labels": {
+              "statistic": "Average",
+              "measureResult": "A / Rej.",
+              "pass": "A",
+              "fail": "Rej."
+            },
             "config": {
               "measures": [
                 "length",
                 "width",
                 "fingerThickness",
-                "palmThickness",
-                "cuffThickness"
+                "palmThickness"
               ],
-              "statistic": "median",
+              "statistic": "average",
               "specs": [
                 {
                   "size": "XS",
                   "specs": {
                     "length": {
                       "kind": "min",
-                      "min": 240
+                      "min": 230
                     },
                     "width": {
-                      "kind": "max",
-                      "max": 80
+                      "kind": "tolerance",
+                      "nominal": 76,
+                      "tolerance": 4
                     },
                     "fingerThickness": {
-                      "kind": "na"
+                      "kind": "tolerance",
+                      "nominal": 0.18,
+                      "tolerance": 0.04
                     },
                     "palmThickness": {
-                      "kind": "na"
-                    },
-                    "cuffThickness": {
-                      "kind": "na"
+                      "kind": "tolerance",
+                      "nominal": 0.14,
+                      "tolerance": 0.04
                     }
                   }
                 },
@@ -155,21 +175,22 @@
                   "specs": {
                     "length": {
                       "kind": "min",
-                      "min": 240
+                      "min": 230
                     },
                     "width": {
                       "kind": "tolerance",
-                      "nominal": 80,
-                      "tolerance": 10
+                      "nominal": 86,
+                      "tolerance": 4
                     },
                     "fingerThickness": {
-                      "kind": "na"
+                      "kind": "tolerance",
+                      "nominal": 0.18,
+                      "tolerance": 0.04
                     },
                     "palmThickness": {
-                      "kind": "na"
-                    },
-                    "cuffThickness": {
-                      "kind": "na"
+                      "kind": "tolerance",
+                      "nominal": 0.14,
+                      "tolerance": 0.04
                     }
                   }
                 },
@@ -178,21 +199,22 @@
                   "specs": {
                     "length": {
                       "kind": "min",
-                      "min": 240
+                      "min": 230
                     },
                     "width": {
                       "kind": "tolerance",
-                      "nominal": 95,
-                      "tolerance": 10
+                      "nominal": 98,
+                      "tolerance": 4
                     },
                     "fingerThickness": {
-                      "kind": "na"
+                      "kind": "tolerance",
+                      "nominal": 0.18,
+                      "tolerance": 0.04
                     },
                     "palmThickness": {
-                      "kind": "na"
-                    },
-                    "cuffThickness": {
-                      "kind": "na"
+                      "kind": "tolerance",
+                      "nominal": 0.14,
+                      "tolerance": 0.04
                     }
                   }
                 },
@@ -201,43 +223,22 @@
                   "specs": {
                     "length": {
                       "kind": "min",
-                      "min": 240
+                      "min": 230
                     },
                     "width": {
                       "kind": "tolerance",
-                      "nominal": 110,
-                      "tolerance": 10
+                      "nominal": 107,
+                      "tolerance": 4
                     },
                     "fingerThickness": {
-                      "kind": "na"
+                      "kind": "tolerance",
+                      "nominal": 0.18,
+                      "tolerance": 0.04
                     },
                     "palmThickness": {
-                      "kind": "na"
-                    },
-                    "cuffThickness": {
-                      "kind": "na"
-                    }
-                  }
-                },
-                {
-                  "size": "XL",
-                  "specs": {
-                    "length": {
-                      "kind": "min",
-                      "min": 240
-                    },
-                    "width": {
-                      "kind": "min",
-                      "min": 110
-                    },
-                    "fingerThickness": {
-                      "kind": "na"
-                    },
-                    "palmThickness": {
-                      "kind": "na"
-                    },
-                    "cuffThickness": {
-                      "kind": "na"
+                      "kind": "tolerance",
+                      "nominal": 0.14,
+                      "tolerance": 0.04
                     }
                   }
                 }
@@ -253,23 +254,57 @@
             }
           },
           {
-            "key": "force_at_break",
+            "key": "tensile",
             "include": true,
-            "title": "Force at Break in Newton (Refer to Attached Where Applicable)",
+            "title": "Physical Properties Average (Refer to Attached Lab. Reports)",
             "config": {
-              "n": 13,
-              "specMin": 6,
-              "standardLabel": null,
-              "decimals": 3
+              "tensileMin": 14,
+              "elongationMin": 500,
+              "standardLabel": "ASTM D6319",
+              "decimals": {
+                "tensileStrength": 2,
+                "elongationAtBreak": 0
+              }
             }
           },
           {
             "key": "weight",
             "include": true,
-            "title": "Weight (g) - Average of 13 Gloves per Size",
+            "title": "Weight (g)",
+            "labels": {
+              "result": "A / Rej.",
+              "info": "A",
+              "pass": "A",
+              "fail": "Rej."
+            },
             "config": {
-              "n": 13,
-              "specs": [],
+              "n": 1,
+              "specs": [
+                {
+                  "size": "XS",
+                  "spec": {
+                    "kind": "na"
+                  }
+                },
+                {
+                  "size": "S",
+                  "spec": {
+                    "kind": "na"
+                  }
+                },
+                {
+                  "size": "M",
+                  "spec": {
+                    "kind": "na"
+                  }
+                },
+                {
+                  "size": "L",
+                  "spec": {
+                    "kind": "na"
+                  }
+                }
+              ],
               "warnThresholdPct": 10,
               "decimals": 2
             }
@@ -278,24 +313,32 @@
             "key": "watertight",
             "include": true,
             "title": "Freedom From Holes by Watertight Test",
+            "labels": {
+              "holes": "Holes",
+              "heading": "Freedom From Holes by Watertight Test (Sampling Code Letter {codeLetters}; AQL={aql})"
+            },
             "config": {
               "aql": 1.5,
               "locations": [
                 {
                   "code": "hole_crotch",
-                  "label": "Between Fingers (Crotch)"
+                  "label": "Between Fingers"
                 },
                 {
                   "code": "hole_palm",
                   "label": "Palm"
                 },
                 {
+                  "code": "hole_cuff",
+                  "label": "Cuff"
+                },
+                {
                   "code": "hole_finger",
                   "label": "Finger"
                 },
                 {
-                  "code": "hole_cuff",
-                  "label": "Cuff"
+                  "code": "glove_burst",
+                  "label": "Glove Burst"
                 },
                 {
                   "code": "hole_other",
@@ -309,6 +352,12 @@
             "key": "visual",
             "include": true,
             "title": "Visual Inspection",
+            "labels": {
+              "criticalAccept": "Accept",
+              "criticalReject": "Reject",
+              "heading": "Visual Inspection (Sampling Code Letter {codeLetters})",
+              "criticalLimit": "Defect Limit"
+            },
             "config": {
               "handSplit": false,
               "classes": {
@@ -331,20 +380,20 @@
                   "aql": 2.5,
                   "defects": [
                     {
+                      "code": "thin_crotch_ring",
+                      "label": "Thin Ring Between Fingers (Crotch)"
+                    },
+                    {
                       "code": "thin_crotch_area",
                       "label": "Thin Area Between Fingers (Crotch)"
                     },
                     {
-                      "code": "thin_crotch_ring",
-                      "label": "Ring-Shaped Thin Area (Crotch)"
-                    },
-                    {
                       "code": "thin_body_area",
-                      "label": "Thin Area on Glove Body"
+                      "label": "Thin Patch / Area (Body)"
                     },
                     {
                       "code": "thin_spot",
-                      "label": "Thin Spot on Glove Body"
+                      "label": "Thin Spot"
                     },
                     {
                       "code": "dirt_nonremovable",
@@ -352,19 +401,15 @@
                     },
                     {
                       "code": "stain",
-                      "label": "Oil Stain"
+                      "label": "Stain"
                     },
                     {
-                      "code": "foreign_matter",
-                      "label": "Residue Material / Foreign Matter"
+                      "code": "powder_mark",
+                      "label": "Powder Mark"
                     },
                     {
-                      "code": "bead_defective",
-                      "label": "Defective Bead"
-                    },
-                    {
-                      "code": "lump_big",
-                      "label": "Big Lumps (>2mm)"
+                      "code": "bead_blister",
+                      "label": "Bead Blister"
                     },
                     {
                       "code": "skin_visual",
@@ -393,16 +438,12 @@
                       "label": "Lumps (<2mm)"
                     },
                     {
-                      "code": "bead_poor",
-                      "label": "Poor Beading"
+                      "code": "bead_thin",
+                      "label": "Thin Bead"
                     },
                     {
-                      "code": "bead_rolled",
-                      "label": "Rolled Bead"
-                    },
-                    {
-                      "code": "bead_defective",
-                      "label": "Defective Beads"
+                      "code": "bead_small_defect",
+                      "label": "Thin Bead / Small Beading Defect"
                     }
                   ]
                 }
@@ -410,44 +451,46 @@
             }
           },
           {
-            "key": "dispensing_packing",
+            "key": "dispensing_safedon",
             "include": true,
-            "title": "Glove Packing Check",
+            "title": "Glove Dispensing Inspection",
             "config": {
-              "minLayeringPct": 70,
-              "minDispensingPct": 80,
-              "stickinessCodes": [
+              "defects": [
                 {
-                  "code": "A",
-                  "label": "Non sticky",
-                  "pass": true
+                  "code": "no_cuff",
+                  "label": "No Cuff",
+                  "hint": "Cuff should ideally be at least 2 cm out"
                 },
                 {
-                  "code": "B",
-                  "label": "A mix of non sticky to lightly sticky",
-                  "pass": true
+                  "code": "finger_out",
+                  "label": "Finger Out",
+                  "hint": "Only the cuff, not a finger, should come out first"
                 },
                 {
-                  "code": "B1",
-                  "label": "A mix of non sticky to light stickiness at the bead",
-                  "pass": true
+                  "code": "multiple_out",
+                  "label": "Multiple Gloves Out",
+                  "hint": "Only one glove should come out at a time"
                 },
                 {
-                  "code": "C",
-                  "label": "Lightly sticky but dispensable",
-                  "pass": true
+                  "code": "stuck",
+                  "label": "Glove Stuck",
+                  "hint": "Glove could not be dispensed or was very difficult to dispense"
                 },
                 {
-                  "code": "D",
-                  "label": "Too sticky & affect dispensing",
-                  "pass": false
+                  "code": "sticky",
+                  "label": "Sticky Glove",
+                  "hint": "Two or more gloves out at once because they stick together"
+                },
+                {
+                  "code": "faulty_cuff",
+                  "label": "Faulty Cuff",
+                  "hint": "Deformed or misshapen cuff causing a dispensing problem"
                 }
               ],
+              "glovesPerPack": 125,
+              "maxRatePct": 5,
               "boxesPerSize": {
-                "default": 13,
-                "bySize": {
-                  "XL": 5
-                }
+                "default": 13
               }
             }
           },
@@ -455,6 +498,15 @@
             "key": "labeling",
             "include": true,
             "title": "Packaging Labeling Inspection",
+            "labels": {
+              "innerAccept": "Acc. =",
+              "cartonAccept": "Acc. =",
+              "innerReject": "Rej. =",
+              "cartonReject": "Rej. =",
+              "innerLevel": "Inner Boxes/Packs",
+              "cartonLevel": "Carton Boxes",
+              "defectLimit": "Limit : Accept / Reject"
+            },
             "config": {
               "levels": {
                 "inner": {
@@ -468,6 +520,10 @@
                     {
                       "code": "mfg_date",
                       "label": "Wrong / No Mfg. Date"
+                    },
+                    {
+                      "code": "expiry_date",
+                      "label": "Wrong / No Expiry Date"
                     },
                     {
                       "code": "artwork",
@@ -488,12 +544,16 @@
                       "label": "Wrong / No Mfg. Date"
                     },
                     {
+                      "code": "expiry_date",
+                      "label": "Wrong / No Expiry Date"
+                    },
+                    {
                       "code": "artwork",
                       "label": "Wrong Artwork Print"
                     },
                     {
                       "code": "carton_no",
-                      "label": "No Box/Carton # Printed"
+                      "label": "No Box/Carton #"
                     }
                   ]
                 }
@@ -506,6 +566,28 @@
             "title": "Conclusion"
           }
         ],
+        "customModules": [
+          {
+            "key": "safedon_dispensing_notes",
+            "title": "Glove Dispensing Inspection: Onsite Notes",
+            "after": "dispensing_safedon",
+            "layout": "table",
+            "fields": [
+              {
+                "key": "specRequirement",
+                "label": "Specification / Requirement",
+                "type": "text",
+                "hint": "As written on the onsite sheet for the size. The app judges the rate against the template's maximum."
+              },
+              {
+                "key": "conclusion",
+                "label": "Conclusion",
+                "type": "text",
+                "hint": "As written on the onsite sheet for the size. The app computes Passed or Failed from the rate."
+              }
+            ]
+          }
+        ],
         "report": {
           "title": "Preshipment Inspection: Nitrile Disposable Examination Gloves",
           "showClientLogo": false
@@ -514,14 +596,14 @@
       "resolved": {
         "format": 2,
         "code": "STD_EG",
-        "name": "Standard examination gloves (EN 455)",
+        "name": "Standard examination gloves (ASTM D6319)",
         "chain": [
           "STD_EG"
         ],
         "bases": [],
         "scope": {
           "productType": "examination",
-          "standard": "EN455"
+          "standard": "ASTM_D6319"
         },
         "unit": "pcs",
         "sizes": [
@@ -554,8 +636,8 @@
             "labels": {
               "manufacturer": "Manufacturer / Supplier",
               "factoryAddress": "Supplier Factory Address / Location",
-              "poNo": "PO / SO Number",
-              "productName": "Product Name (Brand, Code & Description)",
+              "poNo": "PO Number",
+              "productName": "Product Name (Brand & Code)",
               "productCode": "Product Code",
               "client": "Client Name",
               "factoryGloveCode": "Factory Glove Code",
@@ -572,13 +654,13 @@
                 "productName": true,
                 "productCode": true,
                 "client": true,
-                "factoryGloveCode": true,
+                "factoryGloveCode": false,
                 "inspectionDate": true,
                 "mfgDate": true,
                 "expiryDate": true,
                 "inspector": true
               },
-              "mfgExpiryPrecision": "day"
+              "mfgExpiryPrecision": "month"
             }
           },
           {
@@ -618,7 +700,7 @@
             },
             "config": {
               "fields": {
-                "packingSite": false
+                "packingSite": true
               }
             }
           },
@@ -627,14 +709,14 @@
             "include": true,
             "title": "Packing Configuration",
             "labels": {
-              "glovesPerInner": "# Glove per Inner Box",
-              "innersPerCase": "# Inners per Case",
+              "glovesPerInner": "# Glove per Plastic Pack",
+              "innersPerCase": "# Packs per Case",
               "glovesPerCase": "# Gloves per Case",
               "packingMode": "Packing Mode",
               "glovesPerCaseCheck": "Gloves per Case (Inner × per Case)"
             },
             "config": {
-              "innerUnit": "inner_box",
+              "innerUnit": "plastic_pack",
               "fields": {
                 "packingMode": true
               }
@@ -646,13 +728,13 @@
             "title": "Sampling Plan",
             "labels": {
               "cases": "Case",
-              "innerUnits": "Inner Box",
+              "innerUnits": "Inner Pack",
               "gloves": "Gloves",
               "glovesWatertightVisual": "# Gloves for Watertight & Visual",
               "glovesDimensions": "# Gloves for Dimension",
-              "glovesPhysical": "# Gloves for FAB",
+              "glovesPhysical": "# Gloves for Tensile",
               "glovesWeight": "# Gloves for Weight",
-              "innerUnitsDispensing": "# Inner Box for Packaging & Dispensing Inspection",
+              "innerUnitsDispensing": "# Inner Packs for Packaging & Dispensing Inspection",
               "pouches": "Pouches",
               "pouchesDyeLeak": "# Pouches (Dye Leak Test)",
               "codeLetter": "Code Letter",
@@ -672,7 +754,7 @@
                 "glovesWatertightVisual": true,
                 "glovesDimensions": true,
                 "glovesPhysical": true,
-                "glovesWeight": true,
+                "glovesWeight": false,
                 "innerUnitsDispensing": true,
                 "pouches": false,
                 "pouchesDyeLeak": false
@@ -701,43 +783,44 @@
               "fingerThickness": "Finger Thickness",
               "palmThickness": "Palm Thickness",
               "cuffThickness": "Cuff Thickness",
-              "statistic": "Median",
-              "measureResult": "P/F *",
+              "statistic": "Average",
+              "measureResult": "A / Rej.",
               "sizeHeading": "Dimension - Size {size}",
               "rowNo": "No.",
               "specRow": "Spec.",
-              "pass": "Passed",
-              "fail": "Failed"
+              "pass": "A",
+              "fail": "Rej."
             },
             "config": {
               "measures": [
                 "length",
                 "width",
                 "fingerThickness",
-                "palmThickness",
-                "cuffThickness"
+                "palmThickness"
               ],
-              "statistic": "median",
+              "statistic": "average",
               "specs": [
                 {
                   "size": "XS",
                   "specs": {
                     "length": {
                       "kind": "min",
-                      "min": 240
+                      "min": 230
                     },
                     "width": {
-                      "kind": "max",
-                      "max": 80
+                      "kind": "tolerance",
+                      "nominal": 76,
+                      "tolerance": 4
                     },
                     "fingerThickness": {
-                      "kind": "na"
+                      "kind": "tolerance",
+                      "nominal": 0.18,
+                      "tolerance": 0.04
                     },
                     "palmThickness": {
-                      "kind": "na"
-                    },
-                    "cuffThickness": {
-                      "kind": "na"
+                      "kind": "tolerance",
+                      "nominal": 0.14,
+                      "tolerance": 0.04
                     }
                   }
                 },
@@ -746,21 +829,22 @@
                   "specs": {
                     "length": {
                       "kind": "min",
-                      "min": 240
+                      "min": 230
                     },
                     "width": {
                       "kind": "tolerance",
-                      "nominal": 80,
-                      "tolerance": 10
+                      "nominal": 86,
+                      "tolerance": 4
                     },
                     "fingerThickness": {
-                      "kind": "na"
+                      "kind": "tolerance",
+                      "nominal": 0.18,
+                      "tolerance": 0.04
                     },
                     "palmThickness": {
-                      "kind": "na"
-                    },
-                    "cuffThickness": {
-                      "kind": "na"
+                      "kind": "tolerance",
+                      "nominal": 0.14,
+                      "tolerance": 0.04
                     }
                   }
                 },
@@ -769,21 +853,22 @@
                   "specs": {
                     "length": {
                       "kind": "min",
-                      "min": 240
+                      "min": 230
                     },
                     "width": {
                       "kind": "tolerance",
-                      "nominal": 95,
-                      "tolerance": 10
+                      "nominal": 98,
+                      "tolerance": 4
                     },
                     "fingerThickness": {
-                      "kind": "na"
+                      "kind": "tolerance",
+                      "nominal": 0.18,
+                      "tolerance": 0.04
                     },
                     "palmThickness": {
-                      "kind": "na"
-                    },
-                    "cuffThickness": {
-                      "kind": "na"
+                      "kind": "tolerance",
+                      "nominal": 0.14,
+                      "tolerance": 0.04
                     }
                   }
                 },
@@ -792,43 +877,22 @@
                   "specs": {
                     "length": {
                       "kind": "min",
-                      "min": 240
+                      "min": 230
                     },
                     "width": {
                       "kind": "tolerance",
-                      "nominal": 110,
-                      "tolerance": 10
+                      "nominal": 107,
+                      "tolerance": 4
                     },
                     "fingerThickness": {
-                      "kind": "na"
+                      "kind": "tolerance",
+                      "nominal": 0.18,
+                      "tolerance": 0.04
                     },
                     "palmThickness": {
-                      "kind": "na"
-                    },
-                    "cuffThickness": {
-                      "kind": "na"
-                    }
-                  }
-                },
-                {
-                  "size": "XL",
-                  "specs": {
-                    "length": {
-                      "kind": "min",
-                      "min": 240
-                    },
-                    "width": {
-                      "kind": "min",
-                      "min": 110
-                    },
-                    "fingerThickness": {
-                      "kind": "na"
-                    },
-                    "palmThickness": {
-                      "kind": "na"
-                    },
-                    "cuffThickness": {
-                      "kind": "na"
+                      "kind": "tolerance",
+                      "nominal": 0.14,
+                      "tolerance": 0.04
                     }
                   }
                 }
@@ -844,42 +908,70 @@
             }
           },
           {
-            "key": "force_at_break",
+            "key": "tensile",
             "include": true,
-            "title": "Force at Break in Newton (Refer to Attached Where Applicable)",
+            "title": "Physical Properties Average (Refer to Attached Lab. Reports)",
             "labels": {
-              "values": "Force at Break (N)",
+              "tensileStrength": "Tensile Strength (Average) (MPa)",
+              "elongationAtBreak": "Elongation at Break, Average (%)",
               "labReport": "Lab Report",
-              "median": "Median",
-              "result": "Passed / Failed",
-              "rowNo": "No.",
-              "specRow": "Spec."
+              "tensileResult": "Passed / Failed",
+              "elongationResult": "Passed / Failed",
+              "specRow": "Spec. ({standardLabel})"
             },
             "config": {
-              "n": 13,
-              "specMin": 6,
-              "standardLabel": null,
-              "decimals": 3
+              "tensileMin": 14,
+              "elongationMin": 500,
+              "standardLabel": "ASTM D6319",
+              "decimals": {
+                "tensileStrength": 2,
+                "elongationAtBreak": 0
+              }
             }
           },
           {
             "key": "weight",
             "include": true,
-            "title": "Weight (g) - Average of 13 Gloves per Size",
+            "title": "Weight (g)",
             "labels": {
               "values": "Weight (g)",
               "average": "Average",
               "deviationPct": "Deviation From Indicative Weight",
-              "result": "Remark",
-              "info": "Info",
+              "result": "A / Rej.",
+              "info": "A",
               "rowNo": "No.",
               "specRow": "Spec.",
-              "pass": "Passed",
-              "fail": "Failed"
+              "pass": "A",
+              "fail": "Rej."
             },
             "config": {
-              "n": 13,
-              "specs": [],
+              "n": 1,
+              "specs": [
+                {
+                  "size": "XS",
+                  "spec": {
+                    "kind": "na"
+                  }
+                },
+                {
+                  "size": "S",
+                  "spec": {
+                    "kind": "na"
+                  }
+                },
+                {
+                  "size": "M",
+                  "spec": {
+                    "kind": "na"
+                  }
+                },
+                {
+                  "size": "L",
+                  "spec": {
+                    "kind": "na"
+                  }
+                }
+              ],
               "warnThresholdPct": 10,
               "decimals": 2
             }
@@ -890,7 +982,7 @@
             "title": "Freedom From Holes by Watertight Test",
             "labels": {
               "tested": "No. of Sample Tested",
-              "holes": "Pin Hole",
+              "holes": "Holes",
               "otherDescription": "Other : Description",
               "unmapped": "Defect Not in the List",
               "codeLetter": "Sampling Code Letter",
@@ -898,7 +990,7 @@
               "reject": "Reject",
               "totalDefects": "Total Number of Defects Found",
               "result": "Freedom From Holes (Passed / Failed)",
-              "heading": "Freedom From Holes by Watertight Test (Single Sampling Code Letter {codeLetters}, AQL {aql})",
+              "heading": "Freedom From Holes by Watertight Test (Sampling Code Letter {codeLetters}; AQL={aql})",
               "defectLimit": "Defect Limit"
             },
             "config": {
@@ -906,19 +998,23 @@
               "locations": [
                 {
                   "code": "hole_crotch",
-                  "label": "Between Fingers (Crotch)"
+                  "label": "Between Fingers"
                 },
                 {
                   "code": "hole_palm",
                   "label": "Palm"
                 },
                 {
+                  "code": "hole_cuff",
+                  "label": "Cuff"
+                },
+                {
                   "code": "hole_finger",
                   "label": "Finger"
                 },
                 {
-                  "code": "hole_cuff",
-                  "label": "Cuff"
+                  "code": "glove_burst",
+                  "label": "Glove Burst"
                 },
                 {
                   "code": "hole_other",
@@ -941,9 +1037,9 @@
               "unmapped": "Defect Not in the List",
               "codeLetter": "Sampling Code Letter",
               "accept": "Accept",
-              "criticalAccept": "Acc. =",
+              "criticalAccept": "Accept",
               "reject": "Reject",
-              "criticalReject": "Rej. =",
+              "criticalReject": "Reject",
               "total": "Total Number of Defects Found",
               "criticalTotal": "Total Number of \"Critical Defects\" Found",
               "majorTotal": "Total Number of \"Major Defects\" Found",
@@ -952,11 +1048,11 @@
               "criticalResult": "Disposition - Visual Critical (Passed / Failed)",
               "majorResult": "Disposition - Visual Major (Passed / Failed)",
               "minorResult": "Disposition - Visual Minor (Passed / Failed)",
-              "heading": "Visual Inspection (Single Sampling Code Letter {codeLetters})",
+              "heading": "Visual Inspection (Sampling Code Letter {codeLetters})",
               "criticalHeading": "Critical Defects (AQL {aql})",
               "majorHeading": "Major Defects (AQL {aql})",
               "minorHeading": "Minor Defects (AQL {aql})",
-              "criticalLimit": "Defect Limit : Accept / Reject",
+              "criticalLimit": "Defect Limit",
               "defectLimit": "Defect Limit"
             },
             "config": {
@@ -981,20 +1077,20 @@
                   "aql": 2.5,
                   "defects": [
                     {
+                      "code": "thin_crotch_ring",
+                      "label": "Thin Ring Between Fingers (Crotch)"
+                    },
+                    {
                       "code": "thin_crotch_area",
                       "label": "Thin Area Between Fingers (Crotch)"
                     },
                     {
-                      "code": "thin_crotch_ring",
-                      "label": "Ring-Shaped Thin Area (Crotch)"
-                    },
-                    {
                       "code": "thin_body_area",
-                      "label": "Thin Area on Glove Body"
+                      "label": "Thin Patch / Area (Body)"
                     },
                     {
                       "code": "thin_spot",
-                      "label": "Thin Spot on Glove Body"
+                      "label": "Thin Spot"
                     },
                     {
                       "code": "dirt_nonremovable",
@@ -1002,19 +1098,15 @@
                     },
                     {
                       "code": "stain",
-                      "label": "Oil Stain"
+                      "label": "Stain"
                     },
                     {
-                      "code": "foreign_matter",
-                      "label": "Residue Material / Foreign Matter"
+                      "code": "powder_mark",
+                      "label": "Powder Mark"
                     },
                     {
-                      "code": "bead_defective",
-                      "label": "Defective Bead"
-                    },
-                    {
-                      "code": "lump_big",
-                      "label": "Big Lumps (>2mm)"
+                      "code": "bead_blister",
+                      "label": "Bead Blister"
                     },
                     {
                       "code": "skin_visual",
@@ -1043,16 +1135,12 @@
                       "label": "Lumps (<2mm)"
                     },
                     {
-                      "code": "bead_poor",
-                      "label": "Poor Beading"
+                      "code": "bead_thin",
+                      "label": "Thin Bead"
                     },
                     {
-                      "code": "bead_rolled",
-                      "label": "Rolled Bead"
-                    },
-                    {
-                      "code": "bead_defective",
-                      "label": "Defective Beads"
+                      "code": "bead_small_defect",
+                      "label": "Thin Bead / Small Beading Defect"
                     }
                   ]
                 }
@@ -1060,61 +1148,62 @@
             }
           },
           {
-            "key": "dispensing_packing",
+            "key": "dispensing_safedon",
             "include": true,
-            "title": "Glove Packing Check",
+            "title": "Glove Dispensing Inspection",
             "labels": {
               "boxNo": "Box/Carton #",
-              "layeringPct": "Layering %",
-              "dispensingPct": "Dispensing %",
-              "stickiness": "Stickiness **",
-              "note": "Others:",
+              "counts": "Safedon Packing Defects",
               "codeLetter": "Sampling Code Letter",
-              "layeringAverage": "Average",
-              "dispensingAverage": "Average",
-              "stickinessSummary": "Average",
-              "layeringResult": "Passed / Failed",
-              "dispensingResult": "Passed / Failed",
-              "stickinessResult": "Passed / Failed",
-              "heading": "Glove Packing Check (Sampling Code Letter {codeLetters}) : Min. {minLayeringPct}% Layering & {minDispensingPct}% Dispensing",
-              "itemColumn": "Item",
-              "stickinessLegend": "**Glove Stickiness Code"
+              "boxDefects": "Defects / Gloves per Pack",
+              "boxRatePct": "Defect Rate",
+              "boxesTested": "Boxes Tested",
+              "boxesFailed": "Boxes Failed",
+              "totalDefects": "Total",
+              "glovesInspected": "Gloves Inspected",
+              "ratePct": "Defect Rate (%)",
+              "result": "Conclusion",
+              "heading": "Glove Dispensing Inspection (Sampling Code Letter {codeLetters})",
+              "totalGroup": "Total",
+              "specRow": "Specification / Requirement"
             },
             "config": {
-              "minLayeringPct": 70,
-              "minDispensingPct": 80,
-              "stickinessCodes": [
+              "defects": [
                 {
-                  "code": "A",
-                  "label": "Non sticky",
-                  "pass": true
+                  "code": "no_cuff",
+                  "label": "No Cuff",
+                  "hint": "Cuff should ideally be at least 2 cm out"
                 },
                 {
-                  "code": "B",
-                  "label": "A mix of non sticky to lightly sticky",
-                  "pass": true
+                  "code": "finger_out",
+                  "label": "Finger Out",
+                  "hint": "Only the cuff, not a finger, should come out first"
                 },
                 {
-                  "code": "B1",
-                  "label": "A mix of non sticky to light stickiness at the bead",
-                  "pass": true
+                  "code": "multiple_out",
+                  "label": "Multiple Gloves Out",
+                  "hint": "Only one glove should come out at a time"
                 },
                 {
-                  "code": "C",
-                  "label": "Lightly sticky but dispensable",
-                  "pass": true
+                  "code": "stuck",
+                  "label": "Glove Stuck",
+                  "hint": "Glove could not be dispensed or was very difficult to dispense"
                 },
                 {
-                  "code": "D",
-                  "label": "Too sticky & affect dispensing",
-                  "pass": false
+                  "code": "sticky",
+                  "label": "Sticky Glove",
+                  "hint": "Two or more gloves out at once because they stick together"
+                },
+                {
+                  "code": "faulty_cuff",
+                  "label": "Faulty Cuff",
+                  "hint": "Deformed or misshapen cuff causing a dispensing problem"
                 }
               ],
+              "glovesPerPack": 125,
+              "maxRatePct": 5,
               "boxesPerSize": {
-                "default": 13,
-                "bySize": {
-                  "XL": 5
-                }
+                "default": 13
               }
             }
           },
@@ -1127,18 +1216,18 @@
               "boxNos": "Box/Carton #",
               "defects": "Defects",
               "accept": "Accept",
-              "innerAccept": "Accept",
-              "cartonAccept": "Accept",
+              "innerAccept": "Acc. =",
+              "cartonAccept": "Acc. =",
               "reject": "Reject",
-              "innerReject": "Reject",
-              "cartonReject": "Reject",
+              "innerReject": "Rej. =",
+              "cartonReject": "Rej. =",
               "total": "Total Number of Defects Found",
               "result": "Disposition (Passed / Failed)",
               "innerResult": "Disposition - Inner Box (Passed / Failed)",
               "cartonResult": "Disposition - Carton Box (Passed / Failed)",
-              "innerLevel": "Dispenser Box",
-              "cartonLevel": "Carton Box",
-              "defectLimit": "Defect Limit"
+              "innerLevel": "Inner Boxes/Packs",
+              "cartonLevel": "Carton Boxes",
+              "defectLimit": "Limit : Accept / Reject"
             },
             "config": {
               "levels": {
@@ -1153,6 +1242,10 @@
                     {
                       "code": "mfg_date",
                       "label": "Wrong / No Mfg. Date"
+                    },
+                    {
+                      "code": "expiry_date",
+                      "label": "Wrong / No Expiry Date"
                     },
                     {
                       "code": "artwork",
@@ -1173,12 +1266,16 @@
                       "label": "Wrong / No Mfg. Date"
                     },
                     {
+                      "code": "expiry_date",
+                      "label": "Wrong / No Expiry Date"
+                    },
+                    {
                       "code": "artwork",
                       "label": "Wrong Artwork Print"
                     },
                     {
                       "code": "carton_no",
-                      "label": "No Box/Carton # Printed"
+                      "label": "No Box/Carton #"
                     }
                   ]
                 }
@@ -1205,7 +1302,28 @@
             "config": {}
           }
         ],
-        "customModules": [],
+        "customModules": [
+          {
+            "key": "safedon_dispensing_notes",
+            "title": "Glove Dispensing Inspection: Onsite Notes",
+            "after": "dispensing_safedon",
+            "layout": "table",
+            "fields": [
+              {
+                "key": "specRequirement",
+                "label": "Specification / Requirement",
+                "type": "text",
+                "hint": "As written on the onsite sheet for the size. The app judges the rate against the template's maximum."
+              },
+              {
+                "key": "conclusion",
+                "label": "Conclusion",
+                "type": "text",
+                "hint": "As written on the onsite sheet for the size. The app computes Passed or Failed from the rate."
+              }
+            ]
+          }
+        ],
         "report": {
           "title": "Preshipment Inspection: Nitrile Disposable Examination Gloves",
           "showClientLogo": false
@@ -1216,6 +1334,7 @@
     {
       "code": "SAFEDON_EG",
       "client": "Polyco Healthline",
+      "retired": true,
       "definition": {
         "code": "SAFEDON_EG",
         "name": "Safedon examination gloves (ASTM D6319)",
@@ -2413,10 +2532,7 @@
                 }
               ],
               "boxesPerSize": {
-                "default": 13,
-                "bySize": {
-                  "XL": 5
-                }
+                "default": 13
               }
             }
           },

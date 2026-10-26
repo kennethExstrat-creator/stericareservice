@@ -1,7 +1,9 @@
 // The seed templates against the data dictionary (lib/coverage, the source of
 // truth) and against the real module registry. Every module the seeds switch
 // on is built, so each seed's config is checked by that module's real schema;
-// a placeholder (which takes any config) fails these tests.
+// a placeholder (which takes any config) fails these tests. Each seed is
+// checked against the dictionary entry of its flow: STD_EG runs SAFEDON_EG's
+// since 26 October 2026, under its own identity.
 import { describe, expect, it } from "vitest";
 import {
   labelOverrides,
@@ -13,11 +15,13 @@ import {
   writtenConfig,
   type TemplateCode,
 } from "@/lib/coverage";
+import type { ModuleKey } from "@/lib/schemas/module-result";
 import { ResolvedTemplateSchema, TemplateDefinitionSchema, type ResolvedTemplate } from "@/lib/schemas/template";
 import {
   customShortTitle,
   lookupFrom,
   resolveTemplate,
+  resolveTemplateOrThrow,
   selectTemplate,
   SHORT_TITLE_MAX,
   shortTitleFor,
@@ -31,13 +35,15 @@ import {
   SAFEDON_EG_CLIENT,
   SAFEDON_EG_SEED,
   SEED_TEMPLATES,
+  STD_EG_IDENTITY,
+  STD_EG_REPORT_SEED,
   STD_EG_SEED,
   STD_SG_SEED,
+  type SeedTemplate,
 } from ".";
 
 /** A placeholder client id: the seed looks up the real one by name. */
 const CLIENT_ID = "00000000-0000-4000-8000-0000000000c1";
-const MANUFACTURER_ID = "00000000-0000-4000-8000-0000000000d1";
 
 function definitions() {
   return SEED_TEMPLATES.map((seed) => seed.definition(seed.client === null ? undefined : CLIENT_ID));
@@ -68,15 +74,38 @@ function included(template: ResolvedTemplate) {
   return template.modules.filter((entry) => entry.include);
 }
 
+/** STD_EG as versions 1 to 4 have it: its report's flow, resolved on its own. */
+function reportStdEg(): ResolvedTemplate {
+  return resolveTemplateOrThrow(STD_EG_REPORT_SEED.definition(), { getBase: lookupFrom([]), registry: MODULE_REGISTRY });
+}
+
+/** What a seed holds of a module: its flow's config, with the header rows its identity sets (STD_EG's client row). */
+function expectedConfig(seed: SeedTemplate, key: ModuleKey) {
+  const config = moduleConfig(seed.flow, key) as Record<string, unknown> | undefined;
+  if (seed === STD_EG_SEED && key === "header" && config) {
+    return { ...config, fields: { ...(config.fields as object), ...STD_EG_IDENTITY.headerFields } };
+  }
+  return config;
+}
+
 describe("the seed templates (BUILD_SPEC 11)", () => {
-  it("are STD_EG, SAFEDON_EG and STD_SG, each base before the templates that extend it", () => {
+  it("are STD_EG, SAFEDON_EG (retired) and STD_SG, each base before the templates that extend it", () => {
     expect(SEED_TEMPLATES.map((seed) => seed.code)).toEqual(["STD_EG", "SAFEDON_EG", "STD_SG"]);
     expect([...SEED_TEMPLATES.map((seed) => seed.code)].sort()).toEqual([...TEMPLATE_CODES].sort());
+    expect(SEED_TEMPLATES.filter((seed) => seed.retired).map((seed) => seed.code)).toEqual(["SAFEDON_EG"]);
     const seen = new Set<string>();
     for (const definition of definitions()) {
       if (definition.extends) expect(seen, `${definition.code} before its base`).toContain(definition.extends);
       seen.add(definition.code);
     }
+  });
+
+  it("run their own flows, except STD_EG, which runs SAFEDON_EG's (Kenneth, 26 October 2026)", () => {
+    expect(SEED_TEMPLATES.map((seed) => [seed.code, seed.flow])).toEqual([
+      ["STD_EG", "SAFEDON_EG"],
+      ["SAFEDON_EG", "SAFEDON_EG"],
+      ["STD_SG", "STD_SG"],
+    ]);
   });
 
   it.each(SEED_TEMPLATES.map((seed) => seed.code))("%s is a valid template definition", (code) => {
@@ -97,71 +126,91 @@ describe("the seed templates (BUILD_SPEC 11)", () => {
   });
 });
 
-describe.each(TEMPLATE_CODES)("%s against the data dictionary", (code) => {
-  it("switches on the dictionary's modules, in its order", () => {
-    expect(included(resolved(code)).map((entry) => entry.key)).toEqual(templateModuleKeys(code));
-  });
-
-  it("titles each module in the source's wording", () => {
-    for (const entry of included(resolved(code))) expect(entry.title, entry.key).toBe(moduleTitle(code, entry.key));
-  });
-
-  it("keeps the source's wording where it differs from the module's defaults", () => {
-    for (const entry of included(resolved(code))) {
-      expect(entry.labels, entry.key).toMatchObject(labelOverrides(code, entry.key));
-    }
-  });
-
-  it("gives every module the dictionary's config, and each module's config schema accepts it", () => {
-    for (const entry of included(resolved(code))) {
-      // Strict once the module is built: its real schema parses the seed's config.
-      const parsed = MODULE_REGISTRY[entry.key].configSchema.safeParse(entry.config);
-      expect(parsed.success, `${entry.key}: ${parsed.error?.message}`).toBe(true);
-      expect(entry.config, entry.key).toMatchObject(moduleConfig(code, entry.key) as Record<string, unknown>);
-    }
-  });
-
-  it("has the dictionary's sizes, unit, scope and report settings", () => {
-    const spec = TEMPLATES[code];
-    const template = resolved(code);
-    expect(template.sizes.map((size) => size.value)).toEqual(spec.sizes.map((size) => size.value));
-    expect(template.unit).toBe(spec.unit);
-    expect(template.scope.productType).toBe(spec.scope.productType);
-    expect(template.scope.standard).toBe(spec.scope.standard);
-    expect(template.scope.clientId).toBe(spec.scope.clientScoped ? CLIENT_ID : undefined);
-    expect(template.scope.manufacturerId).toBeUndefined();
-    expect(template.name).toBe(spec.name);
-    expect(template.report).toEqual({
-      title: spec.report.titleLines?.join(REPORT_TITLE_SEPARATOR) ?? spec.name,
-      showClientLogo: spec.report.showClientLogo,
+describe.each(SEED_TEMPLATES.map((seed) => [seed.code, seed.flow, seed] as const))(
+  "%s against the dictionary entry of its flow, %s",
+  (code, flow, seed) => {
+    it("switches on the flow's modules, in its order", () => {
+      expect(included(resolved(code)).map((entry) => entry.key)).toEqual(templateModuleKeys(flow));
     });
-    expect(template.sourceFile).toBeNull();
-  });
 
-  it("carries the dictionary's custom modules", () => {
-    expect(resolved(code).customModules.map((custom) => [custom.key, custom.after, custom.layout])).toEqual(
-      TEMPLATES[code].customModules.map((custom) => [custom.key, custom.after, custom.layout]),
-    );
-    for (const custom of resolved(code).customModules) {
-      const spec = TEMPLATES[code].customModules.find((entry) => entry.key === custom.key);
-      expect(custom.title).toBe(spec?.title);
-      expect(custom.fields.map((field) => [field.key, field.label, field.type])).toEqual(
-        spec?.fields.map((field) => [field.key, field.label, field.type]),
+    it("titles each module in the source's wording", () => {
+      for (const entry of included(resolved(code))) expect(entry.title, entry.key).toBe(moduleTitle(flow, entry.key));
+    });
+
+    it("keeps the source's wording where it differs from the module's defaults", () => {
+      for (const entry of included(resolved(code))) {
+        expect(entry.labels, entry.key).toMatchObject(labelOverrides(flow, entry.key));
+      }
+    });
+
+    it("gives every module the dictionary's config, and each module's config schema accepts it", () => {
+      for (const entry of included(resolved(code))) {
+        // Strict once the module is built: its real schema parses the seed's config.
+        const parsed = MODULE_REGISTRY[entry.key].configSchema.safeParse(entry.config);
+        expect(parsed.success, `${entry.key}: ${parsed.error?.message}`).toBe(true);
+        expect(entry.config, entry.key).toMatchObject(expectedConfig(seed, entry.key) as Record<string, unknown>);
+      }
+    });
+
+    it("has the flow's sizes and unit, and its identity's name, scope and report settings", () => {
+      const spec = TEMPLATES[flow];
+      const template = resolved(code);
+      expect(template.sizes.map((size) => size.value)).toEqual(spec.sizes.map((size) => size.value));
+      expect(template.unit).toBe(spec.unit);
+      expect(template.scope.productType).toBe(spec.scope.productType);
+      expect(template.scope.manufacturerId).toBeUndefined();
+      expect(template.sourceFile).toBeNull();
+      if (seed === STD_EG_SEED) {
+        expect(template.name).toBe(STD_EG_IDENTITY.name);
+        expect(template.scope.standard).toBe(STD_EG_IDENTITY.standard);
+        expect(template.scope.clientId).toBeUndefined();
+        expect(template.report).toEqual({
+          title: STD_EG_IDENTITY.report.titleLines.join(REPORT_TITLE_SEPARATOR),
+          showClientLogo: false,
+        });
+        return;
+      }
+      expect(template.name).toBe(spec.name);
+      expect(template.scope.standard).toBe(spec.scope.standard);
+      expect(template.scope.clientId).toBe(spec.scope.clientScoped ? CLIENT_ID : undefined);
+      expect(template.report).toEqual({
+        title: spec.report.titleLines?.join(REPORT_TITLE_SEPARATOR) ?? spec.name,
+        showClientLogo: spec.report.showClientLogo,
+      });
+    });
+
+    it("carries the flow's custom modules", () => {
+      const spec = TEMPLATES[flow];
+      const base = spec.extends === null ? [] : TEMPLATES[spec.extends].customModules;
+      const own = new Set(spec.customModules.map((custom) => custom.key));
+      const expected = [...base.filter((custom) => !own.has(custom.key)), ...spec.customModules];
+      expect(resolved(code).customModules.map((custom) => [custom.key, custom.after, custom.layout])).toEqual(
+        expected.map((custom) => [custom.key, custom.after, custom.layout]),
       );
-    }
-  });
-});
+      for (const custom of resolved(code).customModules) {
+        const found = expected.find((entry) => entry.key === custom.key);
+        expect(custom.title).toBe(found?.title);
+        expect(custom.fields.map((field) => [field.key, field.label, field.type])).toEqual(
+          found?.fields.map((field) => [field.key, field.label, field.type]),
+        );
+      }
+    });
+  },
+);
 
 describe("STD_EG and STD_SG are root templates", () => {
   it.each([STD_EG_SEED, STD_SG_SEED])("$code lists every module it switches on, whole", (seed) => {
     const definition = seed.definition();
     expect(definition.extends).toBeUndefined();
     expect(seed.client).toBeNull();
-    expect(definition.modules.map((entry) => entry.key)).toEqual(templateModuleKeys(seed.code));
+    expect(seed.retired).toBeUndefined();
+    expect(definition.modules.map((entry) => entry.key)).toEqual(templateModuleKeys(seed.flow));
     for (const entry of definition.modules) {
       expect(entry.include, entry.key).toBe(true);
-      expect(entry.title, entry.key).toBe(moduleTitle(seed.code, entry.key));
-      expect(entry.config ?? {}, entry.key).toEqual(writtenConfig(seed.code, entry.key));
+      expect(entry.title, entry.key).toBe(moduleTitle(seed.flow, entry.key));
+      expect(entry.config ?? {}, entry.key).toEqual(
+        seed === STD_EG_SEED && entry.key === "header" ? expectedConfig(seed, "header") : writtenConfig(seed.flow, entry.key),
+      );
     }
   });
 
@@ -189,18 +238,72 @@ describe("STD_EG and STD_SG are root templates", () => {
   });
 });
 
-describe("SAFEDON_EG extends STD_EG", () => {
+// Kenneth, 26 October 2026: "all the inspection flow will be standardized", with the flow INS-2026-2210 uses.
+describe("STD_EG runs SAFEDON_EG's flow as the standard template for every client", () => {
+  const standard = resolved("STD_EG");
+  const safedon = resolved("SAFEDON_EG");
+
+  it("has SAFEDON_EG's modules, titles, wording and config, the header's client row aside", () => {
+    const shape = (template: ResolvedTemplate) =>
+      included(template).map(({ key, title, labels, config }) => ({ key, title, labels, config }));
+    const header = (template: ResolvedTemplate) => included(template).find((entry) => entry.key === "header")!;
+    const withoutClientRow = (template: ResolvedTemplate) =>
+      shape(template).map((entry) =>
+        entry.key === "header"
+          ? { ...entry, config: { ...entry.config, fields: { ...(entry.config.fields as object), client: null } } }
+          : entry,
+      );
+    expect(withoutClientRow(standard)).toEqual(withoutClientRow(safedon));
+    // No logo names the client, so the header does; no factory glove code, as in SAFEDON_EG's flow.
+    expect(header(standard).config).toMatchObject({ fields: { client: true, factoryGloveCode: false }, mfgExpiryPrecision: "month" });
+    expect(header(safedon).config).toMatchObject({ fields: { client: false } });
+    expect(standard.customModules).toEqual(safedon.customModules);
+    expect(standard.sizes).toEqual(safedon.sizes);
+    expect(standard.unit).toBe("pcs");
+  });
+
+  it("keeps everything that flow has: the dispensing check with its box table, tensile, glove burst and the expiry date", () => {
+    const keys = included(standard).map((entry) => entry.key);
+    expect(keys).toEqual(expect.arrayContaining(["dispensing_safedon", "tensile", "weight", "watertight", "labeling"]));
+    expect(keys).not.toContain("force_at_break");
+    expect(keys).not.toContain("dispensing_packing");
+    expect(standard.customModules.map((custom) => custom.key)).toEqual(["safedon_dispensing_notes"]);
+    for (const key of ["dispensing_safedon", "watertight", "labeling", "dimensions", "weight"] as const) {
+      expect(included(standard).find((entry) => entry.key === key)?.config, key).toMatchObject(
+        moduleConfig("SAFEDON_EG", key) as Record<string, unknown>,
+      );
+    }
+  });
+
+  it("is a standard template: no client, ASTM D6319, the STD_EG report's title and no client logo", () => {
+    expect(STD_EG_SEED.definition().scope).toEqual({ productType: "examination", standard: "ASTM_D6319" });
+    expect(standard.name).toBe("Standard examination gloves (ASTM D6319)");
+    expect(standard.report).toEqual({
+      title: "Preshipment Inspection: Nitrile Disposable Examination Gloves",
+      showClientLogo: false,
+    });
+  });
+
+  it("leaves the STD_EG report's flow to its versions 1 to 4 (STD_EG_REPORT_SEED), not seeded", () => {
+    expect(STD_EG_REPORT_SEED.definition()).toEqual(definitionFromCoverage("STD_EG"));
+    expect(SEED_TEMPLATES).not.toContain(STD_EG_REPORT_SEED);
+    expect(included(reportStdEg()).map((entry) => entry.key)).toEqual(templateModuleKeys("STD_EG"));
+  });
+});
+
+describe("SAFEDON_EG, retired, extends STD_EG's report flow", () => {
   const definition = SAFEDON_EG_SEED.definition(CLIENT_ID);
   const byKey = new Map(definition.modules.map((entry) => [entry.key, entry]));
 
-  it("belongs to the client its report carries, looked up by name when seeded", () => {
+  it("belongs to the client its report carries, looked up by name, and is retired", () => {
     expect(SAFEDON_EG_SEED.client).toBe(SAFEDON_EG_CLIENT);
     expect(SAFEDON_EG_CLIENT).toBe("Polyco Healthline");
+    expect(SAFEDON_EG_SEED.retired).toBe(true);
     expect(definition.scope).toEqual({ productType: "examination", standard: "ASTM_D6319", clientId: CLIENT_ID });
     expect(SAFEDON_EG_SEED.definition().scope.clientId).toBeUndefined();
   });
 
-  it("lists only what differs from STD_EG", () => {
+  it("lists only what differs from STD_EG's report flow", () => {
     expect(definition.extends).toBe("STD_EG");
     // Unchanged modules are left out: they come from STD_EG as they are.
     for (const key of ["glove_info", "carton_sampling", "conclusion"] as const) expect(byKey.has(key), key).toBe(false);
@@ -270,19 +373,9 @@ describe("choosing among the seeds (BUILD_SPEC 4.4)", () => {
     return selection.ok ? `${selection.template.code} (${selection.specificity})` : selection.reason;
   };
 
-  it("gives SAFEDON_EG to its client, STD_EG to everyone else and STD_SG to surgical gloves", () => {
-    expect(pick({ productType: "examination", clientId: CLIENT_ID, manufacturerId: MANUFACTURER_ID })).toBe(
-      "SAFEDON_EG (client)",
-    );
-    expect(pick({ productType: "examination", clientId: null, manufacturerId: MANUFACTURER_ID })).toBe(
-      "STD_EG (standard)",
-    );
-    expect(
-      pick({ productType: "examination", clientId: "00000000-0000-4000-8000-0000000000c2", manufacturerId: null }),
-    ).toBe("STD_EG (standard)");
-    expect(pick({ productType: "surgical", clientId: CLIENT_ID, manufacturerId: MANUFACTURER_ID })).toBe(
-      "STD_SG (standard)",
-    );
+  it("gives every client STD_EG for examination gloves and STD_SG for surgical gloves, even with SAFEDON_EG still active", () => {
+    expect(pick({ productType: "examination" })).toBe("STD_EG (standard)");
+    expect(pick({ productType: "surgical" })).toBe("STD_SG (standard)");
   });
 
   it("never ties: one standard template per product type", () => {
@@ -294,14 +387,38 @@ describe("choosing among the seeds (BUILD_SPEC 4.4)", () => {
 });
 
 describe("the seeds' step names (docs/DESIGN.md, Step Names)", () => {
-  /** Each section of the resolved seed by the name the capture screen's menus, Pending and photo tags give it. */
-  const shortNames = (code: TemplateCode) =>
-    templateSections(resolved(code)).map((section) =>
+  /** Each section of a resolved template by the name the capture screen's menus, Pending and photo tags give it. */
+  const namesOf = (template: ResolvedTemplate) =>
+    templateSections(template).map((section) =>
       section.kind === "module" ? shortTitleFor(section.key, section.module.title) : customShortTitle(section.custom),
     );
+  const shortNames = (code: TemplateCode) => namesOf(resolved(code));
 
-  it("names STD_EG's steps in a word or three", () => {
-    expect(shortNames("STD_EG")).toEqual([
+  const SAFEDON_FLOW = [
+    "Manufacturer",
+    "Glove Information",
+    "Order",
+    "Packing Configuration",
+    "Sampling Plan",
+    "Box/Carton Numbers",
+    "Dimension",
+    "Physical Properties",
+    "Weight",
+    "Watertight Test",
+    "Visual Inspection",
+    "Dispensing",
+    "Dispensing Notes",
+    "Labeling",
+    "Conclusion",
+  ];
+
+  it("names STD_EG's steps as SAFEDON_EG's, with Physical Properties, Dispensing and Dispensing Notes", () => {
+    expect(shortNames("STD_EG")).toEqual(SAFEDON_FLOW);
+    expect(shortNames("SAFEDON_EG")).toEqual(SAFEDON_FLOW);
+  });
+
+  it("keeps the STD_EG report flow's names for its versions 1 to 4", () => {
+    expect(namesOf(reportStdEg())).toEqual([
       "Manufacturer",
       "Glove Information",
       "Order",
@@ -314,26 +431,6 @@ describe("the seeds' step names (docs/DESIGN.md, Step Names)", () => {
       "Watertight Test",
       "Visual Inspection",
       "Packing Check",
-      "Labeling",
-      "Conclusion",
-    ]);
-  });
-
-  it("names SAFEDON_EG's, with Physical Properties, Dispensing and Dispensing Notes", () => {
-    expect(shortNames("SAFEDON_EG")).toEqual([
-      "Manufacturer",
-      "Glove Information",
-      "Order",
-      "Packing Configuration",
-      "Sampling Plan",
-      "Box/Carton Numbers",
-      "Dimension",
-      "Physical Properties",
-      "Weight",
-      "Watertight Test",
-      "Visual Inspection",
-      "Dispensing",
-      "Dispensing Notes",
       "Labeling",
       "Conclusion",
     ]);

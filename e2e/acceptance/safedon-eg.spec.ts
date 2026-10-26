@@ -68,6 +68,10 @@ import { expectNoPageScroll } from "../support/layout";
  * Run: PLAYWRIGHT_BASE_URL=http://localhost:3900 npx playwright test e2e/acceptance/safedon-eg.spec.ts --project=ipad-portrait
  */
 
+// Kenneth, 26 October 2026: every client uses the standard template of the product type: /inspections/new picks STD_EG (SAFEDON_EG's flow, standard identity) for Polyco Healthline,
+// not SAFEDON_EG, which is retired. Rewrite on STD_EG before the next acceptance run.
+test.skip(true, "Kenneth, 26 October 2026: every client uses the standard template of the product type; SAFEDON_EG is retired. Rewrite on STD_EG.");
+
 test.describe.configure({ mode: "serial", timeout: 240_000 });
 
 /** Marks the inspections this spec creates, so a run that died is cleaned up by the next. */

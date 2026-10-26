@@ -16,5 +16,6 @@ import type { SeedTemplate } from "./types";
 export const STD_SG_SEED: SeedTemplate = {
   code: "STD_SG",
   client: null,
+  flow: "STD_SG",
   definition: () => definitionFromCoverage("STD_SG"),
 };

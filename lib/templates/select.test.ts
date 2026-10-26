@@ -9,9 +9,7 @@ import {
 } from "./select";
 
 const CLIENT = "20000000-0000-4000-8000-0000000000c1";
-const OTHER_CLIENT = "20000000-0000-4000-8000-0000000000c2";
 const FACTORY = "10000000-0000-4000-8000-0000000000f1";
-const OTHER_FACTORY = "10000000-0000-4000-8000-0000000000f2";
 
 let next = 0;
 function candidate(overrides: Partial<TemplateCandidate>): TemplateCandidate {
@@ -29,45 +27,42 @@ function candidate(overrides: Partial<TemplateCandidate>): TemplateCandidate {
   };
 }
 
-const standard = candidate({ code: "STD_EG" });
+const standard = candidate({ code: "STD_EG", standard: "ASTM_D6319" });
 const forClient = candidate({ code: "CLIENT_EG", clientId: CLIENT, standard: "ASTM_D6319" });
 const forFactory = candidate({ code: "FACTORY_EG", manufacturerId: FACTORY });
 const forBoth = candidate({ code: "CLIENT_FACTORY_EG", clientId: CLIENT, manufacturerId: FACTORY });
 const surgical = candidate({ code: "STD_SG", productType: "surgical" });
-const otherClient = candidate({ code: "OTHER_EG", clientId: OTHER_CLIENT });
-const ALL = [standard, forClient, forFactory, forBoth, surgical, otherClient];
+const ALL = [forBoth, forClient, forFactory, standard, surgical];
 
 const pick = (criteria: SelectionCriteria, candidates = ALL) => {
   const selection = selectTemplate(candidates, criteria);
   return selection.ok ? selection.template.code : selection.reason;
 };
 
-describe("selectTemplate: the most specific active template wins (BUILD_SPEC 4.4)", () => {
-  it("client and manufacturer, then client, then manufacturer, then the standard template", () => {
-    const criteria = { productType: "examination" as const, clientId: CLIENT, manufacturerId: FACTORY };
-    expect(pick(criteria)).toBe("CLIENT_FACTORY_EG");
-    expect(pick(criteria, ALL.filter((t) => t !== forBoth))).toBe("CLIENT_EG");
-    expect(pick(criteria, [standard, forFactory])).toBe("FACTORY_EG");
-    expect(pick(criteria, [standard])).toBe("STD_EG");
+describe("selectTemplate: the standard template of the product type, for every client (BUILD_SPEC 4.4)", () => {
+  // Kenneth, 26 October 2026: "all the inspection flow will be standardized".
+  it("takes the standard template, whatever client- or manufacturer-scoped templates are active", () => {
+    expect(pick({ productType: "examination" })).toBe("STD_EG");
+    expect(pick({ productType: "surgical" })).toBe("STD_SG");
   });
 
-  it("never applies a template scoped to another client or manufacturer", () => {
-    expect(pick({ productType: "examination", clientId: OTHER_CLIENT, manufacturerId: OTHER_FACTORY })).toBe("OTHER_EG");
-    expect(pick({ productType: "examination", clientId: OTHER_CLIENT })).toBe("OTHER_EG");
-    expect(pick({ productType: "examination", manufacturerId: OTHER_FACTORY })).toBe("STD_EG");
-    expect(specificityOf(forBoth, { productType: "examination", clientId: CLIENT })).toBeNull();
+  it("never applies a template scoped to a client, a manufacturer or both", () => {
+    for (const scoped of [forClient, forFactory, forBoth]) {
+      expect(specificityOf(scoped, { productType: "examination" }), scoped.code).toBeNull();
+    }
+    expect(specificityOf(standard, { productType: "examination" })).toBe("standard");
+    expect(pick({ productType: "examination" }, [forClient, forFactory, forBoth])).toBe("none");
   });
 
   it("matches the product type", () => {
-    expect(pick({ productType: "surgical", clientId: CLIENT, manufacturerId: FACTORY })).toBe("STD_SG");
+    expect(specificityOf(surgical, { productType: "examination" })).toBeNull();
   });
 
   it("ignores draft and retired versions", () => {
-    const draft = { ...forBoth, status: "draft" as const };
-    const retired = { ...forClient, status: "retired" as const };
-    expect(pick({ productType: "examination", clientId: CLIENT, manufacturerId: FACTORY }, [standard, draft, retired])).toBe(
-      "STD_EG",
-    );
+    const draft = { ...standard, id: "draft", status: "draft" as const };
+    const retired = { ...standard, id: "retired", status: "retired" as const };
+    expect(pick({ productType: "examination" }, [draft, retired])).toBe("none");
+    expect(pick({ productType: "examination" }, [draft, retired, standard])).toBe("STD_EG");
   });
 
   it("says so when nothing applies", () => {
@@ -75,21 +70,20 @@ describe("selectTemplate: the most specific active template wins (BUILD_SPEC 4.4
     expect(selection).toEqual({ ok: false, reason: "none", message: expect.stringContaining("surgical") });
   });
 
-  it("breaks a tie by code and reports the other templates", () => {
-    const second = candidate({ code: "A_CLIENT_EG", clientId: CLIENT });
-    const selection = selectTemplate([forClient, second], { productType: "examination", clientId: CLIENT });
-    expect(selection).toMatchObject({ ok: true, specificity: "client" });
+  it("breaks a tie by code and reports the other standard templates", () => {
+    const second = candidate({ code: "A_STD_EG" });
+    const selection = selectTemplate([standard, second, forClient], { productType: "examination" });
+    expect(selection).toMatchObject({ ok: true, specificity: "standard" });
     if (!selection.ok) throw new Error("expected a selection");
-    expect(selection.template.code).toBe("A_CLIENT_EG");
-    expect(selection.ties.map((template) => template.code)).toEqual(["CLIENT_EG"]);
+    expect(selection.template.code).toBe("A_STD_EG");
+    expect(selection.ties.map((template) => template.code)).toEqual(["STD_EG"]);
   });
 
-  it("ranks every template that applies", () => {
-    const ranked = rankTemplates(ALL, { productType: "examination", clientId: CLIENT, manufacturerId: FACTORY });
+  it("ranks the standard templates that apply, by code", () => {
+    const second = candidate({ code: "A_STD_EG" });
+    const ranked = rankTemplates([...ALL, second], { productType: "examination" });
     expect(ranked.map((entry) => [entry.template.code, entry.specificity])).toEqual([
-      ["CLIENT_FACTORY_EG", "client_manufacturer"],
-      ["CLIENT_EG", "client"],
-      ["FACTORY_EG", "manufacturer"],
+      ["A_STD_EG", "standard"],
       ["STD_EG", "standard"],
     ]);
   });
@@ -100,6 +94,8 @@ describe("selectTemplate: admin override", () => {
     const draft = candidate({ code: "TRIAL_EG", status: "draft", productType: "surgical" });
     const selection = selectTemplate([...ALL, draft], { productType: "examination", overrideTemplateId: draft.id });
     expect(selection).toEqual({ ok: true, template: draft, specificity: "override", ties: [] });
+    const scoped = selectTemplate(ALL, { productType: "examination", overrideTemplateId: forClient.id });
+    expect(scoped).toEqual({ ok: true, template: forClient, specificity: "override", ties: [] });
   });
 
   it("refuses a retired version or an unknown id", () => {

@@ -33,6 +33,8 @@ export type SeedBundleTemplate = {
   code: string;
   /** The client a client-scoped template belongs to, by name; the seed sets its id in scope.clientId. */
   client: string | null;
+  /** The seed retires the code's active version and publishes none (SeedTemplate.retired). */
+  retired?: true;
   definition: TemplateDefinition;
   resolved: ResolvedTemplate;
 };
@@ -52,6 +54,7 @@ export function buildSeedBundle(seeds: readonly SeedTemplate[], registry: Module
   const templates = definitions.map(({ seed, definition }) => ({
     code: seed.code,
     client: seed.client,
+    ...(seed.retired ? { retired: true as const } : {}),
     definition,
     resolved: resolveTemplateOrThrow(definition, { getBase, registry }),
   }));

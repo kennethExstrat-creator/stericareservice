@@ -1,7 +1,9 @@
 // The STD_EG example report (tests/fixtures/examples, docs/FIXTURES.md) as an
-// inspection of the real modules: the STD_EG seed template resolved against
-// the module registry of the day, and each report section in its module's
-// data shape, as the capture screen saves it. The export fixture
+// inspection of the real modules: the STD_EG template the report was made on
+// (versions 1 to 4, STD_EG_REPORT_SEED: the STD_EG seed runs SAFEDON_EG's
+// flow since 26 October 2026) resolved against the module registry of the
+// day, and each report section in its module's data shape, as the capture
+// screen saves it. The export fixture
 // (lib/ai/__fixtures__/std-eg-export.ts), the export's own tests and the
 // e2e export fixture run it through the framework, so a module whose data or
 // results change fails them instead of drifting from a typed copy.
@@ -11,7 +13,7 @@
 // so 13 readings with that median and 13 gloves of that average stand in for
 // them, as the modules' own tests do.
 import { lookupFrom } from "@/lib/templates";
-import { STD_EG_SEED } from "@/lib/templates/definitions";
+import { STD_EG_REPORT_SEED } from "@/lib/templates/definitions";
 import type { ResolvedTemplate } from "@/lib/schemas/template";
 import { resolveTemplate } from "@/modules";
 import type { InspectionData } from "@/modules/_framework";
@@ -41,9 +43,9 @@ import {
 
 const EXAMPLE = STD_EG_EXAMPLE;
 
-/** The STD_EG seed template, resolved against the real modules (as a version saved in the editor today). */
+/** The STD_EG template the report was made on, resolved against the real modules (as a version saved in the editor today). */
 export function stdEgTemplate(): ResolvedTemplate {
-  const definition = STD_EG_SEED.definition();
+  const definition = STD_EG_REPORT_SEED.definition();
   const resolution = resolveTemplate(definition, lookupFrom([]));
   if (!resolution.ok) {
     throw new Error(`STD_EG does not resolve with the real modules: ${JSON.stringify(resolution.problems)}`);

@@ -13,7 +13,7 @@ vi.mock("@/modules/_framework", async (importOriginal) => {
 
 import { ExportSchema, type InspectionExport } from "@/lib/schemas/export";
 import { lookupFrom } from "@/lib/templates";
-import { STD_EG_SEED } from "@/lib/templates/definitions";
+import { STD_EG_REPORT_SEED } from "@/lib/templates/definitions";
 import { resolveTemplate } from "@/modules";
 import { buildInspectionView } from "@/modules/_framework";
 import { createFakeSupabase } from "./__fixtures__/fake-supabase";
@@ -103,7 +103,7 @@ describe("the STD_EG example's export, through the real modules", () => {
 
   it("exports a certificate the documents check keeps per item, so the report can match it by id", async () => {
     const certificate = "00000000-0000-4000-8000-000000000402";
-    const definition = STD_EG_SEED.definition();
+    const definition = STD_EG_REPORT_SEED.definition();
     const conclusionAt = definition.modules.findIndex((entry) => entry.key === "conclusion");
     definition.modules.splice(conclusionAt, 0, { key: "documents", include: true });
     const resolution = resolveTemplate(definition, lookupFrom([]));

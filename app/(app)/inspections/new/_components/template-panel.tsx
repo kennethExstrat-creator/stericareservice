@@ -1,9 +1,11 @@
 "use client";
 
 // Which template the inspection will use (BUILD_SPEC 4.4), worked out live
-// from the picks with lib/templates' selection rule, and why. An admin can
-// choose another template that is not retired. The Server Action decides
-// again from the database; this is what the inspector sees before creating.
+// with lib/templates' selection rule, and why. Every client gets the standard
+// template of the product type (Kenneth, 26 October 2026: "all the inspection
+// flow will be standardized"). An admin can choose another template that is
+// not retired. The Server Action decides again from the database; this is
+// what the inspector sees before creating.
 import { CheckIcon, CircleDashedIcon, LayoutTemplateIcon, TriangleAlertIcon } from "lucide-react";
 import { Field, FieldDescription, FieldError, FieldLabel } from "@/components/ui/field";
 import { Select, SelectContent, SelectItem, SelectSeparator, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -24,7 +26,11 @@ type TemplatePanelProps = {
   role: "inspector" | "admin";
   picks: readonly PickState[];
   productType: ProductType | null;
-  names: { client: string | null; manufacturer: string | null };
+  /**
+   * Not shown since 26 October 2026: client and manufacturer no longer choose
+   * the template. Optional, so the form can stop passing it.
+   */
+  names?: { client: string | null; manufacturer: string | null };
   choice: TemplateChoice | null;
   chosen: TemplateOption | null;
   /** Admin only: the templates they may choose instead. */
@@ -36,7 +42,7 @@ type TemplatePanelProps = {
 };
 
 export function TemplatePanel(props: TemplatePanelProps) {
-  const { id, role, picks, productType, names, choice, chosen } = props;
+  const { id, role, picks, productType, choice, chosen } = props;
   const waiting = picks.some((entry) => !entry.done);
   const announcement = waiting
     ? ""
@@ -64,7 +70,7 @@ export function TemplatePanel(props: TemplatePanelProps) {
       ) : chosen && choice?.ok ? (
         <Chosen
           template={chosen}
-          reason={choiceReason(choice.specificity, names, chosen.productType)}
+          reason={choiceReason(choice.specificity, chosen.productType)}
           ties={role === "admin" ? choice.ties : []}
         />
       ) : (
@@ -80,7 +86,7 @@ function Waiting({ picks }: { picks: readonly PickState[] }) {
   return (
     <div className="flex flex-col gap-3">
       <p className="text-sm text-muted-foreground touch:text-base">
-        The template follows from the client, manufacturer and product type.
+        The template follows from the product type.
       </p>
       <ul className="flex flex-col gap-2" aria-label="Choices the template needs">
         {picks.map((entry) => (

@@ -11,14 +11,22 @@
 // config changes, with the config diff the framework merges over the base
 // (docs/MODULES.md section 6); modules the base lacks, whole; and the base's
 // modules it drops, switched off where the module that replaces them sits.
+//
+// A seed can also run another template's flow under its own identity
+// (definitionWithFlow): STD_EG runs SAFEDON_EG's since 26 October 2026.
 import {
   configEqual,
+  labelOverrides,
+  moduleTitle,
   seedModuleConfigs,
   TEMPLATES,
+  type ConfigObject,
   type CustomModuleSpec,
+  type HeaderField,
   type TemplateCode,
   type TemplateSpec,
 } from "@/lib/coverage";
+import type { Standard } from "@/lib/schemas/common";
 import type { ModuleKey } from "@/lib/schemas/module-result";
 import {
   TemplateDefinitionSchema,
@@ -53,6 +61,64 @@ export function definitionFromCoverage(code: TemplateCode, options: { clientId?:
     modules: base === null ? rootModules(code) : childModules(code, base),
     ...customModulesOf(spec, base),
     ...reportOf(spec, base),
+  };
+  // A plain JSON copy, so nothing readonly or shared with lib/coverage leaks into the definition.
+  return TemplateDefinitionSchema.parse(JSON.parse(JSON.stringify(definition)));
+}
+
+/** What a seed keeps of its own when it runs another template's flow (definitionWithFlow). */
+export type FlowIdentity = {
+  readonly code: TemplateCode;
+  readonly name: string;
+  readonly standard: Standard;
+  /** The report's title block, line by line, and whether the report carries the client's logo. */
+  readonly report: { readonly titleLines: readonly string[]; readonly showClientLogo: boolean };
+  /** Header rows switched on or off over the flow's: STD_EG names the client, as no logo does. */
+  readonly headerFields?: Readonly<Partial<Record<HeaderField, boolean>>>;
+};
+
+/**
+ * A root definition that runs another dictionary template's flow under its
+ * own identity. Since 26 October 2026 the standard examination template runs
+ * SAFEDON_EG's flow for every client (std-eg.ts). It lists every module the
+ * flow switches on, in the flow's order, each with its title, its wording
+ * where it differs from the module's defaults, and its whole config (a child
+ * flow's base config is merged in, as the dictionary writes it). It carries
+ * the flow's custom modules, its base's included, and its sizes and unit. The
+ * identity gives the code, name, standard, report title and logo, and the
+ * header rows; there is no client.
+ */
+export function definitionWithFlow(flow: TemplateCode, identity: FlowIdentity): TemplateDefinition {
+  const spec = TEMPLATES[flow];
+  const base = spec.extends === null ? null : TEMPLATES[spec.extends];
+  const modules = spec.modules.map((module) => {
+    const config = module.config as ConfigObject;
+    const fields = config.fields as ConfigObject | undefined;
+    const own =
+      module.key === "header" && identity.headerFields ? { ...config, fields: { ...fields, ...identity.headerFields } } : config;
+    return toModuleConfig({
+      key: module.key,
+      include: true,
+      title: moduleTitle(flow, module.key),
+      labels: labelOverrides(flow, module.key),
+      config: own,
+    });
+  });
+  const replaced = new Set(spec.customModules.map((custom) => custom.key));
+  const customModules = [...(base?.customModules ?? []).filter((custom) => !replaced.has(custom.key)), ...spec.customModules];
+
+  const definition = {
+    code: identity.code,
+    name: identity.name,
+    scope: { productType: spec.scope.productType, standard: identity.standard },
+    unit: spec.unit,
+    sizes: spec.sizes.map((size) => ({ value: size.value, ...(size.label ? { label: size.label } : {}) })),
+    modules,
+    ...(customModules.length > 0 ? { customModules: customModules.map(toCustomModule) } : {}),
+    report: {
+      title: identity.report.titleLines.join(REPORT_TITLE_SEPARATOR),
+      showClientLogo: identity.report.showClientLogo,
+    },
   };
   // A plain JSON copy, so nothing readonly or shared with lib/coverage leaks into the definition.
   return TemplateDefinitionSchema.parse(JSON.parse(JSON.stringify(definition)));

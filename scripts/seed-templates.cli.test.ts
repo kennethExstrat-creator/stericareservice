@@ -84,13 +84,14 @@ describe("npm run seed:templates", () => {
   it("-- --apply writes them active, and -- --apply --drafts as drafts", async () => {
     const active = await seed(["--apply"]);
     expect(active.code).toBe(0);
-    expect(inserted()).toEqual(["STD_EG active", "SAFEDON_EG active", "STD_SG active"]);
-    expect(active.stdout).toContain("SAFEDON_EG   version 1  added, active · client Polyco Healthline");
+    // SAFEDON_EG is retired (26 October 2026): nothing is active to retire in an empty table.
+    expect(inserted()).toEqual(["STD_EG active", "STD_SG active"]);
+    expect(active.stdout).toContain("SAFEDON_EG   no longer seeded, nothing active to retire");
 
     requests.length = 0;
     const drafts = await seed(["--apply", "--drafts"]);
     expect(drafts.code).toBe(0);
-    expect(inserted()).toEqual(["STD_EG draft", "SAFEDON_EG draft", "STD_SG draft"]);
+    expect(inserted()).toEqual(["STD_EG draft", "STD_SG draft"]);
   }, 30_000);
 
   it("--drafts -- --apply: npm took --drafts, so it stops before sending anything", async () => {

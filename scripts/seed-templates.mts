@@ -1,7 +1,10 @@
 /**
- * Writes the seed templates of BUILD_SPEC 11 (STD_EG, SAFEDON_EG, STD_SG) to
- * the templates table from lib/templates/definitions/seed-bundle.json:
- * active, or with --drafts as drafts for an admin to check and activate.
+ * Writes the seed templates of BUILD_SPEC 11 (STD_EG and STD_SG, the standard
+ * templates every client uses) to the templates table from
+ * lib/templates/definitions/seed-bundle.json: active, or with --drafts as
+ * drafts for an admin to check and activate. A template the bundle marks
+ * retired (SAFEDON_EG since 26 October 2026: every client uses STD_EG, which
+ * runs its flow) gets no new version: the run retires its active one.
  * Without --apply it is a dry run: it shows what would change and writes
  * nothing.
  *
@@ -18,11 +21,12 @@
  *
  * Run order on a project:
  *   1. supabase/seed.sql (npx supabase db push --include-seed): reference
- *      data. SAFEDON_EG belongs to the client "Polyco Healthline", found by
- *      name; without it the run stops before writing anything.
+ *      data. A client-scoped template the run writes is found by its client's
+ *      name; without the client the run stops before writing anything. The
+ *      retired SAFEDON_EG needs none.
  *   2. npm run seed:templates: the dry run, one line per template. Check that
- *      it lists STD_EG, SAFEDON_EG (with its client) and STD_SG, and that it
- *      gives no warning about placeholder modules.
+ *      it lists STD_EG and STD_SG, SAFEDON_EG as retired (or to retire), and
+ *      that it gives no warning about placeholder modules.
  *   3. npm run seed:templates -- --apply (or --apply --drafts): writes what
  *      the dry run listed.
  * The first seed into a project without seed templates needs no --replace.
@@ -57,6 +61,9 @@
  *     (BUILD_SPEC 4.1), so it may be an admin's newer version. The run stops
  *     before writing anything unless --replace is given; with it, the draft
  *     is activated or a new version added, and the active one retired.
+ * A retired template is only ever retired: its active version, if any, needs
+ * --replace like any other, and without one nothing is written for it. With
+ * --drafts it is left as it is.
  * With --drafts, a version (active or draft) that already has the definition
  * is kept; otherwise a new version is added as a draft. Nothing active
  * changes, so --replace is never needed.
@@ -92,6 +99,8 @@ type Base = { code: string; version: number };
 export type BundleTemplate = {
   code: string;
   client: string | null;
+  /** No new version: the run retires the active one (SAFEDON_EG since 26 October 2026). */
+  retired?: true;
   definition: JsonObject & { code: string; extends?: string; scope: Scope; sourceFile?: string };
   resolved: JsonObject & { code: string; chain: string[]; bases: Base[]; scope: Scope };
 };
@@ -117,8 +126,9 @@ export function parseBundle(text: string): Bundle {
   const seen = new Set<string>();
   for (const entry of templates as unknown[]) {
     if (!isObject(entry) || typeof entry.code !== "string" || !CODE_PATTERN.test(entry.code)) fail("a template without a code");
-    const { code, client, definition, resolved } = entry as Record<string, unknown>;
+    const { code, client, retired, definition, resolved } = entry as Record<string, unknown>;
     if (client !== null && typeof client !== "string") fail(`${code}: bad client`);
+    if (retired !== undefined && retired !== true) fail(`${code}: bad retired mark`);
     if (!isObject(definition) || definition.code !== code || !isObject(definition.scope)) fail(`${code}: bad definition`);
     if (!isObject(resolved) || resolved.code !== code || !Array.isArray(resolved.chain) || !Array.isArray(resolved.bases)) {
       fail(`${code}: bad resolution`);
@@ -144,7 +154,11 @@ export type Wanted = { code: string; definition: BundleTemplate["definition"]; r
 export type Plan =
   | { action: "keep"; code: string; version: number; id: string }
   | { action: "activate"; code: string; version: number; id: string; retire: { id: string; version: number } | null }
-  | { action: "insert"; code: string; version: number; retire: { id: string; version: number } | null };
+  | { action: "insert"; code: string; version: number; retire: { id: string; version: number } | null }
+  /** A retired template's active version, retired. */
+  | { action: "retire"; code: string; version: number; id: string }
+  /** A retired template with nothing to do: no version is active, or --drafts leaves the active one. */
+  | { action: "none"; code: string; version: number | null };
 
 /** Structural equality of JSON values; key order does not matter (jsonb reorders keys). */
 export function jsonEqual(a: unknown, b: unknown): boolean {
@@ -187,9 +201,10 @@ export function sameVersion(row: VersionRow, wanted: Wanted, { refresh }: { refr
   return refresh ? jsonEqual(row.resolved, wanted.resolved) : jsonEqual(row.resolved.bases, wanted.resolved.bases);
 }
 
-/** The plan retires the active version: it replaces what may be an admin's change since the seed. */
+/** The plan retires the active version: it replaces, or retires, what may be an admin's change since the seed. */
 export function replacesActive(plan: Plan): boolean {
-  return plan.action !== "keep" && plan.retire !== null;
+  if (plan.action === "retire") return true;
+  return (plan.action === "activate" || plan.action === "insert") && plan.retire !== null;
 }
 
 export type PlanOptions = {
@@ -217,9 +232,21 @@ export function planTemplate(wanted: Wanted, rows: readonly VersionRow[], option
   return { action: "insert", code: wanted.code, version, retire };
 }
 
+/**
+ * A retired template's plan: its active version retired, unless --drafts
+ * (which retires nothing) or no version is active.
+ */
+export function planRetirement(code: string, rows: readonly VersionRow[], options: Pick<PlanOptions, "drafts">): Plan {
+  const active = rows.find((row) => row.status === "active") ?? null;
+  if (active === null || options.drafts) return { action: "none", code, version: active?.version ?? null };
+  return { action: "retire", code, version: active.version, id: active.id };
+}
+
 /** The status a planned version has, or has once the plan is carried out. */
 export function plannedStatus(plan: Plan, rows: readonly VersionRow[], options: Pick<PlanOptions, "drafts">): TemplateStatus {
   if (plan.action === "keep") return rows.find((row) => row.id === plan.id)?.status ?? "active";
+  if (plan.action === "retire") return "retired";
+  if (plan.action === "none") return rows.some((row) => row.status === "active") ? "active" : "retired";
   return options.drafts ? "draft" : "active";
 }
 
@@ -280,9 +307,11 @@ export async function seedTemplates(db: SeedDatabase, bundle: Bundle, options: S
   if (options.drafts && options.replace) {
     throw new Error("Use --drafts or --replace, not both: drafts never retire an active version.");
   }
-  const clients = bundle.templates.some((entry) => entry.client !== null) ? await db.clients() : [];
+  // A retired template writes no version, so it needs no client.
+  const written = bundle.templates.filter((entry) => !entry.retired);
+  const clients = written.some((entry) => entry.client !== null) ? await db.clients() : [];
   const clientIds = new Map<string, string>();
-  for (const entry of bundle.templates) {
+  for (const entry of written) {
     if (entry.client === null) continue;
     const id = findClient(clients, entry.client);
     if (id === null) {
@@ -295,13 +324,14 @@ export async function seedTemplates(db: SeedDatabase, bundle: Bundle, options: S
   }
 
   // A child is resolved against the version its base will have, so planning needs no writes.
-  const planned: { plan: Plan; wanted: Wanted; outcome: SeedOutcome }[] = [];
+  const planned: { plan: Plan; wanted: Wanted | null; outcome: SeedOutcome }[] = [];
   const versions = new Map<string, number>();
   for (const entry of bundle.templates) {
-    const wanted = prepare(entry, clientIds.get(entry.code) ?? null, versions);
     const rows = await db.versions(entry.code);
-    const plan = planTemplate(wanted, rows, options);
-    versions.set(entry.code, plan.version);
+    // A retired template is no base for the ones after it: prepare() stops a template that extends it.
+    const wanted = entry.retired ? null : prepare(entry, clientIds.get(entry.code) ?? null, versions);
+    const plan = wanted === null ? planRetirement(entry.code, rows, options) : planTemplate(wanted, rows, options);
+    if (wanted !== null && plan.version !== null) versions.set(entry.code, plan.version);
     const outcome: SeedOutcome = {
       plan,
       client: entry.client,
@@ -322,8 +352,13 @@ export async function seedTemplates(db: SeedDatabase, bundle: Bundle, options: S
  * back, so the code is never left without an active version. With --drafts
  * the new version stays a draft.
  */
-async function carryOut(db: SeedDatabase, plan: Plan, wanted: Wanted, options: Pick<SeedOptions, "drafts">): Promise<void> {
-  if (plan.action === "keep") return;
+async function carryOut(db: SeedDatabase, plan: Plan, wanted: Wanted | null, options: Pick<SeedOptions, "drafts">): Promise<void> {
+  if (plan.action === "keep" || plan.action === "none") return;
+  if (plan.action === "retire") {
+    await db.setStatus(plan.id, "retired");
+    return;
+  }
+  if (wanted === null) throw new Error(`${plan.code}: nothing to write for a retired template.`);
   const status = options.drafts || plan.retire ? "draft" : "active";
   const id = plan.action === "activate" ? plan.id : await db.insert({ ...rowFields(wanted), version: plan.version, status });
   if (plan.retire === null) {
@@ -342,6 +377,15 @@ async function carryOut(db: SeedDatabase, plan: Plan, wanted: Wanted, options: P
 /** One line per template; `planned` when nothing was written (a dry run, or a run that stopped). */
 export function describeOutcome(outcome: SeedOutcome, planned: boolean): string {
   const { plan, client, status, blocked } = outcome;
+  if (plan.action === "retire" || plan.action === "none") {
+    const what =
+      plan.action === "retire"
+        ? `version ${plan.version}  ${planned ? "to retire" : "retired"}: no longer seeded`
+        : plan.version === null
+          ? "no longer seeded, nothing active to retire"
+          : `version ${plan.version}  no longer seeded, left ${status} (--drafts retires nothing)`;
+    return `${plan.code.padEnd(12)} ${what}${blocked ? " (needs --replace)" : ""}`;
+  }
   const head = `${plan.code.padEnd(12)} version ${plan.version}`;
   const retired = plan.action !== "keep" && plan.retire ? `, version ${plan.retire.version} ${planned ? "to retire" : "retired"}` : "";
   const what =
@@ -357,12 +401,21 @@ export function describeOutcome(outcome: SeedOutcome, planned: boolean): string 
 export function describeBlocked(outcomes: readonly SeedOutcome[], dryRun: boolean): string | null {
   const blocked = outcomes.filter((outcome) => outcome.blocked);
   if (blocked.length === 0) return null;
-  const which = blocked
-    .map(({ plan }) => (plan.action !== "keep" && plan.retire ? `${plan.code} version ${plan.retire.version}` : plan.code))
-    .join(", ");
+  const versionOf = (plan: Plan) =>
+    plan.action === "retire"
+      ? `${plan.code} version ${plan.version}`
+      : (plan.action === "activate" || plan.action === "insert") && plan.retire
+        ? `${plan.code} version ${plan.retire.version}`
+        : plan.code;
+  const changed = blocked.filter(({ plan }) => plan.action !== "retire").map(({ plan }) => versionOf(plan));
+  const gone = blocked.filter(({ plan }) => plan.action === "retire").map(({ plan }) => versionOf(plan));
   const them = blocked.length === 1 ? "it" : "them";
+  const parts = [
+    ...(changed.length > 0 ? [`Active now and different from the bundle: ${changed.join(", ")}.`] : []),
+    ...(gone.length > 0 ? [`Active now and no longer seeded: ${gone.join(", ")}.`] : []),
+  ];
   return (
-    `Active now and different from the bundle: ${which}. An admin may have changed ${them} since the seed. ` +
+    `${parts.join(" ")} An admin may have changed ${them} since the seed. ` +
     `${dryRun ? "A real run stops" : "Stopped"} before writing anything: check ${them}, ` +
     `then run again with --replace to retire ${them}.`
   );
@@ -485,7 +538,9 @@ export function writeCommand({ seed, allowStubs }: RunOptions): string {
 export function describeDryRun(report: SeedReport, options: RunOptions): string {
   const head = "Nothing was written: this was a dry run.";
   if (report.outcomes.some((outcome) => outcome.blocked)) return head;
-  if (report.outcomes.every((outcome) => outcome.plan.action === "keep")) return `${head} There is nothing to write.`;
+  if (report.outcomes.every((outcome) => outcome.plan.action === "keep" || outcome.plan.action === "none")) {
+    return `${head} There is nothing to write.`;
+  }
   return `${head} To write it: ${writeCommand(options)}`;
 }
 

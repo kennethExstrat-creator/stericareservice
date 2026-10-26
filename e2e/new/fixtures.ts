@@ -239,15 +239,18 @@ export async function standardTemplates(productType: "examination" | "surgical")
   return data.sort((a, b) => a.code.localeCompare(b.code) || b.version - a.version);
 }
 
-/** Whether STD_EG, SAFEDON_EG and STD_SG are active (scripts/seed-templates.mts has run). */
+/**
+ * Whether STD_EG and STD_SG are active (scripts/seed-templates.mts has run).
+ * SAFEDON_EG is retired since 26 October 2026: STD_EG runs its flow.
+ */
 export async function seedTemplatesLive(): Promise<boolean> {
   const { data, error } = await createTestAdminClient()
     .from("templates")
     .select("code")
     .eq("status", "active")
-    .in("code", ["STD_EG", "SAFEDON_EG", "STD_SG"]);
+    .in("code", ["STD_EG", "STD_SG"]);
   if (error) fail("reading the seed templates", error);
-  return new Set(data.map((row) => row.code)).size === 3;
+  return new Set(data.map((row) => row.code)).size === 2;
 }
 
 export async function createNewFixture(): Promise<NewFixture> {

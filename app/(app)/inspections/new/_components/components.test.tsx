@@ -5,7 +5,7 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { chooseTemplate, type TemplateChoice } from "@/lib/inspections/create";
-import { buildSeedBundle, SEED_TEMPLATES } from "@/lib/templates/definitions";
+import { buildSeedBundle, SAFEDON_EG_SEED, STD_EG_REPORT_SEED, STD_SG_SEED } from "@/lib/templates/definitions";
 import { MODULE_REGISTRY } from "@/modules/registry";
 import { toTemplateOption } from "../_lib/options";
 import type { TemplateOption } from "../_lib/types";
@@ -17,10 +17,15 @@ import type { HeldSources } from "./use-held-sources";
 import { RadioGroup } from "@/components/ui/radio-group";
 
 const CLIENT = "20000000-0000-4000-8000-000000000001";
-const MANUFACTURER = "10000000-0000-4000-8000-000000000001";
 const noop = () => {};
 
-const bundle = new Map(buildSeedBundle(SEED_TEMPLATES, MODULE_REGISTRY).templates.map((entry) => [entry.code, entry]));
+/**
+ * The templates the example reports were made on: STD_EG as versions 1 to 4
+ * have it (EN 455, with a factory glove code), SAFEDON_EG and STD_SG. The
+ * panel and the copy plan read any template the same way.
+ */
+const TEMPLATES_OF_THE_REPORTS = [STD_EG_REPORT_SEED, SAFEDON_EG_SEED, STD_SG_SEED];
+const bundle = new Map(buildSeedBundle(TEMPLATES_OF_THE_REPORTS, MODULE_REGISTRY).templates.map((entry) => [entry.code, entry]));
 let nextId = 1;
 
 function option(code: "STD_EG" | "SAFEDON_EG" | "STD_SG", extra: Record<string, unknown> = {}): TemplateOption {
@@ -57,7 +62,7 @@ function panel(props: {
   const productType = props.productType ?? "examination";
   const choice: TemplateChoice = chooseTemplate(
     props.templates,
-    { productType, clientId: CLIENT, manufacturerId: MANUFACTURER, templateId: props.overrideId || undefined },
+    { productType, templateId: props.overrideId || undefined },
     role,
   );
   const chosen = choice.ok ? (props.templates.find((template) => template.id === choice.template.id) ?? null) : null;
@@ -78,7 +83,7 @@ function panel(props: {
 }
 
 describe("the template panel", () => {
-  it("waits for the three choices, saying which are made", () => {
+  it("waits for the choices it needs, saying which are made", () => {
     const html = panel({
       templates: [option("STD_EG")],
       picks: [
@@ -87,7 +92,7 @@ describe("the template panel", () => {
         { label: "Product Type", done: false },
       ],
     });
-    expect(html).toContain("The template follows from the client, manufacturer and product type.");
+    expect(html).toContain("The template follows from the product type.");
     expect(html).toContain("Client<span class=\"sr-only\">: chosen</span>");
     expect(html).toContain("Manufacturer<span class=\"sr-only\">: not chosen yet</span>");
     expect(html).not.toContain('data-testid="chosen-template"');
@@ -95,24 +100,26 @@ describe("the template panel", () => {
     expect(html).toContain('<p role="status" class="sr-only"></p>');
   });
 
+  // Kenneth, 26 October 2026: every client gets the standard template; a client's own one never applies.
   it("names the template the rule picks, why, its sizes and its sections", () => {
     const html = panel({ templates: [option("STD_EG"), option("SAFEDON_EG", { client_id: CLIENT })] });
-    expect(html).toContain('data-code="SAFEDON_EG"');
-    expect(html).toContain("Safedon examination gloves (ASTM D6319)");
+    expect(html).toContain('data-code="STD_EG"');
+    expect(html).not.toContain('data-code="SAFEDON_EG"');
+    expect(html).toContain("Standard examination gloves (EN 455)");
     // A label names the version in Title Case; the announcement is a sentence.
-    expect(html).toContain("SAFEDON_EG Version 1 · ASTM D6319");
-    expect(html).toContain("For Polyco Healthline");
+    expect(html).toContain("STD_EG Version 1 · EN 455");
+    expect(html).toContain("Standard Template for Examination Gloves");
     expect(html).toContain("XS, S, M, L, XL");
     expect(html).toContain("(pieces)");
     expect(html).toContain("Show the Sections");
-    expect(html).toContain("Template: Safedon examination gloves (ASTM D6319), SAFEDON_EG version 1.");
+    expect(html).toContain("Template: Standard examination gloves (EN 455), STD_EG version 1.");
     expect(html).not.toContain("Use Another Template");
   });
 
   it("says when no active template fits, and tells an admin what to do", () => {
     const inspector = panel({ templates: [option("STD_EG")], productType: "surgical" });
     expect(inspector).toContain('data-testid="no-template"');
-    expect(inspector).toContain("No active template for surgical gloves fits these choices. An admin needs to activate one.");
+    expect(inspector).toContain("No active template for surgical gloves. An admin needs to activate one.");
     expect(inspector).not.toContain("Choose a template below");
     const admin = panel({ role: "admin", templates: [option("STD_EG")], productType: "surgical" });
     expect(admin).toContain("Choose a template below, or activate one first.");

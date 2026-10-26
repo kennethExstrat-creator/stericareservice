@@ -7,9 +7,9 @@
 // the module the section feeds (SECTION_MODULE), as module data under
 // data.modules; then the inspection is evaluated exactly as the capture
 // screen, submit, the review and the export do (docs/MODULES.md section 13):
-// the template as seeded (seed-bundle.json, which scripts/seed-templates.mts
-// writes to the live database), buildInspectionView (the context, and the
-// titles as the inspection shows them), validateInspection.
+// the template the report was made on (`seedTemplate`), buildInspectionView
+// (the context, and the titles as the inspection shows them),
+// validateInspection.
 //
 // What the reports do not print is entered the way docs/FIXTURES.md ("How
 // the acceptance tests use them") says: 13 force readings whose median is
@@ -19,6 +19,8 @@
 import { readFileSync } from "node:fs";
 import { ResolvedTemplateSchema, type ResolvedTemplate } from "@/lib/schemas/template";
 import { roundTo } from "@/lib/stats";
+import { lookupFrom, resolveTemplateOrThrow } from "@/lib/templates";
+import { STD_EG_REPORT_SEED } from "@/lib/templates/definitions";
 import { validateInspection, type ValidationReport } from "@/lib/validation";
 import {
   buildInspectionView,
@@ -61,8 +63,17 @@ const BUNDLE = JSON.parse(
   readFileSync(new URL("../../lib/templates/definitions/seed-bundle.json", import.meta.url), "utf8"),
 ) as { templates: BundleEntry[] };
 
-/** A seed template as scripts/seed-templates.mts writes it to `templates.resolved`. */
+/**
+ * The template an example report was made on. SAFEDON_EG and STD_SG are as
+ * seeded (seed-bundle.json, which scripts/seed-templates.mts writes to
+ * `templates.resolved`). STD_EG is as versions 1 to 4 have it, its report's
+ * flow (STD_EG_REPORT_SEED): the STD_EG seed runs SAFEDON_EG's flow since 26
+ * October 2026.
+ */
 export function seedTemplate(code: "STD_EG" | "SAFEDON_EG" | "STD_SG"): ResolvedTemplate {
+  if (code === "STD_EG") {
+    return resolveTemplateOrThrow(STD_EG_REPORT_SEED.definition(), { getBase: lookupFrom([]), registry: MODULE_REGISTRY });
+  }
   const entry = BUNDLE.templates.find((candidate) => candidate.code === code);
   if (!entry) throw new Error(`seed-bundle.json has no ${code}`);
   return ResolvedTemplateSchema.parse(entry.resolved);

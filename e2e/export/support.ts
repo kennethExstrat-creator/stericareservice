@@ -5,7 +5,7 @@ import { stdEgInspectionData } from "../../lib/export/__fixtures__/std-eg";
 import { TemplateDefinitionSchema } from "../../lib/schemas/template";
 import type { Json } from "../../lib/supabase/database.types";
 import { lookupFrom, templateRowFields } from "../../lib/templates";
-import { STD_EG_SEED } from "../../lib/templates/definitions";
+import { STD_EG_REPORT_SEED } from "../../lib/templates/definitions";
 import { resolveTemplate } from "../../modules";
 import { createTestAdminClient, deleteTestInspection, throwawayEmail } from "../support/admin";
 import { sessionCookies, TEST_ACCOUNTS } from "../support/session";
@@ -244,8 +244,9 @@ async function insertFixture(
   const inspectorId = idOf(TEST_ACCOUNTS.inspector);
   const adminId = idOf(TEST_ACCOUNTS.admin);
 
-  // STD_EG under the fixture's code, resolved with the modules of the day.
-  const definition = TemplateDefinitionSchema.parse({ ...STD_EG_SEED.definition(), code, name: "Export e2e fixture (temporary)" });
+  // STD_EG's report flow (versions 1 to 4, which the STD_EG example was made on) under the fixture's code,
+  // resolved with the modules of the day.
+  const definition = TemplateDefinitionSchema.parse({ ...STD_EG_REPORT_SEED.definition(), code, name: "Export e2e fixture (temporary)" });
   const resolution = resolveTemplate(definition, lookupFrom([]));
   if (!resolution.ok) fail("resolving the fixture template", { message: JSON.stringify(resolution.problems) });
 

@@ -43,6 +43,11 @@ import { signIn, TEST_ACCOUNTS } from "../support/session";
  * the next run deletes it first. Screenshots go to screenshots/acceptance/.
  */
 
+// Kenneth, 26 October 2026: every client uses the standard template of the product type, and STD_EG runs SAFEDON_EG's flow: the STD_EG example (force at break, the packing check)
+// no longer fits a new STD_EG inspection. Its results stay checked by tests/acceptance/std-eg.test.ts on the
+// report flow (STD_EG_REPORT_SEED). Rewrite before the next acceptance run.
+test.skip(true, "Kenneth, 26 October 2026: every client uses the standard template of the product type; STD_EG runs SAFEDON_EG's flow. Rewrite.");
+
 const PROJECT = "ipad-pro-landscape";
 const HARTALEGA = { id: "10000000-0000-4000-8000-000000000001", label: "Hartalega NGC" } as const;
 const INSPECTION_URL = /\/inspections\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/;

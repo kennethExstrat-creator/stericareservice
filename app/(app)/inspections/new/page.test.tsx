@@ -96,7 +96,7 @@ describe("/inspections/new", () => {
     expect(html).toContain("Add Document");
     // The template lists the picks it still needs.
     expect(html).toContain('data-testid="template-panel"');
-    expect(html).toContain("The template follows from the client, manufacturer and product type.");
+    expect(html).toContain("The template follows from the product type.");
     // Cards have their title and no line under it (Kenneth, 12 October 2026).
     expect(html).not.toContain("as on the order, and the type of glove");
     expect(html).toContain("Create Inspection");

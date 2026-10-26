@@ -4,7 +4,7 @@ import { stdEgInspectionData } from "../../lib/export/__fixtures__/std-eg";
 import { TemplateDefinitionSchema } from "../../lib/schemas/template";
 import type { Json } from "../../lib/supabase/database.types";
 import { lookupFrom, templateRowFields } from "../../lib/templates";
-import { STD_EG_SEED } from "../../lib/templates/definitions";
+import { STD_EG_REPORT_SEED } from "../../lib/templates/definitions";
 import { resolveTemplate } from "../../modules";
 import { createTestAdminClient, deleteTestInspection } from "../support/admin";
 import { sessionCookies, TEST_ACCOUNTS } from "../support/session";
@@ -152,7 +152,8 @@ export async function createAcceptanceFixture(project: string): Promise<Acceptan
   const { inspectorId, adminId } = await testAccountIds(admin);
   const templateCode = `${CODE_PREFIX}_${RUN}_${project.toUpperCase().replace(/[^A-Z0-9]+/g, "_")}`;
   const definition = TemplateDefinitionSchema.parse({
-    ...STD_EG_SEED.definition(),
+    // STD_EG's report flow (versions 1 to 4): the STD_EG example the fixture holds was made on it.
+    ...STD_EG_REPORT_SEED.definition(),
     code: templateCode,
     name: "Final acceptance: photos, export and AI (temporary)",
   });

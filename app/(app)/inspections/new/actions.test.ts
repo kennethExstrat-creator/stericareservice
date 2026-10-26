@@ -241,7 +241,7 @@ describe("writing the draft (migration 20261007190000)", () => {
     expect(name).toBe("create_inspection");
     expect(args).toMatchObject({
       actor_id: INSPECTOR,
-      template_id: T.SAFEDON_EG,
+      template_id: T.STD_EG,
       client_id: CLIENT,
       manufacturer_id: MANUFACTURER,
       mirrored_columns: { product_name: "Nitrile blue", inspection_date: "2026-10-06" },
@@ -265,11 +265,12 @@ describe("writing the draft (migration 20261007190000)", () => {
 });
 
 describe("the template (BUILD_SPEC 4.4)", () => {
-  it("starts from the most specific active template and answers the new inspection's id", async () => {
+  // Kenneth, 26 October 2026: every client uses the standard template, so SAFEDON_EG, still active for this client here, is passed over.
+  it("starts from the standard template of the product type, whoever the client is, and answers the new inspection's id", async () => {
     expect(await submit(order())).toEqual(CREATED);
     const payload = inserted()!;
     expect(payload).toMatchObject({
-      template_id: T.SAFEDON_EG,
+      template_id: T.STD_EG,
       client_id: CLIENT,
       manufacturer_id: MANUFACTURER,
       product_name: "Nitrile blue",
@@ -278,7 +279,7 @@ describe("the template (BUILD_SPEC 4.4)", () => {
     // Never sent: the database draws these.
     for (const key of ["id", "ref_no", "status", "inspector_id"]) expect(payload).not.toHaveProperty(key);
     const data = payload.data as { modules: Record<string, unknown>; custom: Record<string, unknown> };
-    const included = bundle.get("SAFEDON_EG")!.resolved.modules.filter((entry) => entry.include).map((entry) => entry.key);
+    const included = bundle.get("STD_EG")!.resolved.modules.filter((entry) => entry.include).map((entry) => entry.key);
     expect(Object.keys(data.modules)).toEqual(included);
     // The header starts dated today, with the product name and the manufacturer's address.
     expectOnly(data.modules.header, { inspectionDate: "2026-10-06", productName: "Nitrile blue", factoryAddress: ADDRESS });
@@ -310,7 +311,7 @@ describe("the template (BUILD_SPEC 4.4)", () => {
     use(world({ templates: [row(T.STD_EG, "STD_EG")] }));
     expect(await submit(order({ productType: "surgical" }))).toEqual({
       status: "error",
-      message: "No active template for surgical gloves fits these choices. An admin needs to activate one.",
+      message: "No active template for surgical gloves. An admin needs to activate one.",
     });
     expect(inserted()).toBeUndefined();
   });
@@ -346,7 +347,7 @@ describe("the template (BUILD_SPEC 4.4)", () => {
           action: "template_chosen",
           changes: {
             template: { id: T.DRAFT_EG, code: "DRAFT_EG", version: 1 },
-            instead_of: { id: T.SAFEDON_EG, code: "SAFEDON_EG", version: 1 },
+            instead_of: { id: T.STD_EG, code: "STD_EG", version: 1 },
           },
         },
       },
