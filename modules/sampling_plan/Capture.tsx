@@ -18,7 +18,15 @@
 // Size M"), so the labels down the left are for the eye only. A warning or an
 // error marks its cell, and every issue is listed under the table, naming
 // its size.
+//
+// Auto Calculate Sampling, top right of the card (Kenneth, 26 October 2026),
+// fills each size's cases from the order (auto-cases.ts): one of three ways
+// the plan comes in, beside typing it and Steri-AI reading a photo of the
+// written table on Source Documents. Cases already typed are replaced only
+// after a yes.
+import { CalculatorIcon } from "lucide-react";
 import { useRef, useState, type CSSProperties, type ReactNode } from "react";
+import { toast } from "sonner";
 import {
   EnterGroup,
   EntryProblems,
@@ -30,10 +38,23 @@ import {
   useIssueFocus,
   type EntryProblem,
 } from "@/components/qc";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { Button } from "@/components/ui/button";
 import { formatSize } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { labelFor, lotSizeGloves, type CaptureProps } from "@/modules/_framework";
+import { ModuleHeaderActions } from "@/modules/_framework/header-actions";
 import { useReportShownSize } from "@/modules/_framework/shown-size";
+import { autoSampleCases } from "./auto-cases";
 import type { SamplingPlanComputed } from "./calc";
 import type { SamplingColumn, SamplingPlanConfig } from "./config";
 import { countGroups, type CountRow } from "./rows";
@@ -113,6 +134,14 @@ export default function Capture({
 
   const setCount = (size: string, column: SamplingColumn, value: number | null) =>
     update((current) => withCount(current, size, column, value));
+
+  // Auto Calculate Sampling, where the template has a Case row: null until every size has its order quantity.
+  const hasCases = groups.some((group) => group.rows.some((row) => row.column === "cases"));
+  const autoCases = hasCases ? autoSampleCases(sizes, (size) => context.order[size]?.qtyCases ?? null) : null;
+  const applyAutoCases = (cases: Readonly<Record<string, number>>) => {
+    update((current) => sizes.reduce((next, size) => withCount(next, size, "cases", cases[size] ?? null), current));
+    toast.success(`Cases filled from the order: ${sizes.map((size) => `${sizeHead(size)} ${cases[size]}`).join(", ")}.`);
+  };
 
   // Names the cell with its size: every size is on screen at once. The link
   // to a cell in the problem list repeats it, so it reads "Case, Size M".
@@ -328,6 +357,16 @@ export default function Capture({
 
   return (
     <div ref={root} className="space-y-3">
+      {hasCases && !readOnly && (
+        <ModuleHeaderActions>
+          <AutoCalculateButton
+            sizes={sizes}
+            cases={autoCases}
+            entered={(size) => data.sizes[size]?.cases ?? null}
+            onApply={applyAutoCases}
+          />
+        </ModuleHeaderActions>
+      )}
       {level !== null && (
         <p className="text-sm text-muted-foreground touch:text-base">
           {label("inspectionLevel")} <span className="font-semibold text-foreground">{level}</span>
@@ -378,6 +417,63 @@ export default function Capture({
 }
 
 type RejectedEntry = EntryProblem & { size: string; column: SamplingColumn };
+
+/**
+ * Auto Calculate Sampling. Disabled until every size has its order quantity;
+ * asks first when it would change cases already typed.
+ */
+function AutoCalculateButton({
+  sizes,
+  cases,
+  entered,
+  onApply,
+}: {
+  sizes: readonly string[];
+  cases: Readonly<Record<string, number>> | null;
+  entered: (size: string) => number | null;
+  onApply: (cases: Readonly<Record<string, number>>) => void;
+}) {
+  const [asking, setAsking] = useState(false);
+  const replaces = cases !== null && sizes.some((size) => entered(size) !== null && entered(size) !== cases[size]);
+  return (
+    <>
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        disabled={cases === null}
+        title={
+          cases === null
+            ? "Enter every size's order quantity first."
+            : "Each size's cases: the square root of the order's cases, shared by the size's cases, rounded up."
+        }
+        onClick={() => {
+          if (cases === null) return;
+          if (replaces) setAsking(true);
+          else onApply(cases);
+        }}
+      >
+        <CalculatorIcon aria-hidden />
+        Auto Calculate Sampling
+      </Button>
+      <AlertDialog open={asking} onOpenChange={setAsking}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Replace the Cases Entered?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Auto Calculate Sampling fills each size&apos;s cases from the order quantities, in place of the cases already
+              entered.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={() => cases !== null && onApply(cases)}>Replace Cases</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
+  );
+}
 
 /** A cell's key in a set: a size and a count. */
 function cellKey(size: string, column: string): string {

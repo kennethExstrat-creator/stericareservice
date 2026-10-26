@@ -57,6 +57,16 @@ const redCells = (html: string): string[] =>
   tagsWith(html, "data-enter-field").filter((tag) => /class="([^"]*)"/.exec(tag)?.[1].split(/\s+/).includes("ring-fail"));
 
 describe("sampling_plan Capture", () => {
+  it("offers Auto Calculate Sampling while it can write, top right of the card in the capture screen (Kenneth, 26 October 2026)", () => {
+    // Outside the capture screen's frame it sits at the top of the body; the frame puts it in its header.
+    const html = render(props(SAFEDON_EG_EXAMPLE));
+    const button = /<button[^>]*>(?:(?!<\/button>)[\s\S])*Auto Calculate Sampling<\/button>/.exec(html)?.[0] ?? "";
+    expect(button).not.toBe("");
+    // Every size has its order quantity: the attribute, not the `disabled:` classes every button has.
+    expect(button).not.toMatch(/\sdisabled(=""|\s|>)/);
+    expect(render({ ...props(SAFEDON_EG_EXAMPLE), readOnly: true })).not.toContain("Auto Calculate Sampling");
+  });
+
   it("shows one table with a column per ordered size only, each count a whole-number cell (6.2 rules 1 and 4)", () => {
     const html = render(props(SAFEDON_EG_EXAMPLE));
     expect(tagsWith(html, "data-size-head").map((cell) => /data-size-head="([^"]+)"/.exec(cell)?.[1])).toEqual([

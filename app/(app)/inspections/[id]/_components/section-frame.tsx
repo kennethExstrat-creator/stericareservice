@@ -8,11 +8,14 @@
 // form, or a notice. The open page's frames are in
 // a PagePanel: a frame for each section on a page of two
 // (lib/inspections/capture/sections.ts SHOWN_WITH: packing configuration
-// below the order).
-import type { ReactNode, Ref } from "react";
+// below the order). A module's own header controls (the Sampling Plan's
+// Auto Calculate Sampling) come into the header beside the result through
+// ModuleHeaderSlot (modules/_framework/header-actions.tsx).
+import { useState, type ReactNode, type Ref } from "react";
 import { StatusPill } from "@/components/qc";
 import type { Status } from "@/lib/design/status";
 import { cn } from "@/lib/utils";
+import { ModuleHeaderSlot } from "@/modules/_framework/header-actions";
 
 type SectionFrameProps = {
   /** The panel id the section tabs point at; on a page of several sections, the frame's own. */
@@ -55,6 +58,9 @@ export function SectionFrame({
   className,
 }: SectionFrameProps) {
   const titleId = `${id}-title`;
+  // Where the module's own header controls go, once the header has mounted.
+  const [headerSlot, setHeaderSlot] = useState<HTMLDivElement | null>(null);
+  const headerGroup = Boolean(actions || status);
   return (
     <section
       id={id}
@@ -78,6 +84,7 @@ export function SectionFrame({
           </h2>
           {(actions || status) && (
             <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
+              <div ref={setHeaderSlot} data-slot="module-header-actions" className="contents" />
               {actions}
               {status && <StatusPill status={status} label={statusLabel} />}
             </div>
@@ -85,7 +92,9 @@ export function SectionFrame({
         </div>
         {summary && <div className="text-sm text-muted-foreground touch:text-base">{summary}</div>}
       </header>
-      <div className="space-y-5 px-5 py-5">{children}</div>
+      <div className="space-y-5 px-5 py-5">
+        <ModuleHeaderSlot.Provider value={{ framed: headerGroup, slot: headerSlot }}>{children}</ModuleHeaderSlot.Provider>
+      </div>
       {footer && (
         // The photo slot sizes its tiles to its own width (a container), so it never sits in an auto-sized column.
         <footer className="grid gap-5 rounded-b-xl border-t border-border bg-slate-50 px-5 py-4">

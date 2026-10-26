@@ -49,11 +49,13 @@ function offenders(imports: Import[], forbidden: (specifier: string) => boolean)
 
 /**
  * The framework's React parts, for Capture.tsx only: imported by their own
- * path (`@/modules/_framework/file-slot`, `@/modules/_framework/shown-size`,
- * `@/modules/_framework/summary-assist`), never through the framework's index.
+ * path (`@/modules/_framework/file-slot`, `@/modules/_framework/header-actions`,
+ * `@/modules/_framework/shown-size`, `@/modules/_framework/summary-assist`),
+ * never through the framework's index.
  */
 const FRAMEWORK_CLIENT_FILES = [
   "modules/_framework/file-slot.tsx",
+  "modules/_framework/header-actions.tsx",
   "modules/_framework/shown-size.ts",
   "modules/_framework/summary-assist.tsx",
 ];
@@ -105,6 +107,8 @@ describe("module layering", () => {
     expect(specifiers).toEqual([
       "@/modules/_framework/file-slot",
       "./file-slot",
+      "@/modules/_framework/header-actions",
+      "./header-actions",
       "@/modules/_framework/shown-size",
       "./shown-size",
       "@/modules/_framework/summary-assist",
