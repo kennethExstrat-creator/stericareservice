@@ -2,6 +2,14 @@
 
 Shared building blocks for every module's `Capture.tsx` (`docs/MODULES.md` section 10), so all sixteen modules look and behave the same and the look is tuned in one place. Capture renders the module body only; the screen wraps it in `ModuleCard`. Import components from `@/components/qc` and text helpers from `@/lib/format`. Check here before writing a control of your own.
 
+## Changed on 26 October 2026 (a pencil in the grid's footer)
+
+Nothing breaks, and no Capture has to change (Kenneth: "put the edit icon into the table, not outside"). A Capture that lets the inspector change a column's spec or verdict, as Dimension's does, passes MeasurementGrid:
+
+1. **`onEditSpec` and `onEditResult`**: a pencil ends each Spec cell, or each P/F cell, and hands over the measure's key; your module opens its own dialog. 28 px with a mouse, 44 px on any touchscreen, quiet until hovered or focused; the footer rows keep their height, and where a column is too narrow for a verdict and its pencil (five measures on an iPad in portrait) the pencil goes under the verdict. They are named "Change the Spec, Width" and "Change the P/F, Width" (`labels.editSpec`, `editResult`). Tab reaches them after the readings; the arrows still move between readings only. None while read-only.
+2. **`specNote` and `resultNote` on a measure**: a figure your module set for this inspection carries a small amber dot in its cell, the note as its title and read after the figure ("Set for this inspection; template: 95 ± 10"), read-only too. Show what changed there, not in a list under the grid.
+3. **`resultIssuePath`** marks each P/F cell for issue links, as `cellIssuePath` marks the readings: a warning about a verdict set by hand lands on the cell's pencil, or, read-only, on its marked verdict.
+
 ## Changed on 13 October 2026 (box/carton numbers, linked again)
 
 Kenneth: "box# and carton# is the same thing", then "yes link again" (BUILD_SPEC 6.2 rule 7, reversing 12 October). A Capture with box numbers passes two more props and words them "Box/Carton #"; nothing else changes:

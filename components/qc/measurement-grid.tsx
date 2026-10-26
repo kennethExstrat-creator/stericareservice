@@ -25,7 +25,14 @@
 // `summary`), so it never disagrees with the module's result; without them it
 // summarises the cells itself. Read-only, the readings stay focusable inputs:
 // arrows and Enter still move, issue links still land, nothing can change.
-import { useEffect, useId, useRef, useState, type CSSProperties, type KeyboardEvent } from "react";
+// A module that lets the inspector change a column's spec or verdict gets a
+// pencil at the end of each Spec or P/F cell (`onEditSpec`, `onEditResult`),
+// which opens its own dialog, and marks a figure it set for this inspection
+// with an amber dot, the reason as its title (Kenneth, 26 October 2026: "put
+// the edit icon into the table, not outside"). Tab reaches the pencils after
+// the readings; the arrows still move between readings only.
+import { PencilIcon } from "lucide-react";
+import { useEffect, useId, useRef, useState, type CSSProperties, type KeyboardEvent, type ReactNode } from "react";
 import { cn } from "@/lib/utils";
 import { formatDecimal, formatSpec, summarizeColumn, type ColumnOutcome, type Spec, type StatisticKind } from "@/lib/stats";
 import {
@@ -45,7 +52,7 @@ import {
   type MeasurementValues,
   type PasteOverflow,
 } from "./grid-navigation";
-import { issuePathProps, type IssuePath } from "./issue-path";
+import { issueNoticeProps, issuePathProps, type IssuePath } from "./issue-path";
 import { NumericCell, type InvalidEntry } from "./numeric-cell";
 import { rejectionMessage } from "./numeric-entry";
 import { PasteNotice } from "./paste-notice";
@@ -84,6 +91,18 @@ export type Measure = {
   minExclusive?: boolean;
   /** calc's figures for the footer (evaluation.computed); omit to let the grid summarise its cells. */
   summary?: MeasureSummary | null;
+  /**
+   * Why the spec is not the template's, when one is set for this inspection:
+   * the Spec cell marks it with an amber dot, these words its title and read
+   * after it ("Set for this inspection; template: 95 ± 10").
+   */
+  specNote?: string;
+  /**
+   * Why the verdict is not the readings' own, when it was set by hand: the
+   * P/F cell marks it as the Spec cell marks a spec ("Set by the inspector;
+   * the readings give Passed. Comment: …").
+   */
+  resultNote?: string;
 };
 
 /** Row heading and footer wording, as the template words it. */
@@ -100,6 +119,10 @@ export type MeasurementGridLabels = {
   fail: string;
   /** No spec to judge by. */
   na: string;
+  /** The pencil in a Spec cell, named with the measure: "Change the Spec, Width". */
+  editSpec: string;
+  /** The pencil in a P/F cell: "Change the P/F, Width". */
+  editResult: string;
 };
 
 type MeasurementGridProps = {
@@ -130,6 +153,20 @@ type MeasurementGridProps = {
   /** A cell took the focus, e.g. for photo tags. */
   onCellFocus?: (cell: MeasurementCell) => void;
   /**
+   * A pencil at the end of each Spec cell, which hands over the measure's
+   * key: the module opens its own dialog to set the spec for this
+   * inspection. None while read-only.
+   */
+  onEditSpec?: (measure: string) => void;
+  /** A pencil at the end of each P/F cell, as onEditSpec: the module sets the verdict by hand. */
+  onEditResult?: (measure: string) => void;
+  /**
+   * Marks each P/F cell for issue links, as cellIssuePath marks the
+   * readings: `(measure) => ["sizes", "M", "manualResults", measure]`. A link
+   * lands on the cell's pencil, or, read-only, on its marked verdict.
+   */
+  resultIssuePath?: (measure: string) => IssuePath;
+  /**
    * One measure's rows in up to three groups side by side, the footer across
    * the foot: for a long column of readings (weight's 13 gloves, force at
    * break's), which would otherwise run down one side of a wide screen.
@@ -144,6 +181,13 @@ const ROW_HEAD = "sticky left-0 z-[1] border-r border-b border-border px-3 text-
 const FOOT_CELL = "border-b border-border bg-slate-50 px-2.5 py-1.5 text-right touch:py-2.5";
 // A flowed grid's headings: a group is a few rows tall, so nothing scrolls under them.
 const FLOW_HEAD = "border-b border-border bg-slate-50 px-2.5 py-2 align-bottom font-semibold";
+// The pencil at the end of a Spec or P/F cell: the whole button is the target, 28 px (44 px on touch),
+// its fill a circle inside its padding, as a Stepper's buttons, and quiet until hovered or focused. Its
+// negative margins reach into the cell's padding, so the footer rows keep their height.
+const PENCIL =
+  "-my-1 inline-flex size-7 shrink-0 items-center justify-center rounded-full bg-clip-content p-0.5 text-muted-foreground outline-none transition-colors hover:bg-brand-100 hover:text-brand-700 focus-visible:text-brand-700 focus-ring-inset active:bg-brand-200 touch:-my-2.5 touch:size-11 touch:p-1 [&_svg]:size-3.5 touch:[&_svg]:size-4";
+// The amber dot on a figure the module set for this inspection (Measure.specNote, resultNote).
+const MARK = "size-2 shrink-0 rounded-full border border-warn bg-warn-solid touch:size-2.5";
 
 /** What a footer column shows: calc's figures, else the grid's own summary of its cells. */
 type Footer = { statistic: number | null; outcome: ColumnOutcome; short: number | null };
@@ -160,6 +204,9 @@ export function MeasurementGrid({
   readOnly = false,
   cellIssuePath,
   onCellFocus,
+  onEditSpec,
+  onEditResult,
+  resultIssuePath,
   flow = false,
   className,
 }: MeasurementGridProps) {
@@ -171,6 +218,8 @@ export function MeasurementGrid({
     pass: "Passed",
     fail: "Failed",
     na: "NA",
+    editSpec: "Change the Spec",
+    editResult: "Change the P/F",
     ...labels,
   };
   const idBase = useId();
@@ -387,6 +436,56 @@ export function MeasurementGrid({
       <StatusPill size="sm" status={footer.outcome} label={verdict(footer.outcome)} className="ml-auto" />
     );
 
+  /** The pencil at the end of a Spec or P/F cell, named "Change the Spec, Width". */
+  const pencil = (name: string, onClick: () => void, issuePath?: IssuePath) => (
+    <button type="button" {...issuePathProps(issuePath)} aria-label={name} onClick={onClick} className={PENCIL}>
+      <PencilIcon aria-hidden />
+    </button>
+  );
+
+  /**
+   * A Spec or P/F cell's content: the figure, with an amber dot when the
+   * module says why it is not the template's or the readings' own (`note`:
+   * its title, read after it), and the pencil at the end; where the column is
+   * too narrow for both (an iPad in portrait), the pencil goes under it. An
+   * issue link lands on a marked figure with `notice`. Without a note or a
+   * pencil, the figure alone.
+   */
+  const footerCell = (figure: ReactNode, note: string | undefined, edit: ReactNode, notice?: IssuePath) => {
+    if (!note && !edit) return figure;
+    return (
+      <span className="flex flex-wrap items-center justify-end gap-x-0.5 gap-y-2">
+        {note ? (
+          <span
+            title={note}
+            {...issueNoticeProps(notice)}
+            className={cn("inline-flex items-center gap-1.5", notice && "rounded-full outline-none focus-ring")}
+          >
+            <span aria-hidden data-slot="changed-mark" className={MARK} />
+            {figure}
+            <span className="sr-only"> ({note})</span>
+          </span>
+        ) : (
+          figure
+        )}
+        {edit}
+      </span>
+    );
+  };
+  const specCell = (measure: Measure) =>
+    footerCell(
+      specOf(measure),
+      measure.specNote,
+      onEditSpec && !readOnly && pencil(`${text.editSpec}, ${measure.label}`, () => onEditSpec(measure.key)),
+    );
+  /** An issue link (resultIssuePath) lands on the P/F cell's pencil, or, read-only, on its marked verdict. */
+  const resultCell = (footer: Footer, measure: Measure) => {
+    const path = resultIssuePath?.(measure.key);
+    const edit =
+      onEditResult && !readOnly && pencil(`${text.editResult}, ${measure.label}`, () => onEditResult(measure.key), path);
+    return footerCell(verdictOf(footer), measure.resultNote, edit, edit ? undefined : path);
+  };
+
   const groups = flow && measures.length === 1 ? flowGroups(rows) : null;
 
   return (
@@ -451,8 +550,8 @@ export function MeasurementGrid({
           >
             {[
               { key: "statistic", caption: text.statistic, figure: statisticOf(footers[0], 0), muted: false },
-              { key: "spec", caption: text.spec, figure: specOf(measures[0]), muted: true },
-              { key: "result", caption: text.result, figure: verdictOf(footers[0]), muted: false },
+              { key: "spec", caption: text.spec, figure: specCell(measures[0]), muted: true },
+              { key: "result", caption: text.result, figure: resultCell(footers[0], measures[0]), muted: false },
             ].map((item, index) => (
               <div
                 key={item.key}
@@ -476,11 +575,14 @@ export function MeasurementGrid({
           </div>
         </div>
       ) : (
-        // Scroll padding keeps a focused cell clear of the sticky header and footer.
+        // Scroll padding keeps a focused cell clear of the sticky header and footer. A P/F cell's
+        // pencil goes under its verdict where the columns are narrow (five on an iPad in portrait),
+        // which makes the footer taller.
         <div
           ref={scroller}
           className={cn(
-            "max-h-[75svh] scroll-pt-16 scroll-pb-28 overflow-auto overscroll-contain touch:scroll-pb-36",
+            "max-h-[75svh] scroll-pt-16 scroll-pb-28 overflow-auto overscroll-contain",
+            onEditResult && !readOnly ? "touch:scroll-pb-48" : "touch:scroll-pb-36",
             fitsWidth && "touch-pan-y touch-pinch-zoom",
           )}
         >
@@ -530,7 +632,7 @@ export function MeasurementGrid({
                 </th>
                 {measures.map((measure) => (
                   <td key={measure.key} className={cn(FOOT_CELL, "text-muted-foreground tabular-nums")}>
-                    {specOf(measure)}
+                    {specCell(measure)}
                   </td>
                 ))}
               </tr>
@@ -540,7 +642,7 @@ export function MeasurementGrid({
                 </th>
                 {footers.map((footer, col) => (
                   <td key={measures[col].key} className={cn(FOOT_CELL, "border-b-0")}>
-                    {verdictOf(footer)}
+                    {resultCell(footer, measures[col])}
                   </td>
                 ))}
               </tr>

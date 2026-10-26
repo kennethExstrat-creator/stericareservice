@@ -156,46 +156,60 @@ describe("dimensions capture", () => {
     expect(render("STD_EG", emptyDimensions(), makeTestContext())).toContain("No sizes ordered yet.");
   });
 
-  it("offers Change a P/F for each measure, and lists a P/F set by hand with its comment (Kenneth, 26 October 2026)", () => {
+  // Kenneth, 26 October 2026: "so ugly, put the edit icon into the table, not outside".
+  const footOf = (html: string) => /<tfoot[\s\S]*?<\/tfoot>/.exec(html)?.[0] ?? "";
+
+  it("puts a pencil in each measure's Spec and P/F cell, and nothing under the grid", () => {
     const context = exampleContext(STD_EG_EXAMPLE);
-    const plain = render("STD_EG", stdEg, context);
-    expect(plain).toContain("Change a P/F:");
+    const html = render("STD_EG", stdEg, context);
     for (const name of ["Length", "Width", "Finger Thickness", "Palm Thickness", "Cuff Thickness"]) {
-      expect(plain).toContain(`${name}<span class="sr-only">, Size M</span>`);
+      expect(tags(footOf(html), `aria-label="Change the Spec, ${name}"`)).toHaveLength(1);
+      expect(tags(footOf(html), `aria-label="Change the P/F, ${name}"`)).toHaveLength(1);
     }
-    // Width set to Failed by hand, though the readings pass: marked on its button and listed with the comment.
+    // No rows of buttons under the grid, and with nothing changed, nothing marked.
+    for (const gone of ["Change a Spec:", "Change a P/F:", 'data-slot="spec-overrides"', 'data-slot="manual-results"', "changed-mark"]) {
+      expect(html).not.toContain(gone);
+    }
+    // Read-only: no pencils.
+    expect(render("STD_EG", stdEg, context, { readOnly: true })).not.toContain("Change the");
+  });
+
+  it("marks a P/F set by hand in its cell, the comment as its title, and lands calc's warning on its pencil", () => {
+    const context = exampleContext(STD_EG_EXAMPLE);
+    // Width set to Failed by hand, though the readings pass.
     const data: DimensionsData = {
       sizes: { ...stdEg.sizes, M: { ...stdEg.sizes.M, manualResults: { width: { result: "fail", comment: "Torn cuffs on 3 gloves." } } } },
     };
+    const note = "Set by the inspector; the readings give Passed. Comment: Torn cuffs on 3 gloves.";
+    const path = `data-issue-path="${JSON.stringify(["sizes", "M", "manualResults", "width"]).replaceAll('"', "&quot;")}"`;
     const html = render("STD_EG", data, context);
-    expect(html).toContain("By Inspector");
-    expect(html).toContain("set by the inspector; the readings give Passed. Comment: Torn cuffs on 3 gloves.");
-    // Read-only: the list stays, the buttons go.
-    const readOnly = render("STD_EG", data, context, { readOnly: true });
-    expect(readOnly).not.toContain("Change a P/F:");
-    expect(readOnly).toContain("Comment: Torn cuffs on 3 gloves.");
-    expect(render("STD_EG", stdEg, context, { readOnly: true })).not.toContain('data-slot="manual-results"');
+    expect(footOf(html).match(/data-slot="changed-mark"/g)).toHaveLength(1);
+    expect(footOf(html)).toContain(`title="${note}"`);
+    expect(footOf(html)).toContain(`<span class="sr-only"> (${note})</span>`);
+    // calc's warning under the grid says it with the comment; its link lands on the pencil, and no list repeats it.
+    expect(html).toContain(`Size M, Width: Failed set by the inspector; the readings give Passed. Comment: Torn cuffs on 3 gloves.`);
+    expect(tags(footOf(html), 'aria-label="Change the P/F, Width"')[0]).toContain(path);
+    expect(html).not.toContain("P/F set by the inspector");
+    // Read-only: the mark stays, and the link lands on it.
+    const mark = tags(render("STD_EG", data, context, { readOnly: true }), `title="${note}"`)[0];
+    expect(mark).toContain(path);
+    expect(mark).toContain('tabindex="-1"');
   });
 
-  it("offers Change a Spec for each measure, and judges and lists a spec set for the inspection beside the template's (Kenneth, 26 October 2026)", () => {
+  it("judges by a spec set for the inspection and marks it in its Spec cell, the template's as its title", () => {
     const context = exampleContext(STD_EG_EXAMPLE);
-    const plain = render("STD_EG", stdEg, context);
-    expect(plain).toContain("Change a Spec:");
-    expect(plain).not.toContain("Changed</span>");
     // The form prints SAFEDON_EG's width for size M: 86 ± 4, where the template has 95 ± 10.
     const data: DimensionsData = {
       sizes: { ...stdEg.sizes, M: { ...stdEg.sizes.M, specOverrides: { width: { kind: "tolerance", nominal: 86, tolerance: 4 } } } },
     };
+    const marked = /title="Set for this inspection; template: 95 ± 10"[^>]*><span aria-hidden="true" data-slot="changed-mark"[^>]*><\/span>86 ± 4</;
     const html = render("STD_EG", data, context);
-    expect(html).toContain("Changed</span>");
-    expect(html).toContain("for this inspection. Template: 95 ± 10.");
-    // The grid's Spec row prints it, and its footer judges by it: a median of 95 fails 86 ± 4.
-    expect(html).toContain("86 ± 4");
-    expect(html).toContain("Failed");
-    // Read-only: the list stays, the buttons go.
-    const readOnly = render("STD_EG", data, context, { readOnly: true });
-    expect(readOnly).not.toContain("Change a Spec:");
-    expect(readOnly).toContain("Template: 95 ± 10.");
-    expect(render("STD_EG", stdEg, context, { readOnly: true })).not.toContain('data-slot="spec-overrides"');
+    expect(footOf(html)).toMatch(marked);
+    // The footer judges by it: a median of 95 fails 86 ± 4, the one verdict that fails.
+    expect(footOf(html).match(/data-status="fail"/g)).toHaveLength(1);
+    // No list under the grid.
+    expect(html).not.toContain("for this inspection. Template:");
+    // Read-only: still marked.
+    expect(footOf(render("STD_EG", data, context, { readOnly: true }))).toMatch(marked);
   });
 });

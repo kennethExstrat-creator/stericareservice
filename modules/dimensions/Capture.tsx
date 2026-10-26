@@ -11,14 +11,14 @@
 // removed from their warning. Read-only, the readings stay focusable. Photos
 // are tagged with the size in view.
 //
-// Under each size's grid (Kenneth, 26 October 2026), Change a Spec: a
-// measure's spec for this inspection, as the form's Spec row gives it (NA
-// included), in place of the template's; and Change a P/F: a measure's P/F
-// set by hand, with a comment. The save records both in the audit log; the
-// grid then judges and shows them, and the lists under the buttons say what
-// was changed. (The grid's own Spec and P/F cells are the shared kit's and
-// take no control yet.)
-import { PencilIcon } from "lucide-react";
+// In each size's grid (Kenneth, 26 October 2026: "put the edit icon into the
+// table, not outside"), the pencil in a measure's Spec cell opens Change the
+// Spec: its spec for this inspection, as the form's Spec row gives it (NA
+// included), in place of the template's; the pencil in its P/F cell opens
+// Change the P/F: its P/F set by hand, with a comment. The save records both
+// in the audit log; the grid then judges by them and marks each in its cell
+// with an amber dot, the template's spec or the comment as its title, and
+// calc's warning about a P/F the readings do not give lands on its pencil.
 import { useId, useRef, useState, type RefObject } from "react";
 import {
   focusIssuePath,
@@ -129,27 +129,46 @@ function SizeGrid({
   update: (change: DataChange<DimensionsData>) => void;
 }) {
   const { rows } = rowsFor(context, size, config);
-  const heading = sizeHeading(labelFor(labels, "sizeHeading"), sizeLabel(context, size));
+  const sizeName = sizeLabel(context, size);
+  const heading = sizeHeading(labelFor(labels, "sizeHeading"), sizeName);
   const status = evaluation?.result.perSize?.[size]?.status;
   // A module whose config or data is broken comes back with no computed values.
   const computed: Partial<DimensionsComputed> | undefined = evaluation?.computed;
+  const calculated = computed?.calculated?.[size] ?? {};
+  const manual = computed?.manual?.[size] ?? {};
   // Issues about a reading of this size; the screen's issue list carries the rest.
   const issues = (evaluation?.issues ?? []).filter(
     (issue) => issue.size === size && issue.path[0] === "sizes" && issue.path[1] === size && issue.path.length > 2,
   );
+  // The dialog a pencil in the grid's Spec or P/F cell opened.
+  const [editing, setEditing] = useState<{ cell: "spec" | "result"; measure: Measure } | null>(null);
+  const edit = (cell: "spec" | "result", key: string) => {
+    const measure = config.measures.find((candidate) => candidate === key);
+    if (measure) setEditing({ cell, measure });
+  };
+  const template = (measure: Measure) => specFor(config, size, measure) ?? null;
 
-  const measures: GridMeasure[] = config.measures.map((measure) => ({
-    key: measure,
-    label: labelFor(labels, measure),
-    unit: "mm",
-    decimals: config.decimals[measure],
-    // The spec set for this inspection, else the template's: what calc judges by.
-    spec: effectiveSpecFor(config, data, size, measure),
-    // calc refuses a reading of 0 mm or less: so does the cell.
-    min: 0,
-    minExclusive: true,
-    summary: measureSummary(computed, size, measure),
-  }));
+  const measures: GridMeasure[] = config.measures.map((measure) => {
+    const byHand = manual[measure];
+    return {
+      key: measure,
+      label: labelFor(labels, measure),
+      unit: "mm",
+      decimals: config.decimals[measure],
+      // The spec set for this inspection, else the template's: what calc judges by.
+      spec: effectiveSpecFor(config, data, size, measure),
+      // calc refuses a reading of 0 mm or less: so does the cell.
+      min: 0,
+      minExclusive: true,
+      summary: measureSummary(computed, size, measure),
+      specNote: specOverrideOf(data, size, measure)
+        ? `Set for this inspection; template: ${specWords(template(measure))}`
+        : undefined,
+      resultNote: byHand
+        ? `Set by the inspector; the readings give ${verdictWord(calculated[measure], labels)}. Comment: ${byHand.comment}`
+        : undefined,
+    };
+  });
 
   return (
     <ModuleSection
@@ -177,27 +196,45 @@ function SizeGrid({
           labels={gridLabels(labels)}
           readOnly={readOnly}
           cellIssuePath={(cell) => cellPath(size, cell)}
+          onEditSpec={(key) => edit("spec", key)}
+          onEditResult={(key) => edit("result", key)}
+          // calc's warning about a P/F set by hand points here.
+          resultIssuePath={(measure) => ["sizes", size, "manualResults", measure]}
         />
       </div>
-      <SpecOverrides
-        sizeName={sizeLabel(context, size)}
-        measures={config.measures}
-        labels={labels}
-        template={(measure) => specFor(config, size, measure) ?? null}
-        overrides={Object.fromEntries(config.measures.map((measure) => [measure, specOverrideOf(data, size, measure)]))}
-        readOnly={readOnly}
-        onChange={(measure, spec) => update((current) => withSpecOverride(current, size, measure, spec))}
-      />
-      <ManualResults
-        size={size}
-        sizeName={sizeLabel(context, size)}
-        measures={config.measures}
-        labels={labels}
-        calculated={computed?.calculated?.[size] ?? {}}
-        manual={computed?.manual?.[size] ?? {}}
-        readOnly={readOnly}
-        onChange={(measure, manual) => update((current) => withManualResult(current, size, measure, manual))}
-      />
+      {editing?.cell === "spec" && (
+        <ChangeSpecDialog
+          key={editing.measure}
+          measureName={labelFor(labels, editing.measure)}
+          sizeName={sizeName}
+          template={template(editing.measure)}
+          current={specOverrideOf(data, size, editing.measure)}
+          onClose={() => setEditing(null)}
+          onSave={(next) => {
+            const { measure } = editing;
+            // The template's own spec changes nothing for this inspection.
+            const spec = next && sameSpec(next, template(measure)) ? null : next;
+            update((current) => withSpecOverride(current, size, measure, spec));
+            setEditing(null);
+          }}
+        />
+      )}
+      {editing?.cell === "result" && (
+        <ChangeResultDialog
+          key={editing.measure}
+          measureName={labelFor(labels, editing.measure)}
+          sizeName={sizeName}
+          labels={labels}
+          calculated={calculated[editing.measure]}
+          current={manual[editing.measure] ?? null}
+          onClose={() => setEditing(null)}
+          onSave={(next) => {
+            const { measure } = editing;
+            update((current) => withManualResult(current, size, measure, next));
+            setEditing(null);
+          }}
+        />
+      )}
       <IssueLinks
         issues={issues}
         root={root}
@@ -216,88 +253,6 @@ function verdictWord(outcome: MeasureOutcome | undefined, labels: Labels): strin
 /** "≥ 240", "NA"; "no spec" where there is none. */
 function specWords(spec: Spec | null | undefined): string {
   return spec ? formatSpec(spec) : "no spec";
-}
-
-/**
- * Change a Spec: a button per measure, each opening the dialog that sets the
- * measure's spec for this inspection, and the list of the specs changed, each
- * beside the template's. Read-only, only the list.
- */
-function SpecOverrides({
-  sizeName,
-  measures,
-  labels,
-  template,
-  overrides,
-  readOnly,
-  onChange,
-}: {
-  sizeName: string;
-  measures: readonly Measure[];
-  labels: Labels;
-  template: (measure: Measure) => Spec | null;
-  overrides: Readonly<Partial<Record<string, Spec | null>>>;
-  readOnly: boolean;
-  onChange: (measure: Measure, spec: Spec | null) => void;
-}) {
-  const [editing, setEditing] = useState<Measure | null>(null);
-  const changed = measures.filter((measure) => overrides[measure]);
-  if (readOnly && changed.length === 0) return null;
-  return (
-    <div data-slot="spec-overrides" className="space-y-2">
-      {!readOnly && (
-        <div className="flex flex-wrap items-center gap-2">
-          <p className="text-sm font-medium text-muted-foreground touch:text-base">Change a Spec:</p>
-          {measures.map((measure) => (
-            <Button
-              key={measure}
-              type="button"
-              variant="outline"
-              size="sm"
-              className="touch:text-base"
-              onClick={() => setEditing(measure)}
-            >
-              <PencilIcon aria-hidden />
-              {labelFor(labels, measure)}
-              {overrides[measure] && (
-                <span className="rounded-full border border-border bg-muted px-1.5 text-xs font-semibold text-foreground">
-                  Changed
-                </span>
-              )}
-              <span className="sr-only">, Size {sizeName}</span>
-            </Button>
-          ))}
-        </div>
-      )}
-      {changed.length > 0 && (
-        <ul className="space-y-1.5" aria-label="Specs changed for this inspection">
-          {changed.map((measure) => (
-            <li key={measure} className="rounded-md border border-border bg-muted px-3 py-2 text-sm text-foreground touch:text-base">
-              <span className="font-semibold">
-                {labelFor(labels, measure)}: {specWords(overrides[measure])}
-              </span>{" "}
-              for this inspection. Template: {specWords(template(measure))}.
-            </li>
-          ))}
-        </ul>
-      )}
-      {editing && (
-        <ChangeSpecDialog
-          key={editing}
-          measureName={labelFor(labels, editing)}
-          sizeName={sizeName}
-          template={template(editing)}
-          current={overrides[editing] ?? null}
-          onClose={() => setEditing(null)}
-          onSave={(next) => {
-            // The template's own spec changes nothing for this inspection.
-            onChange(editing, next && sameSpec(next, template(editing)) ? null : next);
-            setEditing(null);
-          }}
-        />
-      )}
-    </div>
-  );
 }
 
 /**
@@ -420,102 +375,6 @@ function ChangeSpecDialog({
         </form>
       </DialogContent>
     </Dialog>
-  );
-}
-
-/**
- * Change a P/F: a button per measure, each opening the dialog that sets the
- * measure's P/F by hand with a comment, and the list of what was set and
- * why. Read-only, only the list.
- */
-function ManualResults({
-  size,
-  sizeName,
-  measures,
-  labels,
-  calculated,
-  manual,
-  readOnly,
-  onChange,
-}: {
-  size: string;
-  sizeName: string;
-  measures: readonly Measure[];
-  labels: Labels;
-  calculated: Readonly<Partial<Record<string, MeasureOutcome>>>;
-  manual: Readonly<Partial<Record<string, ManualResult>>>;
-  readOnly: boolean;
-  onChange: (measure: Measure, manual: ManualResult | null) => void;
-}) {
-  const [editing, setEditing] = useState<Measure | null>(null);
-  const set = measures.filter((measure) => manual[measure]);
-  if (readOnly && set.length === 0) return null;
-  return (
-    <div data-slot="manual-results" className="space-y-2">
-      {!readOnly && (
-        <div className="flex flex-wrap items-center gap-2">
-          <p className="text-sm font-medium text-muted-foreground touch:text-base">Change a P/F:</p>
-          {measures.map((measure) => (
-            <Button
-              key={measure}
-              type="button"
-              variant="outline"
-              size="sm"
-              className="touch:text-base"
-              onClick={() => setEditing(measure)}
-            >
-              <PencilIcon aria-hidden />
-              {labelFor(labels, measure)}
-              {manual[measure] && (
-                <span className="rounded-full border border-warn-border bg-warn-tint px-1.5 text-xs font-semibold text-warn">
-                  By Inspector
-                </span>
-              )}
-              <span className="sr-only">, Size {sizeName}</span>
-            </Button>
-          ))}
-        </div>
-      )}
-      {set.length > 0 && (
-        <ul className="space-y-1.5" aria-label="P/F set by the inspector">
-          {set.map((measure) => {
-            const entry = manual[measure]!;
-            const differs = entry.result !== calculated[measure];
-            return (
-              <li
-                key={measure}
-                // calc's warning about it links here.
-                {...issueNoticeProps(["sizes", size, "manualResults", measure])}
-                className={cn(
-                  "rounded-md border px-3 py-2 text-sm outline-none focus-ring touch:text-base",
-                  differs ? "border-warn-border bg-warn-tint text-warn" : "border-border bg-muted text-foreground",
-                )}
-              >
-                <span className="font-semibold">
-                  {labelFor(labels, measure)}: {verdictWord(entry.result, labels)}
-                </span>{" "}
-                set by the inspector; the readings give {verdictWord(calculated[measure], labels)}. Comment: {entry.comment}
-              </li>
-            );
-          })}
-        </ul>
-      )}
-      {editing && (
-        <ChangeResultDialog
-          key={editing}
-          measureName={labelFor(labels, editing)}
-          sizeName={sizeName}
-          labels={labels}
-          calculated={calculated[editing]}
-          current={manual[editing] ?? null}
-          onClose={() => setEditing(null)}
-          onSave={(next) => {
-            onChange(editing, next);
-            setEditing(null);
-          }}
-        />
-      )}
-    </div>
   );
 }
 

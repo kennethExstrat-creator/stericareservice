@@ -80,6 +80,17 @@ describe("screen-reader text stays inside its component (D1)", () => {
       <MeasurementGrid key="grid" caption="Dimension" measures={measures} values={{}} onValuesChange={noop} statistic="median" />,
     ],
     [
+      "MeasurementGrid with a marked spec and its pencil",
+      <MeasurementGrid
+        key="grid-marked"
+        caption="Dimension"
+        measures={[{ ...measures[0], specNote: "Set for this inspection; template: 95 ± 10" }]}
+        values={{}}
+        statistic="median"
+        onEditSpec={noop}
+      />,
+    ],
+    [
       "ModuleCard",
       <ModuleCard key="card" title="Packing" status="not_done" comment="" onCommentChange={noop} onFiles={noop} />,
     ],
@@ -492,6 +503,83 @@ describe("MeasurementGrid", () => {
   it("takes typing and pastes only when it is not read-only", () => {
     const editable = (renderWith({}).match(/<input[^>]*>/g) ?? [])[0];
     expect(editable).not.toContain("readOnly");
+  });
+
+  // Kenneth, 26 October 2026: "put the edit icon into the table, not outside".
+  const renderEditable = (props: Partial<Parameters<typeof MeasurementGrid>[0]> = {}) =>
+    renderToStaticMarkup(
+      <MeasurementGrid
+        caption="Dimension - Size M"
+        measures={measures}
+        values={{}}
+        statistic="median"
+        onEditSpec={noop}
+        onEditResult={noop}
+        {...props}
+      />,
+    );
+  const pencils = (html: string) =>
+    Array.from(html.matchAll(/<button[^>]*aria-label="(Change the [^"]*)"/g), (match) => match[1]);
+  const footOf = (html: string) => /<tfoot[\s\S]*<\/tfoot>/.exec(html)?.[0] ?? "";
+
+  it("puts a pencil at the end of each Spec and P/F cell when the module changes them, none while read-only", () => {
+    const html = renderEditable();
+    expect(pencils(footOf(html))).toEqual([
+      "Change the Spec, Length",
+      "Change the Spec, Width",
+      "Change the Spec, Cuff Thickness",
+      "Change the P/F, Length",
+      "Change the P/F, Width",
+      "Change the P/F, Cuff Thickness",
+    ]);
+    // After the figure in its cell: the spec, then its pencil.
+    expect(footOf(html)).toMatch(/≥ 240<button type="button" aria-label="Change the Spec, Length"/);
+    // 28 px with a mouse, 44 px on any touchscreen.
+    expect(/<button[^>]*aria-label="Change the P\/F, Width"[^>]*>/.exec(html)?.[0]).toMatch(/\bsize-7\b.*\btouch:size-11\b/);
+    // After every reading: Tab reaches them last, and the arrows, which move between readings, never do.
+    expect(html.lastIndexOf("<input")).toBeLessThan(html.indexOf("Change the Spec"));
+    expect(pencils(renderEditable({ readOnly: true }))).toEqual([]);
+    expect(pencils(render({}))).toEqual([]);
+  });
+
+  it("puts the pencils in a flowed grid's footer too", () => {
+    expect(pencils(renderWith({ flow: true, onEditSpec: noop, onEditResult: noop }))).toEqual([
+      "Change the Spec, Force at break (N)",
+      "Change the P/F, Force at break (N)",
+    ]);
+  });
+
+  it("marks a figure set for this inspection with an amber dot, the module's words its title and read after it", () => {
+    const marked = measures.map(
+      (measure): Measure =>
+        measure.key === "width"
+          ? {
+              ...measure,
+              spec: { kind: "tolerance", nominal: 86, tolerance: 4 },
+              specNote: "Set for this inspection; template: 95 ± 10",
+              resultNote: "Set by the inspector; the readings give Passed. Comment: Torn cuffs.",
+            }
+          : measure,
+    );
+    const html = renderEditable({ measures: marked });
+    expect(html.match(/data-slot="changed-mark"/g)).toHaveLength(2);
+    expect(html).toMatch(/title="Set for this inspection; template: 95 ± 10"[^>]*><span aria-hidden="true" data-slot="changed-mark"[^>]*><\/span>86 ± 4</);
+    expect(html).toContain('<span class="sr-only"> (Set for this inspection; template: 95 ± 10)</span>');
+    expect(html).toContain('title="Set by the inspector; the readings give Passed. Comment: Torn cuffs."');
+    // Read-only, the marks stay; with nothing set, there is none.
+    expect(renderEditable({ measures: marked, readOnly: true }).match(/data-slot="changed-mark"/g)).toHaveLength(2);
+    expect(renderEditable()).not.toContain("changed-mark");
+  });
+
+  it("lands an issue link about a verdict on its cell's pencil, or, read-only, on its marked verdict", () => {
+    const resultIssuePath = (measure: string) => ["sizes", "M", "manualResults", measure];
+    const path = 'data-issue-path="[&quot;sizes&quot;,&quot;M&quot;,&quot;manualResults&quot;,&quot;width&quot;]"';
+    const html = renderEditable({ resultIssuePath });
+    expect(/<button[^>]*aria-label="Change the P\/F, Width"[^>]*>/.exec(html)?.[0]).toContain(path);
+    const marked = measures.map((measure): Measure => (measure.key === "width" ? { ...measure, resultNote: "Set by hand." } : measure));
+    const notice = /<span[^>]*title="Set by hand\."[^>]*>/.exec(renderEditable({ measures: marked, resultIssuePath, readOnly: true }))?.[0];
+    expect(notice).toContain(path);
+    expect(notice).toContain('tabindex="-1"');
   });
 });
 
