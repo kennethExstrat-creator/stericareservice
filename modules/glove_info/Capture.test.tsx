@@ -88,6 +88,14 @@ describe("glove_info capture", () => {
     expect(render()).toMatch(/data-slot="glove-info" class="@container /);
   });
 
+  it("asks the Glove Colour from a dropdown, not a text box (Kenneth, 26 October 2026)", () => {
+    const html = render();
+    const trigger = /<button[^>]*role="combobox"[^>]*id="[^"]*-0-colour"[^>]*>|<button[^>]*id="[^"]*-0-colour"[^>]*role="combobox"[^>]*>/.exec(html)?.[0] ?? "";
+    expect(trigger).not.toBe("");
+    expect(html).not.toMatch(/<input[^>]*id="[^"]*-0-colour"/);
+    expect(html).toContain(">Glove Colour</label>");
+  });
+
   it("keeps a glove saved for some sizes as it is, and offers to cover every size", () => {
     const some: GloveInfoData = { ...GLOVE, variants: [{ ...GLOVE.variants[0], sizes: ["S", "M"] }] };
     expect(render({ data: some })).toContain("Saved for size S, M only.");

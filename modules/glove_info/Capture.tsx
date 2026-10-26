@@ -22,8 +22,10 @@ import { EnterGroup, findIssue, issuePathProps, NumberField, useDataUpdater, use
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { fieldIssues, labelFor, type CaptureProps } from "@/modules/_framework";
 import { variantName, weightLabel, type GloveInfoComputed } from "./calc";
+import { GLOVE_COLOURS, listedColour } from "./colours";
 import { VARIANT_FIELDS, type GloveInfoConfig } from "./config";
 import {
   coverEverySize,
@@ -100,6 +102,16 @@ export default function Capture({
             error={findIssue(issues, ["variants", index, field])?.message ?? null}
             issuePath={["variants", index, field]}
             readOnly={readOnly}
+          />
+        ) : field === "colour" ? (
+          <ColourField
+            key={field}
+            id={`${id}-${index}-${field}`}
+            label={labelFor(labels, field)}
+            value={variant.colour}
+            issuePath={["variants", index, field]}
+            readOnly={readOnly}
+            onValueChange={(value) => update((current) => setText(current, index, field, value))}
           />
         ) : (
           <TextField
@@ -207,6 +219,57 @@ export default function Capture({
           })}
         </>
       )}
+    </div>
+  );
+}
+
+/**
+ * Glove Colour as a dropdown: each colour by its name and a dot of it
+ * (colours.ts; Kenneth, 26 October 2026). A name saved earlier that is not
+ * on the list comes first, as it is, so nothing is lost.
+ */
+function ColourField({
+  id,
+  label,
+  value,
+  issuePath,
+  readOnly,
+  onValueChange,
+}: {
+  id: string;
+  label: string;
+  value: string | null;
+  issuePath: readonly (string | number)[];
+  readOnly: boolean;
+  onValueChange: (value: string) => void;
+}) {
+  const listed = listedColour(value);
+  const options = listed !== null || value === null ? GLOVE_COLOURS : [{ name: value, swatch: null }, ...GLOVE_COLOURS];
+  return (
+    <div className="min-w-0 space-y-1.5" {...issuePathProps([...issuePath])}>
+      <Label htmlFor={id} className="leading-snug touch:text-base">
+        {label}
+      </Label>
+      <Select value={listed?.name ?? value ?? ""} onValueChange={onValueChange} disabled={readOnly}>
+        <SelectTrigger id={id} className="w-full">
+          <SelectValue placeholder="Choose the colour" />
+        </SelectTrigger>
+        <SelectContent>
+          {options.map((colour) => (
+            <SelectItem key={colour.name} value={colour.name}>
+              {colour.name}
+              {colour.swatch !== null && (
+                <span
+                  aria-hidden
+                  data-slot="colour-dot"
+                  className="inline-block size-3 shrink-0 rounded-full ring-1 ring-slate-900/20"
+                  style={{ backgroundColor: colour.swatch }}
+                />
+              )}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
     </div>
   );
 }
