@@ -247,6 +247,46 @@ describe("the STD_EG example's export, through the real modules", () => {
     expect(doc.conclusion.suggestedResult).toBe("fail");
   });
 
+  it("exports the Sampling Quantity in Kenneth's words, with the inner boxes per case, the gloves per inner box and those put back (27 October 2026)", async () => {
+    // A version saved with the form's words for the rows, as STD_EG version 6 holds them.
+    const base = stdEgRecord();
+    const resolved = base.template!.resolved as { modules: { key: string; labels: Record<string, string> }[] };
+    const template = {
+      ...resolved,
+      modules: resolved.modules.map((entry) =>
+        entry.key === "sampling_plan" ? { ...entry, labels: { ...entry.labels, cases: "Case", innerUnits: "Inner Box", gloves: "Gloves" } } : entry,
+      ),
+    };
+    // Kenneth's example: 25 cases, one inner box from each, and code M's 315 gloves.
+    const data = stdEgInspectionData({ labReportFileId: STD_EG_IDS.fileLabReport });
+    const plan = data.modules.sampling_plan as { sizes: { M: Record<string, number | null> } };
+    const record = stdEgRecord({
+      template: { ...base.template!, resolved: template },
+      data: {
+        ...data,
+        modules: {
+          ...data.modules,
+          sampling_plan: { sizes: { M: { ...plan.sizes.M, cases: 25, innerUnitsPerCase: 1, innerUnits: 25, gloves: 315 } } },
+        },
+      },
+    });
+    const { doc } = await exportOf(stdEgTables(record), stdEgObjects(record));
+    expect(ExportSchema.safeParse(doc).success).toBe(true);
+    const sampling = moduleOf(doc, "sampling_plan");
+    expect(sampling.labels).toMatchObject({
+      cases: "# of Case",
+      innerUnitsPerCase: "Inner Box Taken per Case",
+      innerUnits: "Total # of Inner Box",
+      gloves: "# of Gloves",
+      glovesPerInnerBox: "Gloves Taken per Inner Box",
+      putBack: "Put Back",
+    });
+    expect(sampling.data.sizes).toMatchObject({ M: { cases: 25, innerUnitsPerCase: 1, innerUnits: 25, gloves: 315 } });
+    expect(sampling.computed).toMatchObject({ sizes: { M: { glovesPerInnerBox: 13, putBack: 10 } }, totals: { innerUnits: 25, putBack: 10 } });
+    expect(sampling.computed.totals).not.toHaveProperty("innerUnitsPerCase");
+    expect(sampling.result.perSize?.M.summary).toContain("Gloves Taken per Inner Box: 13; Put Back: 10.");
+  });
+
   it("lists a module switched off for the inspection, with the reason, instead of exporting it", async () => {
     const record = stdEgRecord({
       moduleOverrides: { dimensions: { reason: "Calipers out for calibration.", by: ADMIN.id, at: "2025-04-11T08:00:00+00:00" } },

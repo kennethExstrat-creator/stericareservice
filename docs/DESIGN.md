@@ -120,7 +120,7 @@ Kenneth's rule (8 October 2026): "all the labels should be capital letter for al
 How a label is written:
 
 - Every word starts with a capital letter, except these small words in the middle of a label: a, an, the, and, but, or, nor, of, in, on, at, to, by, for, per, via, vs, as. So "Date of Inspection", "Gloves per Case", "Inspector in Charge", "Defect Not in the List".
-- The first and the last word always start with a capital, a small word included: "Used In", "Map To", "Shown As", "Base Moved On".
+- The first and the last word always start with a capital, a small word included: "Used In", "Map To", "Shown As", "Base Moved On". A "#" reads "Number" and counts as the first word: "# of Case", "# of Gloves" (Kenneth, 27 October 2026).
 - A particle that belongs to its verb keeps its capital: "Sign In", "Switch Off", "Switch Back On", "Stay Signed In" (but "Back to Sign In", where "to" is no particle).
 - The first word after a colon or an opening bracket starts with a capital: "Reopened: Changes Needed", "No: Keeps Its Own Value", "Not Tagged (Tag Them Later)", "Accent: Logo Teal (The Brand, Never a Result)".
 - Each part of a hyphenated word starts with a capital: "Sign-In", "Set-Up", "One-Off Label".

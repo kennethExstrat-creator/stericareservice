@@ -311,6 +311,38 @@ describe("applyProposals on Packing Configuration (Kenneth, 27 October 2026: the
   });
 });
 
+describe("applyProposals on the sampling plan's inner boxes (Kenneth, 27 October 2026)", () => {
+  const included = new Set(["sampling_plan"]);
+  type Plan = { sizes: Record<string, { cases: number | null; innerUnitsPerCase: number | null; innerUnits: number | null }> };
+  const plan = (data: { modules: Readonly<Record<string, unknown>> }) => data.modules.sampling_plan as Plan;
+
+  it("takes the paper form's inner boxes as the total, with no count per case", () => {
+    const result = applyProposals({ modules: {}, custom: {} }, { sampling_plan: { sizes: { S: { cases: 16, innerUnits: 16 } } } }, MODULE_REGISTRY, included);
+    expect(plan(result.data).sizes.S).toMatchObject({ cases: 16, innerUnitsPerCase: null, innerUnits: 16 });
+    expect(result.filled).toBe(2);
+  });
+
+  it("works out the total from a count per case a document states, as typing does, counted as the two read", () => {
+    const result = applyProposals(
+      { modules: {}, custom: {} },
+      { sampling_plan: { sizes: { S: { cases: 16, innerUnitsPerCase: 2 } } } },
+      MODULE_REGISTRY,
+      included,
+    );
+    expect(plan(result.data).sizes.S).toMatchObject({ cases: 16, innerUnitsPerCase: 2, innerUnits: 32 });
+    expect(result.filled).toBe(2);
+  });
+
+  it("keeps a total already entered, and refuses a count per case below 1", () => {
+    const entered = { modules: { sampling_plan: { sizes: { S: { cases: 16, innerUnits: 20 } } } }, custom: {} };
+    const kept = applyProposals(entered, { sampling_plan: { sizes: { S: { innerUnitsPerCase: 2 } } } }, MODULE_REGISTRY, included);
+    // Calc then warns on the total: 20 is not 16 × 2.
+    expect(plan(kept.data).sizes.S).toMatchObject({ innerUnitsPerCase: 2, innerUnits: 20 });
+    const refused = applyProposals(entered, { sampling_plan: { sizes: { S: { innerUnitsPerCase: 0 } } } }, MODULE_REGISTRY, included);
+    expect(refused.filled).toBe(0);
+  });
+});
+
 describe("linkSourceFile", () => {
   const FILE = "00000000-0000-4000-8000-000000000501";
   const KEPT = "00000000-0000-4000-8000-000000000502";

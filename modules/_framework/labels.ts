@@ -24,11 +24,19 @@ export function labelFor(labels: Labels, ...path: readonly string[]): string {
 /**
  * The template's labels over the module's defaults. A resolved template keeps
  * the labels of the day it was saved; a label key the module added later
- * shows its default instead of nothing. Saved wording always wins.
+ * shows its default instead of nothing. Saved wording wins, but for what the
+ * module words itself (`shownLabels`, 6.2 rule 11): the sampling plan's
+ * Sampling Quantity rows. A hook that throws keeps the template's labels.
  */
 export function effectiveLabels(
-  definition: Pick<ModuleDefinition, "labels">,
+  definition: Pick<ModuleDefinition, "labels" | "shownLabels">,
   resolved: Pick<ResolvedModule, "labels">,
 ): Labels {
-  return { ...definition.labels, ...resolved.labels };
+  const labels = { ...definition.labels, ...resolved.labels };
+  if (!definition.shownLabels) return labels;
+  try {
+    return { ...labels, ...definition.shownLabels(labels) };
+  } catch {
+    return labels;
+  }
 }

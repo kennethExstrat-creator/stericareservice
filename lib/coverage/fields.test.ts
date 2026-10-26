@@ -135,7 +135,9 @@ describe("canonical keys", () => {
         .data.filter((field) => field.entry !== "computed" && (filter ? filter(field.per) : true))
         .map((field) => field.key);
     expect(keysOf("dimensions", (per) => per.includes("glove"))).toEqual([...MEASURES]);
-    expect(keysOf("sampling_plan")).toEqual([...SAMPLING_COLUMNS]);
+    // The inner units per case have no column switch: they show with the inner units (Kenneth, 27 October 2026).
+    const [cases, ...afterCases] = SAMPLING_COLUMNS;
+    expect(keysOf("sampling_plan")).toEqual([cases, "innerUnitsPerCase", ...afterCases]);
     expect(moduleSpec("header").data.map((field) => field.key)).toEqual([...HEADER_FIELDS]);
     expect(moduleSpec("glove_info").data.map((field) => field.key)).toEqual([...GLOVE_INFO_FIELDS]);
     expect(keysOf("loading")).toEqual([...LOADING_FIELDS]);

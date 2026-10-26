@@ -365,7 +365,13 @@ test("(a) an STD_SG inspection with right and left hands and dye leak works on t
       await enter(page.getByRole("textbox", { name: `${label}, Size ${size}` }), value);
     }
   };
-  const planned = { Case: "5", "Inner Box": "5", "# Gloves Dimension": "13", "# Gloves (FAB)": "13", "# Pouches (Dye Leak Test)": "13" };
+  const planned = {
+    "# of Case": "5",
+    "Total # of Inner Box": "5",
+    "# Gloves Dimension": "13",
+    "# Gloves (FAB)": "13",
+    "# Pouches (Dye Leak Test)": "13",
+  };
   await plan("6.5", { ...planned, Pouches: "40", "# Gloves": "80" });
   await plan("7.5", { ...planned, Pouches: "63", "# Gloves": "125" });
   await expectSectionStatus(page, "sampling_plan", "Sampling Plan", "Info");

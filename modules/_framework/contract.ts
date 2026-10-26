@@ -194,6 +194,17 @@ export interface ModuleDefinition<TData = unknown, TConfig = unknown, TComputed 
    * answers blank, keeps the stored title.
    */
   shownTitle?(input: TitleInput<TConfig>): string;
+  /**
+   * Pure: the labels this inspection shows, from the template's labels over
+   * your defaults, for wording the module sets itself whatever the template
+   * version says (the sampling plan's Sampling Quantity rows). Return
+   * `labels` unchanged when nothing applies.
+   * The stored wording never changes: the framework applies this wherever it
+   * lays a template's labels over your defaults (effectiveLabels), so calc,
+   * the capture screen, every message, the review and the export word them
+   * alike. A hook that throws keeps the template's labels.
+   */
+  shownLabels?(labels: Readonly<Record<string, string>>): Readonly<Record<string, string>>;
   /** The capture UI, loaded on demand: `loadCapture: () => import("./Capture")`. */
   loadCapture?(): Promise<{ default: CaptureComponent<TData, TConfig, TComputed> }>;
 }

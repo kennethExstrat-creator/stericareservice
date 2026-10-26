@@ -30,6 +30,10 @@ describe("lowerCaseWords (docs/DESIGN.md, Capitalisation)", () => {
     "No: Keeps Its Own Value",
     "Count (Tap + and −)",
     "Switching Off…",
+    // "#" reads "Number": "of" is in the middle (Kenneth, 27 October 2026).
+    "# of Case",
+    "Total # of Inner Box",
+    "# Gloves for Dimension",
   ])("passes %j", (label) => {
     expect(lowerCaseWords(label)).toEqual([]);
   });
@@ -45,6 +49,8 @@ describe("lowerCaseWords (docs/DESIGN.md, Capitalisation)", () => {
     ["Base Moved on", ["on"]],
     ["Accent: the Brand", ["the"]],
     ["Logo Teal (the Brand, Never a Result)", ["the"]],
+    ["# of case", ["case"]],
+    ["of Case", ["of"]],
   ])("names the words that break it in %j", (label, words) => {
     expect(lowerCaseWords(label)).toEqual(words);
   });

@@ -170,6 +170,8 @@ function samplingPlanData(): SamplingPlanData {
         size,
         {
           cases: row.cases,
+          // The report prints the inner boxes sampled in all, none per case.
+          innerUnitsPerCase: null,
           innerUnits: row.inners,
           gloves: row.gloves,
           glovesWatertightVisual: row.watertightVisualGloves,

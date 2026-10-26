@@ -9,12 +9,23 @@ const labelsOf =
     labelFor(labels, key);
 
 const shape = (config: SamplingPlanConfig, labels: Record<string, string>) =>
-  countGroups(config, labelsOf(labels)).map((group) => ({ heading: group.heading, rows: group.rows.map((row) => row.shown) }));
+  countGroups(config, labelsOf(labels)).map((group) => ({
+    heading: group.heading,
+    rows: group.rows.map((row) => (row.kind === "count" ? row.shown : row.label)),
+  }));
+
+const withColumns = (columns: Partial<SamplingPlanConfig["columns"]>): SamplingPlanConfig => ({
+  ...SAMPLING_PLAN_DEFAULT_CONFIG,
+  columns: { ...SAMPLING_PLAN_DEFAULT_CONFIG.columns, ...columns },
+});
 
 describe("countGroups (Kenneth, 26 October 2026: design B)", () => {
   it("heads what was sampled with the template's Sampling Quantity, then each test under what it counts", () => {
     expect(shape(SAMPLING_PLAN_DEFAULT_CONFIG, SAMPLING_PLAN_LABELS)).toEqual([
-      { heading: "Sampling Quantity", rows: ["Case", "Inner Box", "Gloves"] },
+      {
+        heading: "Sampling Quantity",
+        rows: ["# of Case", "Inner Box Taken per Case", "Total # of Inner Box", "# of Gloves", "Gloves Taken per Inner Box", "Put Back"],
+      },
       { heading: "# Gloves for Each Test", rows: ["Watertight & Visual", "Dimension", "FAB"] },
       { heading: "# Inner Box", rows: ["Packaging & Dispensing Inspection"] },
     ]);
@@ -23,6 +34,7 @@ describe("countGroups (Kenneth, 26 October 2026: design B)", () => {
   it("keeps the template's whole wording as each row's name", () => {
     const groups = countGroups(SAMPLING_PLAN_DEFAULT_CONFIG, labelsOf(SAMPLING_PLAN_LABELS));
     expect(groups[1].rows[0]).toEqual({
+      kind: "count",
       column: "glovesWatertightVisual",
       label: "# Gloves for Watertight & Visual",
       shown: "Watertight & Visual",
@@ -52,8 +64,41 @@ describe("countGroups (Kenneth, 26 October 2026: design B)", () => {
       glovesPhysical: "# Gloves (FAB)",
     };
     expect(shape(config, sg)).toEqual([
-      { heading: "Sampling Quantity (WTT & Visual)", rows: ["Case", "Inner Box", "Pouches", "# Gloves"] },
+      {
+        heading: "Sampling Quantity (WTT & Visual)",
+        rows: ["# of Case", "Inner Box Taken per Case", "Total # of Inner Box", "Pouches", "# Gloves"],
+      },
       { heading: null, rows: ["# Gloves Dimension", "# Gloves (FAB)", "# Pouches (Dye Leak Test)"] },
+    ]);
+  });
+});
+
+describe("the Sampling Quantity's own rows (Kenneth, 27 October 2026)", () => {
+  it("types the inner boxes per case before the inner boxes in all, and works out the gloves per inner box and put back after the gloves", () => {
+    const [quantity] = countGroups(SAMPLING_PLAN_DEFAULT_CONFIG, labelsOf(SAMPLING_PLAN_LABELS));
+    expect(quantity.rows.map((row) => (row.kind === "count" ? `count ${row.column}` : `worked ${row.key}`))).toEqual([
+      "count cases",
+      "count innerUnitsPerCase",
+      "count innerUnits",
+      "count gloves",
+      "worked glovesPerInnerBox",
+      "worked putBack",
+    ]);
+  });
+
+  it("shows the inner boxes per case with the inner boxes and the cases, and the worked rows with the gloves and the inner boxes", () => {
+    expect(shape(withColumns({ innerUnits: false }), SAMPLING_PLAN_LABELS)[0].rows).toEqual(["# of Case", "# of Gloves"]);
+    expect(shape(withColumns({ cases: false }), SAMPLING_PLAN_LABELS)[0].rows).toEqual([
+      "Total # of Inner Box",
+      "# of Gloves",
+      "Gloves Taken per Inner Box",
+      "Put Back",
+    ]);
+    expect(shape(withColumns({ gloves: false }), SAMPLING_PLAN_LABELS)[0].rows).toEqual([
+      "# of Case",
+      "Inner Box Taken per Case",
+      "Total # of Inner Box",
+      "# Gloves for Watertight & Visual",
     ]);
   });
 });

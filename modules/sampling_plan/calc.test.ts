@@ -53,6 +53,9 @@ const ROW_M: SamplingSize = {
   innerUnitsDispensing: 13,
 };
 
+/** ROW_M's summary once complete: 500 gloves from 50 inner boxes is 10 a box, none put back. */
+const DONE_M = "# of Case: 50; # Gloves for Watertight & Visual: 500; Gloves Taken per Inner Box: 10; Put Back: 0.";
+
 /** Size M ordered: 2,900 cases of 2,000 gloves (STD_EG). */
 function contextM(overrides: Partial<InspectionContext> = {}): InspectionContext {
   return makeTestContext({
@@ -104,8 +107,8 @@ describe("sampling_plan", () => {
     expect(calcSamplingPlan(input({ M: ROW_M }))).toEqual({
       result: {
         status: "info",
-        summary: "Size M: Case: 50; # Gloves for Watertight & Visual: 500.",
-        perSize: { M: { status: "info", summary: "Case: 50; # Gloves for Watertight & Visual: 500." } },
+        summary: `Size M: ${DONE_M}`,
+        perSize: { M: { status: "info", summary: DONE_M } },
       },
       computed: {
         // Neither the inspection, the template nor the client sets a level: I (Kenneth, 27 October 2026).
@@ -118,6 +121,8 @@ describe("sampling_plan", () => {
             planCodeLetter: "N",
             sampleCodeLetter: "N",
             belowPlan: false,
+            glovesPerInnerBox: 10,
+            putBack: 0,
           },
         },
         totals: {
@@ -128,6 +133,7 @@ describe("sampling_plan", () => {
           glovesDimensions: 13,
           glovesPhysical: 13,
           innerUnitsDispensing: 13,
+          putBack: 0,
         },
       },
       issues: [],
@@ -135,15 +141,16 @@ describe("sampling_plan", () => {
   });
 
   it("is not done while a shown column is empty, naming it in the template's wording (6.2 rule 5)", () => {
-    const labels = { ...SAMPLING_PLAN_LABELS, innerUnits: "Inner Pack", glovesPhysical: "# Gloves for Tensile" };
+    const labels = { ...SAMPLING_PLAN_LABELS, glovesPhysical: "# Gloves for Tensile" };
     const output = calcSamplingPlan({ ...input({ M: { ...ROW_M, innerUnits: null, glovesPhysical: null } }), labels });
     expect(output.result).toMatchObject({
       status: "not_done",
-      perSize: { M: { status: "not_done", summary: "Missing: Inner Pack, # Gloves for Tensile." } },
+      perSize: { M: { status: "not_done", summary: "Missing: Total # of Inner Box, # Gloves for Tensile." } },
     });
     expect(output.issues).toEqual([]);
+    // The inner boxes per case are never asked for: the total is, typed or worked out.
     expect(calcSamplingPlan(input({ M: { cases: 50 } })).result.perSize?.M.summary).toBe(
-      "Missing: Inner Box, Gloves, # Gloves for Watertight & Visual, # Gloves for Dimension, # Gloves for FAB, # Inner Box for Packaging & Dispensing Inspection.",
+      "Missing: Total # of Inner Box, # of Gloves, # Gloves for Watertight & Visual, # Gloves for Dimension, # Gloves for FAB, # Inner Box for Packaging & Dispensing Inspection.",
     );
   });
 
@@ -173,12 +180,12 @@ describe("sampling_plan", () => {
       "Size XS, S, M, L: Not started.",
     );
     const some = calcSamplingPlan(input({ XS: ROW_M, M: { ...ROW_M, gloves: null } }, SAMPLING_PLAN_DEFAULT_CONFIG, context));
-    expect(some.result.summary).toBe("Size S, L: Not started. Size M: Missing: Gloves.");
+    expect(some.result.summary).toBe("Size S, L: Not started. Size M: Missing: # of Gloves.");
   });
 
   it("never asks for the gloves for weight, even where the template switches the row on (Kenneth, 26 October 2026)", () => {
     const empty = calcSamplingPlan(input({ M: ROW_M }, WEIGHT_ROW));
-    expect(empty.result.perSize?.M).toEqual({ status: "info", summary: "Case: 50; # Gloves for Watertight & Visual: 500." });
+    expect(empty.result.perSize?.M).toEqual({ status: "info", summary: DONE_M });
     expect(empty.computed.totals).not.toHaveProperty("glovesWeight");
     // A count an older inspection saved there is kept in the data, never totalled.
     const saved = calcSamplingPlan(input({ M: { ...ROW_M, glovesWeight: 13 } }, WEIGHT_ROW));
@@ -224,9 +231,9 @@ describe("sampling_plan", () => {
     const output = calcSamplingPlan(input({ M: ROW_M }, LEVEL_I));
     expect(output.result).toEqual({
       status: "info",
-      summary: "Size M: Case: 50; # Gloves for Watertight & Visual: 500.",
+      summary: `Size M: ${DONE_M}`,
       perSize: {
-        M: { status: "info", summary: "Case: 50; # Gloves for Watertight & Visual: 500." },
+        M: { status: "info", summary: DONE_M },
       },
     });
     expect(output.computed.sizes.M).toEqual({
@@ -236,6 +243,8 @@ describe("sampling_plan", () => {
       planCodeLetter: "N",
       sampleCodeLetter: "N",
       belowPlan: false,
+      glovesPerInnerBox: 10,
+      putBack: 0,
     });
     expect(output.issues).toEqual([]);
   });
@@ -244,7 +253,9 @@ describe("sampling_plan", () => {
     const output = calcSamplingPlan(input({ M: { ...ROW_M, glovesWatertightVisual: 315 } }, LEVEL_I));
     expect(output.result).toMatchObject({
       status: "info",
-      perSize: { M: { status: "info", summary: "Case: 50; # Gloves for Watertight & Visual: 315." } },
+      perSize: {
+        M: { status: "info", summary: "# of Case: 50; # Gloves for Watertight & Visual: 315; Gloves Taken per Inner Box: 10; Put Back: 0." },
+      },
     });
     // The plan is still worked out, and says the sample is below it.
     expect(output.computed.sizes.M).toMatchObject({ planSampleSize: 500, sampleCodeLetter: "M", belowPlan: true });
@@ -336,13 +347,13 @@ describe("sampling_plan", () => {
     const zero = calcSamplingPlan(input({ M: { ...ROW_M, cases: 0, glovesWatertightVisual: 1 } }, LEVEL_I));
     expect(zero.result.perSize?.M).toEqual({
       status: "not_done",
-      summary: "Case is 0; # Gloves for Watertight & Visual 1 is below 2.",
+      summary: "# of Case is 0; # Gloves for Watertight & Visual 1 is below 2.",
     });
     expect(zero.issues).toEqual([
       {
         level: "error",
         code: "cases_zero",
-        message: "Size M, Case: 0 cases sampled; every ordered size needs at least 1.",
+        message: "Size M, # of Case: 0 cases sampled; every ordered size needs at least 1.",
         size: "M",
         path: ["sizes", "M", "cases"],
       },
@@ -357,12 +368,12 @@ describe("sampling_plan", () => {
     expect(zero.computed.sizes.M.belowPlan).toBe(true);
 
     const above = calcSamplingPlan(input({ M: { ...ROW_M, cases: 3000 } }));
-    expect(above.result.perSize?.M).toEqual({ status: "not_done", summary: "Case 3,000 is more than the 2,900 ordered." });
+    expect(above.result.perSize?.M).toEqual({ status: "not_done", summary: "# of Case 3,000 is more than the 2,900 ordered." });
     expect(above.issues).toEqual([
       {
         level: "error",
         code: "cases_above_order",
-        message: "Size M, Case: 3,000 cases sampled, more than the 2,900 cases ordered.",
+        message: "Size M, # of Case: 3,000 cases sampled, more than the 2,900 cases ordered.",
         size: "M",
         path: ["sizes", "M", "cases"],
       },
@@ -376,7 +387,7 @@ describe("sampling_plan", () => {
   it("does not wait on the lot size with a level set: nothing checks the plan (Kenneth, 26 October 2026)", () => {
     const context = contextM({ packing: { ...contextM().packing, glovesPerCase: null } });
     const output = calcSamplingPlan(input({ M: ROW_M }, LEVEL_I, context));
-    expect(output.result.perSize?.M).toEqual({ status: "info", summary: "Case: 50; # Gloves for Watertight & Visual: 500." });
+    expect(output.result.perSize?.M).toEqual({ status: "info", summary: DONE_M });
     expect(output.computed.sizes.M).toMatchObject({ lotSizeGloves: null, codeLetter: null, belowPlan: null });
     // Nor at the default level, with none set.
     expect(calcSamplingPlan(input({ M: ROW_M }, SAMPLING_PLAN_DEFAULT_CONFIG, context)).result.status).toBe("info");
@@ -503,6 +514,84 @@ describe("sampling_plan's inspection level, set for the inspection in Sampling S
   });
 });
 
+describe("sampling_plan's Sampling Quantity, worked out (Kenneth, 27 October 2026)", () => {
+  /** Kenneth's example: 25 inner boxes sampled, one from each of 25 cases, and code M's 315 gloves. */
+  const KENNETH: Partial<SamplingSize> = { ...ROW_M, cases: 25, innerUnitsPerCase: 1, innerUnits: 25, gloves: 315 };
+
+  it("takes 13 gloves from each of 25 inner boxes for a sample of 315, never fewer, and puts 10 back", () => {
+    const output = calcSamplingPlan(input({ M: KENNETH }));
+    expect(output.computed.sizes.M).toMatchObject({ glovesPerInnerBox: 13, putBack: 10 });
+    expect(output.result.perSize?.M).toEqual({
+      status: "info",
+      summary: "# of Case: 25; # Gloves for Watertight & Visual: 500; Gloves Taken per Inner Box: 13; Put Back: 10.",
+    });
+    expect(output.issues).toEqual([]);
+  });
+
+  it("puts none back when the gloves divide among the inner boxes exactly, whether typed or filled by Auto Calculate", () => {
+    expect(calcSamplingPlan(input({ M: { ...KENNETH, gloves: 300 } })).computed.sizes.M).toMatchObject({
+      glovesPerInnerBox: 12,
+      putBack: 0,
+    });
+    // A total typed without the inner boxes per case works the same way.
+    expect(calcSamplingPlan(input({ M: { ...KENNETH, innerUnitsPerCase: null, innerUnits: 8, gloves: 80 } })).computed.sizes.M).toMatchObject(
+      { glovesPerInnerBox: 10, putBack: 0 },
+    );
+  });
+
+  it("works out nothing while the gloves or the inner boxes are missing, or with no inner box", () => {
+    for (const row of [{ ...KENNETH, gloves: null }, { ...KENNETH, innerUnits: null }, { ...KENNETH, innerUnits: 0 }]) {
+      expect(calcSamplingPlan(input({ M: row })).computed.sizes.M).toMatchObject({ glovesPerInnerBox: null, putBack: null });
+    }
+    // Where the template shows no gloves (STD_SG), there is nothing to take per inner box and no put back total.
+    const surgical: SamplingPlanConfig = {
+      ...SAMPLING_PLAN_DEFAULT_CONFIG,
+      columns: { ...SAMPLING_PLAN_DEFAULT_CONFIG.columns, gloves: false },
+    };
+    const sg = calcSamplingPlan(input({ M: KENNETH }, surgical));
+    expect(sg.computed.sizes.M).toMatchObject({ glovesPerInnerBox: null, putBack: null });
+    expect(sg.computed.totals).not.toHaveProperty("putBack");
+  });
+
+  it("totals the gloves put back over the sizes, and neither the inner boxes per case nor the gloves per inner box", () => {
+    const context = contextM({ sizes: ["S", "M"], order: { S: { qtyCases: 850, lotNumbers: [] }, M: { qtyCases: 560, lotNumbers: [] } } });
+    // S: 315 from 25 inner boxes is 13 a box, 10 back; M: 315 from 20 is 16 a box, 5 back.
+    const output = calcSamplingPlan(
+      input({ S: KENNETH, M: { ...KENNETH, cases: 20, innerUnits: 20 } }, SAMPLING_PLAN_DEFAULT_CONFIG, context),
+    );
+    expect(output.computed.sizes.M).toMatchObject({ glovesPerInnerBox: 16, putBack: 5 });
+    expect(output.computed.totals).toMatchObject({ cases: 45, innerUnits: 45, gloves: 630, putBack: 15 });
+    expect(output.computed.totals).not.toHaveProperty("innerUnitsPerCase");
+    expect(output.computed.totals).not.toHaveProperty("glovesPerInnerBox");
+    // No size worked out yet: no total either.
+    expect(calcSamplingPlan(input({ M: { cases: 25 } })).computed.totals.putBack).toBeNull();
+  });
+
+  it("never asks for the inner boxes per case: a size with its total typed is complete", () => {
+    expect(calcSamplingPlan(input({ M: { ...KENNETH, innerUnitsPerCase: null } })).result.status).toBe("info");
+  });
+
+  it("warns on the total when it is not # of Case × the inner boxes per case, as data saved another way may hold", () => {
+    const output = calcSamplingPlan(input({ M: { ...KENNETH, cases: 16, innerUnitsPerCase: 2, innerUnits: 30 } }));
+    expect(output.issues).toEqual([
+      {
+        level: "warning",
+        code: "inner_units_mismatch",
+        message:
+          "Size M, Total # of Inner Box: 30 is not 16 × 2 = 32 (# of Case × Inner Box Taken per Case). Enter either again to work it out.",
+        size: "M",
+        path: ["sizes", "M", "innerUnits"],
+      },
+    ]);
+    expect(output.result.perSize?.M).toEqual({ status: "warn", summary: "Total # of Inner Box 30 is not 16 × 2." });
+    // Agreeing, or with no inner boxes per case, or no cases yet: nothing to say.
+    expect(calcSamplingPlan(input({ M: { ...KENNETH, cases: 16, innerUnitsPerCase: 2, innerUnits: 32 } })).issues).toEqual([]);
+    expect(calcSamplingPlan(input({ M: { ...KENNETH, cases: 16, innerUnitsPerCase: null, innerUnits: 30 } })).issues).toEqual([]);
+    const noCases = { ...SAMPLING_PLAN_DEFAULT_CONFIG, columns: { ...SAMPLING_PLAN_DEFAULT_CONFIG.columns, cases: false } };
+    expect(calcSamplingPlan(input({ M: { ...KENNETH, innerUnitsPerCase: 2, innerUnits: 30 } }, noCases)).issues).toEqual([]);
+  });
+});
+
 describe("sampling_plan with the example reports (docs/examples/expected-results.md)", () => {
   it("A. SAFEDON_EG at level I: XS and L (120,000 gloves) need 200, S and M (over 500,000) need 500; 80 and 200 are below, unflagged", () => {
     const config = templateConfig("SAFEDON_EG");
@@ -531,6 +620,10 @@ describe("sampling_plan with the example reports (docs/examples/expected-results
     expect(context.sampling.XS).toMatchObject({ cases: 5, watertightVisual: 80, dimensions: 13, physical: 13, packagingDispensing: 5 });
     expect(context.sampling.M).toMatchObject({ cases: 15, watertightVisual: 200, packagingDispensing: 8 });
     expect(evaluation.computed.totals).toMatchObject({ cases: 45, glovesWatertightVisual: 560, innerUnitsDispensing: 26 });
+    // 200 gloves from M's 15 inner packs is 14 a pack, 10 put back; the other sizes' divide exactly.
+    expect(evaluation.computed.sizes.M).toMatchObject({ glovesPerInnerBox: 14, putBack: 10 });
+    expect(evaluation.computed.sizes.S).toMatchObject({ glovesPerInnerBox: 8, putBack: 0 });
+    expect(evaluation.computed.totals.putBack).toBe(10);
   });
 
   it("A. SAFEDON_EG before anything is entered: one short line on the module tab and in the issue list", () => {
@@ -569,9 +662,9 @@ describe("sampling_plan with the example reports (docs/examples/expected-results
     const expected = STD_EG_EXPECTED.sampling.M!;
     expect(evaluation.result).toEqual({
       status: "info",
-      summary: "Size M: Case: 50; # Gloves for Watertight & Visual: 500.",
+      summary: `Size M: ${DONE_M}`,
       perSize: {
-        M: { status: "info", summary: "Case: 50; # Gloves for Watertight & Visual: 500." },
+        M: { status: "info", summary: DONE_M },
       },
     });
     expect(evaluation.computed.sizes).toEqual({
@@ -582,6 +675,8 @@ describe("sampling_plan with the example reports (docs/examples/expected-results
         planCodeLetter: "N",
         sampleCodeLetter: "N",
         belowPlan: expected.belowPlan,
+        glovesPerInnerBox: 10,
+        putBack: 0,
       },
     });
     expect(evaluation.issues).toEqual([]);

@@ -17,7 +17,10 @@
 // comes from a document.
 // Weight is one value per size, the average a dimension sheet prints
 // (WEIGHT_GUIDE; Kenneth, 26 October 2026), and the sampling plan has no
-// gloves for weight.
+// gloves for weight. The form's Sampling Plan gives the inner boxes sampled
+// in all, which is innerUnits; a count per case, written elsewhere, is
+// innerUnitsPerCase, as the data schema's descriptions say (Kenneth, 27
+// October 2026).
 // A packing row marked as an aged sample is the size's aged sample, never
 // one of its boxes (Kenneth, 26 October 2026: read as a ninth box with no
 // box/carton number, it left the whole packing check incomplete).
@@ -30,7 +33,7 @@ export const SPREADSHEET_NOTE =
   'An Excel or CSV file comes as text: a CSV as it is, a workbook sheet by sheet, each sheet as CSV under a line "Sheet: <name>", with the values as Excel shows them.';
 
 export const PAPER_FORM_GUIDE = `How SteriCare inspectors fill in their paper inspection form:
-- One form per purchase order and lot, usually one size per form. Its parts: "Purchase Order / Shipment Information" (manufacturer, PO with the SO in brackets, product name, lot number, mfg and expiry date, glove type, packing mode); "Inspected by" (initials, date, signature); "PO Info" (glove size, quantity in cases); "Sampling Plan" (cases, inner boxes and gloves sampled; gloves for watertight (WTT) and visual; gloves for dimension; gloves for force at break (FAB); inner boxes for the dispensing test); "Watertight Inspection" and "Visual Inspection" (defects by size, major and minor); then "Dispensing Result" on a page of its own (by size: box/carton number, layering %, dispensing %, stickiness code, others).
+- One form per purchase order and lot, usually one size per form. Its parts: "Purchase Order / Shipment Information" (manufacturer, PO with the SO in brackets, product name, lot number, mfg and expiry date, glove type, packing mode); "Inspected by" (initials, date, signature); "PO Info" (glove size, quantity in cases); "Sampling Plan" (cases, inner boxes and gloves sampled, the inner boxes in all, not per case; gloves for watertight (WTT) and visual; gloves for dimension; gloves for force at break (FAB); inner boxes for the dispensing test); "Watertight Inspection" and "Visual Inspection" (defects by size, major and minor); then "Dispensing Result" on a page of its own (by size: box/carton number, layering %, dispensing %, stickiness code, others).
 - A box number and a carton number are the same number, a box/carton number: the boxes of the dispensing and labelling tests are the size's sampled cartons (the Finished Goods Sampling Information). Copy each box/carton number as written, even one that is not among the sampled ones: never change it to a sampled number; the app warns about it.
 - So each box/carton number a document gives for a size's boxes (a dispensing or packing result, the labelling boxes, a list of the sampled cartons, a carton's label) also goes into carton_sampling's cartonNumbers for that size, besides its own test's field: in the order the document lists them, each number once (the list never repeats a number, though a test may use one carton twice), as written. Give the document's whole list for each size even when that size's list already holds numbers: the app fills an empty list, and takes a fuller list only when it holds every number already there (a carton sheet completing the dispensing page's boxes), never mixing in another order's. Never pad the list to the cases sampled, never add a number the documents do not state, and leave out a packing list's carton numbering (the shipment's cartons, not the sample).
 - An aged sample is not a box: a dispensing or packing row marked as one (a remark such as "Aged sample" or "aged" in Others, usually with no box/carton number) goes into that size's agedSample in dispensing_packing (its layering %, dispensing %, stickiness code, and the remark as its note), never into its boxes. Each size has at most one aged sample.

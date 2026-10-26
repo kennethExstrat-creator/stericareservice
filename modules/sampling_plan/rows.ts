@@ -8,20 +8,41 @@
 // Inspection" becomes "Packaging & Dispensing Inspection" under "# Inner Box".
 // The template's whole wording stays the cells' names. A label not worded
 // "# … for …" (the SG form's "# Gloves (FAB)") keeps its wording as it is.
-import { columnGroups, type SamplingColumn, type SamplingPlanConfig } from "./config";
+// Sampling Quantity has three rows no column switch names (Kenneth, 27
+// October 2026): the inner boxes taken per case, typed, before the inner
+// boxes in all, and the gloves taken per inner box and those put back,
+// worked out, after the gloves.
+import {
+  columnGroups,
+  showsGlovesPerInnerBox,
+  showsInnerUnitsPerCase,
+  type SamplingPlanConfig,
+} from "./config";
+import type { SamplingSize } from "./schema";
 
+/** A row of whole-number cells, one per size. */
 export type CountRow = {
-  column: SamplingColumn;
+  kind: "count";
+  column: keyof SamplingSize;
   /** The template's wording, for the cells' names. */
   label: string;
   /** What the row shows under its heading. */
   shown: string;
 };
 
+/** A row worked out from the counts above it (calc's computed values), never typed. */
+export type WorkedRow = {
+  kind: "worked";
+  key: "glovesPerInnerBox" | "putBack";
+  label: string;
+};
+
+export type PlanRow = CountRow | WorkedRow;
+
 export type CountGroup = {
   /** Null for counts whose labels share no "# … for" start: they follow a plain divider. */
   heading: string | null;
-  rows: CountRow[];
+  rows: PlanRow[];
 };
 
 /** "# Gloves for Dimension": what is counted, and for what. */
@@ -30,11 +51,15 @@ const COUNTED_FOR = /^(#\s*\S.*?)\s+for\s+(\S.*)$/i;
 export function countGroups(config: SamplingPlanConfig, label: (key: string) => string): CountGroup[] {
   const { quantity, tests } = columnGroups(config);
   const groups: CountGroup[] = [];
+  const count = (column: keyof SamplingSize): CountRow => ({ kind: "count", column, label: label(column), shown: label(column) });
+  const worked = (key: WorkedRow["key"]): WorkedRow => ({ kind: "worked", key, label: label(key) });
   if (quantity.length > 0) {
-    groups.push({
-      heading: label("samplingQuantity"),
-      rows: quantity.map((column) => ({ column, label: label(column), shown: label(column) })),
+    const rows = quantity.flatMap((column): PlanRow[] => {
+      if (column === "innerUnits" && showsInnerUnitsPerCase(config)) return [count("innerUnitsPerCase"), count(column)];
+      if (column === "gloves" && showsGlovesPerInnerBox(config)) return [count(column), worked("glovesPerInnerBox"), worked("putBack")];
+      return [count(column)];
     });
+    groups.push({ heading: label("samplingQuantity"), rows });
   }
   // Tests next to each other that count the same thing share a heading.
   const runs: { counted: string | null; rows: CountRow[] }[] = [];
@@ -42,7 +67,7 @@ export function countGroups(config: SamplingPlanConfig, label: (key: string) => 
     const wording = label(column);
     const match = COUNTED_FOR.exec(wording);
     const counted = match ? match[1] : null;
-    const row: CountRow = { column, label: wording, shown: match ? match[2] : wording };
+    const row: CountRow = { kind: "count", column, label: wording, shown: match ? match[2] : wording };
     const last = runs.at(-1);
     if (last && last.counted === counted) last.rows.push(row);
     else runs.push({ counted, rows: [row] });

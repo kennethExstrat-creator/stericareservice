@@ -16,6 +16,7 @@ import { emptyCartonSampling } from "@/modules/carton_sampling/schema";
 import { checklist, DOCUMENT_FILE_KIND, DOCUMENT_ITEMS, DocumentsConfigSchema } from "@/modules/documents/config";
 import { withWorkedOutGlovesPerCase } from "@/modules/packing_config/edit";
 import { PackingConfigDataSchema } from "@/modules/packing_config/schema";
+import { SamplingPlanDataSchema, withWorkedInnerUnits } from "@/modules/sampling_plan/schema";
 
 /** The page's key on the capture screen (?module=source_documents) and the files' module_key. */
 export const SOURCE_DOCUMENTS_KEY = "source_documents";
@@ -349,6 +350,20 @@ function packingConfigFill(value: Record<string, unknown>): Record<string, unkno
 }
 
 /**
+ * The sampling plan as a reading fills it (Kenneth, 27 October 2026): each
+ * size's empty total of inner units worked out where its cases and inner
+ * units per case are entered, as typing them works it out
+ * (withWorkedInnerUnits), so a document that gives the count per case leaves
+ * no total to type. A total the document states goes in as read, and calc
+ * warns if it is not their product. Not counted as filled: the app works it
+ * out.
+ */
+function samplingPlanFill(value: Record<string, unknown>): Record<string, unknown> {
+  const parsed = SamplingPlanDataSchema.safeParse(value);
+  return parsed.success ? withWorkedInnerUnits(parsed.data) : value;
+}
+
+/**
  * The inspection's data with a reading's proposals filled in: only modules
  * the template includes (never the conclusion), only fields still empty,
  * only values each module's schema accepts. `filled` counts the values;
@@ -359,8 +374,9 @@ function packingConfigFill(value: Record<string, unknown>): Record<string, unkno
  * empty list or over one it completes (cartonSamplingFill); Dimension's
  * specs go in whole, and never its P/F (dimensionsProposal); a step's lab
  * reports take each report the reading links, beside those listed
- * (labReportsFill); Packing Configuration's gloves per case is worked out
- * from the counts filled (packingConfigFill).
+ * (labReportsFill); Packing Configuration's gloves per case and the
+ * sampling plan's inner units in all are worked out from the counts filled
+ * (packingConfigFill, samplingPlanFill).
  */
 export function applyProposals(
   data: InspectionData,
@@ -388,7 +404,8 @@ export function applyProposals(
     const value = own ? own.value : fillModule(schema, current, proposed);
     const count = own ? own.added : countFilled(current, value);
     if (count === 0) continue;
-    next = writeModuleData(next, "modules", key, key === "packing_config" ? packingConfigFill(value) : value);
+    const worked = key === "packing_config" ? packingConfigFill(value) : key === "sampling_plan" ? samplingPlanFill(value) : value;
+    next = writeModuleData(next, "modules", key, worked);
     filled += count;
     modules.push(key);
     if (definition.perSize) sizes.push(...filledSizes(current, value));

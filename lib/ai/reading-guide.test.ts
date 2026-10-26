@@ -78,6 +78,13 @@ describe("the paper form guide", () => {
   });
 });
 
+describe("the sampling plan's inner boxes (Kenneth, 27 October 2026)", () => {
+  it("reads the form's Sampling Plan inner boxes as those sampled in all, not per case", () => {
+    const line = PAPER_FORM_GUIDE.split("\n").find((entry) => entry.startsWith("- One form per purchase order and lot")) ?? "";
+    expect(line).toContain('"Sampling Plan" (cases, inner boxes and gloves sampled, the inner boxes in all, not per case; gloves for watertight (WTT) and visual;');
+  });
+});
+
 describe("the sampling plan's counts and the weight (Kenneth, 26 October 2026)", () => {
   it("never fills the sampling plan's glovesWeight: the app has no such row", () => {
     const line = PAPER_FORM_GUIDE.split("\n").find((entry) => entry.startsWith("- Each test has its own count")) ?? "";

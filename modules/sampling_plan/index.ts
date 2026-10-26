@@ -1,6 +1,7 @@
 // Sampling Plan (BUILD_SPEC 6.1): what was sampled per size and n for every
 // test that follows. Source of `sampling` and the inspection level in the
-// context (docs/MODULES.md section 7).
+// context (docs/MODULES.md section 7). Its Sampling Quantity rows are worded
+// as Kenneth wants them, whatever the template says (samplingLabels).
 import { defineModule } from "@/modules/_framework";
 import { calcSamplingPlan, contributeSamplingPlan, type SamplingPlanComputed } from "./calc";
 import {
@@ -10,6 +11,7 @@ import {
   SamplingPlanConfigSchema,
   type SamplingPlanConfig,
 } from "./config";
+import { samplingLabels } from "./labels";
 import { emptySamplingPlan, SamplingPlanDataSchema, type SamplingPlanData } from "./schema";
 
 export const definition = defineModule<SamplingPlanData, SamplingPlanConfig, SamplingPlanComputed>({
@@ -23,6 +25,7 @@ export const definition = defineModule<SamplingPlanData, SamplingPlanConfig, Sam
   perSize: true,
   calc: calcSamplingPlan,
   contribute: contributeSamplingPlan,
+  shownLabels: samplingLabels,
   loadCapture: () => import("./Capture"),
 });
 

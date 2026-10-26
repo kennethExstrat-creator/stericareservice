@@ -383,11 +383,14 @@ export async function enterPacking(page: Page): Promise<void> {
   await expect(perCase).not.toBeEditable();
 }
 
-/** The Sampling Plan's columns in the template's wording, with the fixture's value for each. */
+/**
+ * The Sampling Plan's columns in the template's wording, the Sampling Quantity's in the module's own (Kenneth,
+ * 27 October 2026), with the fixture's value for each. The report gives the inner packs in all, none per case.
+ */
 const SAMPLING_COLUMNS = [
-  ["Case", "cases"],
-  ["Inner Pack", "inners"],
-  ["Gloves", "gloves"],
+  ["# of Case", "cases"],
+  ["Total # of Inner Box", "inners"],
+  ["# of Gloves", "gloves"],
   ["# Gloves for Watertight & Visual", "watertightVisualGloves"],
   ["# Gloves for Dimension", "dimensionGloves"],
   ["# Gloves for Tensile", "physicalTestGloves"],

@@ -6,14 +6,15 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { batchDataChanges, createDataUpdater } from "@/components/qc/data-updater";
-import { buildInspectionContext, evaluateInspection, type InspectionData } from "@/modules/_framework";
+import { buildInspectionContext, effectiveLabels, evaluateInspection, type InspectionData } from "@/modules/_framework";
 import { makeTestContext, makeTestTemplate, TEST_INSPECTOR } from "@/modules/_framework/testing";
 import { SAFEDON_EG_EXAMPLE, STD_EG_EXAMPLE, type ExampleReport } from "@/tests/fixtures/examples";
-import { ENGINE_REGISTRY, exampleData, samplingPlanData } from "./__fixtures__/examples";
+import { ENGINE_REGISTRY, exampleData, samplingPlanData, STD_EG_V6_LABELS } from "./__fixtures__/examples";
 import type { SamplingPlanComputed } from "./calc";
 import Capture from "./Capture";
 import { SAMPLING_PLAN_DEFAULT_CONFIG, SAMPLING_PLAN_LABELS, type SamplingColumn, type SamplingPlanConfig } from "./config";
-import { emptySamplingPlan, withCount, type SamplingPlanData } from "./schema";
+import { definition } from "./index";
+import { emptySamplingPlan, withCount, type SamplingPlanData, type SamplingSize } from "./schema";
 
 const LEVEL_I: SamplingPlanConfig = { ...SAMPLING_PLAN_DEFAULT_CONFIG, inspectionLevel: "I" };
 const noop = () => {};
@@ -106,15 +107,17 @@ describe("sampling_plan Capture", () => {
       "Total",
     ]);
     const inputs = tagsWith(html, "data-enter-field");
-    expect(inputs).toHaveLength(4 * 7);
+    // Seven counts and the inner boxes per case (Kenneth, 27 October 2026), per size.
+    expect(inputs).toHaveLength(4 * 8);
     for (const input of inputs) expect(input).toContain('inputMode="decimal"');
   });
 
   it("runs the cells size by size, top to bottom: Enter and a pasted row or column go down a size's column, then on", () => {
     const html = render(props(SAFEDON_EG_EXAMPLE));
     const fields = tagsWith(html, "data-enter-field");
-    expect(fields.slice(0, 8).map((field) => /id="([^"]+)"/.exec(field)?.[1])).toEqual([
+    expect(fields.slice(0, 9).map((field) => /id="([^"]+)"/.exec(field)?.[1])).toEqual([
       "sampling-plan-XS-cases",
+      "sampling-plan-XS-innerUnitsPerCase",
       "sampling-plan-XS-innerUnits",
       "sampling-plan-XS-gloves",
       "sampling-plan-XS-glovesWatertightVisual",
@@ -144,20 +147,37 @@ describe("sampling_plan Capture", () => {
     expect(html).not.toContain("Inspection Level");
   });
 
-  it("reads every label from the template's wording and never offers it for editing (6.2 rule 11)", () => {
-    // SAFEDON_EG's words for its inner unit, the plastic pack, wherever STD_EG says Inner Box.
-    const labels = {
-      ...SAMPLING_PLAN_LABELS,
-      innerUnits: "Inner Pack",
-      glovesPhysical: "# Gloves for Tensile",
-      innerUnitsDispensing: "# Inner Packs for Packaging & Dispensing Inspection",
-    };
+  it("reads every label from the template's wording, the Sampling Quantity's own rows aside, and never offers it for editing (6.2 rule 11)", () => {
+    // SAFEDON_EG's words for its inner unit, the plastic pack, as the screen gets them (effectiveLabels).
+    const labels = effectiveLabels(definition, {
+      labels: {
+        ...SAMPLING_PLAN_LABELS,
+        innerUnits: "Inner Pack",
+        glovesPhysical: "# Gloves for Tensile",
+        innerUnitsDispensing: "# Inner Packs for Packaging & Dispensing Inspection",
+      },
+    });
     const html = render(props(SAFEDON_EG_EXAMPLE, LEVEL_I, labels));
     expect(html).toContain("# Gloves for Tensile");
-    expect(html).toContain('aria-label="Inner Pack, Size XS"');
+    expect(html).toContain('aria-label="# Inner Packs for Packaging &amp; Dispensing Inspection, Size XS"');
     expect(html).not.toContain("# Gloves for FAB");
-    expect(html).not.toContain("Inner Box");
+    // The inner units sampled are the module's own words (Kenneth, 27 October 2026).
+    expect(html).toContain('aria-label="Total # of Inner Box, Size XS"');
+    expect(html).not.toContain('aria-label="Inner Pack, Size XS"');
     expect(html).toContain("Sampling Quantity");
+  });
+
+  it("names the Sampling Quantity's rows in Kenneth's words on a STD_EG version 6 inspection, whatever it stored (27 October 2026)", () => {
+    const labels = effectiveLabels(definition, { labels: STD_EG_V6_LABELS });
+    const html = render(props(STD_EG_EXAMPLE, LEVEL_I, labels));
+    for (const name of ["# of Case", "Inner Box Taken per Case", "Total # of Inner Box", "# of Gloves"]) {
+      expect(html).toContain(`aria-label="${name}, Size M"`);
+    }
+    expect(html).toContain(">Gloves Taken per Inner Box<");
+    expect(html).toContain(">Put Back<");
+    for (const old of ['aria-label="Case, Size M"', 'aria-label="Inner Box, Size M"', 'aria-label="Gloves, Size M"']) {
+      expect(html).not.toContain(old);
+    }
   });
 
   it("never offers # Gloves for Weight, even where the template switches it on (STD_EG; Kenneth, 26 October 2026)", () => {
@@ -243,17 +263,17 @@ describe("sampling_plan Capture", () => {
       sampling_plan: { sizes: { M: { ...samplingPlanData(STD_EG_EXAMPLE).sizes.M, cases: 3000 } } },
     });
     const html = render(props(STD_EG_EXAMPLE, LEVEL_I, SAMPLING_PLAN_LABELS, data));
-    expect(html).toContain("Size M, Case: 3,000 cases sampled, more than the 2,900 cases ordered.");
+    expect(html).toContain("Size M, # of Case: 3,000 cases sampled, more than the 2,900 cases ordered.");
     const red = redCells(html);
     expect(red).toHaveLength(1);
-    expect(red[0]).toContain('aria-label="Case, Size M"');
+    expect(red[0]).toContain('aria-label="# of Case, Size M"');
   });
 
   it("names each size's column and its cells with the size, Title Case as a label is", () => {
     const html = render(props(STD_EG_EXAMPLE));
     expect(html).toContain('role="group" aria-label="Size M"');
     // A refused entry's link in the problem list repeats the cell's name.
-    expect(html).toContain('aria-label="Case, Size M"');
+    expect(html).toContain('aria-label="# of Case, Size M"');
     expect(html).not.toContain(", size M");
   });
 
@@ -304,11 +324,13 @@ describe("sampling_plan Capture", () => {
     const html = render(props(STD_EG_EXAMPLE, config, labels));
     const group = html.indexOf("Sampling Quantity (WTT &amp; Visual)");
     expect(group).toBeGreaterThan(-1);
-    const order = ["Case", "Inner Box", "Pouches", "# Gloves", "# Gloves for Dimension"];
+    const order = ["# of Case", "Inner Box Taken per Case", "Total # of Inner Box", "Pouches", "# Gloves", "# Gloves for Dimension"];
     const positions = order.map((name) => html.indexOf(`aria-label="${name}, Size M"`));
     expect(positions.every((position) => position > group)).toBe(true);
     expect([...positions].sort((a, b) => a - b)).toEqual(positions);
-    expect(html).not.toContain('aria-label="Gloves, Size M"');
+    // No gloves row, so nothing to take per inner box or put back.
+    expect(html).not.toContain('aria-label="# of Gloves, Size M"');
+    expect(html).not.toContain("Gloves Taken per Inner Box");
   });
 
   it("is read-only for an approved inspection: cells become text, every size still on screen", () => {
@@ -322,6 +344,99 @@ describe("sampling_plan Capture", () => {
     const html = render({ ...base, context: makeTestContext(), evaluation: null });
     expect(html).toContain("No sizes ordered yet");
     expect(tagsWith(html, "data-enter-field")).toEqual([]);
+  });
+});
+
+describe("sampling_plan Capture's Sampling Quantity (Kenneth, 27 October 2026)", () => {
+  /** STD_EG's size M with its Sampling Quantity as given, the rest as printed. */
+  function withQuantity(row: Partial<SamplingSize>, example: ExampleReport = STD_EG_EXAMPLE): InspectionData {
+    const plan = samplingPlanData(example);
+    return exampleData(example, { sampling_plan: { sizes: { ...plan.sizes, M: { ...plan.sizes.M, ...row } } } });
+  }
+
+  /** The markup of the first grid cell carrying `attribute`, from its opening tag to the next cell's. */
+  const cellOf = (html: string, attribute: string) => {
+    const openings = Array.from(html.matchAll(/<div [^>]*style="grid-row:[^"]*"[^>]*>/g), (match) => match.index);
+    const at = html.indexOf(attribute);
+    const start = openings.findLast((index) => index <= at);
+    if (at === -1 || start === undefined) return "";
+    return html.slice(start, openings.find((index) => index > start) ?? html.length);
+  };
+
+  /** A figure named for screen readers by its row's label: "Put Back: 10". */
+  const figure = (label: string, value: string) => new RegExp(`${label}(?:<!-- -->)?: </span><span data-slot="figure"[^>]*>${value}</span>`);
+
+  it("works the total out from the cases while the inner boxes per case are entered: read-only on grey, the sum at its left", () => {
+    const data = withQuantity({ cases: 16, innerUnitsPerCase: 1, innerUnits: 16, gloves: 315 });
+    const html = render(props(STD_EG_EXAMPLE, LEVEL_I, SAMPLING_PLAN_LABELS, data));
+    const total = tagsWith(html, 'id="sampling-plan-M-innerUnits"')[0];
+    expect(total).toContain("readOnly");
+    expect(total).toContain('value="16"');
+    const cell = cellOf(html, 'data-worked-out="true"');
+    expect(cell).toContain("bg-slate-50");
+    expect(cell).toContain('title="# of Case × Inner Box Taken per Case"');
+    expect(cell).toMatch(/data-slot="worked-out"[^>]*>16 × 1<\/span>/);
+    // The inner boxes per case stay a typed cell, as every other count.
+    expect(tagsWith(html, 'id="sampling-plan-M-innerUnitsPerCase"')[0]).not.toContain("readOnly");
+    expect(tagsWith(html, 'id="sampling-plan-M-cases"')[0]).not.toContain("readOnly");
+  });
+
+  it("keeps the total a typed cell holding its stored value while the inner boxes per case are empty (data saved before, a total read)", () => {
+    const html = render(props(STD_EG_EXAMPLE, LEVEL_I, SAMPLING_PLAN_LABELS, withQuantity({ innerUnitsPerCase: null, innerUnits: 50 })));
+    const total = tagsWith(html, 'id="sampling-plan-M-innerUnits"')[0];
+    expect(total).not.toContain("readOnly");
+    expect(total).toContain('value="50"');
+    expect(html).not.toContain("data-worked-out");
+    expect(html).not.toContain('data-slot="worked-out"');
+  });
+
+  it("flags a stored total that is not # of Case × the inner boxes per case, on the total and under the table", () => {
+    const html = render(props(STD_EG_EXAMPLE, LEVEL_I, SAMPLING_PLAN_LABELS, withQuantity({ cases: 16, innerUnitsPerCase: 2, innerUnits: 30 })));
+    expect(tagsWith(html, 'id="sampling-plan-M-innerUnits"')[0]).toContain("bg-warn-tint");
+    expect(html).toContain("Size M, Total # of Inner Box: 30 is not 16 × 2 = 32");
+    expect(tagsWith(html, 'data-slot="sampling-issues"')).toHaveLength(1);
+  });
+
+  it("shows the gloves taken per inner box and those put back, worked out and read-only, a dash while a count is missing", () => {
+    const html = render(props(STD_EG_EXAMPLE, LEVEL_I, SAMPLING_PLAN_LABELS, withQuantity({ cases: 25, innerUnitsPerCase: 1, innerUnits: 25, gloves: 315 })));
+    const perBox = cellOf(html, 'data-worked="glovesPerInnerBox"');
+    expect(perBox).toContain("bg-slate-50");
+    expect(perBox).toMatch(figure("Gloves Taken per Inner Box", "13"));
+    expect(cellOf(html, 'data-worked="putBack"')).toMatch(figure("Put Back", "10"));
+    // Never typed: no cell to type in.
+    expect(tagsWith(html, 'id="sampling-plan-M-glovesPerInnerBox"')).toEqual([]);
+    const missing = render(props(STD_EG_EXAMPLE, LEVEL_I, SAMPLING_PLAN_LABELS, withQuantity({ gloves: null })));
+    expect(cellOf(missing, 'data-worked="glovesPerInnerBox"')).toContain("data-empty");
+    expect(cellOf(missing, 'data-worked="putBack"')).toContain("data-empty");
+  });
+
+  it("says under the Lot Size (Gloves) row why its lots show a dash: no gloves per case yet (Kenneth, 27 October 2026)", () => {
+    const data = exampleData(SAFEDON_EG_EXAMPLE, { packing_config: { glovesPerInner: null, innersPerCase: null, glovesPerCase: null } });
+    const html = render(props(SAFEDON_EG_EXAMPLE, LEVEL_I, SAMPLING_PLAN_LABELS, data));
+    // One quiet line across the grid, straight under the row, for the eye.
+    expect(html).toMatch(/data-slot="lot-size-note"[^>]*><span class="sticky left-3">Needs the Packing Configuration on the Order page<\/span>/);
+    expect(html.indexOf('data-slot="lot-size-note"')).toBeGreaterThan(html.indexOf("Lot Size (Gloves)"));
+    expect(html.indexOf('data-slot="lot-size-note"')).toBeLessThan(html.indexOf("Sampling Quantity"));
+    // Each dash keeps "—" and says why on hover and to screen readers.
+    const lots = tagsWith(html, 'title="Needs the Packing Configuration on the Order page"');
+    expect(lots).toHaveLength(4 + 1);
+    expect(html).toContain('<span class="sr-only"> Needs the Packing Configuration on the Order page.</span>');
+    // With the gloves per case known, no line and no title.
+    const known = render(props(SAFEDON_EG_EXAMPLE));
+    expect(known).not.toContain("lot-size-note");
+    expect(known).not.toContain("Needs the Packing Configuration");
+  });
+
+  it("totals the gloves put back, and neither the inner boxes per case nor the gloves per inner box", () => {
+    // SAFEDON_EG's M: 200 gloves from 15 inner packs is 14 a pack, 10 put back; the other sizes divide exactly.
+    const html = render(props(SAFEDON_EG_EXAMPLE));
+    const totals = html.slice(html.indexOf('role="group" aria-label="Total"'));
+    expect(totals).toMatch(figure("Put Back", "10"));
+    expect(totals).not.toContain("Gloves Taken per Inner Box");
+    expect(totals).not.toContain("Inner Box Taken per Case");
+    expect(tagsWith(totals, "data-no-total")).toHaveLength(2);
+    // The total of the inner boxes sampled stays: 10 + 25 + 15 + 10.
+    expect(totals).toMatch(figure("Total # of Inner Box", "60"));
   });
 });
 

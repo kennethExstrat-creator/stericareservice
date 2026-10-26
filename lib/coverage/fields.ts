@@ -427,31 +427,55 @@ const samplingPlan = defineModule({
   alwaysOn: false,
   title: "Sampling Plan",
   captures:
-    "Per size: sampled cases, inner units and gloves; gloves for watertight and visual, for dimensions and for the physical test; inner units for packaging and dispensing; pouches and dye leak pouches (surgical).",
-  result: "warn when a size's watertight and visual sample is below the AQL plan of config inspectionLevel; info otherwise.",
+    "Per size: sampled cases, inner units (taken per case, and in total) and gloves, with the gloves taken per inner unit and those put back; gloves for watertight and visual, for dimensions and for the physical test; inner units for packaging and dispensing; pouches and dye leak pouches (surgical).",
+  result:
+    "warn when a size's watertight and visual sample is below the AQL plan of config inspectionLevel, or its stored innerUnits is not cases × innerUnitsPerCase; info otherwise.",
   rules: [1, 2, 4, 6, 8],
   data: [
     {
       key: "cases",
-      label: "Case",
+      label: "# of Case",
       type: "integer",
       countOf: "cases",
       per: ["size"],
       entry: "entered",
       rules: [1, 6],
-      notes: "carton_sampling must list exactly this many box/carton numbers (rule 6).",
+      notes:
+        "carton_sampling must list exactly this many box/carton numbers (rule 6). The module words it, innerUnitsPerCase, innerUnits, gloves, glovesPerInnerBox and putBack itself, whatever the template says (Kenneth, 27 October 2026).",
     },
     {
-      key: "innerUnits",
-      label: "Inner Box",
-      labels: { SAFEDON_EG: "Inner Pack" },
+      key: "innerUnitsPerCase",
+      label: "Inner Box Taken per Case",
       type: "integer",
       countOf: "inner units",
       per: ["size"],
       entry: "entered",
       rules: [1],
+      notes:
+        "Inner units taken from each sampled case, from 1 (Kenneth, 27 October 2026). Optional: entered, innerUnits is cases × this; empty (an inspection saved before, a document that gives only the total), innerUnits is typed. Shown with innerUnits and cases, with no config switch of its own; never totalled.",
     },
-    { key: "gloves", label: "Gloves", type: "integer", unit: "pcs", per: ["size"], entry: "entered", rules: [1] },
+    {
+      key: "innerUnits",
+      label: "Total # of Inner Box",
+      type: "integer",
+      countOf: "inner units",
+      per: ["size"],
+      entry: "entered",
+      rules: [1],
+      notes:
+        "The inner units sampled in all. While innerUnitsPerCase is entered, the app works it out as cases × innerUnitsPerCase and stores it here, read-only on screen; one stored otherwise is a warning. Typed while innerUnitsPerCase is empty.",
+    },
+    {
+      key: "gloves",
+      label: "# of Gloves",
+      type: "integer",
+      unit: "pcs",
+      per: ["size"],
+      entry: "entered",
+      rules: [1],
+      notes:
+        "Auto Calculate Sampling fills it: the sample size of the code letter of the size's lot (lotSizeGloves) at the inspection level in force, I when none is set; every glove when that sample is not smaller than the lot (Kenneth, 27 October 2026).",
+    },
     {
       key: "glovesWatertightVisual",
       label: "# Gloves for Watertight & Visual",
@@ -573,13 +597,35 @@ const samplingPlan = defineModule({
       rules: [2, 8],
     },
     {
+      key: "glovesPerInnerBox",
+      label: "Gloves Taken per Inner Box",
+      type: "integer",
+      unit: "pcs",
+      per: ["size"],
+      entry: "computed",
+      formula:
+        "⌈gloves ÷ innerUnits⌉: never under, so the gloves taken reach the sample (Kenneth, 27 October 2026: 315 gloves from 25 inner boxes is 13 a box). None while either is missing, or with innerUnits 0.",
+      rules: [2],
+    },
+    {
+      key: "putBack",
+      label: "Put Back",
+      type: "integer",
+      unit: "pcs",
+      per: ["size"],
+      entry: "computed",
+      formula: "glovesPerInnerBox × innerUnits − gloves: the gloves taken beyond the sample, put back (13 × 25 − 315 = 10).",
+      rules: [2],
+    },
+    {
       key: "totals",
       label: "Total:",
       type: "count_map",
       keyedBy: "sampling column",
       per: [],
       entry: "computed",
-      formula: "Sum over the ordered sizes of each column on (the onsite forms' Total: row).",
+      formula:
+        "Sum over the ordered sizes of each column on (the onsite forms' Total: row), and of putBack; none for innerUnitsPerCase or glovesPerInnerBox.",
       rules: [2],
     },
   ],
@@ -589,7 +635,7 @@ const samplingPlan = defineModule({
       type: "Record<SamplingColumn, boolean>",
       default: { ...allOn(SAMPLING_COLUMNS), glovesWeight: false, pouches: false, pouchesDyeLeak: false },
       meaning:
-        "Columns on or off (BUILD_SPEC: columns on/off). The surgical pouch columns and glovesWeight are off by default; a template version saved before glovesWeight existed reads it as off. glovesWeight is never shown since 26 October 2026, on or off.",
+        "Columns on or off (BUILD_SPEC: columns on/off). The surgical pouch columns and glovesWeight are off by default; a template version saved before glovesWeight existed reads it as off. glovesWeight is never shown since 26 October 2026, on or off. innerUnitsPerCase has no switch: it shows with innerUnits and cases, as glovesPerInnerBox and putBack show with gloves and innerUnits.",
     },
     {
       key: "inspectionLevel",

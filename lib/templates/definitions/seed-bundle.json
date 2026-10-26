@@ -645,9 +645,12 @@
             "include": true,
             "title": "Sampling Plan",
             "labels": {
-              "cases": "Case",
-              "innerUnits": "Inner Box",
-              "gloves": "Gloves",
+              "cases": "# of Case",
+              "innerUnitsPerCase": "Inner Box Taken per Case",
+              "innerUnits": "Total # of Inner Box",
+              "gloves": "# of Gloves",
+              "glovesPerInnerBox": "Gloves Taken per Inner Box",
+              "putBack": "Put Back",
               "glovesWatertightVisual": "# Gloves for Watertight & Visual",
               "glovesDimensions": "# Gloves for Dimension",
               "glovesPhysical": "# Gloves for FAB",
@@ -1078,6 +1081,7 @@
               "stickinessResult": "Passed / Failed",
               "heading": "Glove Packing Check (Sampling Code Letter {codeLetters}) : Min. {minLayeringPct}% Layering & {minDispensingPct}% Dispensing",
               "itemColumn": "Item",
+              "agedSample": "Aged Sample",
               "stickinessLegend": "**Glove Stickiness Code"
             },
             "config": {
@@ -1283,7 +1287,6 @@
             "key": "sampling_plan",
             "include": true,
             "labels": {
-              "innerUnits": "Inner Pack",
               "glovesPhysical": "# Gloves for Tensile",
               "innerUnitsDispensing": "# Inner Packs for Packaging & Dispensing Inspection"
             },
@@ -1863,9 +1866,12 @@
             "include": true,
             "title": "Sampling Plan",
             "labels": {
-              "cases": "Case",
-              "innerUnits": "Inner Pack",
-              "gloves": "Gloves",
+              "cases": "# of Case",
+              "innerUnitsPerCase": "Inner Box Taken per Case",
+              "innerUnits": "Total # of Inner Box",
+              "gloves": "# of Gloves",
+              "glovesPerInnerBox": "Gloves Taken per Inner Box",
+              "putBack": "Put Back",
               "glovesWatertightVisual": "# Gloves for Watertight & Visual",
               "glovesDimensions": "# Gloves for Dimension",
               "glovesPhysical": "# Gloves for Tensile",
@@ -2381,6 +2387,7 @@
               "stickinessResult": "Passed / Failed",
               "heading": "Glove Packing Check (Sampling Code Letter {codeLetters}) : Min. {minLayeringPct}% Layering & {minDispensingPct}% Dispensing",
               "itemColumn": "Item",
+              "agedSample": "Aged Sample",
               "stickinessLegend": "**Glove Stickiness Code"
             },
             "config": {
@@ -2986,9 +2993,12 @@
             "include": true,
             "title": "Sampling Plan",
             "labels": {
-              "cases": "Case",
-              "innerUnits": "Inner Box",
-              "gloves": "Gloves",
+              "cases": "# of Case",
+              "innerUnitsPerCase": "Inner Box Taken per Case",
+              "innerUnits": "Total # of Inner Box",
+              "gloves": "# of Gloves",
+              "glovesPerInnerBox": "Gloves Taken per Inner Box",
+              "putBack": "Put Back",
               "glovesWatertightVisual": "# Gloves",
               "glovesDimensions": "# Gloves Dimension",
               "glovesPhysical": "# Gloves (FAB)",

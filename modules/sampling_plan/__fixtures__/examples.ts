@@ -23,7 +23,11 @@ function filled<T>(perSize: Readonly<Partial<Record<(typeof REPORT_SIZES)[number
   });
 }
 
-/** The Sampling Plan table, column by column; no gloves for weight (the app shows no such row). */
+/**
+ * The Sampling Plan table, column by column; no gloves for weight (the app
+ * shows no such row), and no inner boxes per case: the reports print the
+ * inner boxes sampled in all.
+ */
 export function samplingPlanData(example: ExampleReport): SamplingPlanData {
   return {
     sizes: Object.fromEntries(
@@ -31,6 +35,7 @@ export function samplingPlanData(example: ExampleReport): SamplingPlanData {
         size,
         {
           cases: row.cases,
+          innerUnitsPerCase: null,
           innerUnits: row.inners,
           gloves: row.gloves,
           glovesWatertightVisual: row.watertightVisualGloves,
@@ -45,6 +50,32 @@ export function samplingPlanData(example: ExampleReport): SamplingPlanData {
     ),
   };
 }
+
+/**
+ * STD_EG version 6's sampling plan wording as published (26 October 2026,
+ * templates.resolved): the Sampling Quantity's rows as the form prints
+ * them, which the module words its own way since 27 October 2026.
+ */
+export const STD_EG_V6_LABELS: Readonly<Record<string, string>> = {
+  cases: "Case",
+  innerUnits: "Inner Box",
+  gloves: "Gloves",
+  glovesWatertightVisual: "# Gloves for Watertight & Visual",
+  glovesDimensions: "# Gloves for Dimension",
+  glovesPhysical: "# Gloves for FAB",
+  glovesWeight: "# Gloves for Weight",
+  innerUnitsDispensing: "# Inner Box for Packaging & Dispensing Inspection",
+  pouches: "Pouches",
+  pouchesDyeLeak: "# Pouches (Dye Leak Test)",
+  codeLetter: "Code Letter",
+  planSampleSize: "Sample Size by Plan",
+  totals: "Total:",
+  samplingQuantity: "Sampling Quantity",
+  orderQty: "Order Qty (Case)",
+  gloveSize: "Glove Size",
+  inspectionLevel: "Inspection Level",
+  lotSizeGloves: "Lot Size (Gloves)",
+};
 
 /** The carton grids, read row by row as printed (duplicates kept). */
 export function cartonSamplingData(example: ExampleReport) {

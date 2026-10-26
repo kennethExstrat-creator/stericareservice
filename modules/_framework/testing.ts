@@ -132,6 +132,15 @@ export function checkModuleContract(definition: AnyModuleDefinition): string[] {
     if (!LABEL_KEY_PATTERN.test(key)) add(`label key "${key}" is not a canonical key or a dotted path of them`);
     if (label.trim() === "") add(`label "${key}" is empty`);
   }
+  if (definition.shownLabels) {
+    try {
+      for (const [key, label] of Object.entries(definition.shownLabels({ ...definition.labels }))) {
+        if (typeof label !== "string" || label.trim() === "") add(`shownLabels gives label "${key}" no wording`);
+      }
+    } catch (error) {
+      add(`shownLabels throws on the default labels: ${messageOf(error)}`);
+    }
+  }
 
   const config = definition.configSchema.safeParse(definition.defaultConfig);
   if (!config.success) add(`defaultConfig does not match configSchema: ${firstIssue(config.error)}`);

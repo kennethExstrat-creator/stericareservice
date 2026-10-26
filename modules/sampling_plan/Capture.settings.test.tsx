@@ -71,7 +71,6 @@ function render({ config = LEVEL_I, settings = {}, aqlDefaults, checks = false, 
 
 const GENERAL = 'aria-labelledby="[^"]*-level"';
 const SPECIAL = 'aria-label="Special Inspection Level"';
-const ROUNDING = 'aria-label="Round Up To"';
 
 /** The toggle group whose opening tag matches `name`, with its buttons. */
 function group(html: string, name: string): string {
@@ -157,7 +156,7 @@ describe("sampling_plan Sampling Settings (Kenneth, 27 October 2026)", () => {
     const noCases = render({ config: { ...LEVEL_I, columns: { ...LEVEL_I.columns, cases: false } } });
     expect(noCases).toContain('aria-label="Sampling Settings"');
     expect(noCases).not.toContain("Auto Calculate uses this level");
-    expect(noCases).not.toContain("Round Up Auto Calculated Cases");
+    expect(noCases).not.toContain("Round Up Cases to the Nearest 5 or 10");
   });
 
   it("writes the level and the rounding through the data updater on Save, Cancel leaving both", () => {
@@ -172,46 +171,39 @@ describe("sampling_plan Sampling Settings (Kenneth, 27 October 2026)", () => {
       changes.push(next);
       data = next;
     });
-    updater.update((current) => withSamplingSettings(current, { inspectionLevel: "II", roundCasesTo: 10 }));
-    expect(data).toEqual({ ...counts, inspectionLevel: "II", roundCasesTo: 10 });
+    updater.update((current) => withSamplingSettings(current, { inspectionLevel: "II", roundCases: true }));
+    expect(data).toEqual({ ...counts, inspectionLevel: "II", roundCasesTo: 5 });
     // Use Default, then Save: the inspection's own level goes, the rounding stays.
-    updater.update((current) => withSamplingSettings(current, { inspectionLevel: null, roundCasesTo: 10 }));
-    expect(data).toEqual({ ...counts, roundCasesTo: 10 });
+    updater.update((current) => withSamplingSettings(current, { inspectionLevel: null, roundCases: true }));
+    expect(data).toEqual({ ...counts, roundCasesTo: 5 });
     expect(changes).toHaveLength(2);
     // The dialog opens on what was saved.
-    const reopened = render({ settings: { inspectionLevel: "II", roundCasesTo: 10 } });
+    const reopened = render({ settings: { inspectionLevel: "II", roundCasesTo: 5 } });
     expect(choices(reopened, GENERAL)).toEqual([
       ["I", false],
       ["II", true],
       ["III", false],
     ]);
-    expect(choices(reopened, ROUNDING)).toEqual([
-      ["Nearest 5", false],
-      ["Nearest 10", true],
-    ]);
+    expect(tagWith(reopened, 'id="[^"]*-round"')).toContain('aria-checked="true"');
   });
 
-  it("rounds Auto Calculate's cases to the nearest 5 or 10 only while switched on, from its next run", () => {
+  it("rounds Auto Calculate's cases up to the nearest 5 or 10 with one switch, from its next run (Kenneth, 27 October 2026)", () => {
     const off = render();
     expect(tagWith(off, 'id="[^"]*-round"')).toContain('aria-checked="false"');
-    expect(off).toMatch(/<label[^>]*for="[^"]*-round"[^>]*>Round Up Auto Calculated Cases<\/label>/);
-    expect(choices(off, ROUNDING)).toEqual([
-      ["Nearest 5", true],
-      ["Nearest 10", false],
-    ]);
-    for (const button of group(off, ROUNDING).match(/<button[^>]*>/g) ?? []) expect(button).toContain('disabled=""');
-    expect(off).toContain("Applies the next time Auto Calculate Sampling runs; the cases already in the table stay as they are.");
+    expect(off).toMatch(/<label[^>]*for="[^"]*-round"[^>]*>Round Up Cases to the Nearest 5 or 10<\/label>/);
+    // "not either 5 or 10": no choice between them.
+    expect(off).not.toContain("Nearest 5<");
+    expect(off).not.toContain("Nearest 10<");
+    expect(off).not.toContain('aria-label="Round Up To"');
+    expect(off).toContain("e.g. 72 → 75, 78 → 80. Applies the next time Auto Calculate Sampling runs.");
 
-    const on = render({ settings: { roundCasesTo: 10 } });
+    const on = render({ settings: { roundCasesTo: 5 } });
     expect(tagWith(on, 'id="[^"]*-round"')).toContain('aria-checked="true"');
-    expect(choices(on, ROUNDING)).toEqual([
-      ["Nearest 5", false],
-      ["Nearest 10", true],
-    ]);
-    expect(group(on, ROUNDING)).not.toContain('disabled=""');
+    // A rounding to 10 saved before the one switch reads as on.
+    expect(tagWith(render({ settings: { roundCasesTo: 10 } }), 'id="[^"]*-round"')).toContain('aria-checked="true"');
     // Auto Calculate Sampling's hint says how it rounds.
-    expect(on).toContain("rounded up to a multiple of 10.");
-    expect(off).not.toContain("rounded up to a multiple of");
+    expect(on).toContain("rounded up to the nearest 5 or 10.");
+    expect(off).not.toContain("to the nearest 5 or 10.");
   });
 
   it("shows a read-only inspection's level and rounding as saved, with nothing to change and only Close", () => {
@@ -221,7 +213,7 @@ describe("sampling_plan Sampling Settings (Kenneth, 27 October 2026)", () => {
     expect(html).not.toMatch(/id="[^"]*-round"/);
     expect(textOf(html, "level-shown")).toBe("II");
     expect(textOf(html, "level-source")).toBe("Set for this inspection. Template default: I.");
-    expect(textOf(html, "rounding-shown")).toBe("Nearest 5");
+    expect(textOf(html, "rounding-shown")).toBe("On");
     expect(html).not.toMatch(/>Save<\/button>/);
     expect(html).not.toContain("Use Default");
     expect(html).toMatch(/<button[^>]*>Close<\/button>/);

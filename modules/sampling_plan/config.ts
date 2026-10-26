@@ -1,5 +1,6 @@
 // Defaults a template can override: the heading, the column labels (STD_EG's
-// wording) and the config (BUILD_SPEC 6.1: columns on/off, inspection level).
+// wording; the Sampling Quantity's rows are the module's own, labels.ts) and
+// the config (BUILD_SPEC 6.1: columns on/off, inspection level).
 import { z } from "zod";
 import { InspectionLevelSchema } from "@/lib/aql";
 import type { SamplingValues } from "@/modules/_framework";
@@ -41,10 +42,25 @@ export const SAMPLING_CONTEXT_KEYS = {
   pouchesDyeLeak: "pouchesDyeLeak",
 } as const satisfies Readonly<Record<ShownColumn, keyof SamplingValues>>;
 
+/**
+ * The Sampling Quantity's rows in Kenneth's words (27 October 2026: "case
+ * change to # of Case, Inner Box change to # of Inner Box per Case", then
+ * "add row "Inner Box Taken per Case", then Total # of Inner Box"; and "#
+ * of Gloves", with the gloves taken per inner box and those put back). The
+ * sampling plan shows them on every inspection, whatever its template
+ * version says (labels.ts).
+ */
+export const SAMPLING_QUANTITY_LABELS = {
+  cases: "# of Case",
+  innerUnitsPerCase: "Inner Box Taken per Case",
+  innerUnits: "Total # of Inner Box",
+  gloves: "# of Gloves",
+  glovesPerInnerBox: "Gloves Taken per Inner Box",
+  putBack: "Put Back",
+} as const satisfies Readonly<Record<string, string>>;
+
 export const SAMPLING_PLAN_LABELS = {
-  cases: "Case",
-  innerUnits: "Inner Box",
-  gloves: "Gloves",
+  ...SAMPLING_QUANTITY_LABELS,
   glovesWatertightVisual: "# Gloves for Watertight & Visual",
   glovesDimensions: "# Gloves for Dimension",
   glovesPhysical: "# Gloves for FAB",
@@ -132,4 +148,19 @@ export function columnGroups(config: SamplingPlanConfig): { quantity: ShownColum
     (column) => shown.includes(column) && inQuantity(column),
   );
   return { quantity, tests: shown.filter((column) => !quantity.includes(column)) };
+}
+
+/**
+ * The inner units taken per case show with the inner units sampled in all,
+ * where the template counts cases: they have no column switch of their own,
+ * so a template version saved before them shows them too (Kenneth, 27
+ * October 2026).
+ */
+export function showsInnerUnitsPerCase(config: SamplingPlanConfig): boolean {
+  return config.columns.innerUnits && config.columns.cases;
+}
+
+/** The gloves taken per inner box and those put back show with the gloves and the inner units sampled, worked out from both. */
+export function showsGlovesPerInnerBox(config: SamplingPlanConfig): boolean {
+  return config.columns.gloves && config.columns.innerUnits;
 }

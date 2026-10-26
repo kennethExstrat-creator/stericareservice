@@ -42,6 +42,17 @@ describe("the modules' data as the reading gets it (moduleDataJsonSchema)", () =
     expect(aged?.required ?? []).toEqual([]);
   });
 
+  it("tells the sampling plan's inner boxes in all from those per case, which only a document stating them fills (Kenneth, 27 October 2026)", () => {
+    const schema = moduleDataJsonSchema(MODULE_REGISTRY.sampling_plan.dataSchema) as Node;
+    const size = schema.properties?.sizes?.additionalProperties;
+    expect(Object.keys(size?.properties ?? {}).slice(0, 3)).toEqual(["cases", "innerUnitsPerCase", "innerUnits"]);
+    expect(size?.properties?.innerUnits?.description).toContain("the total a document gives, as the paper form's Sampling Plan does (Inner Box)");
+    expect(size?.properties?.innerUnits?.description).toContain("The app works it out from cases and innerUnitsPerCase when both are entered.");
+    expect(size?.properties?.innerUnitsPerCase?.description).toContain("only where a document states the count per case");
+    expect(size?.properties?.innerUnitsPerCase?.description).toContain("Never derived from a total: a total goes into innerUnits.");
+    expect(size?.required ?? []).toEqual([]);
+  });
+
   it("writes every module's data, so no module is left out of a reading", () => {
     for (const [key, definition] of Object.entries(MODULE_REGISTRY)) expect(moduleDataJsonSchema(definition.dataSchema), key).not.toBeNull();
   });

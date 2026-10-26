@@ -57,6 +57,9 @@ function bare(word: string): string {
 
 const startsLowerCase = (word: string) => /^\p{Ll}/u.test(word);
 
+/** A word for where it stands: "#" reads "Number", so "# of Case" has "of" in the middle (Kenneth, 27 October 2026). */
+const isWord = (token: string) => bare(token) !== "" || token === "#";
+
 /** A token that opens a part of the label: its first word takes a capital, "(The Brand". */
 const OPENS = /^[(\[{“‘"']/u;
 
@@ -66,10 +69,12 @@ const OPENS = /^[(\[{“‘"']/u;
  * "Sign-in emails" gives ["in", "emails"], "Used in" gives ["in"]. Marks such
  * as "+", "−" or "·" count as words for where a word stands ("Tap + and −"
  * ends on "−"), but have no case of their own; nor have units ("Weight (g)").
+ * A label opens on its first word, or on a "#", which reads "Number" ("# of
+ * Gloves").
  */
 export function lowerCaseWords(label: string): string[] {
   const tokens = label.split(/\s+/).filter(Boolean);
-  const first = tokens.findIndex((token) => bare(token) !== "");
+  const first = tokens.findIndex(isWord);
   const last = tokens.length - 1;
   return tokens.flatMap((token, index) => {
     if (bare(token) === "" || UNITS.has(bare(token))) return [];

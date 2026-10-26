@@ -536,9 +536,11 @@ test("the STD_EG example entered on the iPad gives every expected result", async
     await expectOnlySizeM(page, SECTION.sampling);
     // No # Gloves for Weight: the app shows no such row (Kenneth, 26 October 2026).
     await check(frame.getByRole("textbox", { name: named("# Gloves for Weight, Size M") })).toHaveCount(0);
-    await frame.getByRole("textbox", { name: "Case, Size M", exact: true }).tap();
+    await frame.getByRole("textbox", { name: "# of Case, Size M", exact: true }).tap();
     for (const value of [
       SAMPLING.cases,
+      // No inner boxes per case (Kenneth, 27 October 2026): the report gives the total, typed next.
+      "",
       SAMPLING.inners,
       SAMPLING.gloves,
       SAMPLING.watertightVisualGloves,
@@ -561,7 +563,7 @@ test("the STD_EG example entered on the iPad gives every expected result", async
     // 500 sampled meets level I: an info result, no notice (expected results: the plan matches).
     await check(sectionStatus(page, SECTION.sampling)).toHaveAttribute("data-status", "info");
     await check(sectionSummary(page, SECTION.sampling)).toContainText(
-      `Size M: Case: ${SAMPLING.cases}; # Gloves for Watertight & Visual: ${SAMPLING.watertightVisualGloves}; inspection level I needs ${EXPECT_SAMPLING.required} (code ${EXPECT_SAMPLING.codeLetter}).`,
+      `Size M: # of Case: ${SAMPLING.cases}; # Gloves for Watertight & Visual: ${SAMPLING.watertightVisualGloves}; Gloves Taken per Inner Box: 10; Put Back: 0.`,
       ANY_CASE,
     );
     await check(frame.locator(".text-warn, .text-fail"), "no sampling notice").toHaveCount(0);

@@ -27,37 +27,38 @@ describe("autoSampleCases (Auto Calculate Sampling, Kenneth, 26 October 2026)", 
     expect(autoSampleCases(["S", "M"], orderOf({ S: 100, M: null }))).toBeNull();
     expect(autoSampleCases(["S", "M"], orderOf({ S: 100, M: 0 }))).toBeNull();
     expect(autoSampleCases([], orderOf({}))).toBeNull();
-    expect(autoSampleCases(["S", "M"], orderOf({ S: 100, M: null }), 10)).toBeNull();
+    expect(autoSampleCases(["S", "M"], orderOf({ S: 100, M: null }), true)).toBeNull();
   });
 });
 
-describe("autoSampleCases rounded up (Sampling Settings, Kenneth, 27 October 2026: \"round up to nearest tenth or five\")", () => {
-  // The paper form's PO again: the formula gives 17, 31, 17 and 4.
+describe("autoSampleCases rounded up to the nearest 5 or 10 (Sampling Settings, Kenneth, 27 October 2026)", () => {
+  // "round up to nearest 5 or 10, which means 72 round to 75, 78 round to 80, not either 5 or 10".
   const sizes = ["S", "M", "L", "XL"];
+  // The paper form's PO again: the formula gives 17, 31, 17 and 4.
   const order = orderOf({ S: 1120, M: 2081, L: 1100, XL: 250 });
 
-  it("rounds each size's cases up to the next multiple of 5, or of 10", () => {
-    expect(autoSampleCases(sizes, order, 5)).toEqual({ S: 20, M: 35, L: 20, XL: 5 });
-    expect(autoSampleCases(sizes, order, 10)).toEqual({ S: 20, M: 40, L: 20, XL: 10 });
+  it("rounds each size's cases up to the next multiple of 5: 72 to 75, 78 to 80", () => {
+    expect(autoSampleCases(sizes, order, true)).toEqual({ S: 20, M: 35, L: 20, XL: 5 });
+    // √10,000 = 100: 72 and 78 of every 100 cases.
+    expect(autoSampleCases(["S", "M"], orderOf({ S: 7200, M: 2800 }), true)).toEqual({ S: 75, M: 30 });
+    expect(autoSampleCases(["S", "M"], orderOf({ S: 7800, M: 2200 }), true)).toEqual({ S: 80, M: 25 });
   });
 
-  it("keeps a share that is already a multiple", () => {
-    // √100 = 10: 50 of 100 cases is exactly 5; the sizes of 25 take 3, rounded to 5.
-    expect(autoSampleCases(["S", "M", "L"], orderOf({ S: 25, M: 25, L: 50 }), 5)).toEqual({ S: 5, M: 5, L: 5 });
-    // √400 = 20: a multiple of 5 and of 10.
-    expect(autoSampleCases(["M"], orderOf({ M: 400 }), 5)).toEqual({ M: 20 });
-    expect(autoSampleCases(["M"], orderOf({ M: 400 }), 10)).toEqual({ M: 20 });
+  it("keeps a share that is already a multiple of 5 or 10, and takes a small one up to 5", () => {
+    // √10,000 = 100: 75 and 80 of every 100 cases stay; 4 of them is 5.
+    expect(autoSampleCases(["S", "M"], orderOf({ S: 7500, M: 2500 }), true)).toEqual({ S: 75, M: 25 });
+    expect(autoSampleCases(["S", "M"], orderOf({ S: 8000, M: 2000 }), true)).toEqual({ S: 80, M: 20 });
+    expect(autoSampleCases(["S", "M"], orderOf({ S: 400, M: 9600 }), true)).toEqual({ S: 5, M: 100 });
   });
 
   it("still never asks for more cases than the size has", () => {
-    expect(autoSampleCases(["S", "M"], orderOf({ S: 1, M: 2 }), 10)).toEqual({ S: 1, M: 2 });
-    // √1,000 ≈ 31.6: S's share of 7 cases is 1, rounded to 5, or to 10 and back to its 7; M's 32 to 35 or 40.
-    expect(autoSampleCases(["S", "M"], orderOf({ S: 7, M: 993 }), 5)).toEqual({ S: 5, M: 35 });
-    expect(autoSampleCases(["S", "M"], orderOf({ S: 7, M: 993 }), 10)).toEqual({ S: 7, M: 40 });
+    expect(autoSampleCases(["S", "M"], orderOf({ S: 1, M: 2 }), true)).toEqual({ S: 1, M: 2 });
+    // √1,000 ≈ 31.6: S's share of its 3 cases is 1, rounded to 5 and back to its 3; M's 32 to 35.
+    expect(autoSampleCases(["S", "M"], orderOf({ S: 3, M: 997 }), true)).toEqual({ S: 3, M: 35 });
   });
 
   it("gives today's numbers with the setting off", () => {
-    expect(autoSampleCases(sizes, order, null)).toEqual({ S: 17, M: 31, L: 17, XL: 4 });
-    expect(autoSampleCases(sizes, order, null)).toEqual(autoSampleCases(sizes, order));
+    expect(autoSampleCases(sizes, order, false)).toEqual({ S: 17, M: 31, L: 17, XL: 4 });
+    expect(autoSampleCases(sizes, order, false)).toEqual(autoSampleCases(sizes, order));
   });
 });

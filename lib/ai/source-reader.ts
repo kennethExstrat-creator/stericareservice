@@ -79,7 +79,10 @@ const MAX_TOKENS = 16_000;
  * size; and a packing row marked as an aged sample goes into the size's
  * agedSample, never its boxes (PAPER_FORM_GUIDE, and the schema's own
  * description of the field). Since 26 October 2026 it also says how an
- * Excel or CSV file comes (SPREADSHEET_NOTE), the same for every file.
+ * Excel or CSV file comes (SPREADSHEET_NOTE), the same for every file. Since
+ * 27 October 2026 the paper form guide says the form's Sampling Plan gives
+ * the inner boxes in all, not per case (innerUnits; the sampling plan's
+ * schema describes innerUnitsPerCase).
  */
 export const SOURCE_READER_SYSTEM_PROMPT = `You read the source documents of a glove quality-control inspection for SteriCare and fill in the inspection's fields from them.
 

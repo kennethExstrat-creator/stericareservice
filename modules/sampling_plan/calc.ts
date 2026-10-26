@@ -1,12 +1,16 @@
 // Result (BUILD_SPEC 6.1 sampling_plan): "info" once every column the
 // template shows is entered for every ordered size; "warn" when a size's
 // watertight and visual sample is below the plan of the inspection level
-// (BUILD_SPEC 7) or is not a standard sample size; "not done" until then and
-// while a value is impossible (6.2 rule 5). The samples flow forward to the
-// modules that test them through the context (BUILD_SPEC 8). The inspection
-// level is resolved here and nowhere else (resolveInspectionLevel): the one
-// set for the inspection in Sampling Settings, else the template's, else the
-// client's, else I (Kenneth, 27 October 2026).
+// (BUILD_SPEC 7) or is not a standard sample size, or its inner units in all
+// are not its cases × inner units per case; "not done" until then and while
+// a value is impossible (6.2 rule 5). The inner units per case are never
+// asked for. Each size's gloves taken per inner box and those put back are
+// worked out here (Kenneth, 27 October 2026), never typed. The samples flow
+// forward to the modules that test them through the context (BUILD_SPEC 8).
+// The inspection level is resolved here and nowhere else
+// (resolveInspectionLevel): the one set for the inspection in Sampling
+// Settings, else the template's, else the client's, else I (Kenneth, 27
+// October 2026).
 import {
   AqlSchema,
   codeLetterForSampleSize,
@@ -40,7 +44,15 @@ import {
   type Labels,
   type SamplingValues,
 } from "@/modules/_framework";
-import { SAMPLING_CONTEXT_KEYS, shownColumns, type SamplingColumn, type SamplingPlanConfig } from "./config";
+import {
+  SAMPLING_CONTEXT_KEYS,
+  shownColumns,
+  showsGlovesPerInnerBox,
+  showsInnerUnitsPerCase,
+  type SamplingColumn,
+  type SamplingPlanConfig,
+} from "./config";
+import { glovesPerInnerBox, glovesPutBack } from "./inner-boxes";
 import { emptySamplingSize, rowsOff, type SamplingPlanData, type SamplingSize } from "./schema";
 
 /** One size's lot at the inspection level, and its watertight and visual sample against it. */
@@ -60,6 +72,14 @@ export type SizePlan = {
   sampleCodeLetter: CodeLetter | null;
   /** The watertight and visual sample is smaller than the plan; null without a plan or a sample. */
   belowPlan: boolean | null;
+  /**
+   * The gloves to take from each inner box: ⌈gloves ÷ inner units sampled⌉,
+   * never under the sample (Kenneth, 27 October 2026); null while either is
+   * missing, and where the template shows no gloves or no inner units.
+   */
+  glovesPerInnerBox: number | null;
+  /** The gloves taken beyond the sample, to put back: glovesPerInnerBox × inner units − gloves; null with it. */
+  putBack: number | null;
 };
 
 export type SamplingPlanComputed = {
@@ -67,7 +87,11 @@ export type SamplingPlanComputed = {
   inspectionLevel: InspectionLevel;
   /** Per ordered size. */
   sizes: Record<string, SizePlan>;
-  /** Each shown column summed over the ordered sizes (the onsite forms' Total: row); null while none is entered. */
+  /**
+   * Each shown column summed over the ordered sizes (the onsite forms' Total:
+   * row), and the gloves put back (`putBack`) where they show; null while none
+   * is entered. Never the inner units per case or the gloves per inner box.
+   */
   totals: Record<string, number | null>;
 };
 
@@ -136,7 +160,7 @@ export function calcSamplingPlan({
   });
   return {
     result: resultFromSizes(perSize, summarise(perSize, context)),
-    computed: { inspectionLevel: level, sizes, totals: totalsOf(data, config, context.sizes) },
+    computed: { inspectionLevel: level, sizes, totals: totalsOf(data, config, context.sizes, sizes) },
     issues,
   };
 }
@@ -214,7 +238,7 @@ function checkSize({ size, row, config, level, labels, context }: SizeCheckInput
   issues: CalcIssue[];
   result: PerSizeResult;
 } {
-  const label = (column: SamplingColumn) => labelFor(labels, column);
+  const label = (key: string) => labelFor(labels, key);
   const value = (column: SamplingColumn) => (config.columns[column] ? row[column] : null);
   const findings: Finding[] = [];
 
@@ -235,6 +259,21 @@ function checkSize({ size, row, config, level, labels, context }: SizeCheckInput
       column: "cases",
       brief: `${label("cases")} ${formatCount(cases)} is more than the ${formatCount(ordered)} ordered`,
       detail: `${counted(cases, "case")} sampled, more than the ${counted(ordered, "case")} ordered.`,
+    });
+  }
+
+  // While the inner units per case are entered, the screen writes cases × per case into the total (withCount). One
+  // stored otherwise (data saved another way: a reading, two devices' edits) is flagged on the total.
+  const perCase = showsInnerUnitsPerCase(config) ? row.innerUnitsPerCase : null;
+  const innerUnits = value("innerUnits");
+  if (cases !== null && perCase !== null && innerUnits !== null && innerUnits !== cases * perCase) {
+    const product = `${formatCount(cases)} × ${formatCount(perCase)}`;
+    findings.push({
+      level: "warning",
+      code: "inner_units_mismatch",
+      column: "innerUnits",
+      brief: `${label("innerUnits")} ${formatCount(innerUnits)} is not ${product}`,
+      detail: `${formatCount(innerUnits)} is not ${product} = ${formatCount(cases * perCase)} (${label("cases")} × ${label("innerUnitsPerCase")}). Enter either again to work it out.`,
     });
   }
 
@@ -277,6 +316,9 @@ function checkSize({ size, row, config, level, labels, context }: SizeCheckInput
       { size, path: ["sizes", size, finding.column] },
     ),
   );
+  // The gloves taken per inner box and those put back, whether the gloves came from Auto Calculate Sampling or were
+  // typed (Kenneth, 27 October 2026: "Always use this method").
+  const gloves = showsGlovesPerInnerBox(config) ? value("gloves") : null;
   const sizePlan: SizePlan = {
     lotSizeGloves: lot,
     codeLetter: plan?.codeLetter ?? null,
@@ -284,18 +326,22 @@ function checkSize({ size, row, config, level, labels, context }: SizeCheckInput
     planCodeLetter: plan?.usedLetter ?? null,
     sampleCodeLetter,
     belowPlan: required === null || sample === null ? null : sample < required,
+    glovesPerInnerBox: glovesPerInnerBox(gloves, innerUnits),
+    putBack: glovesPutBack(gloves, innerUnits),
   };
-  return { plan: sizePlan, issues, result: sizeResult({ row, config, findings, label }) };
+  return { plan: sizePlan, issues, result: sizeResult({ row, config, findings, label, plan: sizePlan }) };
 }
 
 type SizeResultInput = {
   row: SamplingSize;
   config: SamplingPlanConfig;
   findings: readonly Finding[];
-  label: (column: SamplingColumn) => string;
+  label: (key: string) => string;
+  /** The size's computed values: the gloves per inner box and those put back join a complete size's summary. */
+  plan: Pick<SizePlan, "glovesPerInnerBox" | "putBack">;
 };
 
-function sizeResult({ row, config, findings, label }: SizeResultInput): PerSizeResult {
+function sizeResult({ row, config, findings, label, plan }: SizeResultInput): PerSizeResult {
   const shown = shownColumns(config);
   const errors = findings.filter((finding) => finding.level === "error");
   if (errors.length > 0) return { status: "not_done", summary: sentence(errors.map((finding) => finding.brief)) };
@@ -311,6 +357,11 @@ function sizeResult({ row, config, findings, label }: SizeResultInput): PerSizeR
   const parts = (["cases", "glovesWatertightVisual"] as const)
     .filter((column) => config.columns[column])
     .map((column) => `${label(column)}: ${formatCount(row[column] ?? 0)}`);
+  // What the inspector takes from each inner box and puts back: the review and the export read it here too.
+  for (const key of ["glovesPerInnerBox", "putBack"] as const) {
+    const count = plan[key];
+    if (count !== null) parts.push(`${label(key)}: ${formatCount(count)}`);
+  }
   return { status: "info", summary: sentence(parts) };
 }
 
@@ -343,16 +394,20 @@ function totalsOf(
   data: SamplingPlanData,
   config: SamplingPlanConfig,
   sizes: readonly string[],
+  plans: Readonly<Record<string, SizePlan>>,
 ): Record<string, number | null> {
-  return Object.fromEntries(
-    shownColumns(config).map((column) => {
-      const values = sizes.flatMap((size) => {
-        const entered = data.sizes[size]?.[column] ?? null;
-        return entered === null ? [] : [entered];
-      });
-      return [column, values.length === 0 ? null : values.reduce((sum, entered) => sum + entered, 0)];
-    }),
+  const totals: Record<string, number | null> = Object.fromEntries(
+    shownColumns(config).map((column) => [column, sumOf(sizes.map((size) => data.sizes[size]?.[column] ?? null))]),
   );
+  // The gloves put back add up; the inner units per case and the gloves per inner box do not, and have no total.
+  if (showsGlovesPerInnerBox(config)) totals.putBack = sumOf(sizes.map((size) => plans[size]?.putBack ?? null));
+  return totals;
+}
+
+/** The values entered, summed; null while none is. */
+function sumOf(values: readonly (number | null)[]): number | null {
+  const entered = values.filter((value): value is number => value !== null);
+  return entered.length === 0 ? null : entered.reduce((sum, value) => sum + value, 0);
 }
 
 /** "1 case", "2,900 cases". */

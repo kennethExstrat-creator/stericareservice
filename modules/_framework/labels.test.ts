@@ -29,4 +29,26 @@ describe("effectiveLabels", () => {
     const resolved = { labels: { colour: "Colour of glove" } };
     expect(effectiveLabels(definition, resolved)).toEqual({ colour: "Colour of glove", length: "Glove length" });
   });
+
+  it("lays what a module words itself over the template's wording (shownLabels, 6.2 rule 11)", () => {
+    const definition = {
+      labels: { cases: "# of Case", gloves: "# of Gloves" },
+      shownLabels: (labels: Readonly<Record<string, string>>) => ({ ...labels, cases: "# of Case" }),
+    };
+    // A template version saved before the module's own wording keeps it for the rest.
+    expect(effectiveLabels(definition, { labels: { cases: "Case", gloves: "Gloves" } })).toEqual({ cases: "# of Case", gloves: "Gloves" });
+  });
+
+  it("keeps the template's labels, every one, when the hook throws or leaves some out", () => {
+    const resolved = { labels: { cases: "Case", gloves: "Gloves" } };
+    const throws = {
+      labels: {},
+      shownLabels: (): Readonly<Record<string, string>> => {
+        throw new Error("broken");
+      },
+    };
+    expect(effectiveLabels(throws, resolved)).toEqual({ cases: "Case", gloves: "Gloves" });
+    const partial = { labels: {}, shownLabels: () => ({ cases: "# of Case" }) };
+    expect(effectiveLabels(partial, resolved)).toEqual({ cases: "# of Case", gloves: "Gloves" });
+  });
 });

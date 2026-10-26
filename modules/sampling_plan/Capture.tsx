@@ -22,23 +22,33 @@
 // its size.
 //
 // Auto Calculate Sampling, top right of the card (Kenneth, 26 October 2026),
-// fills each size's cases from the order (auto-cases.ts): one of three ways
-// the plan comes in, beside typing it and Steri-AI reading a photo of the
-// written table on Source Documents. Cases already typed are replaced only
-// after a yes.
+// fills each size's cases from the order (auto-cases.ts) and, since 27
+// October 2026, its # of Gloves from its lot's code letter (auto-gloves.ts):
+// one of three ways the plan comes in, beside typing it and Steri-AI reading
+// a photo of the written table on Source Documents. Counts already typed are
+// replaced only after a yes. It says "Sampling Plan Calculation Completed",
+// with a line under it for a size whose lot size it lacked.
 //
 // Sampling Settings, the button beside it (Kenneth, 27 October 2026: "put a
 // setting beside the auto calculation sampling, that is to set general
 // inspection level"), opens a dialog: the inspection level for this
 // inspection (General I, II, III; Special S-1 to S-4), a line saying where
 // the level comes from (set for this inspection, the template's, the
-// client's, else I) with Use Default to go back to it, and whether Auto
-// Calculate Sampling rounds each size's cases up to the nearest 5 or 10
-// ("round up to nearest tenth or five"). Save writes both through the data
-// updater; no count in the table changes with them. Read-only, the dialog
-// only shows them. View Code Letter Table and View Table II-A open ISO
-// 2859-1 Tables 1 and 2-A over it, from lib/aql, at the level picked, each
-// size marked; Back to Settings returns.
+// client's, else I) with Use Default to go back to it, and one switch for
+// whether Auto Calculate Sampling rounds each size's cases up to the nearest
+// 5 or 10 ("72 round to 75, 78 round to 80, not either 5 or 10"). Save
+// writes both through the data updater; no count in the table changes with
+// them. Read-only, the dialog only shows them. View Code Letter Table and
+// View Table II-A open ISO 2859-1 Tables 1 and 2-A over it, from lib/aql, at
+// the level picked, each size marked; Back to Settings returns.
+//
+// Sampling Quantity (Kenneth, 27 October 2026): # of Case, Inner Box Taken
+// per Case, Total # of Inner Box, then # of Gloves, Gloves Taken per Inner
+// Box and Put Back. While a size's inner boxes per case are entered, its
+// total is worked out from its cases (withCount): read-only on grey, the sum
+// at its left ("16 × 1"); empty, the total is typed. The gloves per inner box
+// and those put back are calc's, read-only on grey. The Total column sums
+// neither the inner boxes per case nor the gloves per inner box.
 //
 // Each test row (watertight and visual, dimension, the physical test,
 // packaging and dispensing) has a switch at its left (Kenneth, 26 October
@@ -94,11 +104,12 @@ import {
 } from "@/lib/aql";
 import { formatSize } from "@/lib/format";
 import { cn } from "@/lib/utils";
-import { labelFor, lotSizeGloves, type AqlSettings, type CaptureProps } from "@/modules/_framework";
+import { labelFor, lotSizeGloves, moduleShortTitle, type AqlSettings, type CaptureProps } from "@/modules/_framework";
 import { ModuleHeaderActions } from "@/modules/_framework/header-actions";
 import { useReportShownSize } from "@/modules/_framework/shown-size";
 import { autoSampleCases } from "./auto-cases";
-import { defaultInspectionLevel, type SamplingPlanComputed, type SourcedLevel } from "./calc";
+import { autoCalculateNotice, autoSampleGloves, type AutoGloves } from "./auto-gloves";
+import { defaultInspectionLevel, resolveInspectionLevel, type SamplingPlanComputed, type SourcedLevel } from "./calc";
 import {
   AQL_CHECK_NAMES,
   aqlColumnsInUse,
@@ -110,20 +121,20 @@ import {
   type SizeCodeLetter,
   type SizeLot,
 } from "./code-letters";
-import type { SamplingColumn, SamplingPlanConfig } from "./config";
-import { countGroups, type CountRow } from "./rows";
+import { showsInnerUnitsPerCase, type SamplingPlanConfig } from "./config";
+import { countGroups, type CountRow, type WorkedRow } from "./rows";
 import {
-  CASE_ROUNDINGS,
   isRowSwitch,
   rowsOff,
   samplingSettings,
+  withAutoSampling,
   withCount,
   withRowOff,
   withSamplingSettings,
-  type CaseRounding,
   type RowSwitch,
   type SamplingPlanData,
   type SamplingSettings,
+  type SamplingSize,
 } from "./schema";
 import { GENERAL_LEVELS, levelSourceText, SPECIAL_LEVELS } from "./settings";
 
@@ -131,9 +142,16 @@ import { GENERAL_LEVELS, levelSourceText, SPECIAL_LEVELS } from "./settings";
 type Line =
   | { kind: "head" }
   | { kind: "fact"; key: "orderQty" | "lotSizeGloves" }
+  | { kind: "note"; key: string; text: string }
   | { kind: "heading"; key: string; text: string | null }
   | { kind: "count"; row: CountRow }
+  | { kind: "worked"; row: WorkedRow }
   | { kind: "result" };
+
+/** A count's column in a size's row of data. */
+type Count = keyof SamplingSize;
+
+const NO_GLOVES: AutoGloves = { gloves: {}, unknownLot: [] };
 
 // The labels' column at its narrowest is the box's scroll padding: a cell
 // brought into view never sits under the pinned labels.
@@ -192,14 +210,15 @@ export default function Capture({
   const sizeHead = (size: string) => formatSize(size, { sizes: context.templateSizes });
   const computed = evaluation?.computed;
   const groups = countGroups(config, label);
+  const countRows = groups.flatMap((group) => group.rows.filter((row): row is CountRow => row.kind === "count"));
+  const perCaseShown = showsInnerUnitsPerCase(config);
   // The issues of the cells on screen, size by size: the screen lists the module's own (not done) elsewhere.
-  const cells = new Set(sizes.flatMap((size) => groups.flatMap((group) => group.rows.map((row) => cellKey(size, row.column)))));
+  const cells = new Set(sizes.flatMap((size) => countRows.map((row) => cellKey(size, row.column))));
   const issues = (evaluation?.issues ?? []).filter(
     (issue) => issue.path.length === 3 && issue.path[0] === "sizes" && cells.has(cellKey(String(issue.path[1]), String(issue.path[2]))),
   );
 
-  const setCount = (size: string, column: SamplingColumn, value: number | null) =>
-    update((current) => withCount(current, size, column, value));
+  const setCount = (size: string, column: Count, value: number | null) => update((current) => withCount(current, size, column, value));
   const off = rowsOff(data);
   const setRowOff = (column: RowSwitch, switchedOff: boolean) => update((current) => withRowOff(current, column, switchedOff));
 
@@ -212,32 +231,43 @@ export default function Capture({
     toast.success("Sampling settings saved.");
   };
   const lot = (size: string) => computed?.sizes?.[size]?.lotSizeGloves ?? lotSizeGloves(context, size);
+  const lots: SizeLot[] = sizes.map((size) => ({ size, lot: lot(size) }));
 
-  // Auto Calculate Sampling, where the template has a Case row: null until every size has its order quantity.
-  const hasCases = groups.some((group) => group.rows.some((row) => row.column === "cases"));
+  // Auto Calculate Sampling, where the template has a Case row: null until every size has its order quantity. It
+  // fills # of Gloves too, where the template has the row: the sample size of each size's lot's code letter at the
+  // inspection level in force (auto-gloves.ts).
+  const hasCases = countRows.some((row) => row.column === "cases");
+  const hasGloves = countRows.some((row) => row.column === "gloves");
   const autoCases = hasCases
-    ? autoSampleCases(sizes, (size) => context.order[size]?.qtyCases ?? null, settings.roundCasesTo)
+    ? autoSampleCases(sizes, (size) => context.order[size]?.qtyCases ?? null, settings.roundCases)
     : null;
+  const autoGloves = hasGloves ? autoSampleGloves(lots, resolveInspectionLevel(data, config, context).level) : NO_GLOVES;
+  const replacesEntered =
+    autoCases !== null &&
+    sizes.some((size) => {
+      const row = data.sizes[size];
+      return wouldReplace(row?.cases ?? null, autoCases[size]) || wouldReplace(row?.gloves ?? null, autoGloves.gloves[size]);
+    });
   const applyAutoCases = (cases: Readonly<Record<string, number>>) => {
-    update((current) => sizes.reduce((next, size) => withCount(next, size, "cases", cases[size] ?? null), current));
-    toast.success(`Cases filled from the order: ${sizes.map((size) => `${sizeHead(size)} ${cases[size]}`).join(", ")}.`);
+    update((current) => withAutoSampling(current, sizes, cases, autoGloves.gloves));
+    const notice = autoCalculateNotice({
+      unknownLot: autoGloves.unknownLot,
+      sizeName: sizeHead,
+      glovesLabel: label("gloves"),
+      orderPage: moduleShortTitle(context, "order_lots"),
+    });
+    toast.success(notice.title, notice.description === null ? undefined : { description: notice.description });
   };
   const headerActions = (
     <ModuleHeaderActions>
       {hasCases && !readOnly && sizes.length > 0 && (
-        <AutoCalculateButton
-          sizes={sizes}
-          cases={autoCases}
-          roundTo={settings.roundCasesTo}
-          entered={(size) => data.sizes[size]?.cases ?? null}
-          onApply={applyAutoCases}
-        />
+        <AutoCalculateButton cases={autoCases} roundUp={settings.roundCases} replaces={replacesEntered} onApply={applyAutoCases} />
       )}
       <SamplingSettingsButton
         saved={settings}
         fallback={fallback}
         autoCalculate={hasCases}
-        lots={sizes.map((size) => ({ size, lot: lot(size) }))}
+        lots={lots}
         aql={context.aql}
         sizeName={sizeHead}
         label={label}
@@ -248,10 +278,10 @@ export default function Capture({
   );
 
   // Names the cell with its size: every size is on screen at once. The link
-  // to a cell in the problem list repeats it, so it reads "Case, Size M".
-  const cellName = (size: string, column: SamplingColumn) => `${label(column)}, ${sizeName(size)}`;
+  // to a cell in the problem list repeats it, so it reads "# of Case, Size M".
+  const cellName = (size: string, column: Count) => `${label(column)}, ${sizeName(size)}`;
 
-  const setRejectedEntry = (size: string, column: SamplingColumn, entry: EntryProblem["entry"] | null) =>
+  const setRejectedEntry = (size: string, column: Count, entry: EntryProblem["entry"] | null) =>
     setRejected((current) => {
       const id = fieldId(size, column);
       const next = { ...current };
@@ -273,13 +303,21 @@ export default function Capture({
     );
   }
 
+  // A lot is the order's cases × the gloves per case: without the packing configuration's, every lot waits on it,
+  // which a quiet line under the row says (Kenneth, 27 October 2026, of a bare "Lot Size (Gloves) —").
+  const lotNote =
+    context.packing.glovesPerCase === null
+      ? `Needs the ${moduleShortTitle(context, "packing_config")} on the ${moduleShortTitle(context, "order_lots")} page`
+      : null;
+  const noteLines: Line[] = lotNote === null ? [] : [{ kind: "note", key: "lot-size-note", text: lotNote }];
   const lines: Line[] = [
     { kind: "head" },
     { kind: "fact", key: "orderQty" },
     { kind: "fact", key: "lotSizeGloves" },
+    ...noteLines,
     ...groups.flatMap((group, index): Line[] => [
       { kind: "heading", key: `group-${index}`, text: group.heading },
-      ...group.rows.map((row): Line => ({ kind: "count", row })),
+      ...group.rows.map((row): Line => (row.kind === "count" ? { kind: "count", row } : { kind: "worked", row })),
     ]),
     { kind: "result" },
   ];
@@ -303,6 +341,9 @@ export default function Capture({
   const order = (size: string) => context.order[size]?.qtyCases ?? null;
   const factValue = (key: "orderQty" | "lotSizeGloves", size: string) => (key === "orderQty" ? order(size) : lot(size));
   const factTotal = (key: "orderQty" | "lotSizeGloves") => sumOf(sizes.map((size) => factValue(key, size)));
+  // Why a lot shows a dash, for the pointer's hover and screen readers: the line under the row is for the eye.
+  const factNote = (key: "orderQty" | "lotSizeGloves", value: number | null) =>
+    key === "lotSizeGloves" && value === null ? lotNote : null;
   const totalsLabel = label("totals").replace(/:\s*$/, "");
 
   const labelCells = lines.map((line, index): ReactNode => {
@@ -323,6 +364,18 @@ export default function Capture({
         return (
           <div key={line.key} style={at(row, 1)} className={cn(CELL, LABEL_CELL, "text-muted-foreground")}>
             {label(line.key)}
+          </div>
+        );
+      case "note":
+        // Across the whole grid, quiet; its words stay at the left while the sizes scroll.
+        return (
+          <div
+            key={line.key}
+            data-slot={line.key}
+            style={at(row, "1 / -1")}
+            className="border-b border-border px-3 py-1 text-xs text-muted-foreground touch:py-1.5 touch:text-sm"
+          >
+            <span className="sticky left-3">{line.text}</span>
           </div>
         );
       case "heading":
@@ -353,6 +406,12 @@ export default function Capture({
             {line.row.shown}
           </div>
         );
+      case "worked":
+        return (
+          <div key={line.row.key} style={at(row, 1)} className={cn(CELL, LABEL_CELL, "text-foreground", edge(row))}>
+            {line.row.label}
+          </div>
+        );
       case "result":
         return (
           <div key="result" style={at(row, 1)} className={cn(CELL, LABEL_CELL, "text-muted-foreground", edge(row))}>
@@ -379,13 +438,23 @@ export default function Capture({
               {sizeHead(size)}
             </div>
           );
-        case "fact":
+        case "fact": {
+          const value = factValue(line.key, size);
+          const note = factNote(line.key, value);
           return (
-            <div key={line.key} style={at(row, column)} className={cn(CELL, VALUE_CELL, "text-muted-foreground")}>
+            <div
+              key={line.key}
+              style={at(row, column)}
+              title={note ?? undefined}
+              className={cn(CELL, VALUE_CELL, "text-muted-foreground")}
+            >
               <span className="sr-only">{label(line.key)}: </span>
-              <Figure value={factValue(line.key, size)} grouping />
+              <Figure value={value} grouping />
+              {note && <span className="sr-only">{` ${note}.`}</span>}
             </div>
           );
+        }
+        case "note":
         case "heading":
           return null;
         case "count": {
@@ -393,32 +462,68 @@ export default function Capture({
           const path = ["sizes", size, count] as const;
           const own = issues.filter((issue) => samePath(issue.path, path));
           const rowOff = isRowSwitch(count) && off.has(count);
+          const stored = data.sizes[size];
+          // While the size's inner boxes per case are entered, its total is worked out from its cases (withCount).
+          const perCase = stored?.innerUnitsPerCase ?? null;
+          const workedOut = count === "innerUnits" && perCaseShown && perCase !== null;
+          const cases = stored?.cases ?? null;
           return (
             <div
               key={count}
               data-row-off={rowOff || undefined}
+              data-worked-out={workedOut || undefined}
               style={at(row, column)}
-              className={cn(CELL, "border-l border-border p-0", rowOff && "bg-slate-50 opacity-50", edge(row))}
+              title={workedOut ? `${label("cases")} × ${label("innerUnitsPerCase")}` : undefined}
+              className={cn(
+                CELL,
+                "relative border-l border-border p-0",
+                rowOff && "bg-slate-50 opacity-50",
+                workedOut && "bg-slate-50",
+                edge(row),
+              )}
             >
+              {workedOut && cases !== null && (
+                <span
+                  aria-hidden
+                  data-slot="worked-out"
+                  className="pointer-events-none absolute inset-y-0 left-2.5 flex items-center text-xs whitespace-nowrap text-muted-foreground touch:text-sm"
+                >
+                  {`${formatCount(cases)} × ${formatCount(perCase)}`}
+                </span>
+              )}
               <NumberField
                 variant="cell"
                 id={fieldId(size, count)}
                 label={cellName(size, count)}
-                value={data.sizes[size]?.[count] ?? null}
+                value={stored?.[count] ?? null}
                 onValueChange={(value) => setCount(size, count, value)}
                 integer
-                min={0}
+                // At least one inner box from each case sampled (Kenneth, 27 October 2026).
+                min={count === "innerUnitsPerCase" ? 1 : 0}
                 error={own.find((issue) => issue.level === "error")?.message ?? null}
                 warning={own.filter((issue) => issue.level === "warning").map((issue) => issue.message)}
                 issuePath={path}
                 onFocus={() => onFocusChange?.({ size })}
                 onInvalidChange={(entry) => setRejectedEntry(size, count, entry)}
-                readOnly={readOnly || rowOff}
+                readOnly={readOnly || rowOff || workedOut}
                 className="w-full"
               />
             </div>
           );
         }
+        case "worked":
+          // Calc's, never typed (6.2 rule 2): read-only on grey, a dash while the gloves or the inner boxes are missing.
+          return (
+            <div
+              key={line.row.key}
+              data-worked={line.row.key}
+              style={at(row, column)}
+              className={cn(CELL, VALUE_CELL, "bg-slate-50 text-foreground", edge(row))}
+            >
+              <span className="sr-only">{line.row.label}: </span>
+              <Figure value={computed?.sizes?.[size]?.[line.row.key] ?? null} grouping />
+            </div>
+          );
         case "result": {
           const result = evaluation?.result.perSize?.[size];
           return (
@@ -451,16 +556,25 @@ export default function Capture({
             {totalsLabel}
           </div>
         );
-      case "fact":
+      case "fact": {
+        const total = factTotal(line.key);
+        const note = factNote(line.key, total);
         return (
-          <div key={line.key} style={at(row, totalColumn)} className={cell}>
+          <div key={line.key} style={at(row, totalColumn)} title={note ?? undefined} className={cell}>
             <span className="sr-only">{label(line.key)}: </span>
-            <Figure value={factTotal(line.key)} grouping />
+            <Figure value={total} grouping />
+            {note && <span className="sr-only">{` ${note}.`}</span>}
           </div>
         );
+      }
+      case "note":
       case "heading":
         return null;
       case "count":
+        // Inner boxes per case add up to nothing: no total.
+        if (line.row.column === "innerUnitsPerCase") {
+          return <div key={line.row.column} aria-hidden data-no-total="" style={at(row, totalColumn)} className={cell} />;
+        }
         return (
           <div
             key={line.row.column}
@@ -469,6 +583,17 @@ export default function Capture({
           >
             <span className="sr-only">{line.row.label}: </span>
             <Figure value={computed?.totals?.[line.row.column] ?? null} grouping />
+          </div>
+        );
+      case "worked":
+        // The gloves put back add up; the gloves per inner box do not.
+        if (line.row.key === "glovesPerInnerBox") {
+          return <div key={line.row.key} aria-hidden data-no-total="" style={at(row, totalColumn)} className={cell} />;
+        }
+        return (
+          <div key={line.row.key} style={at(row, totalColumn)} className={cell}>
+            <span className="sr-only">{line.row.label}: </span>
+            <Figure value={computed?.totals?.[line.row.key] ?? null} grouping />
           </div>
         );
       case "result":
@@ -556,28 +681,25 @@ export default function Capture({
   );
 }
 
-type RejectedEntry = EntryProblem & { size: string; column: SamplingColumn };
+type RejectedEntry = EntryProblem & { size: string; column: Count };
 
 /**
  * Auto Calculate Sampling. Disabled until every size has its order quantity;
- * asks first when it would change cases already typed.
+ * asks first when it would change cases or gloves already typed (`replaces`).
  */
 function AutoCalculateButton({
-  sizes,
   cases,
-  roundTo,
-  entered,
+  roundUp,
+  replaces,
   onApply,
 }: {
-  sizes: readonly string[];
   cases: Readonly<Record<string, number>> | null;
-  /** The multiple Sampling Settings round the cases up to; null for none. */
-  roundTo: CaseRounding | null;
-  entered: (size: string) => number | null;
+  /** Sampling Settings round the cases up to the nearest 5 or 10. */
+  roundUp: boolean;
+  replaces: boolean;
   onApply: (cases: Readonly<Record<string, number>>) => void;
 }) {
   const [asking, setAsking] = useState(false);
-  const replaces = cases !== null && sizes.some((size) => entered(size) !== null && entered(size) !== cases[size]);
   return (
     <>
       <Button
@@ -588,7 +710,7 @@ function AutoCalculateButton({
         title={
           cases === null
             ? "Enter every size's order quantity first."
-            : `Each size's cases: the square root of the order's cases, shared by the size's cases, rounded up${roundTo === null ? "" : ` to a multiple of ${roundTo}`}.`
+            : `Each size's cases: the square root of the order's cases, shared by the size's cases, rounded up${roundUp ? " to the nearest 5 or 10" : ""}. Its gloves: the sample size of its lot's code letter at the inspection level.`
         }
         onClick={() => {
           if (cases === null) return;
@@ -602,15 +724,15 @@ function AutoCalculateButton({
       <AlertDialog open={asking} onOpenChange={setAsking}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Replace the Cases Entered?</AlertDialogTitle>
+            <AlertDialogTitle>Replace the Counts Entered?</AlertDialogTitle>
             <AlertDialogDescription>
-              Auto Calculate Sampling fills each size&apos;s cases from the order quantities, in place of the cases already
-              entered.
+              Auto Calculate Sampling fills each size&apos;s cases from the order quantities and its gloves from the lot
+              size, in place of the counts already entered.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={() => cases !== null && onApply(cases)}>Replace Cases</AlertDialogAction>
+            <AlertDialogAction onClick={() => cases !== null && onApply(cases)}>Replace Counts</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
@@ -618,7 +740,7 @@ function AutoCalculateButton({
   );
 }
 
-/** A level or a rounding picked: the brand fill, as a custom field's choices have it (field-control.tsx). */
+/** A level picked: the brand fill, as a custom field's choices have it (field-control.tsx). */
 const PICKED = "data-[state=on]:bg-primary data-[state=on]:text-primary-foreground data-[state=on]:hover:bg-brand-600";
 
 type SettingsProps = {
@@ -677,11 +799,9 @@ function SamplingSettingsButton({ onSave, ...props }: SettingsProps) {
  */
 function SamplingSettingsForm({ saved, fallback, autoCalculate, lots, aql, sizeName, label, readOnly, onSave }: SettingsProps) {
   const ids = useId();
-  // Drafts until Save: the level picked for the inspection (null: the default), and the rounding, whose
-  // multiple is kept while it is switched off.
+  // Drafts until Save: the level picked for the inspection (null: the default), and the rounding.
   const [level, setLevel] = useState<InspectionLevel | null>(saved.inspectionLevel);
-  const [rounding, setRounding] = useState(saved.roundCasesTo !== null);
-  const [roundTo, setRoundTo] = useState<CaseRounding>(saved.roundCasesTo ?? CASE_ROUNDINGS[0]);
+  const [rounding, setRounding] = useState(saved.roundCases);
   // The level in force once saved, which the tables show.
   const shown = level ?? fallback.level;
   const pick = (next: string) => {
@@ -695,7 +815,7 @@ function SamplingSettingsForm({ saved, fallback, autoCalculate, lots, aql, sizeN
       className="flex min-h-0 flex-1 flex-col"
       onSubmit={(event) => {
         event.preventDefault();
-        if (!readOnly) onSave({ inspectionLevel: level, roundCasesTo: rounding ? roundTo : null });
+        if (!readOnly) onSave({ inspectionLevel: level, roundCases: rounding });
       }}
     >
       <DialogHeader className="border-b border-border px-6 pt-6 pb-5">
@@ -749,10 +869,10 @@ function SamplingSettingsForm({ saved, fallback, autoCalculate, lots, aql, sizeN
             {readOnly ? (
               <>
                 <h3 id={`${ids}-rounding`} className="text-sm font-semibold text-foreground touch:text-base">
-                  Round Up Auto Calculated Cases
+                  Round Up Cases to the Nearest 5 or 10
                 </h3>
                 <p data-slot="rounding-shown" className="text-base font-bold text-foreground">
-                  {saved.roundCasesTo === null ? "Off" : `Nearest ${saved.roundCasesTo}`}
+                  {saved.roundCases ? "On" : "Off"}
                 </p>
               </>
             ) : (
@@ -767,30 +887,12 @@ function SamplingSettingsForm({ saved, fallback, autoCalculate, lots, aql, sizeN
                   {/* Wrapped, so not the switch's sibling: Label fades beside a disabled peer. */}
                   <span className="min-w-0">
                     <Label id={`${ids}-rounding`} htmlFor={`${ids}-round`} className="leading-snug font-semibold touch:text-base">
-                      Round Up Auto Calculated Cases
+                      Round Up Cases to the Nearest 5 or 10
                     </Label>
                   </span>
                 </div>
-                <ToggleGroup
-                  type="single"
-                  variant="outline"
-                  spacing={0}
-                  value={String(roundTo)}
-                  onValueChange={(next) => {
-                    const step = CASE_ROUNDINGS.find((entry) => String(entry) === next);
-                    if (step !== undefined) setRoundTo(step);
-                  }}
-                  disabled={!rounding}
-                  aria-label="Round Up To"
-                >
-                  {CASE_ROUNDINGS.map((step) => (
-                    <ToggleGroupItem key={step} value={String(step)} className={cn("px-4", PICKED)}>
-                      {`Nearest ${step}`}
-                    </ToggleGroupItem>
-                  ))}
-                </ToggleGroup>
                 <p id={`${ids}-round-note`} className="text-sm text-muted-foreground touch:text-base">
-                  Applies the next time Auto Calculate Sampling runs; the cases already in the table stay as they are.
+                  e.g. 72 → 75, 78 → 80. Applies the next time Auto Calculate Sampling runs.
                 </p>
               </>
             )}
@@ -1257,8 +1359,13 @@ function cellKey(size: string, column: string): string {
 }
 
 /** The input's id: sizes such as "7.0" are fine in an id, never in a selector built from it. */
-function fieldId(size: string, column: SamplingColumn): string {
+function fieldId(size: string, column: Count): string {
   return `sampling-plan-${size}-${column}`;
+}
+
+/** Auto Calculate Sampling would change a count already entered: one it works out, and not to the same number. */
+function wouldReplace(entered: number | null, next: number | undefined): boolean {
+  return entered !== null && next !== undefined && entered !== next;
 }
 
 function samePath(path: readonly (string | number)[], target: readonly (string | number)[]): boolean {

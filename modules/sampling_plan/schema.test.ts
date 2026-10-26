@@ -33,10 +33,12 @@ import {
   SamplingPlanDataSchema,
   withCount,
   withSamplingSettings,
+  withWorkedInnerUnits,
 } from "./schema";
 
 const FILLED_M = {
   cases: 50,
+  innerUnitsPerCase: null,
   innerUnits: 50,
   gloves: 500,
   glovesWatertightVisual: 500,
@@ -58,7 +60,10 @@ describe("sampling_plan data", () => {
 
   it("starts empty and accepts a draft with anything missing, per size", () => {
     expect(emptySamplingPlan()).toEqual({ sizes: {} });
-    expect(emptySamplingSize()).toEqual(Object.fromEntries(SAMPLING_COLUMNS.map((column) => [column, null])));
+    expect(emptySamplingSize()).toEqual({
+      ...Object.fromEntries(SAMPLING_COLUMNS.map((column) => [column, null])),
+      innerUnitsPerCase: null,
+    });
     expect(SamplingPlanDataSchema.parse({ sizes: { M: { cases: 50 } } })).toEqual({
       sizes: { M: { ...emptySamplingSize(), cases: 50 } },
     });
@@ -109,15 +114,15 @@ describe("sampling_plan Sampling Settings (Kenneth, 27 October 2026)", () => {
     const saved = SamplingPlanDataSchema.parse({ sizes: { M: FILLED_M }, rowsOff: ["glovesDimensions"] });
     expect(saved).not.toHaveProperty("inspectionLevel");
     expect(saved).not.toHaveProperty("roundCasesTo");
-    expect(samplingSettings(saved)).toEqual({ inspectionLevel: null, roundCasesTo: null });
+    expect(samplingSettings(saved)).toEqual({ inspectionLevel: null, roundCases: false });
     expect(emptySamplingPlan()).toEqual({ sizes: {} });
   });
 
-  it("keeps an ISO 2859-1 level and a rounding to 5 or 10, for the whole inspection, nothing else", () => {
-    expect(SamplingPlanDataSchema.parse({ sizes: {}, inspectionLevel: "S-3", roundCasesTo: 10 })).toEqual({
+  it("keeps an ISO 2859-1 level and the rounding, for the whole inspection, nothing else", () => {
+    expect(SamplingPlanDataSchema.parse({ sizes: {}, inspectionLevel: "S-3", roundCasesTo: 5 })).toEqual({
       sizes: {},
       inspectionLevel: "S-3",
-      roundCasesTo: 10,
+      roundCasesTo: 5,
     });
     for (const bad of ["IV", "ii", "", null, 2]) {
       expect(SamplingPlanDataSchema.safeParse({ sizes: {}, inspectionLevel: bad }).success, String(bad)).toBe(false);
@@ -128,17 +133,27 @@ describe("sampling_plan Sampling Settings (Kenneth, 27 October 2026)", () => {
     expect(SamplingPlanDataSchema.safeParse({ sizes: { M: { inspectionLevel: "II" } } }).success).toBe(false);
   });
 
-  it("saves the settings beside the counts and takes a setting back out with null; the same data when nothing changes", () => {
+  it("saves the settings beside the counts, the rounding switched on as 5, and takes them back out; the same data when nothing changes", () => {
     const data = withCount(emptySamplingPlan(), "M", "cases", 50);
-    const set = withSamplingSettings(data, { inspectionLevel: "II", roundCasesTo: 5 });
+    const set = withSamplingSettings(data, { inspectionLevel: "II", roundCases: true });
     expect(set).toEqual({ sizes: data.sizes, inspectionLevel: "II", roundCasesTo: 5 });
     expect(SamplingPlanDataSchema.parse(set)).toEqual(set);
-    expect(withSamplingSettings(set, { inspectionLevel: "II", roundCasesTo: 5 })).toBe(set);
+    expect(withSamplingSettings(set, { inspectionLevel: "II", roundCases: true })).toBe(set);
     // Use Default, and the rounding switched off: back to the data without them.
-    const cleared = withSamplingSettings(set, { inspectionLevel: null, roundCasesTo: null });
+    const cleared = withSamplingSettings(set, { inspectionLevel: null, roundCases: false });
     expect(cleared).toEqual(data);
     expect(cleared).not.toHaveProperty("inspectionLevel");
-    expect(withSamplingSettings(set, { inspectionLevel: "S-1", roundCasesTo: 5 })).toEqual({ ...set, inspectionLevel: "S-1" });
+    expect(withSamplingSettings(set, { inspectionLevel: "S-1", roundCases: true })).toEqual({ ...set, inspectionLevel: "S-1" });
+  });
+
+  it("reads a rounding to 10 saved before the one switch (Kenneth, 27 October 2026: \"not either 5 or 10\") as switched on", () => {
+    const saved = SamplingPlanDataSchema.parse({ sizes: {}, roundCasesTo: 10 });
+    expect(saved.roundCasesTo).toBe(10);
+    expect(samplingSettings(saved)).toEqual({ inspectionLevel: null, roundCases: true });
+    // Left on, nothing changes; switched off, it goes; saved again on, it is 5.
+    expect(withSamplingSettings(saved, { inspectionLevel: null, roundCases: true })).toBe(saved);
+    expect(withSamplingSettings(saved, { inspectionLevel: null, roundCases: false })).toEqual({ sizes: {} });
+    expect(withSamplingSettings(saved, { inspectionLevel: "II", roundCases: true })).toEqual({ sizes: {}, inspectionLevel: "II", roundCasesTo: 5 });
   });
 
   it("tells Steri-AI to take the level only from a document that states it, never to work it out, and never the rounding", () => {
@@ -161,6 +176,54 @@ describe("sampling_plan Sampling Settings (Kenneth, 27 October 2026)", () => {
     expect(filled.data.modules.sampling_plan).toEqual({ sizes: {}, inspectionLevel: "II" });
     const own: InspectionData = { modules: { sampling_plan: { sizes: {}, inspectionLevel: "S-4" } }, custom: {} };
     expect(applyProposals(own, proposal, MODULE_REGISTRY, included)).toMatchObject({ filled: 0, data: own });
+  });
+});
+
+describe("sampling_plan inner boxes per case (Kenneth, 27 October 2026)", () => {
+  it("reads data saved before the inner boxes per case as without them, the total kept as entered", () => {
+    const saved = SamplingPlanDataSchema.parse({ sizes: { M: { cases: 16, innerUnits: 16, gloves: 315 } } });
+    expect(saved.sizes.M).toMatchObject({ cases: 16, innerUnitsPerCase: null, innerUnits: 16, gloves: 315 });
+  });
+
+  it("takes a whole number of inner boxes per case from 1, never 0, text or a fraction", () => {
+    for (const bad of [0, -1, 1.5, "2", Number.NaN]) {
+      expect(SamplingPlanDataSchema.safeParse({ sizes: { M: { innerUnitsPerCase: bad } } }).success, String(bad)).toBe(false);
+    }
+    expect(SamplingPlanDataSchema.parse({ sizes: { M: { innerUnitsPerCase: 1 } } }).sizes.M.innerUnitsPerCase).toBe(1);
+    expect(SamplingPlanDataSchema.parse({ sizes: { M: { innerUnitsPerCase: null } } }).sizes.M.innerUnitsPerCase).toBeNull();
+  });
+
+  it("writes # of Case × the inner boxes per case into the total, and again whenever the cases change", () => {
+    const cases = withCount(emptySamplingPlan(), "S", "cases", 16);
+    const perCase = withCount(cases, "S", "innerUnitsPerCase", 1);
+    expect(perCase.sizes.S).toMatchObject({ cases: 16, innerUnitsPerCase: 1, innerUnits: 16 });
+    // Typed again, or written by Auto Calculate Sampling through the same update.
+    expect(withCount(perCase, "S", "cases", 25).sizes.S).toMatchObject({ cases: 25, innerUnits: 25 });
+    expect(withCount(perCase, "S", "innerUnitsPerCase", 2).sizes.S).toMatchObject({ cases: 16, innerUnits: 32 });
+    // No cases: no total to work out yet.
+    expect(withCount(perCase, "S", "cases", null).sizes.S).toMatchObject({ cases: null, innerUnits: null });
+    // Another count leaves the total as it is.
+    expect(withCount(perCase, "S", "gloves", 315).sizes.S).toMatchObject({ innerUnits: 16, gloves: 315 });
+  });
+
+  it("keeps a total typed without the inner boxes per case, and keeps the worked total once they are emptied, to be typed again", () => {
+    const typed = withCount(withCount(emptySamplingPlan(), "M", "cases", 50), "M", "innerUnits", 60);
+    expect(withCount(typed, "M", "cases", 40).sizes.M).toMatchObject({ cases: 40, innerUnitsPerCase: null, innerUnits: 60 });
+    const worked = withCount(typed, "M", "innerUnitsPerCase", 2);
+    expect(worked.sizes.M.innerUnits).toBe(100);
+    expect(withCount(worked, "M", "innerUnitsPerCase", null).sizes.M).toMatchObject({ innerUnitsPerCase: null, innerUnits: 100 });
+  });
+
+  it("works out an empty total from the cases and the inner boxes per case, as a reading fills them; an entered total stays", () => {
+    const read = SamplingPlanDataSchema.parse({
+      sizes: { S: { cases: 16, innerUnitsPerCase: 1 }, M: { cases: 35, innerUnitsPerCase: 2, innerUnits: 60 }, L: { cases: 17 } },
+    });
+    const worked = withWorkedInnerUnits(read);
+    expect(worked.sizes.S.innerUnits).toBe(16);
+    expect(worked.sizes.M.innerUnits).toBe(60);
+    expect(worked.sizes.L.innerUnits).toBeNull();
+    // Nothing to work out: the same data.
+    expect(withWorkedInnerUnits(worked)).toBe(worked);
   });
 });
 

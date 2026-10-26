@@ -40,6 +40,8 @@ export type ModuleSpec<TData, TConfig, TComputed extends JsonObject> = {
   contribute?: (input: ContributeInput<NoInfer<TData>, NoInfer<TConfig>>) => ContextContribution;
   /** Default none: the template's title as stored. */
   shownTitle?: (input: TitleInput<NoInfer<TConfig>>) => string;
+  /** Default none: the template's labels over the defaults. */
+  shownLabels?: (labels: Readonly<Record<string, string>>) => Readonly<Record<string, string>>;
   loadCapture?: () => Promise<{ default: CaptureComponent<NoInfer<TData>, NoInfer<TConfig>, NoInfer<TComputed>> }>;
 };
 

@@ -99,6 +99,24 @@ function section(source: SourceId, name: string, rows: readonly Row[]): SourceFi
 
 const PAGE_NUMBER = layout("Page number: Steri-AI's report numbers its own pages.");
 
+/** How the sampling plan words a Sampling Quantity row on every inspection, whatever the form prints (Kenneth, 27 October 2026). */
+const SAMPLING_QUANTITY_WORDING = {
+  cases: 'The app says "# of Case".',
+  innerUnits: 'The inner units sampled in all: the app says "Total # of Inner Box", under its "Inner Box Taken per Case".',
+  gloves: 'The app says "# of Gloves".',
+} as const;
+
+/** A Sampling Quantity row of a form, which the sampling plan words its own way (modules/sampling_plan/labels.ts). */
+function samplingQuantityRow(label: string, field: keyof typeof SAMPLING_QUANTITY_WORDING): Row {
+  return {
+    label,
+    input: "number",
+    targets: [f("sampling_plan", field)],
+    templateLabel: false,
+    notes: `${SAMPLING_QUANTITY_WORDING[field]} Kenneth, 27 October 2026.`,
+  };
+}
+
 /* ------------------------------------------------------------------ *
  * reports/STD_EG.md
  * ------------------------------------------------------------------ */
@@ -192,9 +210,9 @@ const REPORT_STD_EG: SourceField[] = [
       notes: "The order quantity again: entered once, in the order table.",
     },
     { label: "Sampling Quantity", input: "label", targets: [l("sampling_plan", "samplingQuantity")] },
-    { label: "Case", input: "number", targets: [f("sampling_plan", "cases")] },
-    { label: "Inner Box", input: "number", targets: [f("sampling_plan", "innerUnits")] },
-    { label: "Gloves", input: "number", targets: [f("sampling_plan", "gloves")] },
+    samplingQuantityRow("Case", "cases"),
+    samplingQuantityRow("Inner Box", "innerUnits"),
+    samplingQuantityRow("Gloves", "gloves"),
     { label: "# gloves for watertight & Visual", input: "number", targets: [f("sampling_plan", "glovesWatertightVisual")] },
     { label: "# gloves for dimension", input: "number", targets: [f("sampling_plan", "glovesDimensions")] },
     { label: "# gloves for FAB", input: "number", targets: [f("sampling_plan", "glovesPhysical")] },
@@ -657,9 +675,9 @@ const REPORT_SAFEDON_EG: SourceField[] = [
       notes: "The order quantity again: entered once, in the order table.",
     },
     { label: "Sampling Quantity", input: "label", targets: [l("sampling_plan", "samplingQuantity")] },
-    { label: "Case", input: "number", targets: [f("sampling_plan", "cases")] },
-    { label: "Inner pack", input: "number", targets: [f("sampling_plan", "innerUnits")] },
-    { label: "Gloves", input: "number", targets: [f("sampling_plan", "gloves")] },
+    samplingQuantityRow("Case", "cases"),
+    samplingQuantityRow("Inner pack", "innerUnits"),
+    samplingQuantityRow("Gloves", "gloves"),
     { label: "# gloves for watertight & Visual", input: "number", targets: [f("sampling_plan", "glovesWatertightVisual")] },
     { label: "# gloves for dimension", input: "number", targets: [f("sampling_plan", "glovesDimensions")] },
     { label: "# gloves for Tensile", input: "number", targets: [f("sampling_plan", "glovesPhysical")] },
@@ -1016,9 +1034,9 @@ function egRows(source: SourceId, shipmentHeading: string): SourceField[] {
       { label: "Qty (case)", input: "number", targets: [f("order_lots", "qtyCases")] },
       { label: "Sampling Plan", input: "heading", targets: [l("sampling_plan", "title")] },
       { label: "Sampling Quantity", input: "label", targets: [l("sampling_plan", "samplingQuantity")] },
-      { label: "Case", input: "number", targets: [f("sampling_plan", "cases")] },
-      { label: "Inner", input: "number", targets: [f("sampling_plan", "innerUnits")] },
-      { label: "Gloves", input: "number", targets: [f("sampling_plan", "gloves")] },
+      samplingQuantityRow("Case", "cases"),
+      samplingQuantityRow("Inner", "innerUnits"),
+      samplingQuantityRow("Gloves", "gloves"),
       { label: "# Gloves for WTT & Visual", input: "number", targets: [f("sampling_plan", "glovesWatertightVisual")] },
       { label: "# Gloves dimension", input: "number", targets: [f("sampling_plan", "glovesDimensions")] },
       { label: "# Gloves for FAB", input: "number", targets: [f("sampling_plan", "glovesPhysical")] },
@@ -1143,8 +1161,8 @@ const ONSITE_SG: SourceField[] = [
       targets: [l("sampling_plan", "samplingQuantity")],
       notes: "Unlike EG, the watertight and visual sample is inside Sampling Quantity.",
     },
-    { label: "Case", input: "number", targets: [f("sampling_plan", "cases")] },
-    { label: "Inner Box", input: "number", targets: [f("sampling_plan", "innerUnits")] },
+    samplingQuantityRow("Case", "cases"),
+    samplingQuantityRow("Inner Box", "innerUnits"),
     { label: "Pouches", input: "number", targets: [f("sampling_plan", "pouches")] },
     {
       label: "# gloves",
