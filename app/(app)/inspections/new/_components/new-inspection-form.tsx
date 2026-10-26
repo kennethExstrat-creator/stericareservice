@@ -17,7 +17,7 @@
 //
 // Uploading the documents is where a new inspection starts and Steri-AI
 // fills in the picks from them, so from 1024 px Source Documents is the main
-// column, with the template and Start From Previous under it, and the picks
+// column, with the template under it, and the picks
 // are the side column (Kenneth, 26 October 2026); Cancel and Create float at
 // the window's bottom right. Below 1024 px: one column in that order, 44 px
 // targets, 16 px text. Until the three picks are made, the template lists the
@@ -87,7 +87,6 @@ import { templateInSentence } from "../_lib/text";
 import type { Option, PreviousProduct, TemplateOption } from "../_lib/types";
 import { ChoiceCard } from "./choice-card";
 import { Panel } from "./panel";
-import { PreviousPicker, START_BLANK } from "./previous-picker";
 import { SourceDocumentsPanel, type SummaryLine } from "./source-documents-panel";
 import { TemplatePanel } from "./template-panel";
 import { useHeldSources, type HeldSources } from "./use-held-sources";
@@ -364,22 +363,6 @@ function ChoicesForm({ userId, storageKey, initial, role, clients, manufacturers
               overrideError={errors.templateId}
               disabled={creating}
             />
-
-            <PreviousPicker
-              id={id}
-              role={role}
-              ready={picks !== null}
-              products={products}
-              value={fromPrevious?.inspectionId ?? START_BLANK}
-              onValueChange={(value) => {
-                const product = products.find((entry) => entry.inspectionId === value) ?? null;
-                // A named product fills in its name; Start Blank or an unnamed one gives back what was typed.
-                update({ previous: product?.inspectionId ?? "", nameFromPrevious: Boolean(product?.productName) });
-                changed("previousId");
-              }}
-              template={chosen}
-              error={errors.previousId}
-            />
           </div>
 
           <div className="flex min-w-0 flex-col gap-6">
@@ -566,7 +549,6 @@ function ChoicesForm({ userId, storageKey, initial, role, clients, manufacturers
       <input type="hidden" name="clientId" value={clientId} />
       <input type="hidden" name="manufacturerId" value={manufacturerId} />
       <input type="hidden" name="productType" value={productType ?? ""} />
-      <input type="hidden" name="previousId" value={fromPrevious?.inspectionId ?? ""} />
       <input type="hidden" name="documentFill" value={sources.fill ? JSON.stringify(sources.fill) : ""} />
       {role === "admin" && <input type="hidden" name="templateId" value={overrideId} />}
     </form>

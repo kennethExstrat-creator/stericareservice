@@ -69,7 +69,7 @@ describe("/inspections/new", () => {
     expect(metadata).toEqual({ title: "New Inspection" });
   });
 
-  it("shows the form: Source Documents first, then the picks, start from previous and the template", async () => {
+  it("shows the form: Source Documents first, then the template and the picks", async () => {
     const html = await render();
     // Where a new inspection starts (Kenneth, 26 October 2026): above the picks, across the page.
     expect(html.indexOf('data-testid="source-documents"')).toBeLessThan(html.indexOf("What You Are Inspecting"));
@@ -85,7 +85,8 @@ describe("/inspections/new", () => {
     expect(html).toContain(PRODUCT_TYPE_LABEL.examination);
     expect(html).toContain(PRODUCT_TYPE_LABEL.surgical);
     expect(html).toContain('Product Name <span class="font-normal text-muted-foreground">(Optional)</span>');
-    expect(html).toContain("Start From Previous");
+    // No Start From Previous (Kenneth, 26 October 2026: "remove this").
+    expect(html).not.toContain("Start From Previous");
     // Source Documents as on the capture screen: its title and the Files / Media switch.
     expect(html).toContain('data-testid="source-documents"');
     expect(html).toContain(">Source Documents</h2>");
