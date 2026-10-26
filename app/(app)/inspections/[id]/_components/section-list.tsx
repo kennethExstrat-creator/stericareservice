@@ -19,7 +19,7 @@
 // name"; docs/DESIGN.md, Step Names).
 import { CircleOffIcon } from "lucide-react";
 import { ProgressTracker, type ProgressGroup } from "@/components/qc";
-import { LEAD_PAGE_KEYS, pageStatus, progressSteps, type CapturePage, type IncludedPage } from "@/lib/inspections/capture/sections";
+import { LEAD_PAGE_KEYS, pageStatus, progressSteps, stepIcon, type CapturePage, type IncludedPage } from "@/lib/inspections/capture/sections";
 import type { ModuleKey } from "@/lib/schemas/module-result";
 import { cn } from "@/lib/utils";
 import { useStepGroup } from "./use-step-group";
@@ -70,7 +70,8 @@ export function SectionList({ pages, activeKey, onSelect, viewerId, className }:
         label: STEP_GROUP_LABEL,
         keys: grouped.map((page) => page.key),
         // The worst of their results, as a page of two modules takes the worse of its two.
-        result: pageStatus(grouped.flatMap((page) => page.sections)),
+        result: stepIcon(pageStatus(grouped.flatMap((page) => page.sections))).status,
+        resultLabel: stepIcon(pageStatus(grouped.flatMap((page) => page.sections))).label,
         open,
         onOpenChange: setOpen,
       }

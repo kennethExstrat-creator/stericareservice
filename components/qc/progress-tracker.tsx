@@ -22,6 +22,8 @@ export type ProgressStep = {
   state: StepState;
   /** The module's result, shown in the list variant. */
   result?: Status;
+  /** Its words for screen readers, where they are not the result's own ("Done" for a tick on a record). */
+  resultLabel?: string;
 };
 
 /**
@@ -36,6 +38,7 @@ export type ProgressGroup = {
   keys: readonly string[];
   /** The worst result among them, as the header's chip. */
   result?: Status;
+  resultLabel?: string;
   open: boolean;
   onOpenChange: (open: boolean) => void;
 };
@@ -132,7 +135,7 @@ export function ProgressTracker({
                 {step.label}
               </span>
               <span className="sr-only">, {STATE_LABEL[step.state]}</span>
-              {step.result && <ResultChip status={step.result} />}
+              {step.result && <ResultChip status={step.result} label={step.resultLabel} />}
             </>,
             cn(
               LIST_ROW,
@@ -254,7 +257,7 @@ function ProgressGroupItem({
             {group.result && <span className="sr-only">, </span>}
           </span>
         </span>
-        {group.result && <ResultChip status={group.result} />}
+        {group.result && <ResultChip status={group.result} label={group.resultLabel} />}
       </button>
       <ol id={listId} hidden={!group.open} className="mt-0.5 space-y-0.5">
         {children}

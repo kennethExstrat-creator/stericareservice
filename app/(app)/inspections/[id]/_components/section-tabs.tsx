@@ -12,7 +12,7 @@
 import { useEffect, useRef, type KeyboardEvent } from "react";
 import { CircleOffIcon } from "lucide-react";
 import { ResultChip } from "@/components/qc";
-import { isStepPage, pageSectionKeys, type CapturePage } from "@/lib/inspections/capture/sections";
+import { isStepPage, pageSectionKeys, stepIcon, type CapturePage } from "@/lib/inspections/capture/sections";
 import { cn } from "@/lib/utils";
 
 type SectionTabsProps = {
@@ -124,7 +124,7 @@ export function SectionTabs({ pages, activeKey, onSelect, panelId, idPrefix, cla
               {page.kind === "documents" && page.sections.length === 0 ? (
                 <ResultChip status={page.status} label={page.status === "pass" ? "Steri-AI Verified" : "Not read yet"} />
               ) : isStepPage(page) ? (
-                <ResultChip status={page.status} />
+                <ResultChip status={stepIcon(page.status).status} label={stepIcon(page.status).label} />
               ) : (
                 <span className="sr-only">, switched off for this inspection</span>
               )}

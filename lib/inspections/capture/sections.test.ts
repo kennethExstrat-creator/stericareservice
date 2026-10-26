@@ -28,6 +28,7 @@ import {
   progressSummary,
   SHOWN_WITH,
   sideBySideSections,
+  stepIcon,
   withSourceDocuments,
   type CapturePage,
   type CaptureSection,
@@ -381,8 +382,16 @@ describe("navigation helpers", () => {
     const pages = pagesFor(filledData(), OFF);
     const steps = progressSteps(pages);
     expect(steps.map((step) => step.key)).not.toContain("packing_config");
-    // Named by its short name, its full title for the hover.
-    expect(steps[0]).toEqual({ key: "header", label: "General Information", title: "General Information", state: "done", result: "info" });
+    // Named by its short name, its full title for the hover. Complete with nothing to pass or fail: the tick, named Done
+    // (Kenneth, 26 October 2026: "if its completed, just use tick").
+    expect(steps[0]).toEqual({
+      key: "header",
+      label: "General Information",
+      title: "General Information",
+      state: "done",
+      result: "pass",
+      resultLabel: "Done",
+    });
     expect(steps[1]).toMatchObject({ key: "order_lots", label: "Order", title: "Order" });
     expect(steps.map((step) => step.key)).not.toContain("glove_info");
     // A switched-off page has no step, but a short name of its own.
@@ -402,6 +411,13 @@ describe("navigation helpers", () => {
     expect(progressOf("hold", true)).toBe("done");
     expect(progressOf("not_done", true)).toBe("in_progress");
     expect(progressOf("not_done", false)).toBe("not_started");
+  });
+});
+
+describe("stepIcon (Kenneth, 26 October 2026: \"if its completed, just use tick\")", () => {
+  it("shows a record complete with nothing to pass or fail as the tick, named Done; every other result as it is", () => {
+    expect(stepIcon("info")).toEqual({ status: "pass", label: "Done" });
+    for (const status of ["pass", "fail", "warn", "hold", "not_done"] as const) expect(stepIcon(status)).toEqual({ status, label: undefined });
   });
 });
 

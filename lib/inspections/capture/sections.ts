@@ -82,7 +82,7 @@ export const CUSTOM_SHOWN_WITH: Readonly<Record<string, readonly { host: ModuleK
 export type SectionProgress = "done" | "in_progress" | "not_started";
 
 /** A ProgressTracker step with the page's result: `label` its short name, `title` its full title (shown on hover). */
-export type SectionStep = { key: string; label: string; title: string; state: SectionProgress; result: Status };
+export type SectionStep = { key: string; label: string; title: string; state: SectionProgress; result: Status; resultLabel?: string };
 
 type Counts = { errors: number; warnings: number };
 
@@ -469,13 +469,20 @@ export function neighbours(
  * its full title for the hover.
  */
 export function progressSteps(pages: readonly CapturePage[]): SectionStep[] {
-  return pages.filter(isStepPage).map((page) => ({
-    key: page.key,
-    label: page.shortTitle,
-    title: page.title,
-    state: page.progress,
-    result: page.status,
-  }));
+  return pages.filter(isStepPage).map((page) => {
+    const shown = stepIcon(page.status);
+    return { key: page.key, label: page.shortTitle, title: page.title, state: page.progress, result: shown.status, resultLabel: shown.label };
+  });
+}
+
+/**
+ * What a step's icon and pill show. A step complete with nothing to pass or
+ * fail (info: the order, the sampling plan, the box/carton numbers) shows the
+ * tick a passed one does, named "Done" (Kenneth, 26 October 2026: "if its
+ * completed, just use tick, its very confusing"). Every other result as it is.
+ */
+export function stepIcon(status: Status): { status: Status; label: string | undefined } {
+  return status === "info" ? { status: "pass", label: "Done" } : { status, label: undefined };
 }
 
 export function progressSummary(pages: readonly CapturePage[]): { done: number; total: number } {

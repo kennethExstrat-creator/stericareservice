@@ -114,8 +114,9 @@ describe("SectionTabs", () => {
   });
 
   it("shows each included section's result chip and puts switched-off sections last, marked off", () => {
+    // A section complete with nothing to pass or fail shows the tick (Kenneth, 26 October 2026), named Done.
     expect(tagsWith(html, 'data-slot="result-chip"').map((chip) => /data-status="([a-z_]+)"/.exec(chip)?.[1])).toEqual([
-      "info",
+      "pass",
       "not_done",
       "not_done",
     ]);

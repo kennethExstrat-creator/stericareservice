@@ -121,6 +121,7 @@ import {
   pageSectionKeys,
   progressSteps,
   sideBySideSections,
+  stepIcon,
   withSourceDocuments,
   type CapturePage,
   type CaptureSection,
@@ -1387,7 +1388,8 @@ function SectionPart({
         tabLabelledBy={tabLabelledBy}
         title={section.title}
         headingRef={headingRef}
-        status={section.status}
+        status={stepIcon(section.status).status}
+        statusLabel={stepIcon(section.status).label}
       >
         {evaluation && (
           <RefusedEntryStoreContext.Provider value={refusedEntries}>
@@ -1421,7 +1423,9 @@ function SectionPart({
       title={section.title}
       headingRef={headingRef}
       // No summary line under the title (Kenneth, 12 October 2026: redundant beside the status and the form).
-      status={section.status}
+      // A record complete with nothing to pass or fail shows the tick, "Done" (stepIcon; Kenneth, 26 October 2026).
+      status={stepIcon(section.status).status}
+      statusLabel={stepIcon(section.status).label}
       actions={
         switchable ? (
           <SwitchOffDialog
