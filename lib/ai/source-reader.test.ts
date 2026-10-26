@@ -1,9 +1,27 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
+
+vi.mock("./document-reader", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("./document-reader")>()),
+  createMessage: vi.fn(),
+}));
+
 import { fileLinkTarget } from "@/lib/inspections/source-documents";
 import { MODULE_REGISTRY } from "@/modules";
 import { DOCUMENTS_DEFAULT_CONFIG } from "@/modules/documents/config";
-import { LAB_REPORT_GUIDE, PAPER_FORM_GUIDE, WEIGHT_GUIDE } from "./reading-guide";
-import { attachTargets, attachToText, moduleDataJsonSchema, parseSourceAnswer, SOURCE_READER_SYSTEM_PROMPT } from "./source-reader";
+import { createMessage } from "./document-reader";
+import { LAB_REPORT_GUIDE, PAPER_FORM_GUIDE, SPREADSHEET_NOTE, WEIGHT_GUIDE } from "./reading-guide";
+import {
+  attachTargets,
+  attachToText,
+  moduleDataJsonSchema,
+  parseSourceAnswer,
+  readSourceDocument,
+  SOURCE_READER_SYSTEM_PROMPT,
+} from "./source-reader";
+
+afterEach(() => {
+  vi.resetAllMocks();
+});
 
 /** A JSON Schema node, as far as these tests read it. */
 type Node = { $schema?: string; description?: string; properties?: Record<string, Node>; additionalProperties?: Node; required?: string[] };
@@ -69,6 +87,49 @@ describe("the reading's system prompt", () => {
     expect(guide.at(-1)).toBe(
       "- Give the results of every size the report holds, also where the current data already holds them: the app keeps what is entered, and links the report with the sizes it gives results for.",
     );
+  });
+});
+
+describe("an Excel or CSV file's reading (Kenneth, 26 October 2026)", () => {
+  it("tells the reader how a spreadsheet comes, in the prompt every file shares", () => {
+    expect(SOURCE_READER_SYSTEM_PROMPT).toContain(`Read every page, tables and handwriting included. ${SPREADSHEET_NOTE}\n`);
+    expect(SPREADSHEET_NOTE).toContain('each sheet as CSV under a line "Sheet: <name>"');
+  });
+
+  it("sends the spreadsheet's text as a plain-text document after the cached modules, read like any document", async () => {
+    vi.mocked(createMessage).mockResolvedValue({
+      model: "claude-opus-5-5",
+      stop_reason: "end_turn",
+      content: [{ type: "text", text: JSON.stringify({ summary: "Packing list for PO-0001.", modules: { order: { sizes: { M: { qtyCases: 20 } } } } }) }],
+    } as never);
+
+    const outcome = await readSourceDocument(
+      {
+        defectLibrary: [],
+        glossary: [],
+        attachTargets: [],
+        file: { mediaType: "text/plain", text: "Sheet: Packing\nSize,Cases\nM,20", name: "Packing list.xlsx" },
+        modules: [{ key: "order", title: "PO Info", config: {}, schema: {} }],
+        sizes: [{ value: "M", label: "M" }],
+        unit: "pcs",
+        current: {},
+      },
+      { ANTHROPIC_API_KEY: "sk-ant-test-key-0000000000" },
+    );
+
+    expect(outcome).toMatchObject({ ok: true, summary: "Packing list for PO-0001.", proposals: { order: { sizes: { M: { qtyCases: 20 } } } } });
+    const params = vi.mocked(createMessage).mock.calls[0][1];
+    expect(params.system).toBe(SOURCE_READER_SYSTEM_PROMPT);
+    const content = params.messages[0].content;
+    expect(Array.isArray(content) && content.length).toBe(3);
+    if (!Array.isArray(content)) return;
+    expect(content[0]).toMatchObject({ type: "text", cache_control: { type: "ephemeral" } });
+    expect(content[1]).toEqual({
+      type: "document",
+      source: { type: "text", media_type: "text/plain", data: "Sheet: Packing\nSize,Cases\nM,20" },
+      title: "Packing list.xlsx",
+    });
+    expect(content[2]).toMatchObject({ type: "text", text: expect.stringContaining('Read the document above ("Packing list.xlsx")') });
   });
 });
 

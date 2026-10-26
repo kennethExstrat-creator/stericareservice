@@ -4,7 +4,17 @@
 import { describe, expect, it } from "vitest";
 import type { DocumentFill } from "@/lib/schemas/document-fill";
 import { NO_CHOICES } from "./draft";
-import { formFill, mergeFills, nextToRead, type DocumentRead, type HeldDocument, type ReadState } from "./sources";
+import {
+  documentRefusal,
+  formFill,
+  mediaRefusal,
+  mergeFills,
+  nextToRead,
+  readsHere,
+  type DocumentRead,
+  type HeldDocument,
+  type ReadState,
+} from "./sources";
 
 const CLIENT = "20000000-0000-4000-8000-000000000001";
 const MANUFACTURER = "10000000-0000-4000-8000-000000000001";
@@ -52,6 +62,35 @@ describe("a document read on the form", () => {
       sizes: { M: { qtyCases: 20, lotNumbers: ["L1"] }, L: { qtyCases: 5, lotNumbers: [] } },
     });
     expect(mergeFills([])).toBeNull();
+  });
+});
+
+describe("where a dropped file goes (Kenneth, 26 October 2026: Excel and CSV files are read too)", () => {
+  const XLSX_TYPE = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+  const spreadsheets = [
+    { name: "PO-0001.xlsx", type: XLSX_TYPE, size: 2048 },
+    { name: "Packing list.xls", type: "application/vnd.ms-excel", size: 2048 },
+    // Windows types a CSV as Excel; some browsers give it no type at all.
+    { name: "Order.csv", type: "application/vnd.ms-excel", size: 120 },
+    { name: "Order.csv", type: "", size: 120 },
+    { name: "Order.csv", type: "text/csv", size: 120 },
+  ];
+
+  it("takes a spreadsheet on Files, to be read, and never on Media", () => {
+    for (const file of spreadsheets) {
+      expect(documentRefusal(file), file.type).toBeNull();
+      expect(mediaRefusal(file), file.type).toBe("Media takes photos and videos. Add documents under Files.");
+    }
+    expect(documentRefusal({ name: "clip.mov", type: "video/quicktime", size: 1024 })).toBe(
+      "Files takes PDFs, photos, Excel and CSV files. Add videos under Media.",
+    );
+    expect(documentRefusal({ name: "notes.txt", type: "text/plain", size: 10 })).toBe("Files takes PDFs, photos, Excel and CSV files. Add videos under Media.");
+  });
+
+  it("reads a held spreadsheet on the form, typed as one, up to 4 MB", () => {
+    expect(readsHere({ type: "text/csv", size: 120 })).toBe(true);
+    expect(readsHere({ type: XLSX_TYPE, size: 4 * 1024 * 1024 })).toBe(true);
+    expect(readsHere({ type: XLSX_TYPE, size: 4 * 1024 * 1024 + 1 })).toBe(false);
   });
 });
 

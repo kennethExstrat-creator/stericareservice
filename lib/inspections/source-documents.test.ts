@@ -70,6 +70,14 @@ describe("mediaKind", () => {
     expect(mediaKind({ type: "application/pdf", name: "PO-0001.pdf" })).toBeNull();
     expect(mediaKind({ type: "", name: "notes.txt" })).toBeNull();
   });
+
+  it("takes no spreadsheet, whatever type it comes with: dropped on Media or Auto-Sort, it is refused for Files (Kenneth, 26 October 2026)", () => {
+    expect(mediaKind({ type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", name: "PO-0001.xlsx" })).toBeNull();
+    expect(mediaKind({ type: "application/vnd.ms-excel", name: "Packing list.xls" })).toBeNull();
+    expect(mediaKind({ type: "application/vnd.ms-excel", name: "Order.csv" })).toBeNull();
+    expect(mediaKind({ type: "text/csv", name: "Order.csv" })).toBeNull();
+    expect(mediaKind({ type: "", name: "Order.csv" })).toBeNull();
+  });
 });
 
 const OrderSchema = z.strictObject({

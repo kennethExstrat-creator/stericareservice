@@ -3,12 +3,14 @@
 // Source Documents: the capture screen's first page, before every module
 // (docs/AI.md, "Source Documents"). Files holds every paper about the
 // inspection: the handwritten inspection form, the PO, packing lists, photos
-// of labels and cartons. Steri-AI reads each one and fills the empty fields
-// of the pages after it; a file it has read is Steri-AI Verified. Photos are
-// made 2048 px JPEG first, as every photo is (lib/photos/readable.ts), so it
-// can read them. Media holds the visit's photos and videos, in categories
-// (source-media.tsx). The card has its title and the Files / Media switch,
-// no line under the title (Kenneth, 12 October 2026). New Inspection's
+// of labels and cartons, Excel and CSV files (Kenneth, 26 October 2026: read
+// as text, previewed as tables). Steri-AI reads each one and fills the empty
+// fields of the pages after it; a file it has read is Steri-AI Verified.
+// Photos are made 2048 px JPEG first, as every photo is
+// (lib/photos/readable.ts), so it can read them. Media holds the visit's
+// photos and videos, in categories (source-media.tsx). The card has its
+// title and the Files / Media switch, no line under the title (Kenneth, 12
+// October 2026). New Inspection's
 // Source Documents card hands its files over to this page on Create. On the
 // page it is the main column, General Information on its left
 // (capture-screen.tsx ActivePage; Kenneth, 26 October 2026).
@@ -36,7 +38,7 @@ type SourceDocumentsPageProps = {
   documents: SourceDocuments;
 };
 
-/** Each photo as a 2048 px JPEG; a PDF, or a photo the browser cannot convert, as it is. */
+/** Each photo as a 2048 px JPEG; a PDF, a spreadsheet, or a photo the browser cannot convert, as it is. */
 function readable(files: File[]): Promise<File[]> {
   return Promise.all(files.map(readableFile));
 }

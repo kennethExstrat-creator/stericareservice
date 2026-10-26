@@ -18,8 +18,20 @@ export const FILE_SIZE_LIMIT = 50 * 1024 * 1024;
 export const PHOTO_TYPES = ["image/jpeg", "image/png", "image/webp", "image/heic", "image/heif"] as const;
 /** Videos from a phone (Source Documents, Media): MP4, an iPhone's QuickTime movie, WebM. */
 export const VIDEO_TYPES = ["video/mp4", "video/quicktime", "video/webm"] as const;
-/** Types the file bucket accepts: lab reports, certificates, Source Documents and their videos. */
-export const FILE_TYPES = ["application/pdf", ...PHOTO_TYPES, ...VIDEO_TYPES] as const;
+
+export const XLSX_TYPE = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+export const XLS_TYPE = "application/vnd.ms-excel";
+export const CSV_TYPE = "text/csv";
+/** Spreadsheets for Source Documents' Files (Kenneth, 26 October 2026): Excel (.xlsx, .xls) and CSV, which Steri-AI reads as text. */
+export const SPREADSHEET_TYPES = [XLSX_TYPE, XLS_TYPE, CSV_TYPE] as const;
+export type SpreadsheetType = (typeof SPREADSHEET_TYPES)[number];
+
+export function isSpreadsheetType(type: string | null | undefined): type is SpreadsheetType {
+  return (SPREADSHEET_TYPES as readonly (string | null | undefined)[]).includes(type);
+}
+
+/** Types the file bucket accepts: lab reports, certificates, Source Documents (spreadsheets among them) and their videos. */
+export const FILE_TYPES = ["application/pdf", ...PHOTO_TYPES, ...VIDEO_TYPES, ...SPREADSHEET_TYPES] as const;
 
 const EXTENSIONS: Readonly<Record<string, string>> = {
   "image/jpeg": "jpg",
@@ -31,6 +43,9 @@ const EXTENSIONS: Readonly<Record<string, string>> = {
   "video/mp4": "mp4",
   "video/quicktime": "mov",
   "video/webm": "webm",
+  [XLSX_TYPE]: "xlsx",
+  [XLS_TYPE]: "xls",
+  [CSV_TYPE]: "csv",
 };
 
 /** File extension for a type either bucket accepts; null for any other type. */

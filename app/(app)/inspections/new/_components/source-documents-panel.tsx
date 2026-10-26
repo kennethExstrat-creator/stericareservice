@@ -5,7 +5,9 @@
 // come in while the inspection is created. The same title, Files / Media
 // switch and rows as the step (source-documents-page.tsx), and no line under
 // the title (Kenneth, 12 October 2026). Files: PDFs and photos of the PO,
-// packing list or inspection form; Steri-AI reads them one at a time until
+// packing list or inspection form, and Excel and CSV files (Kenneth, 26
+// October 2026: Preview shows their sheets as tables, read on the server
+// from the file held here); Steri-AI reads them one at a time until
 // the client, manufacturer, product type and product name are filled, and
 // the PO, codes, dates and order lines it read go in with Create. Media: the
 // visit's photos and videos, which Auto-Sort files into categories once the
@@ -23,7 +25,6 @@ import {
   CheckIcon,
   EyeIcon,
   FilePlusIcon,
-  FileTextIcon,
   FolderOpenIcon,
   ImageIcon,
   ImagePlusIcon,
@@ -36,11 +37,14 @@ import {
 } from "lucide-react";
 import { useId, useRef, useState, type ChangeEvent, type MouseEvent, type ReactNode } from "react";
 import { FILE_ACCEPT } from "@/components/capture/files/file-add-controls";
-import { FilePreviewDialog, type PreviewKind } from "@/components/capture/files/file-preview-dialog";
+import { FileRowIcon } from "@/components/capture/files/file-list";
+import { FilePreviewDialog, type PreviewFile, type PreviewKind } from "@/components/capture/files/file-preview-dialog";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
 import { countFiles } from "@/lib/inspections/photos/view";
 import { SOURCE_DOCUMENTS_TITLE } from "@/lib/inspections/source-documents";
+import { spreadsheetTypeOf } from "@/lib/photos/sniff";
+import { fetchSheets, HELD_SHEETS_URL } from "@/lib/spreadsheets/preview";
 import { cn } from "@/lib/utils";
 import { NotReadBadge, ReadBadge, ReadingMark, WaitingMark } from "../../_components/reading-marks";
 import { SourceTabs, type SourceTab } from "../../_components/source-tabs";
@@ -57,7 +61,20 @@ const SHOWABLE = new Set(["image/jpeg", "image/png", "image/webp", "image/gif"])
 function previewOf(file: File, video = false): PreviewKind {
   if (video) return "video";
   if (isPdf(file)) return "pdf";
+  if (spreadsheetTypeOf(file)) return "sheet";
   return SHOWABLE.has(file.type) ? "image" : "other";
+}
+
+/** A held document for Preview: a spreadsheet's sheets are read on the server from the file held here, as nothing is stored before Create. */
+function heldPreview(file: File, url: string): PreviewFile {
+  const kind = previewOf(file);
+  if (kind !== "sheet") return { name: file.name, url, kind };
+  const sheets = () => {
+    const body = new FormData();
+    body.append("file", file, file.name);
+    return fetchSheets(HELD_SHEETS_URL, { method: "POST", body });
+  };
+  return { name: file.name, url, kind, sheets };
 }
 
 type SourceDocumentsPanelProps = {
@@ -73,7 +90,7 @@ type SourceDocumentsPanelProps = {
 
 export function SourceDocumentsPanel({ id, sources, disabled, filled, unlisted }: SourceDocumentsPanelProps) {
   const [tab, setTab] = useState<SourceTab>("files");
-  const [previewing, setPreviewing] = useState<{ name: string; url: string; kind: PreviewKind } | null>(null);
+  const [previewing, setPreviewing] = useState<PreviewFile | null>(null);
   const reading = sources.documents.find((document) => document.state.step === "reading");
   return (
     <Panel
@@ -93,7 +110,7 @@ export function SourceDocumentsPanel({ id, sources, disabled, filled, unlisted }
           disabled={disabled}
           filled={filled}
           unlisted={unlisted}
-          onPreview={({ file, url }) => setPreviewing({ name: file.name, url, kind: previewOf(file) })}
+          onPreview={({ file, url }) => setPreviewing(heldPreview(file, url))}
         />
       ) : (
         <MediaSide
@@ -153,7 +170,7 @@ function FilesSide({
                   // relative: anchors the buttons' sr-only names (docs/DESIGN.md).
                   className="relative flex flex-wrap items-center gap-x-3 gap-y-2 px-3 py-2.5"
                 >
-                  <FileTextIcon aria-hidden className="size-5 shrink-0 text-brand-600" />
+                  <FileRowIcon file={document.file} />
                   <div className="min-w-0 flex-1">
                     <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
                       <p className="min-w-0 truncate font-medium text-foreground" title={document.file.name}>

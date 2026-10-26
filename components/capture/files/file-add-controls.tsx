@@ -1,23 +1,29 @@
 "use client";
 
 // How lab reports and certificates get in (BUILD_SPEC 8.1): PDF or images,
-// several at once. On the iPad one button opens the system picker (Files,
+// several at once, and Source Documents' Excel and CSV files (Kenneth, 26
+// October 2026). On the iPad one button opens the system picker (Files,
 // the photo library or the camera); on a desktop files are dropped or chosen.
 import { useRef, useState, type ChangeEvent, type DragEvent } from "react";
 import { FilePlusIcon, UploadIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
-/** What inspection-files accepts (docs/DATABASE.md): PDF and the photo types. */
-export const FILE_ACCEPT = "application/pdf,.pdf,image/*";
+/**
+ * What inspection-files accepts for documents (docs/DATABASE.md): PDF, the
+ * photo types, Excel and CSV, by type and by name (Windows types a CSV as
+ * Excel, and some pickers go by the name alone).
+ */
+export const FILE_ACCEPT =
+  "application/pdf,.pdf,image/*,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,.xlsx,application/vnd.ms-excel,.xls,text/csv,.csv";
 
 type FileAddControlsProps = {
   onFiles: (files: File[]) => void;
   /** "Add Lab Report". */
   label: string;
-  /** What the picker offers; PDFs and images by default. */
+  /** What the picker offers; PDFs, images and spreadsheets by default. */
   accept?: string;
-  /** Beside the button on a desktop: "Drop PDFs or images here, or". */
+  /** Beside the button on a desktop: "Drop PDFs, images or spreadsheets here, or". */
   hint?: string;
   disabled?: boolean;
   className?: string;
@@ -31,7 +37,7 @@ export function FileAddControls({
   onFiles,
   label,
   accept = FILE_ACCEPT,
-  hint = "Drop PDFs or images here, or",
+  hint = "Drop PDFs, images or spreadsheets here, or",
   disabled = false,
   className,
 }: FileAddControlsProps) {

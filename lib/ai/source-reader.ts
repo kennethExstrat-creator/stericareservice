@@ -4,18 +4,19 @@ import type { MessageCreateParamsNonStreaming } from "@anthropic-ai/sdk/resource
 import { z } from "zod";
 import { ClaudeModelIdSchema, DEFAULT_DOCUMENT_MODEL } from "@/lib/schemas/ai-settings";
 import type { GlossaryEntry } from "@/lib/schemas/ai-settings";
-import type { DocumentMediaType } from "@/lib/schemas/document-fill";
 import { checklist, DOCUMENT_FILE_KIND, DOCUMENTS_LABELS, DocumentsConfigSchema } from "@/modules/documents/config";
 import type { AiEnv } from "./config";
+import { documentBlock, type DocumentFile } from "./document-file";
 import { createMessage, describeReadError, fail, type ReadFailure } from "./document-reader";
-import { glossaryText, LAB_REPORT_GUIDE, PAPER_FORM_GUIDE, WEIGHT_GUIDE } from "./reading-guide";
+import { glossaryText, LAB_REPORT_GUIDE, PAPER_FORM_GUIDE, SPREADSHEET_NOTE, WEIGHT_GUIDE } from "./reading-guide";
 import type { OnAiCall } from "./usage";
 
 /*
  * Reads one Source Document of an inspection (docs/AI.md, "Source
  * Documents"): the handwritten inspection form, a PO, a packing list, a
- * photo of a label. Claude gets the inspection's modules with the JSON
- * Schema of each module's data and the data entered so far, and answers
+ * photo of a label, an Excel or CSV file as its text (./document-file.ts;
+ * Kenneth, 26 October 2026). Claude gets the inspection's modules with the
+ * JSON Schema of each module's data and the data entered so far, and answers
  * values for the empty fields it can read. The answer is a proposal: the
  * capture screen checks it against each module's schema and fills only
  * empty fields (lib/inspections/source-documents.ts). It also says when the
@@ -40,7 +41,7 @@ export type AttachTarget = { readonly link: string; readonly what: string };
 export type SourceReadInput = {
   /** The SteriCare defect library (active defect codes), for standard names. */
   defectLibrary: readonly { code: string; name: string }[];
-  file: { mediaType: DocumentMediaType; base64: string; name: string };
+  file: DocumentFile;
   modules: readonly SourceModule[];
   sizes: readonly { value: string; label: string }[];
   unit: "pcs" | "pairs";
@@ -77,11 +78,12 @@ const MAX_TOKENS = 16_000;
  * also beside one a step already lists: a lab often issues one report per
  * size; and a packing row marked as an aged sample goes into the size's
  * agedSample, never its boxes (PAPER_FORM_GUIDE, and the schema's own
- * description of the field).
+ * description of the field). Since 26 October 2026 it also says how an
+ * Excel or CSV file comes (SPREADSHEET_NOTE), the same for every file.
  */
 export const SOURCE_READER_SYSTEM_PROMPT = `You read the source documents of a glove quality-control inspection for SteriCare and fill in the inspection's fields from them.
 
-The documents have no set layout: the inspector's handwritten inspection form, purchase orders, packing lists, lab reports, photos of labels, cartons and notes. Read every page, tables and handwriting included.
+The documents have no set layout: the inspector's handwritten inspection form, purchase orders, packing lists, lab reports, photos of labels, cartons and notes. Read every page, tables and handwriting included. ${SPREADSHEET_NOTE}
 
 You get the inspection's modules (each with its key, title, settings and the JSON Schema of its data), the sizes it offers, where it files a document itself, and the data entered so far.
 
@@ -233,9 +235,7 @@ export async function readSourceDocument(input: SourceReadInput, env: AiEnv, onC
             text: `<inspection_modules>\n${template}\n</inspection_modules>\n\n<attach_to>\n${attachToText(input.attachTargets)}\n</attach_to>`,
             cache_control: { type: "ephemeral" },
           },
-          file.mediaType === "application/pdf"
-            ? { type: "document", source: { type: "base64", media_type: "application/pdf", data: file.base64 } }
-            : { type: "image", source: { type: "base64", media_type: file.mediaType, data: file.base64 } },
+          documentBlock(file),
           {
             type: "text",
             text: `<current_data>\n${JSON.stringify(input.current)}\n</current_data>\n\nRead the document above (${JSON.stringify(file.name)}) and answer with the JSON object.`,

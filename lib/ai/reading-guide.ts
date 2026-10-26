@@ -21,7 +21,13 @@
 // A packing row marked as an aged sample is the size's aged sample, never
 // one of its boxes (Kenneth, 26 October 2026: read as a ninth box with no
 // box/carton number, it left the whole packing check incomplete).
+// Both readers also take Excel and CSV files, as text (SPREADSHEET_NOTE;
+// lib/ai/document-file.ts; Kenneth, 26 October 2026).
 import type { GlossaryEntry } from "@/lib/schemas/ai-settings";
+
+/** How an Excel or CSV file reaches the reader (lib/spreadsheets/read.ts): one sentence in each reader's prompt. */
+export const SPREADSHEET_NOTE =
+  'An Excel or CSV file comes as text: a CSV as it is, a workbook sheet by sheet, each sheet as CSV under a line "Sheet: <name>", with the values as Excel shows them.';
 
 export const PAPER_FORM_GUIDE = `How SteriCare inspectors fill in their paper inspection form:
 - One form per purchase order and lot, usually one size per form. Its parts: "Purchase Order / Shipment Information" (manufacturer, PO with the SO in brackets, product name, lot number, mfg and expiry date, glove type, packing mode); "Inspected by" (initials, date, signature); "PO Info" (glove size, quantity in cases); "Sampling Plan" (cases, inner boxes and gloves sampled; gloves for watertight (WTT) and visual; gloves for dimension; gloves for force at break (FAB); inner boxes for the dispensing test); "Watertight Inspection" and "Visual Inspection" (defects by size, major and minor); then "Dispensing Result" on a page of its own (by size: box/carton number, layering %, dispensing %, stickiness code, others).

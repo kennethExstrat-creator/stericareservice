@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { FILE_TYPES } from "@/lib/photos/paths";
 import { applyAsOwner, asOwner, column, createTestDb, readMigrations, schemaSnapshot, type Db } from "./harness";
 
 // Guards that catch a new table or function shipped without its access rules.
@@ -146,6 +147,7 @@ describe("schema guards", { timeout: 30_000 }, () => {
     "20261013130000_steri_ai_summary.sql",
     "20261026120000_source_reading_proposals.sql",
     "20261026130000_save_inspection_with_events.sql",
+    "20261026140000_source_spreadsheets.sql",
   ])("applies %s again without changing the schema", async (name) => {
     const before = await schemaSnapshot(db);
     const migration = (await readMigrations()).find((file) => file.name === name);
@@ -201,6 +203,15 @@ describe("schema guards", { timeout: 30_000 }, () => {
         service_role: true,
       },
     ]);
+  });
+
+  // The upload queue stores each file with its own type (lib/photos/files.ts), which the bucket must
+  // take: Source Documents' Excel and CSV files since migration 20261026140000 (Kenneth, 26 October 2026).
+  it("lets inspection-files take every type the app uploads there, and no other", async () => {
+    const types = await asOwner(db, (tx) =>
+      column<string[]>(tx, "select allowed_mime_types from storage.buckets where id = 'inspection-files'"),
+    );
+    expect([...types[0]].sort()).toEqual([...FILE_TYPES].sort());
   });
 
   it("creates every bucket private", async () => {

@@ -27,6 +27,7 @@ vi.mock("./hooks", async (importOriginal) => {
 });
 import { EMPTY_TAG_OPTIONS, moduleTitle, tagOptionsFromTemplate } from "@/lib/inspections/photos/view";
 import { FileSlot, useInspectionFiles } from "../files";
+import { FILE_ACCEPT } from "../files/file-add-controls";
 import { useUploadsWaiting } from "./hooks";
 import { nextTagLine, toViewerPhoto } from "./module-photos";
 import type { SlotPhoto } from "./photo-model";
@@ -195,13 +196,26 @@ describe("nextTagLine", () => {
 });
 
 describe("FileSlot", () => {
-  it("lists the module's lab reports and offers PDFs or images", () => {
+  it("lists the module's lab reports and offers PDFs, images, Excel and CSV files", () => {
     const html = render(<FileSlot inspectionId={INSPECTION} moduleKey="tensile" kind="lab_report" />);
     expect(html).toContain('data-module="tensile"');
     expect(html).toContain("Lab Reports");
     expect(html).toContain("No lab reports yet.");
     expect(html).toContain("Add Lab Report");
-    expect(html).toMatch(/<input[^>]*type="file"[^>]*accept="application\/pdf,.pdf,image\/\*"[^>]*multiple=""/);
+    expect(html).toContain("Drop PDFs, images or spreadsheets here, or");
+    expect(html).toMatch(/<input[^>]*type="file"[^>]*accept="application\/pdf,.pdf,image\/\*,[^"]*"[^>]*multiple=""/);
+    expect(html).toContain(`accept="${FILE_ACCEPT}"`);
+    // By type and by name: Windows types a CSV as Excel, and some pickers go by the name alone (Kenneth, 26 October 2026).
+    for (const accepted of [
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      ".xlsx",
+      "application/vnd.ms-excel",
+      ".xls",
+      "text/csv",
+      ".csv",
+    ]) {
+      expect(FILE_ACCEPT.split(",")).toContain(accepted);
+    }
     expect(unanchoredSrOnly(html)).toEqual([]);
   });
 

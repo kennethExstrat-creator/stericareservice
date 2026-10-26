@@ -15,6 +15,7 @@ import { toast } from "sonner";
 import { photoQueueStore } from "@/components/capture/photos/queue-store";
 import { SOURCE_DOCUMENTS_KEY, mediaKind } from "@/lib/inspections/source-documents";
 import { readableFile } from "@/lib/photos/readable";
+import { spreadsheetTypeOf } from "@/lib/photos/sniff";
 import type { DocumentFill, DocumentReadResult } from "@/lib/schemas/document-fill";
 import { autoSort } from "../../[id]/_components/auto-sort";
 import { readDocument } from "../actions";
@@ -63,9 +64,15 @@ async function readOne(file: File): Promise<DocumentReadResult> {
   }
 }
 
-/** A PDF typed as one; a photo as 2048 px JPEG. */
+/**
+ * A PDF typed as one; an Excel or CSV file typed as one too (Windows types
+ * a CSV as Excel, and some browsers give a file no type), so the reader
+ * takes it; a photo as 2048 px JPEG.
+ */
 async function holdable(file: File): Promise<File> {
   if (isPdf(file)) return file.type === "application/pdf" ? file : new File([file], file.name, { type: "application/pdf" });
+  const spreadsheet = spreadsheetTypeOf(file);
+  if (spreadsheet) return file.type === spreadsheet ? file : new File([file], file.name, { type: spreadsheet });
   return readableFile(file);
 }
 

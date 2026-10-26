@@ -1,16 +1,43 @@
 "use client";
 
 // Lab reports and certificates as rows: name, kind, upload state, and Open
-// (a signed URL in a new tab), Try Again or Delete where they apply.
+// (a signed URL in a new tab), Try Again or Delete where they apply. An
+// Excel or CSV file has its own icon, and Preview shows its sheets.
 import { useRef, useState, type ReactNode } from "react";
-import { DownloadIcon, ExternalLinkIcon, EyeIcon, FileTextIcon, RotateCwIcon, Trash2Icon, TriangleAlertIcon } from "lucide-react";
+import {
+  DownloadIcon,
+  ExternalLinkIcon,
+  EyeIcon,
+  FileSpreadsheetIcon,
+  FileTextIcon,
+  RotateCwIcon,
+  Trash2Icon,
+  TriangleAlertIcon,
+} from "lucide-react";
 import type { SlotFile } from "@/components/capture/photos/photo-model";
 import { photoQueueStore } from "@/components/capture/photos/queue-store";
 import { Button } from "@/components/ui/button";
 import { fileKindLabel, moduleTitle, type PhotoTagOptions } from "@/lib/inspections/photos/view";
+import { spreadsheetTypeOf } from "@/lib/photos/sniff";
+import { fetchSheets, storedSheetsUrl } from "@/lib/spreadsheets/preview";
 import { cn } from "@/lib/utils";
 import { FileDeleteDialog } from "./file-delete-dialog";
-import { downloadUrl, FilePreviewDialog } from "./file-preview-dialog";
+import { downloadUrl, FilePreviewDialog, type PreviewFile } from "./file-preview-dialog";
+
+/** A file row's icon: a spreadsheet's for an Excel or CSV file (by its name, else its type), a document's for any other. */
+export function FileRowIcon({ file }: { file: { readonly name: string; readonly type?: string } }) {
+  const Icon = spreadsheetTypeOf(file) ? FileSpreadsheetIcon : FileTextIcon;
+  return <Icon aria-hidden className="size-5 shrink-0 text-brand-600" />;
+}
+
+/** An uploaded file for Preview: a spreadsheet with its sheets, read on the server. */
+export function previewOfUploaded(inspectionId: string, file: { readonly id: string; readonly name: string }, url: string): PreviewFile {
+  return {
+    name: file.name,
+    url,
+    ...(spreadsheetTypeOf(file) ? { sheets: () => fetchSheets(storedSheetsUrl(inspectionId, file.id)) } : {}),
+  };
+}
 
 /** The file's upload state, in the photo tile's words. */
 function stateText(file: SlotFile): string {
@@ -65,7 +92,7 @@ export function FileList({
   const [deleting, setDeleting] = useState<string | null>(null);
   const listRef = useRef<HTMLUListElement>(null);
   const deletingFile = files.find((file) => file.id === deleting) ?? null;
-  const [previewing, setPreviewing] = useState<{ name: string; url: string } | null>(null);
+  const [previewing, setPreviewing] = useState<PreviewFile | null>(null);
 
   return (
     <>
@@ -81,7 +108,7 @@ export function FileList({
               // relative: anchors the buttons' sr-only names (docs/DESIGN.md).
               className="relative flex flex-wrap items-center gap-x-3 gap-y-2 px-3 py-2.5"
             >
-              <FileTextIcon aria-hidden className="size-5 shrink-0 text-brand-600" />
+              <FileRowIcon file={file} />
               <div className="min-w-0 flex-1">
                 <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
                   <p className="min-w-0 truncate font-medium text-foreground" title={file.name}>
@@ -112,7 +139,7 @@ export function FileList({
                       variant="ghost"
                       size="icon"
                       title="Preview"
-                      onClick={() => setPreviewing({ name: file.name, url: file.url! })}
+                      onClick={() => setPreviewing(previewOfUploaded(inspectionId, file, file.url!))}
                     >
                       <EyeIcon aria-hidden />
                       <span className="sr-only">Preview {file.name}</span>

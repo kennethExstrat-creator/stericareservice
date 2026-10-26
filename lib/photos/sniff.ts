@@ -1,6 +1,10 @@
 // What a file really is, from its first bytes. iPadOS sometimes hands over
 // HEIC photos with an empty or generic type, and names lie, so the bytes
-// decide where they can.
+// decide where they can. Spreadsheets for Source Documents (Kenneth, 26
+// October 2026) too: an Excel workbook by what its container holds, and a
+// CSV, which has no first bytes of its own, by its name or type once its
+// bytes are text.
+import { CSV_TYPE, isSpreadsheetType, XLS_TYPE, XLSX_TYPE, type SpreadsheetType } from "./paths";
 
 export type SniffedType =
   | "image/jpeg"
@@ -75,15 +79,131 @@ const EXTENSION_TYPES: Readonly<Record<string, SniffedType>> = {
 
 /**
  * The bytes' type, else the declared one, else the name's extension. Null
- * when none says anything.
+ * when none says anything. A spreadsheet comes from its bytes alone
+ * (sniffSpreadsheet: a zip's `entries` among them), never from a name or a
+ * type that says so: a Word file named .xlsx, or a binary file named .csv,
+ * is none.
  */
-export function detectType(head: Uint8Array, declared: string | undefined, name: string | undefined): string | null {
+export function detectType(
+  head: Uint8Array,
+  declared: string | undefined,
+  name: string | undefined,
+  entries: readonly ZipEntry[] | null = null,
+): string | null {
+  const spreadsheet = sniffSpreadsheet(head, declared, name, entries);
+  if (spreadsheet) return spreadsheet;
   const sniffed = sniffType(head);
   if (sniffed) return sniffed;
   const type = declared?.trim().toLowerCase();
-  if (type && type !== "application/octet-stream") return type;
   const extension = name?.split(".").pop()?.toLowerCase();
-  return (extension && EXTENSION_TYPES[extension]) || null;
+  const fallback = (type && type !== "application/octet-stream" ? type : null) ?? ((extension && EXTENSION_TYPES[extension]) || null);
+  return isSpreadsheetType(fallback) ? null : fallback;
+}
+
+/* ------------------------------------------------------------------ *
+ * Spreadsheets (Source Documents: Kenneth, 26 October 2026)
+ * ------------------------------------------------------------------ */
+
+/** A zip's first bytes: an .xlsx, a .docx and any zip archive alike. */
+export function isZip(head: Uint8Array): boolean {
+  return latin1(head, 0, 4) === "PK\x03\x04";
+}
+
+/** An OLE2 compound file's first bytes: an .xls (and a password-protected .xlsx), a .doc and an Outlook message alike. */
+export function isOle2(head: Uint8Array): boolean {
+  return latin1(head, 0, 8) === "\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1";
+}
+
+/** An entry of a zip: its name, and the size it says it unpacks to. */
+export type ZipEntry = { name: string; size: number };
+
+/**
+ * The entries a zip lists in its central directory, at its end: `bytes` is
+ * the file from `start` on, so its last part will do. Null when the
+ * directory is not all there, or for a ZIP64 archive (never a workbook's
+ * size).
+ */
+export function zipEntries(bytes: Uint8Array, start = 0): ZipEntry[] | null {
+  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  // The end record: 22 bytes, then a comment of up to 65,535; the last one that holds together wins.
+  for (let end = bytes.length - 22; end >= Math.max(0, bytes.length - 22 - 0xffff); end--) {
+    if (view.getUint32(end, true) !== 0x06054b50) continue;
+    const count = view.getUint16(end + 10, true);
+    const size = view.getUint32(end + 12, true);
+    const offset = view.getUint32(end + 16, true);
+    if (count === 0xffff || offset === 0xffffffff) return null;
+    const from = offset - start;
+    if (from < 0 || from + size > end) continue;
+    const entries: ZipEntry[] = [];
+    let at = from;
+    while (entries.length < count && at + 46 <= from + size && view.getUint32(at, true) === 0x02014b50) {
+      const nameLength = view.getUint16(at + 28, true);
+      const next = at + 46 + nameLength + view.getUint16(at + 30, true) + view.getUint16(at + 32, true);
+      if (next > from + size) break;
+      entries.push({ name: latin1(bytes, at + 46, at + 46 + nameLength), size: view.getUint32(at + 24, true) });
+      at = next;
+    }
+    if (entries.length === count) return entries;
+  }
+  return null;
+}
+
+/**
+ * A zip holding an Excel workbook (SpreadsheetML): its content types and
+ * its workbook part. A zip keeps its entries' names as they are and their
+ * contents compressed, so the names decide.
+ */
+export function isWorkbookZip(entries: readonly ZipEntry[]): boolean {
+  const names = new Set(entries.map((entry) => entry.name));
+  return names.has("[Content_Types].xml") && names.has("xl/workbook.xml");
+}
+
+/** No NUL byte, or UTF-16 with its byte order mark: text, as a CSV is. */
+export function isText(bytes: Uint8Array): boolean {
+  if ((bytes[0] === 0xff && bytes[1] === 0xfe) || (bytes[0] === 0xfe && bytes[1] === 0xff)) return true;
+  return !bytes.includes(0);
+}
+
+/** What browsers and other apps call a CSV, besides its name. */
+const CSV_DECLARED: ReadonlySet<string> = new Set([CSV_TYPE, "application/csv", "text/comma-separated-values", "text/x-csv"]);
+
+/**
+ * The spreadsheet the bytes are, or null. An .xlsx is a zip whose entries
+ * (zipEntries, from the end of the file) are an Excel workbook's. An .xls is
+ * an OLE2 compound file named or typed as Excel: a Word document is one too,
+ * and so is a password-protected .xlsx, which Steri-AI then says it cannot
+ * open. A CSV has no first bytes of its own: it is text named .csv or typed
+ * as a CSV. Browsers type one text/csv, application/vnd.ms-excel (Windows
+ * with Excel installed), text/plain or nothing, so its name wins.
+ */
+export function sniffSpreadsheet(
+  bytes: Uint8Array,
+  declared: string | undefined,
+  name: string | undefined,
+  entries: readonly ZipEntry[] | null = null,
+): SpreadsheetType | null {
+  if (isZip(bytes)) return entries && isWorkbookZip(entries) ? XLSX_TYPE : null;
+  const type = declared?.trim().toLowerCase() ?? "";
+  const extension = name?.split(".").pop()?.toLowerCase();
+  if (isOle2(bytes)) return extension === "xls" || extension === "xlsx" || type === XLS_TYPE || type === XLSX_TYPE ? XLS_TYPE : null;
+  // Text has no NUL byte, so it is no image or video; only a PDF can be plain text too.
+  const csv = extension === "csv" || CSV_DECLARED.has(type);
+  return csv && isText(bytes) && sniffType(bytes) !== "application/pdf" ? CSV_TYPE : null;
+}
+
+/**
+ * A spreadsheet by its name, else its type, before its bytes are read: the
+ * file rows' icon and Preview, and New Inspection's Files. A .csv is a CSV
+ * whatever its type says. Null for anything else.
+ */
+export function spreadsheetTypeOf(file: { readonly name: string; readonly type?: string }): SpreadsheetType | null {
+  const extension = /\.(csv|xlsx|xls)$/i.exec(file.name)?.[1].toLowerCase();
+  if (extension === "csv") return CSV_TYPE;
+  if (extension === "xlsx") return XLSX_TYPE;
+  if (extension === "xls") return XLS_TYPE;
+  const type = file.type?.trim().toLowerCase() ?? "";
+  if (CSV_DECLARED.has(type)) return CSV_TYPE;
+  return isSpreadsheetType(type) ? type : null;
 }
 
 function latin1(bytes: Uint8Array, from: number, to: number): string {

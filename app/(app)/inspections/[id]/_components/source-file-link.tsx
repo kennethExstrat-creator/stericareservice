@@ -18,7 +18,8 @@
 // Read-only: the same, without Unlink.
 import { useEffect, useMemo, useState, useSyncExternalStore, type MouseEvent } from "react";
 import { EyeIcon, SparklesIcon, UnlinkIcon } from "lucide-react";
-import { FilePreviewDialog } from "@/components/capture/files/file-preview-dialog";
+import { previewOfUploaded } from "@/components/capture/files/file-list";
+import { FilePreviewDialog, type PreviewFile } from "@/components/capture/files/file-preview-dialog";
 import { useInspectionMedia, usePhotoQueue, useStartPhotoQueue } from "@/components/capture/photos/hooks";
 import { slotFiles, type SlotFile } from "@/components/capture/photos/photo-model";
 import type { PhotoQueueState } from "@/components/capture/photos/queue-state";
@@ -166,7 +167,7 @@ export function SourceFileLink({ inspectionId, slot, readOnly }: { inspectionId:
     () => slotFiles({ files: media.media?.files ?? [], queue, inspectionId, moduleKey: undefined }),
     [media.media, queue, inspectionId],
   );
-  const [previewing, setPreviewing] = useState<{ name: string; url: string } | null>(null);
+  const [previewing, setPreviewing] = useState<PreviewFile | null>(null);
 
   const unlink = (event: MouseEvent<HTMLButtonElement>, fileId: string) => {
     keepFocusNear(event.currentTarget);
@@ -196,7 +197,7 @@ export function SourceFileLink({ inspectionId, slot, readOnly }: { inspectionId:
             </span>
           )}
           {url && (
-            <Button type="button" variant="ghost" size="icon-sm" title="Preview" onClick={() => setPreviewing({ name: shown.name, url })}>
+            <Button type="button" variant="ghost" size="icon-sm" title="Preview" onClick={() => setPreviewing(previewOfUploaded(inspectionId, shown, url))}>
               <EyeIcon aria-hidden />
               <span className="sr-only">Preview {shown.name}</span>
             </Button>

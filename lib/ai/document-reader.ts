@@ -1,17 +1,14 @@
 import "server-only";
 import Anthropic from "@anthropic-ai/sdk";
-import type {
-  BetaContentBlockParam,
-  BetaMessage,
-  MessageCreateParamsNonStreaming,
-} from "@anthropic-ai/sdk/resources/beta/messages/messages";
+import type { BetaMessage, MessageCreateParamsNonStreaming } from "@anthropic-ai/sdk/resources/beta/messages/messages";
 import { z } from "zod";
 import { ClaudeModelIdSchema, DEFAULT_DOCUMENT_MODEL } from "@/lib/schemas/ai-settings";
 import type { GlossaryEntry } from "@/lib/schemas/ai-settings";
-import { DocumentReadingSchema, type DocumentMediaType, type DocumentReading } from "@/lib/schemas/document-fill";
+import { DocumentReadingSchema, type DocumentReading } from "@/lib/schemas/document-fill";
 import type { AiEnv } from "./config";
+import { documentBlock, type DocumentFile } from "./document-file";
 import { toStructuredOutputSchema } from "./providers/claude-format";
-import { glossaryText, PAPER_FORM_GUIDE } from "./reading-guide";
+import { glossaryText, PAPER_FORM_GUIDE, SPREADSHEET_NOTE } from "./reading-guide";
 import { callFromError, callFromMessage, reportAiCall, type OnAiCall } from "./usage";
 
 /*
@@ -19,11 +16,11 @@ import { callFromError, callFromMessage, reportAiCall, type OnAiCall } from "./u
  * layout) with Claude and answers the fields the new-inspection form and the
  * inspection's header and order need (docs/AI.md, "Reading order
  * documents"). Claude reads PDFs and photos itself, so there is no separate
- * OCR step. The answer is a suggestion: lib/inspections/document-fill.ts
- * checks every value, and the inspector sees and can change all of it.
+ * OCR step; an Excel or CSV file comes as its text (./document-file.ts).
+ * The answer is a suggestion: lib/inspections/document-fill.ts checks every
+ * value, and the inspector sees and can change all of it.
  */
 
-export type DocumentFile = { mediaType: DocumentMediaType; base64: string; name: string };
 export type ReadingContext = {
   clients: readonly { id: string; name: string }[];
   manufacturers: readonly { id: string; name: string }[];
@@ -40,7 +37,7 @@ const MAX_TOKENS = 8_000;
 
 const SYSTEM_PROMPT = `You read documents for SteriCare, a glove quality-control company, and pick out the details an inspector needs to start an inspection.
 
-The documents have no set layout: purchase orders, sales orders, packing lists, inspection requests, invoices, emails, photos of paper forms or labels. Read every page, tables included.
+The documents have no set layout: purchase orders, sales orders, packing lists, inspection requests, invoices, emails, photos of paper forms or labels. Read every page, tables included. ${SPREADSHEET_NOTE}
 
 Rules:
 - Only report what the document states. Never guess or invent a value: leave it null.
@@ -58,12 +55,6 @@ let readingSchema: ReturnType<typeof toStructuredOutputSchema> | undefined;
 function readingJsonSchema() {
   readingSchema ??= toStructuredOutputSchema(z.toJSONSchema(DocumentReadingSchema, { target: "draft-2020-12" }));
   return readingSchema;
-}
-
-function documentBlock(file: DocumentFile): BetaContentBlockParam {
-  return file.mediaType === "application/pdf"
-    ? { type: "document", source: { type: "base64", media_type: "application/pdf", data: file.base64 } }
-    : { type: "image", source: { type: "base64", media_type: file.mediaType, data: file.base64 } };
 }
 
 function listsText(context: ReadingContext): string {

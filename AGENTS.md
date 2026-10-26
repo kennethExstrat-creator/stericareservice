@@ -19,8 +19,11 @@ QC inspection app for SteriCare glove inspectors: iPad for capture, desktop for 
 - Approved additions: `@anthropic-ai/sdk` (AI second opinion on Claude), `@electric-sql/pglite`
   (runs migrations and RLS tests in-process; this machine has no Docker), `server-only`, the
   shadcn runtime deps (`radix-ui`, `cn`, `class-variance-authority`, `lucide-react`, `sonner`, `tw-animate-css`),
-  and the Inspection Summary's editor, nine `@tiptap` packages pinned exactly (`core`, `pm`, `react`, `starter-kit`,
-  `extension-list`, `extension-text-style`, `extension-highlight`, `extension-text-align`, `extensions`).
+  the Inspection Summary's editor, nine `@tiptap` packages pinned exactly (`core`, `pm`, `react`, `starter-kit`,
+  `extension-list`, `extension-text-style`, `extension-highlight`, `extension-text-align`, `extensions`),
+  and `xlsx` (SheetJS 0.20.3 pinned from cdn.sheetjs.com, not npm's abandoned 0.18.5 with its known vulnerabilities):
+  reads Excel and CSV source documents on the server for Steri-AI and the preview; the app imports it only in
+  `server-only` modules (`lib/spreadsheets/read.ts`), and tests use it to build workbooks.
 
 ## Next.js 16 rules
 - Read `node_modules/next/dist/docs/` before writing routing, auth, proxy or server action code.

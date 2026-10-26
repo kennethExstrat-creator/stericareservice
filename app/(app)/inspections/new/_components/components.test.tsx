@@ -4,6 +4,7 @@
 // The page and its flows run end to end in e2e/new.
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
+import { FILE_ACCEPT } from "@/components/capture/files/file-add-controls";
 import { chooseTemplate, type TemplateChoice } from "@/lib/inspections/create";
 import { buildSeedBundle, SAFEDON_EG_SEED, STD_EG_REPORT_SEED, STD_SG_SEED } from "@/lib/templates/definitions";
 import { MODULE_REGISTRY } from "@/modules/registry";
@@ -217,5 +218,18 @@ describe("Source Documents", () => {
     expect(html).toContain("More Documents");
     expect(html).toContain('data-testid="fill-summary"');
     expect(html).toContain("@3xl:grid-cols-[minmax(0,1fr)_minmax(16rem,22rem)]");
+  });
+
+  it("takes Excel and CSV files on Files, each shown with a spreadsheet's icon (Kenneth, 26 October 2026)", () => {
+    const sheet = new File(["Size,Cases\nM,20\n"], "Order.csv", { type: "text/csv" });
+    const html = panel([
+      { key: "a", file: order, url: "blob:a", state: { step: "later" } },
+      { key: "b", file: sheet, url: "blob:b", state: { step: "waiting" } },
+    ]);
+    expect(html).toContain(`accept="${FILE_ACCEPT}"`);
+    const rows = html.split('data-slot="file-row"').slice(1);
+    expect(rows).toHaveLength(2);
+    expect(rows[0]).toContain("lucide-file-text");
+    expect(rows[1]).toContain("lucide-file-spreadsheet");
   });
 });

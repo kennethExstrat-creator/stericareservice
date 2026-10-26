@@ -208,7 +208,7 @@ Keys always in the order size, hand, defect, box, level, item (level and item ca
 
 ### Files
 
-`prepareFile(file)` checks a lab report or certificate: PDF, JPEG, PNG, WebP or HEIC, up to 50 MB, a printable name. Files are uploaded as they are: a certificate must stay the document the lab issued.
+`prepareFile(file)` checks a lab report or certificate: PDF, JPEG, PNG, WebP or HEIC, up to 50 MB, a printable name. Files are uploaded as they are: a certificate must stay the document the lab issued. Source Documents' Excel and CSV files too (Kenneth, 26 October 2026), each with its own type, which the bucket takes (migration `20261026140000`): the bytes decide, never the name alone (`detectType` with `sniffSpreadsheet`, `lib/photos/sniff.ts`). An `.xlsx` is told by the parts its zip lists at its end (the last megabyte is read), a CSV by its first 64 kB being text.
 
 ## The upload queue
 

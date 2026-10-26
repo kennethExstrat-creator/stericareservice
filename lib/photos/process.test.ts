@@ -1,9 +1,10 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import * as XLSX from "xlsx";
 import { app0Jfif, app1Exif, app1Xmp, buildJpeg, cameraExif, comment, includesText } from "./__fixtures__/jpeg";
 import { browserCodec } from "./browser-codec";
 import { displayName, prepareFile } from "./files";
 import { listJpegMetadata, readJpegInfo } from "./jpeg";
-import { PHOTO_SIZE_LIMIT } from "./paths";
+import { CSV_TYPE, PHOTO_SIZE_LIMIT, XLS_TYPE, XLSX_TYPE } from "./paths";
 import { processPhoto, type DecodedImage, type ImageCodec, type PhotoInput, type Surface } from "./process";
 import type { DrawPlan, Size } from "./sizing";
 
@@ -318,6 +319,44 @@ describe("prepareFile", () => {
 
     const heic = new File([HEIC_HEAD], "scan.heic", { type: "" });
     expect(await prepareFile(heic)).toMatchObject({ ok: true, file: { mimeType: "image/heic", extension: "heic" } });
+  });
+
+  it("accepts Excel and CSV files as they are, with their own type, which the bucket takes (Kenneth, 26 October 2026)", async () => {
+    const book = (rows: unknown[][], bookType: "xlsx" | "biff8", compression = true) => {
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, XLSX.utils.aoa_to_sheet(rows), "Order");
+      return new Uint8Array(XLSX.write(workbook, { type: "buffer", bookType, compression }));
+    };
+    const order = [["Size", "Cases"], ["M", 20]];
+    const xlsx = new File([book(order, "xlsx")], "PO-0001.xlsx", { type: XLSX_TYPE });
+    expect(await prepareFile(xlsx)).toEqual({
+      ok: true,
+      file: { blob: expect.any(Blob), name: "PO-0001.xlsx", mimeType: XLSX_TYPE, extension: "xlsx" },
+    });
+    expect(await prepareFile(new File([book(order, "biff8")], "Packing list.xls", { type: XLS_TYPE }))).toMatchObject({
+      ok: true,
+      file: { mimeType: XLS_TYPE, extension: "xls" },
+    });
+    // Windows with Excel installed types a CSV as Excel; other browsers text/csv, text/plain or nothing.
+    for (const type of [CSV_TYPE, XLS_TYPE, "text/plain", ""]) {
+      const csv = new File(["Size,Cases\nM,20\n"], "Order.csv", { type });
+      expect(await prepareFile(csv), type).toMatchObject({ ok: true, file: { mimeType: CSV_TYPE, extension: "csv", name: "Order.csv" } });
+    }
+    // A workbook larger than the part read from its end (stored, not compressed): its zip directory is still found there.
+    const rows = Array.from({ length: 20_000 }, (_, row) => [`LOT-A${String(row).padStart(5, "0")}`, ((row * 2654435761) % 2 ** 32).toString(36).repeat(4)]);
+    const large = new File([book(rows, "xlsx", false)], "Cartons.xlsx", { type: XLSX_TYPE });
+    expect(large.size).toBeGreaterThan(1024 * 1024);
+    expect(await prepareFile(large)).toMatchObject({ ok: true, file: { mimeType: XLSX_TYPE, extension: "xlsx" } });
+  });
+
+  it("refuses a file named or typed as a spreadsheet whose bytes are none", async () => {
+    const zip = XLSX.CFB.utils.cfb_new();
+    XLSX.CFB.utils.cfb_add(zip, "[Content_Types].xml", Buffer.from("<Types/>"));
+    XLSX.CFB.utils.cfb_add(zip, "word/document.xml", Buffer.from("<w:document/>"));
+    const renamed = new File([new Uint8Array(XLSX.CFB.write(zip, { type: "buffer", fileType: "zip" }))], "report.xlsx", { type: XLSX_TYPE });
+    expect(await prepareFile(renamed)).toMatchObject({ ok: false, reason: "unsupported", message: expect.stringContaining("Excel (.xlsx or .xls) or CSV") });
+    const binary = new File([new Uint8Array([0x53, 0, 0x69, 0, 0x7a, 0])], "data.csv", { type: XLS_TYPE });
+    expect(await prepareFile(binary)).toMatchObject({ ok: false, reason: "unsupported" });
   });
 
   it("refuses other documents, empty files and files over 50 MB", async () => {

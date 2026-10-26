@@ -360,10 +360,12 @@ Speed:
 - **Processing in the browser:** convert to JPEG, resize to 2048 px on the long edge, quality about 0.8, keep capture time, strip GPS. If the browser cannot decode a file (for example some HEIC), upload the original and flag it.
 - **Background upload queue:** capture never waits for upload. Photos queue in IndexedDB, upload with progress, retry when the connection returns. A badge shows pending uploads; submit is blocked until the queue is empty.
 - **Gallery per inspection:** thumbnails grouped by module. Desktop shows full size with arrow-key navigation. Inspector can delete or retag photos while the inspection is a draft. Admin can mark photos "include in report".
-- **Lab reports and certificates** (`force_at_break`, `tensile`, `documents`): PDF or image upload to `inspection-files`.
+- **Lab reports and certificates** (`force_at_break`, `tensile`, `documents`): PDF or image upload to `inspection-files` (Source Documents' Excel and CSV files too, since 26 October 2026: below).
 - **Storage:** private buckets `inspection-photos` (path `<inspection_id>/<uuid>.jpg`, plus a 400 px thumbnail) and `inspection-files`. Viewed through signed URLs.
 
 > **Since 11 and 12 October 2026 (Kenneth):** photos, videos and files are added on Source Documents, the first step, not on each module or in the gallery, which only shows them. Media lists photos and videos in four categories (Warehouse, Product and Package Samples, Inspection Proof, Product Defects) and Other, as rows like the documents' (Preview, Download, Delete); a row is dragged to another category or moved from its Move To menu. Auto-Sort, at the top, takes every photo and video at once and the AI files each into its category; what it cannot place stays in Other. Lab reports and certificates are uploaded on Files; a module that needs one (`force_at_break`, `tensile`, `documents`) links one of those files, and the AI links a lab report it recognises. Details in docs/AI.md.
+
+> **Since 26 October 2026 (Kenneth: "make the source document to support excel and csv file reading"):** Source Documents' Files, on the capture screen and on New Inspection, also take Excel (`.xlsx`, `.xls`) and CSV files, up to 10 MB for Steri-AI. They are stored as they are; Steri-AI reads each as text, sheet by sheet, with the same fill rules as a PDF, and Preview shows each sheet as a table. Details in docs/AI.md, "Source Documents".
 
 ---
 

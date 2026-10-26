@@ -1,6 +1,7 @@
 "use server";
 
 import { unstable_rethrow } from "next/navigation";
+import { readableDocument } from "@/lib/ai/document-file";
 import { readOrderDocument } from "@/lib/ai/document-reader";
 import { loadAiEnv, loadGlossary } from "@/lib/ai/settings";
 import { recordAiUsageLater } from "@/lib/ai/usage";
@@ -22,13 +23,7 @@ import {
 import { applyDocumentFill, checkReading } from "@/lib/inspections/document-fill";
 import { personLabel } from "@/lib/inspections/format";
 import { createInspectionRow, serverWriter } from "@/lib/inspections/writes";
-import {
-  DOCUMENT_MAX_BYTES,
-  DOCUMENT_MEDIA_TYPES,
-  DocumentFillSchema,
-  type DocumentFill,
-  type DocumentReadResult,
-} from "@/lib/schemas/document-fill";
+import { DOCUMENT_MAX_BYTES, DocumentFillSchema, type DocumentFill, type DocumentReadResult } from "@/lib/schemas/document-fill";
 import { ResolvedTemplateSchema } from "@/lib/schemas/template";
 import type { Json } from "@/lib/supabase/database.types";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -292,9 +287,10 @@ const READ_FAILED = "The document could not be read. Try again.";
  * Reads one of the Source Documents held on the form with the AI (docs/AI.md,
  * "Reading order documents") and answers what the form can fill in. Anyone
  * who can start an inspection may use it. The file is passed to the AI and
- * not stored (it uploads after Create); the lists are read through the
- * caller's client, so the AI matches only clients and manufacturers the
- * caller can pick.
+ * not stored (it uploads after Create); its bytes decide what it is, and an
+ * Excel or CSV file goes as its text (lib/ai/document-file.ts). The lists
+ * are read through the caller's client, so the AI matches only clients and
+ * manufacturers the caller can pick.
  */
 export async function readDocument(formData: FormData): Promise<DocumentReadResult> {
   try {
@@ -306,11 +302,8 @@ export async function readDocument(formData: FormData): Promise<DocumentReadResu
     if (file.size > DOCUMENT_MAX_BYTES) {
       return { status: "error", message: "The file is larger than 4 MB. Upload just the pages with the order details." };
     }
-    const mediaType = DOCUMENT_MEDIA_TYPES.find((type) => type === file.type);
-    const bytes = Buffer.from(await file.arrayBuffer());
-    if (!mediaType || (mediaType === "application/pdf" && bytes.subarray(0, 5).toString("latin1") !== "%PDF-")) {
-      return { status: "error", message: "Upload a PDF or a photo of the document." };
-    }
+    const readable = readableDocument(Buffer.from(await file.arrayBuffer()), { name: file.name, declared: file.type });
+    if (!readable.ok) return { status: "error", message: readable.message };
 
     const supabase = await createClient();
     const [clients, manufacturers] = await Promise.all([
@@ -330,7 +323,7 @@ export async function readDocument(formData: FormData): Promise<DocumentReadResu
     };
 
     const outcome = await readOrderDocument(
-      { mediaType, base64: bytes.toString("base64"), name: file.name },
+      readable.file,
       { ...lists, glossary: await loadGlossary() },
       await loadAiEnv(),
       // Its cost (Steri-AI Cost), recorded after the response: no inspection exists before Create.

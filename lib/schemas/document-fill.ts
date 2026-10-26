@@ -2,11 +2,16 @@
 // documents"): what Claude reads from an uploaded file, and what the form
 // posts on to the new inspection. Client-safe.
 import { z } from "zod";
+import { SPREADSHEET_TYPES } from "@/lib/photos/paths";
 import { CanonicalSizeSchema } from "@/lib/sizes";
 import { IsoDateSchema, ProductTypeSchema } from "./common";
 
-/** What the reader accepts: PDFs as they are; photos are turned into JPEG in the browser first. */
-export const DOCUMENT_MEDIA_TYPES = ["application/pdf", "image/jpeg", "image/png", "image/webp", "image/gif"] as const;
+/**
+ * What the reader accepts: PDFs as they are; photos are turned into JPEG in
+ * the browser first; Excel and CSV files are turned into text on the server
+ * (lib/ai/document-file.ts), as the AI takes no spreadsheet itself.
+ */
+export const DOCUMENT_MEDIA_TYPES = ["application/pdf", "image/jpeg", "image/png", "image/webp", "image/gif", ...SPREADSHEET_TYPES] as const;
 export type DocumentMediaType = (typeof DOCUMENT_MEDIA_TYPES)[number];
 
 /** Vercel caps a request at 4.5 MB, so a file stays under 4 MB. */

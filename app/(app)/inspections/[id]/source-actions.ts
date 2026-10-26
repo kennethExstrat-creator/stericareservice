@@ -2,6 +2,7 @@
 
 import { unstable_rethrow } from "next/navigation";
 import { z } from "zod";
+import { readableDocument } from "@/lib/ai/document-file";
 import { attachTargets, moduleDataJsonSchema, readSourceDocument, type SourceModule } from "@/lib/ai/source-reader";
 import { loadAiEnv, loadGlossary } from "@/lib/ai/settings";
 import { recordAiUsageLater } from "@/lib/ai/usage";
@@ -14,8 +15,8 @@ import {
   type SourceFileStatus,
   type SourceProposals,
 } from "@/lib/inspections/source-documents";
+import { FILE_BUCKET } from "@/lib/photos/paths";
 import { ResolvedTemplateSchema } from "@/lib/schemas/template";
-import type { DocumentMediaType } from "@/lib/schemas/document-fill";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { Json } from "@/lib/supabase/database.types";
 import { createClient } from "@/lib/supabase/server";
@@ -43,6 +44,10 @@ import type { FileKind } from "@/modules/_framework/files";
  * the screen that started it may be gone by then (Kenneth, 26 October 2026:
  * the sampling plan read from a photo while he looked at another page was
  * never filled). The next screen to open the inspection fills them in.
+ *
+ * Excel and CSV files are read too (Kenneth, 26 October 2026): Steri-AI
+ * gets their text, sheet by sheet, with the same rules as any document
+ * (lib/ai/document-file.ts).
  */
 
 export type SourceReadResult =
@@ -52,8 +57,6 @@ export type SourceReadResult =
 const IdSchema = z.uuid();
 const READ_FAILED = "The file could not be read. Try again.";
 const EDITABLE = new Set(["draft", "reopened"]);
-const MAX_PDF_BYTES = 20 * 1024 * 1024;
-const MAX_IMAGE_BYTES = 3.75 * 1024 * 1024;
 
 /** Each Source Document's reading so far, by file id, with the proposals no screen has filled in yet. */
 export async function getSourceDocumentStatuses(inspectionId: string): Promise<Record<string, SourceFileStatus>> {
@@ -111,17 +114,6 @@ export async function markSourceFilled(inspectionId: string, fileId: string): Pr
   }
 }
 
-/** What the bytes are, from their first bytes: the AI reads PDFs, JPEG, PNG, WebP and GIF. */
-function mediaTypeOf(bytes: Buffer): DocumentMediaType | null {
-  const head = bytes.subarray(0, 12);
-  if (head.subarray(0, 5).toString("latin1") === "%PDF-") return "application/pdf";
-  if (head[0] === 0xff && head[1] === 0xd8 && head[2] === 0xff) return "image/jpeg";
-  if (head.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]))) return "image/png";
-  if (head.subarray(0, 4).toString("latin1") === "RIFF" && head.subarray(8, 12).toString("latin1") === "WEBP") return "image/webp";
-  if (head.subarray(0, 4).toString("latin1") === "GIF8") return "image/gif";
-  return null;
-}
-
 /**
  * Reads one Source Document with the AI and answers what it proposes for
  * the inspection's modules, the file itself as a step's lab report or a
@@ -167,26 +159,24 @@ export async function readSourceFile(inspectionId: string, fileId: string): Prom
     if (!template.success || !data.success) return { status: "error", message: "This inspection's template or data cannot be read." };
 
     const [download, library] = await Promise.all([
-      supabase.storage.from("inspection-files").download(file.data.storage_path),
+      supabase.storage.from(FILE_BUCKET).download(file.data.storage_path),
       supabase.from("defect_codes").select("code, name").eq("active", true).order("name"),
     ]);
     if (download.error || !download.data) {
       console.error("[source documents] downloading the file failed", download.error?.message);
       return { status: "error", message: READ_FAILED };
     }
-    const bytes = Buffer.from(await download.data.arrayBuffer());
-    const mediaType = mediaTypeOf(bytes);
     const record = (status: "read" | "failed", summary: string, kind: FileKind | null = null, proposals: SourceProposals | null = null) =>
       recordReading(fileId, status, summary, kind, proposals);
-    if (!mediaType) {
-      const message = "Steri-AI reads PDFs and photos (JPEG or PNG). Save this file as a PDF and upload it again.";
-      await record("failed", message);
-      return { status: "error", message };
-    }
-    if (bytes.length > (mediaType === "application/pdf" ? MAX_PDF_BYTES : MAX_IMAGE_BYTES)) {
-      const message = "The file is too large for Steri-AI to read. Upload it in parts, a few pages at a time.";
-      await record("failed", message);
-      return { status: "error", message };
+    // What the bytes are (a CSV by its object name, .csv once uploaded as one), within Steri-AI's size for it;
+    // a spreadsheet as its text. A file it cannot read is marked so, with why.
+    const readable = readableDocument(Buffer.from(await download.data.arrayBuffer()), {
+      name: file.data.name,
+      storedAs: file.data.storage_path,
+    });
+    if (!readable.ok) {
+      await record("failed", readable.message);
+      return { status: "error", message: readable.message };
     }
 
     const switchedOff = new Set(Object.keys((row.module_overrides as Record<string, unknown> | null) ?? {}));
@@ -203,7 +193,7 @@ export async function readSourceFile(inspectionId: string, fileId: string): Prom
 
     const outcome = await readSourceDocument(
       {
-        file: { mediaType, base64: bytes.toString("base64"), name: file.data.name },
+        file: readable.file,
         modules,
         sizes: template.data.sizes,
         unit: template.data.unit,

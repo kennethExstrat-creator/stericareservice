@@ -5,9 +5,12 @@
 // until the client, manufacturer, product type and product name are filled,
 // and a reading fills only what is still empty (the first answer wins). The
 // header values and order lines of every document read go in with Create.
+// Files takes PDFs, photos, and Excel and CSV files (Kenneth, 26 October
+// 2026), which Steri-AI reads as text; Media never takes a spreadsheet.
 // Pure, so the rules are unit-tested without a browser.
 import { mediaKind } from "@/lib/inspections/source-documents";
 import { FILE_SIZE_LIMIT } from "@/lib/photos/paths";
+import { spreadsheetTypeOf } from "@/lib/photos/sniff";
 import {
   DOCUMENT_MAX_BYTES,
   DOCUMENT_MEDIA_TYPES,
@@ -27,10 +30,10 @@ export type ReadState =
   | { step: "reading" }
   | { step: "read"; read: DocumentRead }
   | { step: "failed"; message: string }
-  /** Not read here: the reader takes PDFs and photos up to 4 MB. Source Documents reads it after Create. */
+  /** Not read here: the reader takes PDFs, photos, Excel and CSV files up to 4 MB. Source Documents reads it after Create. */
   | { step: "later" };
 
-/** A document held for the new inspection: a PDF as it is, a photo as 2048 px JPEG (lib/photos/readable.ts). */
+/** A document held for the new inspection: a PDF or a spreadsheet as it is, a photo as 2048 px JPEG (lib/photos/readable.ts). */
 export type HeldDocument = { key: string; file: File; url: string; state: ReadState };
 
 /** A photo or video held for the new inspection's Auto-Sort. */
@@ -40,7 +43,9 @@ const MB = 1024 * 1024;
 
 /** Why a file stays off Files, or null when it may go on. */
 export function documentRefusal(file: { type: string; name: string; size: number }): string | null {
-  if (!isPdf(file) && mediaKind(file) !== "photo") return "Files takes PDFs and photos. Add videos under Media.";
+  if (!isPdf(file) && spreadsheetTypeOf(file) === null && mediaKind(file) !== "photo") {
+    return "Files takes PDFs, photos, Excel and CSV files. Add videos under Media.";
+  }
   if (file.size === 0) return "The file is empty.";
   if (file.size > FILE_SIZE_LIMIT) return `The file is larger than ${FILE_SIZE_LIMIT / MB} MB.`;
   return null;
@@ -60,7 +65,7 @@ export function isPdf(file: { type: string; name: string }): boolean {
   return file.type === "application/pdf" || (file.type === "" && /\.pdf$/i.test(file.name));
 }
 
-/** Whether this page's reader takes the file as held: a type it reads, up to 4 MB (a request's limit). */
+/** Whether this page's reader takes the file as held: a type it reads (a PDF, a photo, an Excel or CSV file), up to 4 MB (a request's limit). */
 export function readsHere(file: { type: string; size: number }): boolean {
   return file.size <= DOCUMENT_MAX_BYTES && (DOCUMENT_MEDIA_TYPES as readonly string[]).includes(file.type);
 }
