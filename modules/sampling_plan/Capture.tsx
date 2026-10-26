@@ -26,6 +26,11 @@
 // the plan comes in, beside typing it and Steri-AI reading a photo of the
 // written table on Source Documents. Cases already typed are replaced only
 // after a yes.
+//
+// Each test row (watertight and visual, dimension, the physical test, weight,
+// packaging and dispensing) has a switch at its left (Kenneth, 26 October
+// 2026): switched off, the row is greyed, never hidden, its cells take no
+// typing and nothing in it is asked for.
 import { CalculatorIcon } from "lucide-react";
 import { useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { toast } from "sonner";
@@ -51,6 +56,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
+import { Switch } from "@/components/ui/switch";
 import { formatSize } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { labelFor, lotSizeGloves, type CaptureProps } from "@/modules/_framework";
@@ -60,7 +66,7 @@ import { autoSampleCases } from "./auto-cases";
 import type { SamplingPlanComputed } from "./calc";
 import type { SamplingColumn, SamplingPlanConfig } from "./config";
 import { countGroups, type CountRow } from "./rows";
-import { withCount, type SamplingPlanData } from "./schema";
+import { isRowSwitch, rowsOff, withCount, withRowOff, type RowSwitch, type SamplingPlanData } from "./schema";
 
 /** The rows of the grid, top to bottom. */
 type Line =
@@ -135,6 +141,8 @@ export default function Capture({
 
   const setCount = (size: string, column: SamplingColumn, value: number | null) =>
     update((current) => withCount(current, size, column, value));
+  const off = rowsOff(data);
+  const setRowOff = (column: RowSwitch, switchedOff: boolean) => update((current) => withRowOff(current, column, switchedOff));
 
   // Auto Calculate Sampling, where the template has a Case row: null until every size has its order quantity.
   const hasCases = groups.some((group) => group.rows.some((row) => row.column === "cases"));
@@ -238,6 +246,8 @@ export default function Capture({
           </div>
         );
       case "count":
+        // A test row's label holds its switch, a control: it is drawn with the switches, not in this hidden layer.
+        if (isRowSwitch(line.row.column)) return null;
         return (
           <div
             key={line.row.column}
@@ -287,8 +297,14 @@ export default function Capture({
           const { column: count } = line.row;
           const path = ["sizes", size, count] as const;
           const own = issues.filter((issue) => samePath(issue.path, path));
+          const rowOff = isRowSwitch(count) && off.has(count);
           return (
-            <div key={count} style={at(row, column)} className={cn(CELL, "border-l border-border p-0", edge(row))}>
+            <div
+              key={count}
+              data-row-off={rowOff || undefined}
+              style={at(row, column)}
+              className={cn(CELL, "border-l border-border p-0", rowOff && "bg-slate-50 opacity-50", edge(row))}
+            >
               <NumberField
                 variant="cell"
                 id={fieldId(size, count)}
@@ -302,7 +318,7 @@ export default function Capture({
                 issuePath={path}
                 onFocus={() => onFocusChange?.({ size })}
                 onInvalidChange={(entry) => setRejectedEntry(size, count, entry)}
-                readOnly={readOnly}
+                readOnly={readOnly || rowOff}
                 className="w-full"
               />
             </div>
@@ -346,7 +362,11 @@ export default function Capture({
         return null;
       case "count":
         return (
-          <div key={line.row.column} style={at(row, totalColumn)} className={cell}>
+          <div
+            key={line.row.column}
+            style={at(row, totalColumn)}
+            className={cn(cell, isRowSwitch(line.row.column) && off.has(line.row.column) && "opacity-50")}
+          >
             <span className="sr-only">{line.row.label}: </span>
             <Figure value={computed?.totals?.[line.row.column] ?? null} grouping />
           </div>
@@ -354,6 +374,35 @@ export default function Capture({
       case "result":
         return <div key="result" aria-hidden style={at(row, totalColumn)} className={cell} />;
     }
+  });
+
+  // Each test row's label with its switch, in the label column: a layer of their own, reachable, as the cells are.
+  const switchCells = lines.map((line, index): ReactNode => {
+    if (line.kind !== "count" || !isRowSwitch(line.row.column)) return null;
+    const column = line.row.column;
+    const rowOff = off.has(column);
+    const row = index + 1;
+    return (
+      <div
+        key={column}
+        data-slot="row-switch"
+        data-row-off={rowOff || undefined}
+        style={at(row, 1)}
+        title={line.row.shown === line.row.label ? undefined : line.row.label}
+        className={cn(CELL, LABEL_CELL, "gap-2.5", rowOff ? "bg-slate-50 text-muted-foreground" : "text-foreground", edge(row))}
+      >
+        <Switch
+          size="sm"
+          checked={!rowOff}
+          onCheckedChange={(on) => setRowOff(column, !on)}
+          disabled={readOnly}
+          aria-label={`${line.row.label}: counted`}
+        />
+        <span aria-hidden className={cn("min-w-0", rowOff && "line-through decoration-slate-400")}>
+          {line.row.shown}
+        </span>
+      </div>
+    );
   });
 
   return (
@@ -375,6 +424,10 @@ export default function Capture({
               {/* For the eye: every cell names its count and size itself. */}
               <div aria-hidden className="contents">
                 {labelCells}
+              </div>
+              {/* The test rows' switches, with their labels. */}
+              <div role="group" aria-label="Tests counted" className="contents">
+                {switchCells}
               </div>
               {/* Size by size, top to bottom: the cells' run for Enter and a paste. */}
               {sizes.map((size, index) => (

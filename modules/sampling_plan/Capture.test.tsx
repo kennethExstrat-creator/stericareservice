@@ -78,6 +78,8 @@ describe("sampling_plan Capture", () => {
     // No tabs: every size is on screen at once.
     expect(tagsWith(html, 'role="tab"')).toEqual([]);
     expect(tagsWith(html, 'role="group"').map((group) => /aria-label="([^"]+)"/.exec(group)?.[1])).toEqual([
+      // The test rows' switches with their labels (Kenneth, 26 October 2026), then each size's cells.
+      "Tests counted",
       "Size XS",
       "Size S",
       "Size M",
@@ -115,7 +117,7 @@ describe("sampling_plan Capture", () => {
     );
     expect(headings).toEqual(["Sampling Quantity", "# Gloves for Each Test", "# Inner Box"]);
     // The row says what the test is; the cell keeps the template's whole wording as its name.
-    expect(html).toContain(">Watertight &amp; Visual</div>");
+    expect(html).toMatch(/data-slot="row-switch"[^>]*>(?:(?!data-slot="row-switch")[\s\S])*>Watertight &amp; Visual<\/span>/);
     expect(html).toContain('aria-label="# Gloves for Watertight &amp; Visual, Size M"');
     // The order and the lot come first, read-only, then the counts; no inspection level (Kenneth, 26 October 2026).
     expect(html.indexOf("Order Qty (Case)")).toBeLessThan(html.indexOf("Lot Size (Gloves)"));
@@ -176,6 +178,38 @@ describe("sampling_plan Capture", () => {
     expect(tagsWith(html, 'id="sampling-plan-M-glovesWatertightVisual"')[0]).toContain("bg-warn-tint");
     expect(html).toContain("Size M, # Gloves for Watertight &amp; Visual: 100 is not a standard sample size");
     expect(tagsWith(html, 'data-slot="sampling-issues"')).toHaveLength(1);
+  });
+
+  it("puts a switch at the left of each test row; off, the row is greyed, takes no typing and is not asked for (Kenneth, 26 October 2026)", () => {
+    // With the weight row on, as STD_EG shows it.
+    const withWeight: SamplingPlanConfig = { ...LEVEL_I, columns: { ...LEVEL_I.columns, glovesWeight: true } };
+    const html = render(props(STD_EG_EXAMPLE, withWeight));
+    const switches = tagsWith(html, 'role="switch"');
+    // Watertight & visual, dimension, the physical test, weight and packaging & dispensing: not the cases, inner units or gloves.
+    expect(switches.map((tag) => /aria-label="([^"]+)"/.exec(tag)?.[1])).toEqual([
+      "# Gloves for Watertight &amp; Visual: counted",
+      "# Gloves for Dimension: counted",
+      "# Gloves for FAB: counted",
+      "# Gloves for Weight: counted",
+      "# Inner Box for Packaging &amp; Dispensing Inspection: counted",
+    ]);
+    for (const tag of switches) expect(tag).toContain('aria-checked="true"');
+
+    // Weight switched off: still on screen, greyed, read-only, and no longer missing from the size.
+    const data = exampleData(STD_EG_EXAMPLE, {
+      sampling_plan: { ...samplingPlanData(STD_EG_EXAMPLE), sizes: { M: { ...samplingPlanData(STD_EG_EXAMPLE).sizes.M, glovesWeight: null } } },
+    });
+    const missing = props(STD_EG_EXAMPLE, withWeight, SAMPLING_PLAN_LABELS, data);
+    expect(missing.evaluation.result.perSize?.M?.status).toBe("not_done");
+    const offData = exampleData(STD_EG_EXAMPLE, {
+      sampling_plan: { ...(data.modules.sampling_plan as SamplingPlanData), rowsOff: ["glovesWeight"] },
+    });
+    const off = props(STD_EG_EXAMPLE, withWeight, SAMPLING_PLAN_LABELS, offData);
+    expect(off.evaluation.result.perSize?.M?.status).toBe("info");
+    const offHtml = render(off);
+    expect(tagsWith(offHtml, 'role="switch"').find((tag) => tag.includes("Weight"))).toContain('aria-checked="false"');
+    expect(tagsWith(offHtml, 'id="sampling-plan-M-glovesWeight"')[0]).toContain("readOnly");
+    expect(tagsWith(offHtml, 'data-row-off="true"').length).toBeGreaterThan(0);
   });
 
   it("marks an impossible count red in its cell", () => {

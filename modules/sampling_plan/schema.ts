@@ -33,8 +33,45 @@ export const SamplingSizeSchema = z.strictObject({
 });
 export type SamplingSize = z.infer<typeof SamplingSizeSchema>;
 
-export const SamplingPlanDataSchema = perSizeData(SamplingSizeSchema);
+/**
+ * The test rows the inspector may switch off on screen when the inspection
+ * does not run that test (Kenneth, 26 October 2026): greyed, never hidden,
+ * and no longer asked for. Data saved before the switches existed has none
+ * off.
+ */
+export const ROW_SWITCHES = [
+  "glovesWatertightVisual",
+  "glovesDimensions",
+  "glovesPhysical",
+  "glovesWeight",
+  "innerUnitsDispensing",
+] as const satisfies readonly (keyof SamplingSize)[];
+export type RowSwitch = (typeof ROW_SWITCHES)[number];
+
+export const SamplingPlanDataSchema = perSizeData(SamplingSizeSchema).extend({
+  rowsOff: z
+    .array(z.enum(ROW_SWITCHES))
+    .optional()
+    .describe("Test rows the inspector switched off on screen. Never set from a document."),
+});
 export type SamplingPlanData = z.infer<typeof SamplingPlanDataSchema>;
+
+export function isRowSwitch(column: string): column is RowSwitch {
+  return (ROW_SWITCHES as readonly string[]).includes(column);
+}
+
+/** The test rows switched off. */
+export function rowsOff(data: SamplingPlanData): ReadonlySet<RowSwitch> {
+  return new Set(data.rowsOff ?? []);
+}
+
+/** `data` with one test row switched off or on; the same `data` when nothing changes. */
+export function withRowOff(data: SamplingPlanData, column: RowSwitch, off: boolean): SamplingPlanData {
+  const current = rowsOff(data);
+  if (current.has(column) === off) return data;
+  const next = ROW_SWITCHES.filter((entry) => (entry === column ? off : current.has(entry)));
+  return { ...data, rowsOff: next };
+}
 
 export function emptySamplingPlan(): SamplingPlanData {
   return SamplingPlanDataSchema.parse({});

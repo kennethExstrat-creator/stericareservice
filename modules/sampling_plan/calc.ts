@@ -44,7 +44,7 @@ import {
   type SamplingColumn,
   type SamplingPlanConfig,
 } from "./config";
-import { emptySamplingSize, type SamplingPlanData, type SamplingSize } from "./schema";
+import { emptySamplingSize, rowsOff, type SamplingPlanData, type SamplingSize } from "./schema";
 
 /** One size's lot at the inspection level, and its watertight and visual sample against it. */
 export type SizePlan = {
@@ -86,8 +86,13 @@ export function calcSamplingPlan({
   const level = config.inspectionLevel ?? context.aql.inspectionLevel;
   const issues: CalcIssue[] = [];
   const sizes: Record<string, SizePlan> = {};
+  // A test row switched off on screen is neither asked for nor checked (Kenneth, 26 October 2026); what it holds
+  // still goes forward as entered (contributeSamplingPlan), and the totals still sum it.
+  const off = rowsOff(data);
+  const asked: SamplingPlanConfig =
+    off.size === 0 ? config : { ...config, columns: { ...config.columns, ...Object.fromEntries([...off].map((column) => [column, false])) } };
   const perSize = perSizeResults(context.sizes, (size) => {
-    const checked = checkSize({ size, row: data.sizes[size] ?? emptySamplingSize(), config, level, labels, context });
+    const checked = checkSize({ size, row: data.sizes[size] ?? emptySamplingSize(), config: asked, level, labels, context });
     sizes[size] = checked.plan;
     issues.push(...checked.issues);
     return checked.result;
