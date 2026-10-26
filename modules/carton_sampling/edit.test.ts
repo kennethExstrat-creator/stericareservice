@@ -6,6 +6,7 @@ import {
   cartonRows,
   cartonRowsShown,
   clearCartonRow,
+  completedCartons,
   MIN_CARTON_ROWS,
   nextCartonRow,
   pastedCartons,
@@ -307,5 +308,24 @@ describe("carton table messages", () => {
     expect(pasteMessage(many)).toBe(
       "No box/carton numbers pasted. Left out: “a” (not a box/carton number), “b” (not a box/carton number), “c” (not a box/carton number), “d” (not a box/carton number), “e” (not a box/carton number) and 2 more.",
     );
+  });
+});
+
+describe("completedCartons (Kenneth, 26 October 2026)", () => {
+  it("fills an empty list with the numbers read", () => {
+    expect(completedCartons([], [41, 233])).toEqual([41, 233]);
+    expect(completedCartons([null, null], [41, 233])).toEqual([41, 233]);
+  });
+
+  it("takes a fuller list that holds every number already there, in its own order", () => {
+    expect(completedCartons([233, 512], [41, 233, 360, 512])).toEqual([41, 233, 360, 512]);
+    expect(completedCartons([null, 512, null], [512, 600])).toEqual([512, 600]);
+  });
+
+  it("changes nothing for a list it does not hold, nor when it adds no number", () => {
+    expect(completedCartons([233, 512], [41, 233])).toBeNull();
+    expect(completedCartons([233, 512], [512, 233])).toBeNull();
+    expect(completedCartons([233], [])).toBeNull();
+    expect(completedCartons([], [])).toBeNull();
   });
 });

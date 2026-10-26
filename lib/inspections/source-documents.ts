@@ -10,7 +10,7 @@ import type { ModuleKey } from "@/lib/schemas/module-result";
 import type { ModuleRegistry } from "@/modules/_framework/contract";
 import { readModuleEntry, writeModuleData, type InspectionData } from "@/modules/_framework/data";
 import type { FileKind } from "@/modules/_framework/files";
-import { pasteCartons } from "@/modules/carton_sampling/edit";
+import { completedCartons, pasteCartons } from "@/modules/carton_sampling/edit";
 import { emptyCartonSampling } from "@/modules/carton_sampling/schema";
 import { checklist, DOCUMENT_FILE_KIND, DOCUMENT_ITEMS, DocumentsConfigSchema } from "@/modules/documents/config";
 
@@ -205,36 +205,50 @@ export function fillModule(schema: Schema, current: Record<string, unknown>, pro
 }
 
 /**
- * Box/Carton Numbers (carton_sampling) as a reading proposes them: Steri-AI
+ * Box/Carton Numbers (carton_sampling) with a reading's numbers in: Steri-AI
  * copies each box/carton number a document gives for a size into the size's
- * list too (lib/ai/reading-guide.ts; Kenneth, 14 October 2026). A size's list
- * goes in only while the size's table holds no number, and then as a list
- * pasted into its first row would (pasteCartons): rows 1 to n in the
- * document's order, each number once, at most 2,000; a repeat, or anything
- * that is no box/carton number, is left out. A table holding any number is
- * left alone: filled gap by gap, as fillEmpty fills a list, a number could
- * land in a row it was not read for, or repeat another row's.
+ * list too (lib/ai/reading-guide.ts; Kenneth, 14 October 2026). The numbers
+ * read are taken as a list pasted into the table's first row would take them
+ * (pasteCartons): in the document's order, each number once, at most 2,000; a
+ * repeat, or anything that is no box/carton number, is left out. They go in
+ * whole, never gap by gap: into an empty list, or over a list whose every
+ * number they hold, a fuller one (completedCartons; Kenneth, 26 October 2026:
+ * a carton sheet read after a dispensing page completes its list). Any other
+ * list stays as it is. `added` counts the numbers the lists did not hold.
  */
-function cartonSamplingProposal(current: Record<string, unknown>, proposal: Record<string, unknown>): Record<string, unknown> {
+function cartonSamplingFill(
+  schema: Schema,
+  current: Record<string, unknown>,
+  proposal: Record<string, unknown>,
+): { value: Record<string, unknown>; added: number } {
   const proposed = isRecord(proposal.sizes) ? proposal.sizes : {};
   const held = isRecord(current.sizes) ? current.sizes : {};
-  const sizes: Record<string, unknown> = {};
+  const sizes: Record<string, unknown> = { ...held };
+  let added = 0;
   for (const [size, entry] of Object.entries(proposed)) {
-    const row = held[size];
-    if (!isRecord(entry) || !Array.isArray(entry.cartonNumbers) || (isRecord(row) && !isEmptyValue(row.cartonNumbers))) continue;
+    if (!isRecord(entry) || !Array.isArray(entry.cartonNumbers)) continue;
     // Numbers only, as the schema takes them: text, null and the rest go in as blanks, which a paste skips.
     const entries = entry.cartonNumbers.map((carton) => (typeof carton === "number" ? String(carton) : ""));
-    const { placed } = pasteCartons(emptyCartonSampling(), size, 0, entries);
-    if (placed.length > 0) sizes[size] = { cartonNumbers: placed.map(({ carton }) => carton) };
+    const read = pasteCartons(emptyCartonSampling(), size, 0, entries).placed.map(({ carton }) => carton);
+    const row = isRecord(held[size]) ? held[size] : {};
+    const rows = Array.isArray(row.cartonNumbers) ? row.cartonNumbers.map((carton) => (typeof carton === "number" ? carton : null)) : [];
+    const list = completedCartons(rows, read);
+    if (list === null) continue;
+    const before = new Set(rows);
+    added += list.filter((carton) => !before.has(carton)).length;
+    sizes[size] = { ...row, cartonNumbers: list };
   }
-  return { sizes };
+  if (added === 0) return { value: current, added: 0 };
+  const parsed = schema.safeParse({ ...current, sizes });
+  return parsed.success && isRecord(parsed.data) ? { value: parsed.data, added } : { value: current, added: 0 };
 }
 
 /**
  * The inspection's data with a reading's proposals filled in: only modules
  * the template includes (never the conclusion), only fields still empty,
  * only values each module's schema accepts. `filled` counts the values.
- * Box/Carton Numbers take a size's list whole (cartonSamplingProposal).
+ * Box/Carton Numbers take a size's list whole, into an empty list or over
+ * one it completes (cartonSamplingFill).
  */
 export function applyProposals(
   data: InspectionData,
@@ -250,9 +264,9 @@ export function applyProposals(
     const definition = registry[key as ModuleKey];
     const entry = readModuleEntry(next, "modules", key);
     const current = isRecord(entry.value) && entry.hasData ? entry.value : (definition.emptyData() as Record<string, unknown>);
-    const proposed = key === "carton_sampling" ? cartonSamplingProposal(current, proposal) : proposal;
-    const value = fillModule(definition.dataSchema as Schema, current, proposed);
-    const count = countFilled(current, value);
+    const carton = key === "carton_sampling" ? cartonSamplingFill(definition.dataSchema as Schema, current, proposal) : null;
+    const value = carton ? carton.value : fillModule(definition.dataSchema as Schema, current, proposal);
+    const count = carton ? carton.added : countFilled(current, value);
     if (count === 0) continue;
     next = writeModuleData(next, "modules", key, value);
     filled += count;

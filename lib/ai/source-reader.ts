@@ -69,7 +69,8 @@ const MAX_TOKENS = 16_000;
 /**
  * Byte-stable. Since 14 October 2026 a box/carton number goes into its test
  * and also into carton_sampling's list for its size (PAPER_FORM_GUIDE says
- * how), which the capture screen fills only while the list is empty.
+ * how), which the capture screen fills into an empty list or over one the
+ * document's list completes (lib/inspections/source-documents.ts).
  */
 export const SOURCE_READER_SYSTEM_PROMPT = `You read the source documents of a glove quality-control inspection for SteriCare and fill in the inspection's fields from them.
 
@@ -87,7 +88,7 @@ Rules:
 - Follow each module's schema exactly: its field names and types (numbers as numbers, never as text), dates as YYYY-MM-DD, sizes as the size values given.
 - Per-size data goes under that size, as the schema shows. Lists of readings keep the document's order.
 - A box/carton number goes into its own test's field and also into carton_sampling's list for its size (the paper form guide below).
-- Leave out fields that already hold a value in the current data, and never answer for the conclusion.
+- Leave out fields that already hold a value in the current data, and never answer for the conclusion. Box/carton number lists are the exception: give a document's whole list (the paper form guide below).
 - Never write a file field (labReport, a documents item's file): the app fills it from "attachTo".
 - Do not work out totals, averages, statistics, results or pass/fail: the app calculates them.
 - If the document holds nothing for these modules, answer {"summary": "...", "modules": {}}.

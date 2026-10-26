@@ -157,6 +157,22 @@ describe("applyProposals on Box/Carton Numbers (Kenneth, 14 October 2026)", () =
     expect(both.filled).toBe(2);
   });
 
+  it("completes a list from a fuller one holding every number it has, in the document's order (Kenneth, 26 October 2026)", () => {
+    // The dispensing page's 4 boxes first, then the finished goods sampling sheet's 8 sampled cartons, the 4 among them.
+    const dispensing = [233, 512, 919, 1350];
+    const sheet = [41, 233, 360, 512, 707, 919, 1108, 1350];
+    const data = { modules: { carton_sampling: { sizes: { S: { cartonNumbers: dispensing } } } }, custom: {} };
+    const result = applyProposals(data, { carton_sampling: { sizes: { S: { cartonNumbers: sheet } } } }, MODULE_REGISTRY, included);
+    expect(cartons(result.data)).toEqual({ sizes: { S: { cartonNumbers: sheet } } });
+    expect(result.filled).toBe(4);
+    // Another order's sheet, without the boxes already there: the list stays as it is.
+    const other = applyProposals(data, { carton_sampling: { sizes: { S: { cartonNumbers: [5, 6, 7, 8, 9] } } } }, MODULE_REGISTRY, included);
+    expect(other).toEqual({ data, filled: 0, modules: [] });
+    // The same numbers again, or fewer: nothing to add.
+    expect(applyProposals(data, { carton_sampling: { sizes: { S: { cartonNumbers: dispensing } } } }, MODULE_REGISTRY, included).filled).toBe(0);
+    expect(applyProposals(data, { carton_sampling: { sizes: { S: { cartonNumbers: [233, 512] } } } }, MODULE_REGISTRY, included).filled).toBe(0);
+  });
+
   it("keeps a repeated number out, as the table's paste does (pasteCartons), with whatever is no box/carton number, leaving no gap", () => {
     const proposal = { sizes: { S: { cartonNumbers: [41, 233, 41, "360", null, 0, 52.5, -7, 512, 233] } } };
     const result = applyProposals({ modules: {}, custom: {} }, { carton_sampling: proposal }, MODULE_REGISTRY, included);

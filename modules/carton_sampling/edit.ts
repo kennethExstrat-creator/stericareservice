@@ -174,6 +174,22 @@ export type PastedCartons = {
  * left out leaves no gap. Nothing filled, or every row filled with the
  * number it held: the same `data` comes back.
  */
+/**
+ * A document's box/carton numbers for one size, over the size's list, as
+ * Steri-AI proposes them (Kenneth, 26 October 2026: a carton sheet read after
+ * a dispensing page must complete the list the page started). An empty list
+ * takes the document's numbers. A list whose every number the document also
+ * gives takes the document's fuller list, in its order. Any other list stays
+ * as it is, so a document of another order never changes it. Null: nothing
+ * to change, also when the document adds no number.
+ */
+export function completedCartons(held: readonly (number | null)[], read: readonly number[]): number[] | null {
+  const kept = held.filter((carton): carton is number => carton !== null);
+  const given = new Set(read);
+  if (!kept.every((carton) => given.has(carton))) return null;
+  return read.length > kept.length ? [...read] : null;
+}
+
 export function pasteCartons(data: CartonSamplingData, size: string, start: number, entries: readonly string[]): PastedCartons {
   const rows = cartonRows(data, size);
   const room = Math.max(0, MAX_CARTONS_PER_SIZE - start);

@@ -37,7 +37,7 @@ describe("the paper form guide", () => {
     expect(PAPER_FORM_GUIDE).toContain("(by size: box/carton number, layering %, dispensing %, stickiness code, others)");
   });
 
-  it("puts each box/carton number a document gives into the size's sampled cartons too, while that list is empty (Kenneth, 14 October 2026)", () => {
+  it("puts each box/carton number a document gives into the size's sampled cartons too, the whole list even where one is held (Kenneth, 14 and 26 October 2026)", () => {
     const lines = PAPER_FORM_GUIDE.split("\n");
     const at = lines.findIndex((entry) => entry.startsWith("- So each box/carton number a document gives for a size's boxes"));
     // Straight after the line that makes a box number and a carton number one number.
@@ -48,7 +48,9 @@ describe("the paper form guide", () => {
     expect(line).toContain(
       "in the order the document lists them, each number once (the list never repeats a number, though a test may use one carton twice), as written.",
     );
-    expect(line).toContain("Only while that size's list is empty in the current data.");
+    // A carton sheet read after the dispensing page completes its list (Kenneth, 26 October 2026).
+    expect(line).not.toContain("Only while that size's list is empty");
+    expect(line).toContain("Give the document's whole list for each size even when that size's list already holds numbers");
     expect(line).toContain("Never pad the list to the cases sampled, never add a number the documents do not state");
     expect(line).toContain("leave out a packing list's carton numbering (the shipment's cartons, not the sample)");
   });
