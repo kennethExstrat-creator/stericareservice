@@ -93,15 +93,16 @@ describe("sampling_plan Capture", () => {
     expect(render(props(STD_EG_EXAMPLE))).not.toContain("# Gloves for Weight");
   });
 
-  it("shows the order, the lot in gloves and the level's plan beside the counts, computed not typed (6.2 rule 2)", () => {
+  it("shows the order, the lot in gloves and the inspection level beside the counts, computed not typed (6.2 rule 2)", () => {
     const html = render(props(SAFEDON_EG_EXAMPLE));
-    for (const text of ["Order Qty (Case)", "Lot Size (Gloves)", "Inspection Level", "Code Letter", "Sample Size by Plan"]) {
-      expect(html).toContain(text);
-    }
-    for (const value of ["120,000", "1,700,000", "1,120,000", "200", "500"]) expect(html).toContain(value);
-    // No level: no plan to show.
+    for (const text of ["Order Qty (Case)", "Lot Size (Gloves)", "Inspection Level"]) expect(html).toContain(text);
+    for (const value of ["120,000", "1,700,000", "1,120,000"]) expect(html).toContain(value);
+    // No code letter or plan sample size on the card (Kenneth, 26 October 2026).
+    expect(html).not.toContain("Code Letter");
+    expect(html).not.toContain("Sample Size by Plan");
+    // No level: no level to show.
     const plain = render(props(SAFEDON_EG_EXAMPLE, SAMPLING_PLAN_DEFAULT_CONFIG));
-    expect(plain).not.toContain("Sample Size by Plan");
+    expect(plain).not.toContain("Inspection Level");
   });
 
   it("puts the below-plan warning under the cell it concerns, and links issues to the cells (BUILD_SPEC 6.1, 6.2)", () => {

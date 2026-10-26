@@ -4,7 +4,7 @@
 // counts on the numeric keypad, in the template's columns and wording. Enter
 // moves to the next count and a pasted row or column fills the counts after
 // it. Beside them: the order quantity, the lot in gloves and the inspection
-// level's plan, and the size's result as the counts change.
+// level, and the size's result as the counts change.
 import { useRef, useState, type ReactNode } from "react";
 import {
   EnterGroup,
@@ -136,22 +136,9 @@ export default function Capture({
       },
     ];
     if (level !== null) {
-      facts.push(
-        { key: "inspectionLevel", label: label("inspectionLevel"), value: level },
-        { key: "codeLetter", label: label("codeLetter"), value: plan?.codeLetter ?? <Figure value={null} /> },
-        {
-          key: "planSampleSize",
-          label: label("planSampleSize"),
-          value: (
-            <>
-              <Figure value={plan?.planSampleSize ?? null} grouping />
-              {plan?.planCodeLetter && plan.planCodeLetter !== plan.codeLetter && (
-                <span className="font-normal text-muted-foreground"> ({plan.planCodeLetter})</span>
-              )}
-            </>
-          ),
-        },
-      );
+      // No code letter or plan sample size on the card (Kenneth, 26 October 2026: "remove the code letter and
+      // sampling size by plan"): the warning under a count below the plan still names both.
+      facts.push({ key: "inspectionLevel", label: label("inspectionLevel"), value: level });
     }
     const both = groups.quantity.length > 0 && groups.tests.length > 0;
     return (
