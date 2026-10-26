@@ -14,9 +14,10 @@
 //
 // It is where a new inspection starts (Kenneth, 26 October 2026: "one of the
 // most important section to start with, uploading document and let AI
-// prefill straightaway"), so it is the form's main column, and each side
-// opens on a drop area that fills the card, a tap anywhere in it opening the
-// picker. Once something is added, the drop area is a row above the list. On
+// prefill straightaway"), so it is the form's main column. Each side opens
+// on a large drop area, a tap anywhere in it opening the picker, that becomes
+// a row above the list once something is added: the card is only as tall as
+// what it holds, growing as documents come in (Kenneth, 26 October 2026). On
 // a wide card (48rem), what Steri-AI filled in sits beside the files.
 import {
   CheckIcon,
@@ -68,11 +69,9 @@ type SourceDocumentsPanelProps = {
   filled: readonly SummaryLine[];
   /** Companies it read that are in neither list, while that field is still empty. */
   unlisted: readonly SummaryLine[];
-  /** The card's: the form makes it as tall as the side column. */
-  className?: string;
 };
 
-export function SourceDocumentsPanel({ id, sources, disabled, filled, unlisted, className }: SourceDocumentsPanelProps) {
+export function SourceDocumentsPanel({ id, sources, disabled, filled, unlisted }: SourceDocumentsPanelProps) {
   const [tab, setTab] = useState<SourceTab>("files");
   const [previewing, setPreviewing] = useState<{ name: string; url: string; kind: PreviewKind } | null>(null);
   const reading = sources.documents.find((document) => document.state.step === "reading");
@@ -82,7 +81,7 @@ export function SourceDocumentsPanel({ id, sources, disabled, filled, unlisted, 
       icon={FolderOpenIcon}
       title={SOURCE_DOCUMENTS_TITLE}
       actions={<SourceTabs value={tab} onValueChange={setTab} />}
-      className={cn("gap-4", className)}
+      className="gap-4"
       data-testid="source-documents"
     >
       <p role="status" className="sr-only">
@@ -118,15 +117,15 @@ function FilesSide({
   filled,
   unlisted,
   onPreview,
-}: Omit<SourceDocumentsPanelProps, "id" | "className"> & { onPreview: (document: HeldDocument) => void }) {
+}: Omit<SourceDocumentsPanelProps, "id"> & { onPreview: (document: HeldDocument) => void }) {
   const { documents, preparing, canRead } = sources;
   const lines = createLines(sources.fill);
   const empty = documents.length === 0 && preparing === 0;
   const summary = filled.length > 0 || unlisted.length > 0 || lines.length > 0;
   return (
     // A size container: the summary goes beside the files once the card is 48rem wide (landscape and desktop), under them in portrait.
-    <div className="@container flex flex-1 flex-col" data-slot="held-files">
-      <div className={cn("grid flex-1 gap-4", summary && "@3xl:grid-cols-[minmax(0,1fr)_minmax(16rem,22rem)] @3xl:items-start")}>
+    <div className="@container" data-slot="held-files">
+      <div className={cn("grid gap-4", summary && "@3xl:grid-cols-[minmax(0,1fr)_minmax(16rem,22rem)] @3xl:items-start")}>
         <div className="flex min-w-0 flex-col gap-3">
           <DropArea
             slot="read-drop"
@@ -277,7 +276,7 @@ function MediaSide({
   onPreview: (item: HeldMedia) => void;
 }) {
   return (
-    <div className="flex flex-1 flex-col gap-3" data-slot="held-media">
+    <div className="flex flex-col gap-3" data-slot="held-media">
       <DropArea
         slot="auto-sort"
         title="Auto-Sort"
@@ -322,7 +321,7 @@ type DropAreaProps = {
   accept: string;
   /** On the picker, for the e2e specs: data-file-input, data-media-input. */
   inputData: Record<`data-${string}`, string>;
-  /** Nothing added yet: it fills the card, centred, with the solid button, as the place to start. */
+  /** Nothing added yet: large and centred, with the solid button, as the place to start. */
   roomy: boolean;
   disabled: boolean;
   onFiles: (files: readonly File[]) => void;
@@ -330,9 +329,8 @@ type DropAreaProps = {
 
 /**
  * A side's drop area, like Auto-Sort on the capture screen: files dropped
- * here (or chosen) are held for Create. While the side is empty it fills the
- * card and a tap anywhere in it opens the picker; then it is a row above the
- * list.
+ * here (or chosen) are held for Create. While the side is empty it is large
+ * and a tap anywhere in it opens the picker; then it is a row above the list.
  */
 function DropArea({ slot, title, text, buttonLabel, buttonIcon: ButtonIcon, accept, inputData, roomy, disabled, onFiles }: DropAreaProps) {
   const titleId = useId();
@@ -357,7 +355,7 @@ function DropArea({ slot, title, text, buttonLabel, buttonIcon: ButtonIcon, acce
       className={cn(
         "relative flex rounded-lg border border-dashed border-brand-300 bg-brand-50 transition-colors",
         roomy
-          ? "flex-1 cursor-pointer flex-col items-center justify-center gap-4 px-6 py-10 text-center"
+          ? "cursor-pointer flex-col items-center gap-4 px-6 py-10 text-center"
           : "flex-wrap items-center justify-between gap-x-4 gap-y-2 p-3",
         "data-dragging:border-primary data-dragging:outline-2 data-dragging:-outline-offset-2 data-dragging:outline-dashed data-dragging:outline-primary",
       )}

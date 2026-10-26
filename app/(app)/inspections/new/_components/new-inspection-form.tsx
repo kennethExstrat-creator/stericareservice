@@ -338,17 +338,9 @@ function ChoicesForm({ userId, storageKey, initial, role, clients, manufacturers
     <form onSubmit={submit} noValidate aria-busy={creating || undefined} data-testid="new-inspection-form">
       <fieldset disabled={creating} className="relative m-0 min-w-0 border-0 p-0">
         <legend className="sr-only">New Inspection</legend>
-        <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(20rem,26rem)]">
+        <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(20rem,26rem)] min-[80rem]:grid-cols-[minmax(0,1fr)_30rem]">
           <div className="flex min-w-0 flex-col gap-6">
-            <SourceDocumentsPanel
-              id={id}
-              sources={sources}
-              disabled={creating}
-              filled={filled}
-              unlisted={unlisted}
-              // Main: as tall as the side column, so an empty drop area fills it.
-              className="lg:flex-1"
-            />
+            <SourceDocumentsPanel id={id} sources={sources} disabled={creating} filled={filled} unlisted={unlisted} />
 
             <PreviousPicker
               id={id}
