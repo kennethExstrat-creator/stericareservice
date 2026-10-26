@@ -122,6 +122,8 @@ describe("applyProposals", () => {
     expect(result.data.modules.conclusion).toEqual({ finalResult: null });
     expect(result.filled).toBe(3);
     expect(result.modules).toEqual(["header", "order_lots"]);
+    // The order is no per-size step: its table shows every size, ordered or not.
+    expect(result.sizes).toEqual([]);
   });
 });
 
@@ -141,6 +143,8 @@ describe("applyProposals on Box/Carton Numbers (Kenneth, 14 October 2026)", () =
     expect(result.modules).toEqual(["carton_sampling", "dispensing_packing"]);
     // 13 box/carton numbers, and 4 values in each of the 13 boxes.
     expect(result.filled).toBe(13 + 13 * 4);
+    // The size they went in for: the steps show it once it is ordered (lib/inspections/capture/not-ordered.ts).
+    expect(result.sizes).toEqual(["S"]);
 
     // A size the table shows with no number in it yet is empty too.
     const shown = { modules: { carton_sampling: { sizes: { S: { cartonNumbers: [] } } } }, custom: {} };
@@ -153,7 +157,7 @@ describe("applyProposals on Box/Carton Numbers (Kenneth, 14 October 2026)", () =
     // Typed into row 3 only: laid in gap by gap, the 1st and 2nd numbers read would land in rows 1 and 2.
     const data = { modules: { carton_sampling: { sizes: { S: { cartonNumbers: [null, null, 1500] }, M: { cartonNumbers: [] } } } }, custom: {} };
     const onlyS = applyProposals(data, { carton_sampling: { sizes: { S: { cartonNumbers: TESTED } } } }, MODULE_REGISTRY, included);
-    expect(onlyS).toEqual({ data, filled: 0, modules: [] });
+    expect(onlyS).toEqual({ data, filled: 0, modules: [], sizes: [] });
     expect(onlyS.data).toBe(data);
 
     const both = applyProposals(
@@ -176,7 +180,7 @@ describe("applyProposals on Box/Carton Numbers (Kenneth, 14 October 2026)", () =
     expect(result.filled).toBe(4);
     // Another order's sheet, without the boxes already there: the list stays as it is.
     const other = applyProposals(data, { carton_sampling: { sizes: { S: { cartonNumbers: [5, 6, 7, 8, 9] } } } }, MODULE_REGISTRY, included);
-    expect(other).toEqual({ data, filled: 0, modules: [] });
+    expect(other).toEqual({ data, filled: 0, modules: [], sizes: [] });
     // The same numbers again, or fewer: nothing to add.
     expect(applyProposals(data, { carton_sampling: { sizes: { S: { cartonNumbers: dispensing } } } }, MODULE_REGISTRY, included).filled).toBe(0);
     expect(applyProposals(data, { carton_sampling: { sizes: { S: { cartonNumbers: [233, 512] } } } }, MODULE_REGISTRY, included).filled).toBe(0);

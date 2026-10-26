@@ -13,6 +13,10 @@
 // them in and records it (markSourceFilled); one that is gone by then leaves
 // them waiting, and the next screen to open the inspection fills them in.
 // Read Again reads a file once more, also one already read.
+//
+// A reading that fills values for sizes the order does not list says so in
+// its message, in amber and for longer: no step shows them until the size is
+// ordered (Kenneth, 27 October 2026; lib/inspections/capture not-ordered.ts).
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { useInspectionMedia } from "@/components/capture/photos/hooks";
@@ -20,6 +24,7 @@ import type { Status } from "@/lib/design/status";
 import type { SectionProgress } from "@/lib/inspections/capture/sections";
 import {
   filesToFill,
+  filledMessage,
   SOURCE_DOCUMENTS_KEY,
   type SourceFileStatus,
   type SourceProposals,
@@ -29,7 +34,22 @@ import { useShareSourceReading } from "./source-file-link";
 
 const UNREACHABLE = "Could not reach the server. Check the connection, then try again.";
 
-const filledFrom = (filled: number, name: string) => `Steri-AI filled ${filled} ${filled === 1 ? "field" : "fields"} from ${name}.`;
+/** How long a message with a note stays, as the app's other warnings do. */
+const NOTE_TOAST_MS = 12_000;
+
+/** What a reading's proposals did to the data. */
+export type SourceFill = {
+  /** How many values went in. */
+  filled: number;
+  /** A sentence about values that went in where no step shows them yet (sizes not on the order); null for none. */
+  note: string | null;
+};
+
+/** Says what a reading filled in from `name`: in amber, and for longer, when it has a note. */
+function toastFilled({ filled, note }: SourceFill, name: string): void {
+  if (note === null) toast.success(filledMessage(filled, name));
+  else toast.warning(filledMessage(filled, name, note), { duration: NOTE_TOAST_MS });
+}
 
 /** Recorded in the background: should it fail, the next screen fills the proposals in again, empty fields only. */
 function recordFilled(inspectionId: string, fileId: string): void {
@@ -53,8 +73,8 @@ export function useSourceDocuments({
   inspectionId: string;
   /** False where this screen cannot change the inspection: readings are shown, none started. */
   canRead: boolean;
-  /** Fills a reading's proposals into the data; answers how many values went in. */
-  onProposals: (proposals: SourceProposals) => number;
+  /** Fills a reading's proposals into the data; answers how many values went in, with a note on any no step shows yet. */
+  onProposals: (proposals: SourceProposals) => SourceFill;
 }): SourceDocuments {
   const media = useInspectionMedia(inspectionId);
   const uploaded = useMemo(
@@ -104,10 +124,11 @@ export function useSourceDocuments({
       (result) => {
         if (!alive.current) return;
         if (result.status !== "read") return settle({ status: "failed", summary: result.message });
-        const filled = apply.current(result.proposals);
+        const fill = apply.current(result.proposals);
         recordFilled(inspectionId, file.id);
-        toast.success(filled > 0 ? filledFrom(filled, file.name) : `Steri-AI read ${file.name}: nothing new to fill.`);
-        settle({ status: "read", summary: result.summary, filled });
+        if (fill.filled > 0) toastFilled(fill, file.name);
+        else toast.success(`Steri-AI read ${file.name}: nothing new to fill.`);
+        settle({ status: "read", summary: result.summary, filled: fill.filled });
       },
       () => {
         if (alive.current) settle({ status: "failed", summary: UNREACHABLE });
@@ -125,11 +146,13 @@ export function useSourceDocuments({
     for (const { file, proposals } of waiting) {
       if (filling.current.has(file.id)) continue;
       filling.current.add(file.id);
-      const filled = apply.current(proposals);
+      const fill = apply.current(proposals);
       recordFilled(inspectionId, file.id);
-      if (filled > 0) toast.success(filledFrom(filled, file.name));
+      if (fill.filled > 0) toastFilled(fill, file.name);
       setStatuses((current) =>
-        current ? { ...current, [file.id]: { status: "read", summary: current[file.id]?.summary ?? null, filled } } : current,
+        current
+          ? { ...current, [file.id]: { status: "read", summary: current[file.id]?.summary ?? null, filled: fill.filled } }
+          : current,
       );
     }
   }, [waiting, inspectionId]);

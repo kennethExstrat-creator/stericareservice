@@ -328,6 +328,13 @@ function dimensionsProposal(current: Record<string, unknown>, proposal: Record<s
   return { ...proposal, sizes };
 }
 
+/** The sizes of a per-size module's data that gained a value, as saved. */
+function filledSizes(before: Record<string, unknown>, after: Record<string, unknown>): string[] {
+  const held = isRecord(before.sizes) ? before.sizes : {};
+  const sizes = isRecord(after.sizes) ? after.sizes : {};
+  return Object.keys(sizes).filter((size) => countFilled(held[size], sizes[size]) > 0);
+}
+
 /**
  * Packing Configuration as a reading fills it (Kenneth, 27 October 2026):
  * once the gloves per inner unit and the inner units per case are both
@@ -344,23 +351,27 @@ function packingConfigFill(value: Record<string, unknown>): Record<string, unkno
 /**
  * The inspection's data with a reading's proposals filled in: only modules
  * the template includes (never the conclusion), only fields still empty,
- * only values each module's schema accepts. `filled` counts the values.
- * Box/Carton Numbers take a size's list whole, into an empty list or over
- * one it completes (cartonSamplingFill); Dimension's specs go in whole, and
- * never its P/F (dimensionsProposal); a step's lab reports take each report
- * the reading links, beside those listed (labReportsFill); Packing
- * Configuration's gloves per case is worked out from the counts filled
- * (packingConfigFill).
+ * only values each module's schema accepts. `filled` counts the values;
+ * `sizes` names the sizes of the per-size steps that gained one, canonical,
+ * in size order: a step shows only the sizes ordered (6.2 rule 4; the
+ * capture screen says which are not, lib/inspections/capture
+ * not-ordered.ts). Box/Carton Numbers take a size's list whole, into an
+ * empty list or over one it completes (cartonSamplingFill); Dimension's
+ * specs go in whole, and never its P/F (dimensionsProposal); a step's lab
+ * reports take each report the reading links, beside those listed
+ * (labReportsFill); Packing Configuration's gloves per case is worked out
+ * from the counts filled (packingConfigFill).
  */
 export function applyProposals(
   data: InspectionData,
   proposals: SourceProposals,
   registry: ModuleRegistry,
   included: ReadonlySet<string>,
-): { data: InspectionData; filled: number; modules: string[] } {
+): { data: InspectionData; filled: number; modules: string[]; sizes: string[] } {
   let next = data;
   let filled = 0;
   const modules: string[] = [];
+  const sizes: string[] = [];
   for (const [key, proposal] of Object.entries(proposals)) {
     if (!included.has(key) || !(key in registry) || NOT_FILLED_BY_AI.includes(key as ModuleKey) || !isRecord(proposal)) continue;
     const definition = registry[key as ModuleKey];
@@ -380,8 +391,19 @@ export function applyProposals(
     next = writeModuleData(next, "modules", key, key === "packing_config" ? packingConfigFill(value) : value);
     filled += count;
     modules.push(key);
+    if (definition.perSize) sizes.push(...filledSizes(current, value));
   }
-  return { data: next, filled, modules };
+  return { data: next, filled, modules, sizes: orderSizes(sizes) };
+}
+
+/**
+ * The message after a reading filled values in: "Steri-AI filled 3 fields
+ * from PO-0001.pdf.", and `note` after it, a sentence about values no step
+ * shows yet (notOrderedNote in lib/inspections/capture/not-ordered.ts).
+ */
+export function filledMessage(filled: number, name: string, note: string | null = null): string {
+  const message = `Steri-AI filled ${filled} ${filled === 1 ? "field" : "fields"} from ${name}.`;
+  return note === null ? message : `${message} ${note}`;
 }
 
 /* ------------------------------------------------------------------ *

@@ -382,6 +382,8 @@ useIssueFocus(focusPath, {
 return <div ref={root}>...</div>;
 ```
 
+A size the order does not list never shows in a Capture, values saved for it included: the screen names such sizes in a notice at the top of the section, with Open Order to the size's row on the order (Kenneth, 27 October 2026; docs/DESIGN.md, Components), so a module needs no notice of its own.
+
 Mark the control that holds each value with the path an issue would carry: `issuePath` on `NumberField` (`BoxNumberField` too, its warning about a number not sampled included), `DateField`, `CountField`, `ModuleSection`, `AttachmentStatus` and `RequirementList` items, `cellIssuePath` on `CounterTable` and `MeasurementGrid`, or `{...issuePathProps(path)}` on anything else. The hook switches size or hand first, then scrolls to the closest marked element (the exact path, else its nearest parent) and focuses it: a control itself, a container's first control.
 
 A message with no control of its own (readings past the plan, a deviation from the indicative weight, a sampling plan too large) is marked with `{...issueNoticeProps(path)}` and given a visible focus style (`outline-none focus-ring`): it takes the focus itself (tabIndex -1, out of the Tab order), so a screen reader reads it and Tab goes on to its button. `AttachmentStatus` marks itself this way when given an `issuePath`. Where a notice and a container (the size's panel) carry the same path, the link lands on the notice.
