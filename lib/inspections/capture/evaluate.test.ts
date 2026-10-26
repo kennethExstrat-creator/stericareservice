@@ -1,13 +1,13 @@
 import { describe, expect, it } from "vitest";
 import type { ModuleOverrides, ResolvedTemplate } from "@/lib/schemas/template";
-import { fillGloveCount, moduleTitle } from "@/modules/_framework";
+import { moduleTitle } from "@/modules/_framework";
 import { registryWith } from "@/modules/_framework/__fixtures__/test-registry";
 import { filledData, TEST_ADMIN_ID, TEST_META, TEST_REGISTRY, testTemplate } from "./__fixtures__/capture";
 import { evaluateCapture, storedTemplateWithShownTitles } from "./evaluate";
 
 /** Weight names how many sizes are ordered, standing in for the gloves it weighs (filledData orders two). */
 const COUNTING = registryWith({
-  weight: { ...TEST_REGISTRY.weight, shownTitle: ({ title, context }) => fillGloveCount(title, [context.sizes.length]) },
+  weight: { ...TEST_REGISTRY.weight, shownTitle: ({ title, context }) => title.replace("13", String(context.sizes.length)) },
 });
 const OFF: ModuleOverrides = { weight: { reason: "Scale out of calibration.", by: TEST_ADMIN_ID, at: "2026-10-06T08:00:00.000Z" } };
 

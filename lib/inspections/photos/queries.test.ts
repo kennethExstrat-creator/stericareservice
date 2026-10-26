@@ -154,7 +154,7 @@ describe("loadInspectionMedia", () => {
     });
   });
 
-  it("names the modules as the inspection shows them: weight by the sampling plan's gloves for weight", async () => {
+  it("names the modules as the inspection shows them: weight with no count of gloves, whatever the sampling plan holds", async () => {
     const order = { sizes: { M: { qtyCases: 100, lotNumbers: ["LOT-1"] } } };
     const plan = { sizes: { M: { glovesWeight: 12 } } };
     tables.inspections = {
@@ -167,9 +167,7 @@ describe("loadInspectionMedia", () => {
     };
     const result = await loadInspectionMedia(fakeClient(), INSPECTION);
     if (result.kind !== "ok") throw new Error(result.kind);
-    expect(result.media.options.modules.find((entry) => entry.key === "weight")?.title).toBe(
-      "Weight (g) - Average of 12 Gloves per Size",
-    );
+    expect(result.media.options.modules.find((entry) => entry.key === "weight")?.title).toBe("Weight (g)");
   });
 
   it("reads oldest first, for this inspection only", async () => {

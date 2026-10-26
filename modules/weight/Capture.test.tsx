@@ -1,14 +1,15 @@
-// Server-rendered markup of the Weight body for the two example reports.
-// Typing, Enter, paste and swipes are the kit's own (NumberField,
-// MeasurementGrid, SizeTabs) and were exercised there in a browser.
+// Server-rendered markup of the Weight body for the two example reports:
+// one value per size, the size's average weight (Kenneth, 26 October 2026).
+// Typing, Enter and paste are the kit's own (NumberField, EnterGroup) and
+// were exercised there in a browser.
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import type { TemplateCode } from "@/lib/coverage";
 import { MODULE_REGISTRY } from "@/modules/registry";
 import { evaluateInspection, type InspectionContext, type ModuleEvaluation } from "@/modules/_framework";
-import { makeSampling, makeTestContext, makeTestTemplate } from "@/modules/_framework/testing";
+import { makeTestContext, makeTestTemplate } from "@/modules/_framework/testing";
 import { SAFEDON_EG_EXAMPLE, STD_EG_EXAMPLE } from "@/tests/fixtures/examples";
-import { exampleContext, templateConfig, templateLabels, templateTitle, weightData } from "./__fixtures__/examples";
+import { exampleContext, gloveByGloveData, templateConfig, templateLabels, templateTitle, weightData } from "./__fixtures__/examples";
 import type { WeightComputed } from "./calc";
 import Capture from "./Capture";
 import type { WeightConfig } from "./config";
@@ -48,53 +49,22 @@ function render(
 const tags = (html: string, pattern: string): string[] =>
   Array.from(html.matchAll(new RegExp(`<[^>]*${pattern}[^>]*>`, "g")), (match) => match[0]);
 
-/** The flowed grid's footer, a table of its own after the groups, up to the deviation note. */
-const footerOf = (html: string): string => {
-  const start = html.indexOf('<div role="table"');
-  return start < 0 ? "" : html.slice(start, html.indexOf('data-slot="weight-deviation"', start));
-};
+/** The opening tag of the size's weight cell. */
+const cellOf = (html: string, size: string): string => tags(html, `aria-label="Weight \\(g\\), Size ${size}"`)[0] ?? "";
 
-describe("weight capture, 13 gloves per size (STD_EG)", () => {
+describe("weight capture, one average per size (STD_EG, whose n of 13 is no longer used)", () => {
   const data = weightData(STD_EG_EXAMPLE.weight);
   const html = render("STD_EG", data, exampleContext(STD_EG_EXAMPLE));
 
-  it("is a grid of 13 weights for the ordered size M only, its footer the average", () => {
-    const tabs = tags(html, 'role="tab"');
-    expect(tabs).toHaveLength(1);
-    expect(tabs[0]).toContain('data-size="M"');
-    expect(tags(html, 'data-slot="numeric-cell"')).toHaveLength(13);
-    expect(tags(html, 'aria-label="Weight \\(g\\), No. 1"')[0]).toContain('value="2.90"');
-    for (const label of ["Weight (g)", "Average"]) expect(html).toContain(`>${label}<`);
-  });
-
-  it("heads the size's grid with the template's label and the size, Title Case as a heading is", () => {
-    expect(html).toMatch(/<h3[^>]*>Weight \(g\), Size M<\/h3>/);
-    // The grid is named as its heading reads: its groups of weights, and its footer.
-    expect(html).toContain('role="group" aria-label="Weight (g), Size M"');
-    expect(html).toContain('role="table" aria-label="Weight (g), Size M"');
-  });
-
-  it("puts the template's Remark beside the size's result, not on the grid's spec verdict", () => {
-    const footer = footerOf(html);
-    expect(footer).toContain(">P/F<");
-    expect(footer).not.toContain("Remark");
-    const header = /<header[\s\S]*?<\/header>/.exec(html)?.[0] ?? "";
-    expect(header).toMatch(/>Remark<\/span><span data-slot="status-pill" data-status="warn"/);
-  });
-
-  it("flows the 13 weights into three groups side by side, in order, the footer across the foot", () => {
-    const grid = tags(html, 'data-slot="measurement-grid"')[0];
-    expect(grid).toContain('data-flow=""');
-    expect(Array.from(html.matchAll(/<table aria-label="([^"]*)"/g), (match) => match[1])).toEqual([
-      "No. 1 to 5",
-      "No. 6 to 10",
-      "No. 11 to 13",
-    ]);
-    // Tab and the screen reader go 1, 2, 3 ... 13; so do Enter and a paste (the grid's own keys).
-    const names = tags(html, 'data-slot="numeric-cell"').map((cell) => /aria-label="([^"]*)"/.exec(cell)?.[1]);
-    expect(names).toEqual(Array.from({ length: 13 }, (_, row) => `Weight (g), No. ${row + 1}`));
-    // The glove numbers' column is narrow: the footer's captions are not in it.
-    expect(html).toContain('<col class="w-12 touch:w-14"/>');
+  it("is one table row per ordered size, its value the report's average, with no tabs and no grid of gloves", () => {
+    expect(tags(html, 'role="tab"')).toHaveLength(0);
+    expect(tags(html, 'data-slot="measurement-grid"')).toHaveLength(0);
+    expect(tags(html, 'data-slot="numeric-cell"')).toHaveLength(1);
+    expect(cellOf(html, "M")).toContain('value="2.90"');
+    expect(html).toContain(">Remark<");
+    // STD_EG sets no weight spec.
+    expect(html).not.toContain(">Spec.<");
+    expect(html).not.toContain("No. 1");
   });
 
   it("shows the deviation from the indicative weight as a warning", () => {
@@ -105,29 +75,20 @@ describe("weight capture, 13 gloves per size (STD_EG)", () => {
     expect(tags(note, 'data-slot="status-pill"')[0]).toContain('data-status="warn"');
   });
 
-  it("keeps the weights focusable but unchangeable when read-only", () => {
+  it("keeps the weight focusable but unchangeable when read-only", () => {
     const readOnly = render("STD_EG", data, exampleContext(STD_EG_EXAMPLE), { readOnly: true });
     const cells = tags(readOnly, 'data-slot="numeric-cell"');
-    expect(cells).toHaveLength(13);
-    for (const cell of cells) {
-      expect(cell).toContain('readOnly=""');
-      expect(cell).not.toMatch(/\sdisabled=""/);
-    }
-    expect(readOnly).not.toContain("<fieldset");
+    expect(cells).toHaveLength(1);
+    expect(cells[0]).toContain('readOnly=""');
+    expect(cells[0]).not.toMatch(/\sdisabled=""/);
     expect(tags(html, 'data-slot="numeric-cell"').some((cell) => cell.includes("readOnly"))).toBe(false);
   });
 
-  it("marks each weight with the path calc's issues point at", () => {
-    const path = JSON.stringify(["sizes", "M", "values", 12]).replaceAll('"', "&quot;");
-    expect(tags(html, 'aria-label="Weight \\(g\\), No. 13"')[0]).toContain(`data-issue-path="${path}"`);
-  });
-
-  it("shows calc's average in the footer and judges only the spec there", () => {
-    const footer = footerOf(html);
-    expect(footer).toContain(">2.90<");
-    // STD_EG sets no weight spec: NA, never the size's warning.
-    expect(footer).toContain(">NA<");
-    expect(footer).not.toContain('data-status="warn"');
+  it("marks the weight's field with the path calc's issues point at", () => {
+    const path = JSON.stringify(["sizes", "M", "values", 0]).replaceAll('"', "&quot;");
+    const fields = tags(html, 'data-slot="number-field"');
+    expect(fields).toHaveLength(1);
+    expect(fields[0]).toContain(`data-issue-path="${path}"`);
   });
 
   it("lets the deviation warning's issue link land on its note", () => {
@@ -136,26 +97,13 @@ describe("weight capture, 13 gloves per size (STD_EG)", () => {
     expect(note).toContain(`data-issue-path="${JSON.stringify(["sizes", "M", "values"]).replaceAll('"', "&quot;")}"`);
   });
 
-  it("weighs the sampling plan's 12 gloves for weight: 12 rows, the 13th weight offered for removal", () => {
-    const context = exampleContext(STD_EG_EXAMPLE, { sampling: { M: makeSampling({ weight: 12 }) } });
-    const planned = render("STD_EG", data, context);
-    expect(planned).toContain(">Average of 12 gloves<");
-    expect(tags(planned, 'data-slot="numeric-cell"')).toHaveLength(12);
-    expect(Array.from(planned.matchAll(/<table aria-label="([^"]*)"/g), (match) => match[1])).toEqual([
-      "No. 1 to 4",
-      "No. 5 to 8",
-      "No. 9 to 12",
-    ]);
-    expect(planned).toContain("Size M: values for No. 13 are not counted; the sampling plan has 12 gloves for weight.");
-    expect(planned).toContain(">Remove the Values That Are Not Counted</button>");
-  });
-
-  it("keeps its own 13 rows when the sampling plan has 12 gloves for dimension", () => {
-    const context = exampleContext(STD_EG_EXAMPLE, { sampling: { M: makeSampling({ dimensions: 12 }) } });
-    const own = render("STD_EG", data, context);
-    expect(own).toContain(">Average of 13 gloves<");
-    expect(tags(own, 'data-slot="numeric-cell"')).toHaveLength(13);
-    expect(own).not.toContain("are not counted");
+  it("shows an inspection saved before 26 October 2026, its 13 gloves weighed one by one, as their average", () => {
+    const older = render("STD_EG", gloveByGloveData(STD_EG_EXAMPLE.weight), exampleContext(STD_EG_EXAMPLE));
+    expect(tags(older, 'data-slot="numeric-cell"')).toHaveLength(1);
+    expect(cellOf(older, "M")).toContain('value="2.90"');
+    const varied = render("STD_EG", { sizes: { M: { values: [2.85, 2.95, 2.9] } } }, exampleContext(STD_EG_EXAMPLE));
+    expect(cellOf(varied, "M")).toContain('value="2.90"');
+    expect(varied).not.toContain("not counted");
   });
 });
 
@@ -166,7 +114,7 @@ describe("weight capture, one value per size (SAFEDON_EG)", () => {
   it("is one table row per ordered size, no tabs, in Safedon's wording", () => {
     expect(tags(html, 'role="tab"')).toHaveLength(0);
     expect(tags(html, 'data-slot="numeric-cell"')).toHaveLength(4);
-    expect(tags(html, 'aria-label="Weight \\(g\\), Size XS"')[0]).toContain('value="2.56"');
+    expect(cellOf(html, "XS")).toContain('value="2.56"');
     expect(html).toContain(">A / Rej.<");
     expect(html).toContain(">Spec.<");
     expect(html).toContain(">NA<");
@@ -191,7 +139,7 @@ describe("weight capture, one value per size (SAFEDON_EG)", () => {
     const zero = render("SAFEDON_EG", { sizes: { ...data.sizes, S: { values: [0] } } }, exampleContext(SAFEDON_EG_EXAMPLE));
     // The cell is drawn in fail red and described by calc's message.
     const marked = (size: string) => {
-      const cell = tags(zero, `aria-label="Weight \\(g\\), Size ${size}"`)[0];
+      const cell = cellOf(zero, size);
       const classes = /class="([^"]*)"/.exec(cell)?.[1].split(" ") ?? [];
       return classes.includes("ring-fail") && /aria-describedby="[^"]*calc-error"/.test(cell);
     };
@@ -217,22 +165,16 @@ describe("weight capture, one value per size (SAFEDON_EG)", () => {
     expect(html.match(/data-slot="weight-deviation"/g)).toHaveLength(1);
   });
 
-  it("offers to remove the values past n, which have no cell, unless read-only", () => {
+  it("shows a size holding several values as their average, with nothing past it to remove", () => {
     const extra = { sizes: { ...data.sizes, M: { values: [3.18, 3.2] } } };
-    const action = "Remove the Values That Are Not Counted";
     const shown = render("SAFEDON_EG", extra, exampleContext(SAFEDON_EG_EXAMPLE));
-    expect(shown).toContain(`>${action}</button>`);
-    // The button is described by its warning, which names the size.
-    const button = tags(shown, 'data-slot="button"[^>]*aria-describedby')[0];
-    const describedBy = /aria-describedby="([^"]*)"/.exec(button)?.[1];
-    expect(shown).toContain(`<span id="${describedBy}">Size M: values for No. 2 are not counted`);
-    expect(render("SAFEDON_EG", data, exampleContext(SAFEDON_EG_EXAMPLE))).not.toContain(action);
-    expect(render("SAFEDON_EG", extra, exampleContext(SAFEDON_EG_EXAMPLE), { readOnly: true })).not.toContain(action);
+    expect(cellOf(shown, "M")).toContain('value="3.19"');
+    expect(shown).not.toContain("Remove");
+    expect(shown).not.toContain("not counted");
   });
 
   it("leaves out the Spec. column when no size has a spec", () => {
-    const config = { ...templateConfig("STD_EG"), n: 1 };
-    const noSpecs = render("STD_EG", { sizes: { M: { values: [2.9] } } }, makeTestContext({ sizes: ["M"] }), { config });
+    const noSpecs = render("STD_EG", { sizes: { M: { values: [2.9] } } }, makeTestContext({ sizes: ["M"] }));
     expect(tags(noSpecs, 'data-slot="numeric-cell"')).toHaveLength(1);
     expect(noSpecs).not.toContain(">Spec.<");
     expect(noSpecs).toContain(">Remark<");

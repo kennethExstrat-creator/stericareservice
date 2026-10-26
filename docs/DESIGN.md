@@ -144,7 +144,7 @@ Tests hold labels to the rule with `lowerCaseWords(label)` in `lib/design/capita
 
 ## Step Names
 
-Kenneth (12 October 2026): "this menu is crowded, simplify the section name". A step's title is the client's form wording, with weight's glove count filled in (`shownTitle`); in a menu or a message the step goes by its short name.
+Kenneth (12 October 2026): "this menu is crowded, simplify the section name". A step's title is the client's form wording, as the inspection words it (`shownTitle`: weight's names no count of gloves); in a menu or a message the step goes by its short name.
 
 - **Full title:** (the header aside: General Information, below) the step's card heading on the capture screen, a switched-off step's too; everything the client reads: the review page, the export, the Steri-AI Report and Second Opinion, and Steri-AI's reading of source forms; the template editor and the New Inspection page. The modules' own messages keep it too, since the review and the export print them: the Conclusion's summary line and its warning when the final result differs from the suggestion.
 - **Short name:** everywhere else the capture screen and the photo screens name a step: sidebar rows (Switched Off included), iPad tabs, the progress bar's name, Previous / Next, Pending rows, the Switch Off dialog and the switched-off notice, the switch toasts and refusals, the autosave pill's problem line, a form-failure notice ("The form for Weight did not load."), the reasons under the suggested result in the Conclusion section (its line and Show All) and in the submit dialog, which word them alike ("Failed: Box/Carton Numbers. Warnings: Weight."; Status colours, above), photo tags and captions, the tag picker, the photos page's groups and file lists.

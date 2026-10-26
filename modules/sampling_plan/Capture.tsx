@@ -27,10 +27,11 @@
 // written table on Source Documents. Cases already typed are replaced only
 // after a yes.
 //
-// Each test row (watertight and visual, dimension, the physical test, weight,
+// Each test row (watertight and visual, dimension, the physical test,
 // packaging and dispensing) has a switch at its left (Kenneth, 26 October
 // 2026): switched off, the row is greyed, never hidden, its cells take no
-// typing and nothing in it is asked for.
+// typing and nothing in it is asked for. No template shows a row of gloves
+// for weight any more (shownColumns).
 import { CalculatorIcon } from "lucide-react";
 import { useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { toast } from "sonner";

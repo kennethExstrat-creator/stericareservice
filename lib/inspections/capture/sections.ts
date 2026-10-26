@@ -23,7 +23,7 @@
 // result or Pending row.
 //
 // Names: every section and page carries its title, the template's wording
-// (with a count filled in, shownTitle), for its card heading, and its short
+// (as the inspection words it, shownTitle), for its card heading, and its short
 // name (lib/templates/short-titles.ts), for the tabs, the sidebar, the
 // progress bar, Previous / Next, Pending and the messages that name it
 // (docs/DESIGN.md, Step Names). The header is General Information in both

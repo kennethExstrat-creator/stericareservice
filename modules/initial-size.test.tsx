@@ -13,10 +13,11 @@ import { MODULE_REGISTRY } from "@/modules/registry";
 
 const PER_SIZE = MODULE_KEYS.filter((key) => MODULE_REGISTRY[key].perSize && MODULE_REGISTRY[key].loadCapture);
 /**
- * Per-size Captures with every size on screen at once, a column each, so no
- * size is opened: the Sampling Plan's one table (Kenneth, 26 October 2026).
+ * Per-size Captures with every size on screen at once, so no size is opened:
+ * the Sampling Plan's one table, a column each, and Weight's, a row each
+ * (Kenneth, 26 October 2026).
  */
-const EVERY_SIZE_AT_ONCE: readonly string[] = ["sampling_plan"];
+const EVERY_SIZE_AT_ONCE: readonly string[] = ["sampling_plan", "weight"];
 const TABBED = PER_SIZE.filter((key) => !EVERY_SIZE_AT_ONCE.includes(key));
 const CONTEXT = makeTestContext({ sizes: ["S", "M", "L"] });
 

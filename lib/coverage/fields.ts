@@ -424,7 +424,7 @@ const samplingPlan = defineModule({
   alwaysOn: false,
   title: "Sampling Plan",
   captures:
-    "Per size: sampled cases, inner units and gloves; gloves for watertight and visual, for dimensions, for the physical test and for weight; inner units for packaging and dispensing; pouches and dye leak pouches (surgical).",
+    "Per size: sampled cases, inner units and gloves; gloves for watertight and visual, for dimensions and for the physical test; inner units for packaging and dispensing; pouches and dye leak pouches (surgical).",
   result: "warn when a size's watertight and visual sample is below the AQL plan of config inspectionLevel; info otherwise.",
   rules: [1, 2, 4, 6, 8],
   data: [
@@ -491,7 +491,7 @@ const samplingPlan = defineModule({
       entry: "entered",
       rules: [1],
       notes:
-        "Flows forward as the gloves weighed (weight), its own count (Kenneth, 12 October 2026: each measurement has its own glove count); empty, weight weighs config n. No form prints it: STD_EG's report names it in the weight heading ('average of 13 gloves per size'). Off where weight weighs one value per size (SAFEDON_EG) or is not included (STD_SG).",
+        "Not shown since 26 October 2026, whatever config columns says (Kenneth: 'remove this, this is not needed'): weight records one value per size, the size's average. A count saved from 12 October 2026, while the row was shown, is kept, unused; nothing flows forward from it. No form prints it.",
     },
     {
       key: "innerUnitsDispensing",
@@ -583,7 +583,7 @@ const samplingPlan = defineModule({
       type: "Record<SamplingColumn, boolean>",
       default: { ...allOn(SAMPLING_COLUMNS), glovesWeight: false, pouches: false, pouchesDyeLeak: false },
       meaning:
-        "Columns on or off (BUILD_SPEC: columns on/off). The surgical pouch columns and glovesWeight are off by default; a template version saved before glovesWeight existed reads it as off.",
+        "Columns on or off (BUILD_SPEC: columns on/off). The surgical pouch columns and glovesWeight are off by default; a template version saved before glovesWeight existed reads it as off. glovesWeight is never shown since 26 October 2026, on or off.",
     },
     {
       key: "inspectionLevel",
@@ -759,9 +759,9 @@ const weight = defineModule({
   title: "Weight (g) - Average of 13 Gloves per Size",
   titles: { SAFEDON_EG: "Weight (g)" },
   captures:
-    "Per size: the gloves weighed (one value, or one per glove of the sampling plan's gloves for weight: config n until the plan gives one) and their average, compared with the indicative weight.",
+    "Per size: one value, the size's average weight as the dimension sheet prints it (Kenneth, 26 October 2026), compared with the indicative weight.",
   result:
-    "Per size: pass or fail against a spec when one is set; warn when the size of the indicative weight deviates by more than the threshold; info otherwise. not_done until every glove weighed has its value, and when the sampling plan has no gloves for weight.",
+    "Per size: pass or fail against a spec when one is set; warn when the size of the indicative weight deviates by more than the threshold; info otherwise. not_done until the size has its value.",
   rules: [1, 2, 4, 5, 9],
   data: [
     {
@@ -773,7 +773,7 @@ const weight = defineModule({
       entry: "entered",
       rules: [1],
       notes:
-        "One value per glove weighed: the sampling plan's gloves for weight (sampling_plan.glovesWeight), else config n (13 on STD_EG), weighed one by one; or one value per size when config n is 1 (SAFEDON_EG, printed as a merged column of the dimension table).",
+        "One value per size: the size's average weight, as the dimension sheet prints it (SAFEDON_EG prints it as a merged column of the dimension table). An inspection saved before 26 October 2026 holds one value per glove weighed (13 on STD_EG), whose average is the size's weight.",
     },
     {
       key: "average",
@@ -782,7 +782,7 @@ const weight = defineModule({
       unit: "g",
       per: ["size"],
       entry: "computed",
-      formula: "Mean of values (the value itself when n is 1), shown at config decimals.",
+      formula: "The size's value (the mean of an older inspection's values), shown at config decimals.",
       rules: [2],
     },
     {
@@ -815,7 +815,7 @@ const weight = defineModule({
       type: "number",
       default: 13,
       meaning:
-        "Gloves weighed per size when sampling_plan.glovesWeight gives no number, one by one; 1 weighs one value per size, whatever the plan says.",
+        "Not used since 26 October 2026: weight records one value per size, the size's average weight. Kept so the templates that set it (13 on STD_EG, 1 on SAFEDON_EG) still load.",
     },
     {
       key: "specs",
@@ -834,7 +834,7 @@ const weight = defineModule({
   ],
   labels: [
     { key: "info", label: "Info", labels: { SAFEDON_EG: "A" }, meaning: "Word printed for a result with no spec." },
-    { key: "rowNo", label: "No.", meaning: "Caption of the glove row number column (the gloves weighed one by one)." },
+    { key: "rowNo", label: "No.", meaning: "Caption of the glove row number column while the gloves were weighed one by one; not shown since 26 October 2026." },
     { key: "specRow", label: "Spec.", meaning: "Caption of the spec row (config specs, printed as lib/stats formatSpec)." },
     {
       key: "pass",

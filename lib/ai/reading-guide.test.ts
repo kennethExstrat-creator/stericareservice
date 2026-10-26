@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { GlossaryEntry } from "@/lib/schemas/ai-settings";
-import { glossaryText, PAPER_FORM_GUIDE } from "./reading-guide";
+import { glossaryText, PAPER_FORM_GUIDE, WEIGHT_GUIDE } from "./reading-guide";
 
 const defect = (short: string, meaning: string, codes: string[], confirmed = true): GlossaryEntry => ({
   short,
@@ -63,6 +63,25 @@ describe("the paper form guide", () => {
     expect(line).toContain("only where it differs from that size's spec in the module settings and the current data has none");
     expect(line).toContain("never from the readings or a result");
     expect(line).toContain("Never write dimensions' manualResults");
+  });
+});
+
+describe("the sampling plan's counts and the weight (Kenneth, 26 October 2026)", () => {
+  it("never fills the sampling plan's glovesWeight: the app has no such row", () => {
+    const line = PAPER_FORM_GUIDE.split("\n").find((entry) => entry.startsWith("- Each test has its own count")) ?? "";
+    expect(line).toContain("never copy one test's count into another's");
+    expect(line).toContain("Never fill the sampling plan's glovesWeight: the app has no gloves-for-weight row");
+    expect(line).not.toContain("its own n");
+  });
+
+  it("reads one value per size, the average weight a dimension sheet prints, and never works it out", () => {
+    const [heading, average, never] = WEIGHT_GUIDE.split("\n");
+    expect(heading).toBe('How to read the glove weight ("weight"):');
+    expect(average).toContain("Per size, one value: the size's average weight in g as a document prints it");
+    expect(average).toContain('the "Weight (g)" row or column of a dimension sheet');
+    expect(average).toContain('as that size\'s "values": [3.4]');
+    expect(average).toContain("its P/F or remark (\"Info only\") are not data: leave them out");
+    expect(never).toContain("a document that lists each glove's weight without the size's average gives nothing for weight");
   });
 });
 

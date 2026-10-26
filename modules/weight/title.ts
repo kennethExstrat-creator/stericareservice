@@ -1,23 +1,16 @@
 // Weight's title as this inspection shows it (ModuleDefinition.shownTitle).
-// The template words the gloves weighed per size ("Weight (g) - Average of
-// 13 Gloves per Size", STD_EG); the count follows the gloves this inspection
-// really weighs (glovesFor), so the step list, every message, the review and
-// the export say 12 when the sampling plan has 12 gloves for weight. The
-// stored wording, and a title with no count ("Weight (g)", SAFEDON_EG), stay
-// as they are.
-import { fillGloveCount, type TitleInput } from "@/modules/_framework";
-import { glovesFor } from "./calc";
+// The step records one value per size, the size's average weight as the
+// dimension sheet prints it (Kenneth, 26 October 2026), so a title naming
+// the gloves weighed per size ("Weight (g) - Average of 13 Gloves per Size",
+// STD_EG) reads "Weight (g)" in the step list, every message, the review and
+// the export. The stored wording, and a title with no count ("Weight (g)",
+// SAFEDON_EG), stay as they are.
+import type { TitleInput } from "@/modules/_framework";
 import type { WeightConfig } from "./config";
 
-/**
- * The gloves weighed per size, as one number or several ("8 or 13"). A size
- * the plan gives no gloves for weight is left out beside the others (it is
- * not done: nothing to weigh); 0 only when every size has none. With no size
- * ordered yet, the template's n.
- */
-export function weightTitle({ title, config, context }: TitleInput<WeightConfig>): string {
-  const counts = [...new Set(context.sizes.map((size) => glovesFor(context, size, config).n))];
-  if (counts.length === 0) return fillGloveCount(title, [config.n]);
-  const weighed = counts.filter((count) => count > 0);
-  return fillGloveCount(title, weighed.length > 0 ? weighed : counts);
+/** " - Average of 13 Gloves per Size" closing a title, in any case, with a hyphen or an en dash. */
+const GLOVES_PER_SIZE = /\s*[-–]\s*average of \d+(?:\s+or\s+\d+)?\s+gloves?\s+per\s+size\s*$/i;
+
+export function weightTitle({ title }: TitleInput<WeightConfig>): string {
+  return title.replace(GLOVES_PER_SIZE, "");
 }

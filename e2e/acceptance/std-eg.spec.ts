@@ -18,7 +18,7 @@ import { signIn, TEST_ACCOUNTS } from "../support/session";
  * on) and pasted columns where a grid takes them. Only the fixture's values
  * are entered. The two values the report does not print are entered as
  * docs/FIXTURES.md says: 13 force readings whose median is the printed
- * 6.537 N, and 13 weights of the printed 2.90 g average.
+ * 6.537 N; the weight is the printed 2.90 g, the size's one average.
  *
  * The Glove Packing Check is typed from the paper, its box/carton numbers on
  * the numeric keypad, before the carton list is in (so nothing is suggested
@@ -73,7 +73,8 @@ const SECTION = {
   cartons: "Finished Goods Sampling Information (Box/Carton #)",
   dimensions: "Dimension",
   force: "Force at Break in Newton (Refer to Attached Where Applicable)",
-  weight: "Weight (g) - Average of 13 Gloves per Size",
+  // One average per size: the title names no count of gloves (Kenneth, 26 October 2026).
+  weight: "Weight (g)",
   watertight: "Freedom From Holes by Watertight Test",
   visual: "Visual Inspection",
   packingCheck: "Glove Packing Check",
@@ -530,9 +531,8 @@ test("the STD_EG example entered on the iPad gives every expected result", async
     // Next from the order's page, packing configuration and all.
     const frame = await next(page, "sampling");
     await expectOnlySizeM(page, SECTION.sampling);
-    // # Gloves for Weight, the app's own row after # Gloves for FAB (12 October 2026), on a STD_EG version that has it:
-    // the 13 gloves weighed that the report names in its weight heading.
-    const weighs = (await frame.getByRole("textbox", { name: named("# Gloves for Weight, Size M") }).count()) > 0;
+    // No # Gloves for Weight: the app shows no such row (Kenneth, 26 October 2026).
+    await check(frame.getByRole("textbox", { name: named("# Gloves for Weight, Size M") })).toHaveCount(0);
     await frame.getByRole("textbox", { name: "Case, Size M", exact: true }).tap();
     for (const value of [
       SAMPLING.cases,
@@ -541,7 +541,6 @@ test("the STD_EG example entered on the iPad gives every expected result", async
       SAMPLING.watertightVisualGloves,
       SAMPLING.dimensionGloves,
       SAMPLING.physicalTestGloves,
-      ...(weighs ? [WEIGHT.gloves] : []),
       SAMPLING.dispensingInners,
     ]) {
       await page.keyboard.type(String(value));
@@ -700,20 +699,16 @@ test("the STD_EG example entered on the iPad gives every expected result", async
     await shot(page, "08-force-at-break", table.getByRole("row", { name: /^Median/ }));
   });
 
-  await test.step("Weight: 13 gloves typed down the column; average 2.90 g is a warning, 17.1% below 3.5 g", async () => {
+  await test.step("Weight: the printed average in size M's one cell; 2.90 g is a warning, 17.1% below 3.5 g", async () => {
     const frame = await next(page, "weight");
-    await expectOnlySizeM(page, SECTION.weight);
-    await frame.getByRole("textbox", { name: "Weight (g), No. 1", exact: true }).tap();
-    for (let glove = 0; glove < WEIGHT.gloves; glove++) {
-      await page.keyboard.type(String(WEIGHT.averageG));
-      await page.keyboard.press("Enter");
-    }
-    await check(frame.getByRole("textbox", { name: `Weight (g), No. ${WEIGHT.gloves}`, exact: true })).toHaveValue(
-      WEIGHT.averageG.toFixed(2),
-    );
-    const table = frame.getByRole("table", { name: "Weight (g), Size M" });
+    // Every ordered size is a row of one table, no tabs: here size M alone.
+    await check(frame.locator("tr[data-size]"), "weight: one row, size M").toHaveCount(1);
+    const cell = frame.getByRole("textbox", { name: "Weight (g), Size M", exact: true });
+    await cell.tap();
+    await page.keyboard.type(String(WEIGHT.averageG));
+    await page.keyboard.press("Enter");
+    await check(cell).toHaveValue(WEIGHT.averageG.toFixed(2));
     const expected = EXPECT_WEIGHT;
-    await check(row(table, "Average"), expected.check).toHaveAccessibleName(`Average ${expected.averageG.toFixed(2)}`);
     const deviation = frame.locator('[data-slot="weight-deviation"]');
     await check(deviation, expected.check).toContainText(new RegExp(`[-−]${escapeRegExp(String(Math.abs(expected.deviationPct)))}%`));
     await check(deviation, expected.check).toContainText(`Indicative ${expected.indicativeG} g, Threshold ${expected.thresholdPct}%`);
@@ -1091,7 +1086,7 @@ test("the STD_EG example entered on the iPad gives every expected result", async
       ),
       "the 13 gloves' dimension readings, as pasted",
     ).toEqual(DIMENSIONS.gloves.map((glove) => [...glove]));
-    check(modules.weight?.sizes?.M?.values, "13 weights").toEqual(Array.from({ length: WEIGHT.gloves }, () => WEIGHT.averageG));
+    check(modules.weight?.sizes?.M?.values, "the size's one average weight").toEqual([WEIGHT.averageG]);
     check(modules.force_at_break?.sizes?.M?.values, "13 force readings").toEqual(readingsWithMedian(FORCE.medianN));
     check(modules.conclusion, "the conclusion as on the report").toMatchObject({ finalResult: "pass", date: REPORT.conclusion.date.iso, remark: null });
     check(modules.conclusion?.signature ?? null, "signed").not.toBeNull();

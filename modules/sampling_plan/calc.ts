@@ -37,13 +37,7 @@ import {
   type Labels,
   type SamplingValues,
 } from "@/modules/_framework";
-import {
-  SAMPLING_CONTEXT_KEYS,
-  SAMPLING_COLUMNS,
-  shownColumns,
-  type SamplingColumn,
-  type SamplingPlanConfig,
-} from "./config";
+import { SAMPLING_CONTEXT_KEYS, shownColumns, type SamplingColumn, type SamplingPlanConfig } from "./config";
 import { emptySamplingSize, rowsOff, type SamplingPlanData, type SamplingSize } from "./schema";
 
 /** One size's lot at the inspection level, and its watertight and visual sample against it. */
@@ -116,12 +110,14 @@ export function contributeSamplingPlan({
   return { sampling, aql: { inspectionLevel: config.inspectionLevel } };
 }
 
-/** What one size passes forward under the context's keys; a column switched off passes nothing. */
+/**
+ * What one size passes forward under the context's keys: the columns the
+ * template shows (shownColumns). A column switched off passes nothing, and so
+ * does the gloves for weight: weight records its own value per size.
+ */
 export function samplingValues(row: SamplingSize, config: SamplingPlanConfig): SamplingValues {
   const values: SamplingValues = { ...EMPTY_SAMPLING };
-  for (const column of SAMPLING_COLUMNS) {
-    values[SAMPLING_CONTEXT_KEYS[column]] = config.columns[column] ? row[column] : null;
-  }
+  for (const column of shownColumns(config)) values[SAMPLING_CONTEXT_KEYS[column]] = row[column];
   return values;
 }
 

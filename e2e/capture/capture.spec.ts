@@ -17,7 +17,8 @@ import { createCaptureFixture, fixtureDefinition, type CaptureFixture } from "./
 // The Mac running these is shared with other builds: generous waits, never sleeps.
 test.describe.configure({ mode: "serial", timeout: 120_000 });
 
-const WEIGHT = "Weight (g) - Average of 13 Gloves per Size";
+// One average per size: the title names no count of gloves (Kenneth, 26 October 2026).
+const WEIGHT = "Weight (g)";
 const TENSILE = "Physical Properties Average (Refer to Attached Lab. Reports)";
 
 let fixture: CaptureFixture;

@@ -208,7 +208,7 @@ Report module. Captures: Gloves per inner unit, inner units per case, gloves per
 
 ### `sampling_plan`: Sampling Plan
 
-Report module. Captures: Per size: sampled cases, inner units and gloves; gloves for watertight and visual, for dimensions, for the physical test and for weight; inner units for packaging and dispensing; pouches and dye leak pouches (surgical). Result: warn when a size's watertight and visual sample is below the AQL plan of config inspectionLevel; info otherwise. Rules (6.2): 1, 2, 4, 6, 8.
+Report module. Captures: Per size: sampled cases, inner units and gloves; gloves for watertight and visual, for dimensions and for the physical test; inner units for packaging and dispensing; pouches and dye leak pouches (surgical). Result: warn when a size's watertight and visual sample is below the AQL plan of config inspectionLevel; info otherwise. Rules (6.2): 1, 2, 4, 6, 8.
 
 | Key | Label (STD_EG) | Other wording | Type | Unit | Per | Entry | Rules | Notes |
 |---|---|---|---|---|---|---|---|---|
@@ -218,7 +218,7 @@ Report module. Captures: Per size: sampled cases, inner units and gloves; gloves
 | `glovesWatertightVisual` | # Gloves for Watertight & Visual | STD_SG: # Gloves | integer | pcs | size | entered | 1, 8 | Flows forward as n in watertight and visual (BUILD_SPEC 8). SG prints it under 'Sampling Quantity (WTT & Visual)'. |
 | `glovesDimensions` | # Gloves for Dimension | STD_SG: # Gloves Dimension | integer | pcs | size | entered | 1 | Flows forward as the dimension rows. |
 | `glovesPhysical` | # Gloves for FAB | SAFEDON_EG: # Gloves for Tensile<br>STD_SG: # Gloves (FAB) | integer | pcs | size | entered | 1 | Gloves for the physical test: force at break (EN 455) or tensile (ASTM D6319). |
-| `glovesWeight` | # Gloves for Weight |  | integer | pcs | size | entered | 1 | Flows forward as the gloves weighed (weight), its own count (Kenneth, 12 October 2026: each measurement has its own glove count); empty, weight weighs config n. No form prints it: STD_EG's report names it in the weight heading ('average of 13 gloves per size'). Off where weight weighs one value per size (SAFEDON_EG) or is not included (STD_SG). |
+| `glovesWeight` | # Gloves for Weight |  | integer | pcs | size | entered | 1 | Not shown since 26 October 2026, whatever config columns says (Kenneth: 'remove this, this is not needed'): weight records one value per size, the size's average. A count saved from 12 October 2026, while the row was shown, is kept, unused; nothing flows forward from it. No form prints it. |
 | `innerUnitsDispensing` | # Inner Box for Packaging & Dispensing Inspection | SAFEDON_EG: # Inner Packs for Packaging & Dispensing Inspection | integer |  | size | entered | 1 | Counts inner units. Printed 'packaing' [sic]. Flows forward as the box rows of dispensing_packing or dispensing_safedon. |
 | `pouches` | Pouches |  | integer |  | size | entered | 1 | Counts pouches. Surgical: sampled pouches (SG onsite). |
 | `pouchesDyeLeak` | # Pouches (Dye Leak Test) |  | integer |  | size | entered | 1 | Counts pouches. Surgical: flows forward as dye_leak.pouchesTested. |
@@ -230,7 +230,7 @@ Report module. Captures: Per size: sampled cases, inner units and gloves; gloves
 
 | Config key | Type | Default | Meaning |
 |---|---|---|---|
-| `columns` | Record&lt;SamplingColumn, boolean> | `{"cases":true,"innerUnits":true,"gloves":true,"glovesWatertightVisual":true,"glovesDimensions":true,"glovesPhysical":true,"glovesWeight":false,"innerUnitsDispensing":true,"pouches":false,"pouchesDyeLeak":false}` | Columns on or off (BUILD_SPEC: columns on/off). The surgical pouch columns and glovesWeight are off by default; a template version saved before glovesWeight existed reads it as off. |
+| `columns` | Record&lt;SamplingColumn, boolean> | `{"cases":true,"innerUnits":true,"gloves":true,"glovesWatertightVisual":true,"glovesDimensions":true,"glovesPhysical":true,"glovesWeight":false,"innerUnitsDispensing":true,"pouches":false,"pouchesDyeLeak":false}` | Columns on or off (BUILD_SPEC: columns on/off). The surgical pouch columns and glovesWeight are off by default; a template version saved before glovesWeight existed reads it as off. glovesWeight is never shown since 26 October 2026, on or off. |
 | `inspectionLevel` | "S-1" \| "S-2" \| "S-3" \| "S-4" \| "I" \| "II" \| "III" \| null | `null` | ISO 2859-1 level used to suggest n per size from the lot size and flag a sample below the plan. null: samples are entered directly with no plan check. |
 
 | Caption key | Label (STD_EG) | Other wording | Meaning |
@@ -286,18 +286,18 @@ Report module. Captures: Per size, per glove (default 13): the measures on, from
 
 ### `weight`: Weight (g) - Average of 13 Gloves per Size
 
-Report module. Captures: Per size: the gloves weighed (one value, or one per glove of the sampling plan's gloves for weight: config n until the plan gives one) and their average, compared with the indicative weight. Result: Per size: pass or fail against a spec when one is set; warn when the size of the indicative weight deviates by more than the threshold; info otherwise. not_done until every glove weighed has its value, and when the sampling plan has no gloves for weight. Rules (6.2): 1, 2, 4, 5, 9. Title in other templates: SAFEDON_EG: Weight (g).
+Report module. Captures: Per size: one value, the size's average weight as the dimension sheet prints it (Kenneth, 26 October 2026), compared with the indicative weight. Result: Per size: pass or fail against a spec when one is set; warn when the size of the indicative weight deviates by more than the threshold; info otherwise. not_done until the size has its value. Rules (6.2): 1, 2, 4, 5, 9. Title in other templates: SAFEDON_EG: Weight (g).
 
 | Key | Label (STD_EG) | Other wording | Type | Unit | Per | Entry | Rules | Notes |
 |---|---|---|---|---|---|---|---|---|
-| `values` | Weight (g) |  | decimal_list | g | size | entered | 1 | One value per glove weighed: the sampling plan's gloves for weight (sampling_plan.glovesWeight), else config n (13 on STD_EG), weighed one by one; or one value per size when config n is 1 (SAFEDON_EG, printed as a merged column of the dimension table). |
-| `average` | Average |  | decimal | g | size | **computed** | 2 | Mean of values (the value itself when n is 1), shown at config decimals. |
+| `values` | Weight (g) |  | decimal_list | g | size | entered | 1 | One value per size: the size's average weight, as the dimension sheet prints it (SAFEDON_EG prints it as a merged column of the dimension table). An inspection saved before 26 October 2026 holds one value per glove weighed (13 on STD_EG), whose average is the size's weight. |
+| `average` | Average |  | decimal | g | size | **computed** | 2 | The size's value (the mean of an older inspection's values), shown at config decimals. |
 | `deviationPct` | Deviation From Indicative Weight |  | decimal | % | size | **computed** | 2, 9 | (average − glove_info.indicativeWeight) / glove_info.indicativeWeight × 100, for the size in glove_info config indicativeWeightSize only. |
 | `result` | Remark | SAFEDON_EG: A / Rej. | select |  | size | **computed** | 2, 5, 9 | Against the size's row of config specs when there is one; warn when \|deviationPct\| > config warnThresholdPct; info otherwise. Values: pass, fail, warn, info, not_done. |
 
 | Config key | Type | Default | Meaning |
 |---|---|---|---|
-| `n` | number | `13` | Gloves weighed per size when sampling_plan.glovesWeight gives no number, one by one; 1 weighs one value per size, whatever the plan says. |
+| `n` | number | `13` | Not used since 26 October 2026: weight records one value per size, the size's average weight. Kept so the templates that set it (13 on STD_EG, 1 on SAFEDON_EG) still load. |
 | `specs` | { size: string; spec: Spec }[] | `[]` | Optional spec per size (BUILD_SPEC: optional spec), one row per size; a list, so a child template replaces it whole. A size with no row has no spec row and its result is info. |
 | `warnThresholdPct` | number | `10` | Deviation from the indicative weight, in %, above which the module warns (rule 9). |
 | `decimals` | number | `2` | Decimals the average is shown with (both reports print 2). |
@@ -305,7 +305,7 @@ Report module. Captures: Per size: the gloves weighed (one value, or one per glo
 | Caption key | Label (STD_EG) | Other wording | Meaning |
 |---|---|---|---|
 | `info` | Info | SAFEDON_EG: A | Word printed for a result with no spec. |
-| `rowNo` | No. |  | Caption of the glove row number column (the gloves weighed one by one). |
+| `rowNo` | No. |  | Caption of the glove row number column while the gloves were weighed one by one; not shown since 26 October 2026. |
 | `specRow` | Spec. |  | Caption of the spec row (config specs, printed as lib/stats formatSpec). |
 | `pass` | Passed | SAFEDON_EG: A | Word for pass in the result row of a size with a spec. |
 | `fail` | Failed | SAFEDON_EG: Rej. | Word for fail in the result row of a size with a spec. |
@@ -639,7 +639,7 @@ for the inspections that use them.
 | 6 | `carton_sampling` | Finished Goods Sampling Information (Box/Carton #) | none |
 | 7 | `dimensions` | Dimension | median of 13 gloves; measures length, width, fingerThickness, palmThickness, cuffThickness; decimals length 0, width 0, fingerThickness 2, palmThickness 2, cuffThickness 2; specs for XS, S, M, L, XL, below |
 | 8 | `force_at_break` | Force at Break in Newton (Refer to Attached Where Applicable) | 13 readings per size; median ≥ 6 N; 3 decimals; standard label none |
-| 9 | `weight` | Weight (g) - Average of 13 Gloves per Size | 13 values per size; spec none (info); warn beyond 10%; 2 decimals |
+| 9 | `weight` | Weight (g) - Average of 13 Gloves per Size | 1 value per size (n 13, not used); spec none (info); warn beyond 10%; 2 decimals |
 | 10 | `watertight` | Freedom From Holes by Watertight Test | AQL 1.5; hand split off; locations: Between Fingers (Crotch) (hole_crotch), Palm (hole_palm), Finger (hole_finger), Cuff (hole_cuff), Other : (hole_other) |
 | 11 | `visual` | Visual Inspection | hand split off; critical AQL 0.0, 2 defects; major AQL 2.5, 11 defects; minor AQL 4.0, 6 defects |
 | 12 | `dispensing_packing` | Glove Packing Check | layering ≥ 70%, dispensing ≥ 80%; 13 boxes per size (XL 5); stickiness A pass, B pass, B1 pass, C pass, D fail |
@@ -688,7 +688,7 @@ To confirm:
 | 6 | `carton_sampling` | Finished Goods Sampling Information (Box/Carton #) | none |
 | 7 | `dimensions` | Dimension | average of 13 gloves; measures length, width, fingerThickness, palmThickness; decimals length 0, width 0, fingerThickness 2, palmThickness 2; specs for XS, S, M, L, below |
 | 8 | `tensile` | Physical Properties Average (Refer to Attached Lab. Reports) | tensile ≥ 14 MPa; elongation ≥ 500%; Spec. (ASTM D6319); decimals 2 and 0 |
-| 9 | `weight` | Weight (g) | 1 value per size; spec per size, below; warn beyond 10%; 2 decimals |
+| 9 | `weight` | Weight (g) | 1 value per size (n 1, not used); spec per size, below; warn beyond 10%; 2 decimals |
 | 10 | `watertight` | Freedom From Holes by Watertight Test | AQL 1.5; hand split off; locations: Between Fingers (hole_crotch), Palm (hole_palm), Cuff (hole_cuff), Finger (hole_finger), Glove Burst (glove_burst), Other : (hole_other) |
 | 11 | `visual` | Visual Inspection | hand split off; critical AQL 0.0, 2 defects; major AQL 2.5, 10 defects; minor AQL 4.0, 5 defects |
 | 12 | `dispensing_safedon` | Glove Dispensing Inspection | rate ≤ 5% per size; 125 gloves per pack; 13 boxes per size; defects no_cuff, finger_out, multiple_out, stuck, sticky, faulty_cuff |
@@ -1102,9 +1102,9 @@ module field; `template` a template property; `layout` is drawn by the AI report
 | Page 2 > Force At Break in Newton | Median | Median | computed | `force_at_break.median`<br>`force_at_break.values`<br>config `force_at_break.n` | Only the median is printed; the app keeps the n readings and computes it (rule 2). |
 | Page 2 > Force At Break in Newton | Spec. | Spec. | fixed | caption `force_at_break.specRow`<br>config `force_at_break.specMin` | ≥ 6 N (left blank for XS). |
 | Page 2 > Force At Break in Newton | Passed / Failed | Passed / Failed | computed | `force_at_break.result` |  |
-| Page 2 > Weight (g) - average of 13 gloves per size | Weight (g) - average of 13 gloves per size | Weight (g) - Average of 13 Gloves per Size | heading | title `weight`<br>config `weight.n` | The app fills in the count of gloves weighed (the sampling plan's # Gloves for Weight, else config n), so the heading names the gloves really weighed. |
+| Page 2 > Weight (g) - average of 13 gloves per size | Weight (g) - average of 13 gloves per size | Weight (g) - Average of 13 Gloves per Size | heading | title `weight`<br>config `weight.n` | The app shows 'Weight (g)': since 26 October 2026 the step records one value per size, the size's average weight, so its title names no count of gloves. |
 | Page 2 > Weight (g) - average of 13 gloves per size | Size |  | size | template `sizes` |  |
-| Page 2 > Weight (g) - average of 13 gloves per size | Average | Average | computed | `weight.average`<br>`weight.values`<br>config `weight.decimals` | The 13 weighings are not printed; the app keeps them and computes the average. |
+| Page 2 > Weight (g) - average of 13 gloves per size | Average | Average | computed | `weight.average`<br>`weight.values`<br>config `weight.decimals` | Only the average is printed, and the app records it, one value per size; an inspection saved before 26 October 2026 kept the 13 weighings and averages them. |
 | Page 2 > Weight (g) - average of 13 gloves per size | Remark | Remark | computed | `weight.result`<br>caption `weight.info`<br>config `weight.specs` | Printed 'Info': no weight spec. |
 | Page 3 > Freedom from Holes by watertight test | Freedom from Holes by watertight test (Single sampling code letter k, L & M, AQL 1.5) | Freedom From Holes by Watertight Test (Single Sampling Code Letter {codeLetters}, AQL {aql}) | heading | caption `watertight.heading`<br>title `watertight`<br>`watertight.codeLetter`<br>config `watertight.aql` | The code letters (printed 'k, L & M') follow from the samples: computed (rule 2). |
 | Page 3 > Freedom from Holes by watertight test | Glove Size |  | size | template `sizes` |  |
@@ -1248,7 +1248,7 @@ module field; `template` a template property; `layout` is drawn by the AI report
 | Page 2 > Dimension - Size &lt;size> | Width | Width | number | `dimensions.width` |  |
 | Page 2 > Dimension - Size &lt;size> | Finger Thickness | Finger Thickness | number | `dimensions.fingerThickness` |  |
 | Page 2 > Dimension - Size &lt;size> | Palm Thickness | Palm Thickness | number | `dimensions.palmThickness` |  |
-| Page 2 > Dimension - Size &lt;size> | Weight (g) | Weight (g) | number | `weight.values`<br>config `weight.n`<br>title `weight` | One value per size in a merged cell (weight, n = 1), printed as a column of the dimension table. |
+| Page 2 > Dimension - Size &lt;size> | Weight (g) | Weight (g) | number | `weight.values`<br>config `weight.n`<br>title `weight` | One value per size in a merged cell, printed as a column of the dimension table: the value weight records. |
 | Page 2 > Dimension - Size &lt;size> | Average | Average | computed | `dimensions.statistic`<br>config `dimensions.statistic`<br>config `dimensions.decimals` |  |
 | Page 2 > Dimension - Size &lt;size> | Spec. | Spec. | fixed | caption `dimensions.specRow`<br>config `dimensions.specs`<br>config `weight.specs` | Length ≥ 230; Width XS 76 ± 4, S 86 ± 4, M 98 ± 4, L 107 ± 4; Finger 0.18 ± 0.04; Palm 0.14 ± 0.04; Weight NA. |
 | Page 2 > Dimension - Size &lt;size> | A / Rej. | A / Rej. | computed | `dimensions.measureResult`<br>`weight.result`<br>caption `dimensions.pass`<br>caption `dimensions.fail` | A = accepted. The weight column prints A against its NA spec. |

@@ -5,10 +5,13 @@ import type { AnyModuleDefinition, TitleInput } from "./contract";
 import { buildInspectionContext } from "./context";
 import type { InspectionData } from "./data";
 import { makeTestTemplate } from "./testing";
-import { buildInspectionView, fillGloveCount, withShownTitles } from "./titles";
+import { buildInspectionView, withShownTitles } from "./titles";
 
 const WEIGHT = "Weight (g) - Average of 13 Gloves per Size";
 const NO_DATA: InspectionData = { modules: {}, custom: {} };
+
+/** A test hook's wording: the title's first count of gloves becomes `count`. */
+const withCount = (title: string, count: number) => title.replace(/\d+(?=\s+gloves?\b)/i, String(count));
 
 /** The test module with a title hook. */
 function withHook(key: "weight" | "dimensions", shownTitle: (input: TitleInput<unknown>) => string): AnyModuleDefinition {
@@ -25,8 +28,8 @@ function template(n: number | string = 12): ResolvedTemplate {
 
 /** Weight fills in its config's n; dimensions fills in 5. */
 const HOOKED = registryWith({
-  weight: withHook("weight", ({ title, config }) => fillGloveCount(title, [(config as { n: number }).n])),
-  dimensions: withHook("dimensions", ({ title }) => fillGloveCount(title, [5])),
+  weight: withHook("weight", ({ title, config }) => withCount(title, (config as { n: number }).n)),
+  dimensions: withHook("dimensions", ({ title }) => withCount(title, 5)),
 });
 
 const titleOf = (modules: readonly { key: string; title: string }[] | undefined, key: string) =>
@@ -62,7 +65,7 @@ describe("withShownTitles", () => {
     const unchanged = withShownTitles(
       stored,
       context,
-      registryWith({ weight: withHook("weight", ({ title, config }) => fillGloveCount(title, [(config as { n: number }).n])) }),
+      registryWith({ weight: withHook("weight", ({ title, config }) => withCount(title, (config as { n: number }).n)) }),
     );
     expect(unchanged.template).toBe(stored);
     expect(unchanged.context).toBe(context);
@@ -91,7 +94,7 @@ describe("withShownTitles", () => {
 describe("buildInspectionView", () => {
   it("fills the titles from the complete context, every contribution in", () => {
     const sizes = registryWith({
-      weight: withHook("weight", ({ title, context }) => fillGloveCount(title, [context.sizes.length])),
+      weight: withHook("weight", ({ title, context }) => withCount(title, context.sizes.length)),
     });
     const data: InspectionData = {
       modules: {
@@ -109,35 +112,5 @@ describe("buildInspectionView", () => {
     expect(view.context.sizes).toEqual(["S", "M"]);
     expect(titleOf(view.template.modules, "weight")).toBe("Weight (g) - Average of 2 Gloves per Size");
     expect(titleOf(view.context.modules, "weight")).toBe("Weight (g) - Average of 2 Gloves per Size");
-  });
-});
-
-describe("fillGloveCount", () => {
-  it("puts one count in place of the number before Gloves, in the word's own case", () => {
-    expect(fillGloveCount(WEIGHT, [12])).toBe("Weight (g) - Average of 12 Gloves per Size");
-    expect(fillGloveCount("average of 13 gloves per size", [12])).toBe("average of 12 gloves per size");
-    expect(fillGloveCount("AVERAGE OF 13 GLOVES", [12])).toBe("AVERAGE OF 12 GLOVES");
-  });
-
-  it("lists several counts, smallest first, once each", () => {
-    expect(fillGloveCount(WEIGHT, [13, 8])).toBe("Weight (g) - Average of 8 or 13 Gloves per Size");
-    expect(fillGloveCount(WEIGHT, [13, 5, 8, 8])).toBe("Weight (g) - Average of 5, 8 or 13 Gloves per Size");
-    expect(fillGloveCount("AVERAGE OF 13 GLOVES", [13, 8])).toBe("AVERAGE OF 8 OR 13 GLOVES");
-  });
-
-  it("says Glove for a lone 1, and Gloves for any other count", () => {
-    expect(fillGloveCount(WEIGHT, [1])).toBe("Weight (g) - Average of 1 Glove per Size");
-    expect(fillGloveCount("Weight of 1 Glove", [12])).toBe("Weight of 12 Gloves");
-    expect(fillGloveCount("weight of 1 glove", [1, 13])).toBe("weight of 1 or 13 gloves");
-  });
-
-  it("changes only the first count of gloves", () => {
-    expect(fillGloveCount("13 gloves weighed, 13 gloves measured", [12])).toBe("12 gloves weighed, 13 gloves measured");
-  });
-
-  it("leaves a title without a count of gloves, or with no count to fill, as it is", () => {
-    expect(fillGloveCount("Weight (g)", [12])).toBe("Weight (g)");
-    expect(fillGloveCount("Gloves 13", [12])).toBe("Gloves 13");
-    expect(fillGloveCount(WEIGHT, [])).toBe(WEIGHT);
   });
 });

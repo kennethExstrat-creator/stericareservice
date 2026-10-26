@@ -19,11 +19,11 @@ export const SamplingSizeSchema = z.strictObject({
   /** Gloves for the physical test: force at break (EN 455) or tensile (ASTM D6319). */
   glovesPhysical: CountCellSchema,
   /**
-   * The gloves weighed: weight's own count, never the dimension's (Kenneth,
-   * 12 October 2026). Saved before the row existed, it reads as empty, so
-   * weight weighs the template's n.
+   * The gloves weighed, a row from 12 to 26 October 2026: no template shows
+   * it any more (shownColumns), and weight records one value per size. Kept
+   * so the inspections that saved it still load; unused.
    */
-  glovesWeight: CountCellSchema,
+  glovesWeight: CountCellSchema.describe("Not used: never fill"),
   /** Inner units for the packaging and dispensing check: its box rows. */
   innerUnitsDispensing: CountCellSchema,
   /** Surgical: pouches sampled. */
@@ -37,7 +37,8 @@ export type SamplingSize = z.infer<typeof SamplingSizeSchema>;
  * The test rows the inspector may switch off on screen when the inspection
  * does not run that test (Kenneth, 26 October 2026): greyed, never hidden,
  * and no longer asked for. Data saved before the switches existed has none
- * off.
+ * off. glovesWeight has no row to switch any more; data that switched it
+ * off still loads.
  */
 export const ROW_SWITCHES = [
   "glovesWatertightVisual",

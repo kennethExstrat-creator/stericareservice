@@ -8,7 +8,7 @@ import type { DocumentMediaType } from "@/lib/schemas/document-fill";
 import { checklist, DOCUMENT_FILE_KIND, DOCUMENTS_LABELS, DocumentsConfigSchema } from "@/modules/documents/config";
 import type { AiEnv } from "./config";
 import { createMessage, describeReadError, fail, type ReadFailure } from "./document-reader";
-import { glossaryText, LAB_REPORT_GUIDE, PAPER_FORM_GUIDE } from "./reading-guide";
+import { glossaryText, LAB_REPORT_GUIDE, PAPER_FORM_GUIDE, WEIGHT_GUIDE } from "./reading-guide";
 import type { OnAiCall } from "./usage";
 
 /*
@@ -70,7 +70,9 @@ const MAX_TOKENS = 16_000;
  * Byte-stable. Since 14 October 2026 a box/carton number goes into its test
  * and also into carton_sampling's list for its size (PAPER_FORM_GUIDE says
  * how), which the capture screen fills into an empty list or over one the
- * document's list completes (lib/inspections/source-documents.ts).
+ * document's list completes (lib/inspections/source-documents.ts). Since 26
+ * October 2026 weight is one value per size, the average weight a dimension
+ * sheet prints (WEIGHT_GUIDE).
  */
 export const SOURCE_READER_SYSTEM_PROMPT = `You read the source documents of a glove quality-control inspection for SteriCare and fill in the inspection's fields from them.
 
@@ -98,7 +100,9 @@ Which forms belong to this inspection (lab reports: below): use only the forms w
 
 ${PAPER_FORM_GUIDE}
 
-${LAB_REPORT_GUIDE}`;
+${LAB_REPORT_GUIDE}
+
+${WEIGHT_GUIDE}`;
 
 /** What makes a lab report a step's own, for the steps that keep one (linkSourceFile). */
 const LAB_REPORT_RESULTS: Readonly<Record<string, string>> = {

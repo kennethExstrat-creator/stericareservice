@@ -15,13 +15,16 @@
 // October 2026: "the specification should be adjustable, manually or AI
 // auto, read the document uploaded and adjust"); a P/F set by hand never
 // comes from a document.
+// Weight is one value per size, the average a dimension sheet prints
+// (WEIGHT_GUIDE; Kenneth, 26 October 2026), and the sampling plan has no
+// gloves for weight.
 import type { GlossaryEntry } from "@/lib/schemas/ai-settings";
 
 export const PAPER_FORM_GUIDE = `How SteriCare inspectors fill in their paper inspection form:
 - One form per purchase order and lot, usually one size per form. Its parts: "Purchase Order / Shipment Information" (manufacturer, PO with the SO in brackets, product name, lot number, mfg and expiry date, glove type, packing mode); "Inspected by" (initials, date, signature); "PO Info" (glove size, quantity in cases); "Sampling Plan" (cases, inner boxes and gloves sampled; gloves for watertight (WTT) and visual; gloves for dimension; gloves for force at break (FAB); inner boxes for the dispensing test); "Watertight Inspection" and "Visual Inspection" (defects by size, major and minor); then "Dispensing Result" on a page of its own (by size: box/carton number, layering %, dispensing %, stickiness code, others).
 - A box number and a carton number are the same number, a box/carton number: the boxes of the dispensing and labelling tests are the size's sampled cartons (the Finished Goods Sampling Information). Copy each box/carton number as written, even one that is not among the sampled ones: never change it to a sampled number; the app warns about it.
 - So each box/carton number a document gives for a size's boxes (a dispensing or packing result, the labelling boxes, a list of the sampled cartons, a carton's label) also goes into carton_sampling's cartonNumbers for that size, besides its own test's field: in the order the document lists them, each number once (the list never repeats a number, though a test may use one carton twice), as written. Give the document's whole list for each size even when that size's list already holds numbers: the app fills an empty list, and takes a fuller list only when it holds every number already there (a carton sheet completing the dispensing page's boxes), never mixing in another order's. Never pad the list to the cases sampled, never add a number the documents do not state, and leave out a packing list's carton numbering (the shipment's cartons, not the sample).
-- Each test has its own count in the sampling plan. The form has no gloves for weight: fill the sampling plan's glovesWeight only from a document that states how many gloves were weighed per size, and never copy the gloves for dimension, or any other test's count, into it.
+- Each test has its own count in the sampling plan: never copy one test's count into another's. Never fill the sampling plan's glovesWeight: the app has no gloves-for-weight row (the weight step records one average per size).
 - A dimension table prints a "Spec." row for each size: each column's spec as printed, such as ≥240, ≤80, 80±10, 230-250 or NA (no spec). Put it into dimensions' specOverrides for that size and column, in the schema's spec shape (NA is {"kind": "na"}), only where it differs from that size's spec in the module settings and the current data has none. A spec comes only from a Spec row, never from the readings or a result. Never write dimensions' manualResults: only the inspector sets a P/F, on screen.
 - Counts are often tally marks: each stroke | is one (|||| is 4). "2+1" means 2 and 1 more: 3. Add them up.
 - "x/500" by a total is x defects found in 500 gloves inspected. When a total disagrees with its rows, trust the rows and say so in the summary.
@@ -43,6 +46,15 @@ export const LAB_REPORT_GUIDE = `How to read a laboratory test report (tensile s
 - Tensile ("tensile"): per size, the average tensile strength in MPa (N/mm²) and the average elongation at break in % (536, not 5.36), as the report prints them. When it gives results before and after ageing, take those before ageing, unless the module's title or settings say aged. Leave a value out when the report prints only individual readings.
 - Force at break ("force_at_break"): per size, each glove's force at break in N, in the report's order, as that size's "values". Never a median, average or minimum in their place.
 - Each result goes under the size the report names, as the size values given; a report for one size fills only that size. Leave out sizes this inspection does not offer.`;
+
+/**
+ * How the weight step is read (Kenneth, 26 October 2026: "this page should
+ * only record average weight of each size, which already in the dimension
+ * document"): one value per size, the average weight the document prints.
+ */
+export const WEIGHT_GUIDE = `How to read the glove weight ("weight"):
+- Per size, one value: the size's average weight in g as a document prints it, usually the "Weight (g)" row or column of a dimension sheet (S 3.2, M 3.4, L 3.8), as that size's "values": [3.4]. The weight's spec (often NA) and its P/F or remark ("Info only") are not data: leave them out.
+- Never work the average out yourself: a document that lists each glove's weight without the size's average gives nothing for weight.`;
 
 const GUESS = " A guess, not confirmed by an inspector yet.";
 

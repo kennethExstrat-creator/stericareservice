@@ -1,8 +1,9 @@
 // Defaults a template can override: the heading, the labels (STD_EG's
 // wording; SAFEDON_EG titles it "Weight (g)" and prints "A") and the config
-// (BUILD_SPEC 6.1: gloves weighed per size until the sampling plan gives its
-// gloves for weight, an optional spec, the warning threshold for the
-// indicative weight, decimals).
+// (BUILD_SPEC 6.1: an optional spec, the warning threshold for the indicative
+// weight, decimals). Weight records one value per size, the size's average
+// (Kenneth, 26 October 2026), so n, the gloves a template weighed one by one,
+// is no longer used: it stays so the templates that set it still load.
 import { z } from "zod";
 import { CanonicalSizeSchema } from "@/lib/sizes";
 import { SpecSchema } from "@/modules/_framework";
@@ -17,14 +18,15 @@ export const WEIGHT_LABELS = {
   result: "Remark",
   /** Printed for a result with no spec: "A" on SAFEDON_EG. */
   info: "Info",
-  // The grid's captions, as dimensions has them; SAFEDON_EG's words are "A" and "Rej.".
+  /** The caption of the 13-glove grid weight had before 26 October 2026: templates still word it, the screen no longer shows it. */
   rowNo: "No.",
+  // The spec's captions, as dimensions has them; SAFEDON_EG's words are "A" and "Rej.".
   specRow: "Spec.",
   pass: "Passed",
   fail: "Failed",
 } as const satisfies Readonly<Record<string, string>>;
 
-/** Gloves a template can have weighed per size. */
+/** Gloves a template could have weighed per size (n). */
 export const MAX_N = 200;
 
 export const WeightSpecRowSchema = z.strictObject({
@@ -39,7 +41,9 @@ export const WeightConfigSchema = z.strictObject({
     .int()
     .min(1)
     .max(MAX_N)
-    .describe("Gloves weighed per size when the sampling plan gives no number for weight; 1 weighs one value per size"),
+    .describe(
+      "Not used since 26 October 2026: weight records one value per size, the size's average weight. Kept so the templates that set it still load",
+    ),
   // A list, so a child template replaces every row at once (lib/templates/merge.ts).
   specs: z
     .array(WeightSpecRowSchema)
@@ -67,10 +71,11 @@ export const WeightConfigSchema = z.strictObject({
 });
 export type WeightConfig = z.infer<typeof WeightConfigSchema>;
 
-/** STD_EG's: 13 gloves weighed one by one (until the sampling plan's gloves for weight say otherwise), no spec, a warning beyond 10%, 2 decimals. */
+/** STD_EG's: no spec, a warning beyond 10%, 2 decimals; n 13, the gloves it weighed one by one before 26 October 2026. */
 export const WEIGHT_DEFAULT_CONFIG: WeightConfig = {
   n: 13,
   specs: [],
   warnThresholdPct: 10,
   decimals: 2,
 };
+

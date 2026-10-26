@@ -111,7 +111,7 @@ describe("summaryViewOf", () => {
       words: { pass: "PASSED", fail: "FAILED", hold: "HOLD" },
       finalResult: "PASSED",
       suggestedResult: "PASSED",
-      suggestionReasons: { failed: [], notDone: [], warnings: ["Weight (g) - Average of 13 Gloves per Size"] },
+      suggestionReasons: { failed: [], notDone: [], warnings: ["Weight (g)"] },
       remark: null,
       date: "2025-04-12",
       inspectedBy: "Inspector A",

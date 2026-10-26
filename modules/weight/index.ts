@@ -1,7 +1,7 @@
-// Weight (BUILD_SPEC 6.1): per ordered size, the gloves weighed (the
-// sampling plan's gloves for weight, else the template's n) and their
-// average, judged against an optional spec and compared with the indicative
-// weight from glove_info (6.2 rule 9). Its title names the gloves weighed.
+// Weight (BUILD_SPEC 6.1): per ordered size, one value, the size's average
+// weight as the dimension sheet prints it, judged against an optional spec
+// and compared with the indicative weight from glove_info (6.2 rule 9). Its
+// title names no count of gloves (weightTitle).
 import { defineModule } from "@/modules/_framework";
 import { calcWeight, type WeightComputed } from "./calc";
 import { WEIGHT_DEFAULT_CONFIG, WEIGHT_LABELS, WEIGHT_TITLE, WeightConfigSchema, type WeightConfig } from "./config";

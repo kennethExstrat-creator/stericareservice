@@ -1,5 +1,4 @@
 import { describe, expect, it } from "vitest";
-import { roundTo, summarizeColumn } from "@/lib/stats";
 import { MODULE_REGISTRY } from "@/modules/registry";
 import {
   buildInspectionContext,
@@ -7,10 +6,10 @@ import {
   type CalcInput,
   type InspectionContext,
 } from "@/modules/_framework";
-import { checkModuleContract, makeSampling, makeTestContext, makeTestTemplate } from "@/modules/_framework/testing";
+import { checkModuleContract, makeTestContext, makeTestTemplate } from "@/modules/_framework/testing";
 import { SAMPLING_PLAN_DEFAULT_CONFIG } from "@/modules/sampling_plan/config";
 import { SAFEDON_EG_EXAMPLE, STD_EG_EXAMPLE, STD_EG_EXPECTED } from "@/tests/fixtures/examples";
-import { exampleContext, templateConfig, templateLabels, weightData } from "./__fixtures__/examples";
+import { exampleContext, gloveByGloveData, templateConfig, templateLabels, weightData } from "./__fixtures__/examples";
 import { calcWeight, deviationPct } from "./calc";
 import { WEIGHT_DEFAULT_CONFIG, WEIGHT_LABELS, WEIGHT_TITLE, type WeightConfig } from "./config";
 import { definition } from "./index";
@@ -18,21 +17,7 @@ import { emptyWeight, type WeightData } from "./schema";
 
 const STD_EG = templateConfig("STD_EG");
 const SAFEDON_EG = templateConfig("SAFEDON_EG");
-const ONE_VALUE: WeightConfig = { ...STD_EG, n: 1 };
 const INDICATIVE_M = { grams: 3.5, size: "M" };
-
-/** The sampling plan's config with # Gloves for Weight switched on or off. */
-function withWeightRow(on: boolean) {
-  return { ...SAMPLING_PLAN_DEFAULT_CONFIG, columns: { ...SAMPLING_PLAN_DEFAULT_CONFIG.columns, glovesWeight: on } };
-}
-
-/** The sampling plan's config as a template version saved before # Gloves for Weight existed stores it. */
-function withoutWeightRow() {
-  const columns = Object.fromEntries(
-    Object.entries(SAMPLING_PLAN_DEFAULT_CONFIG.columns).filter(([column]) => column !== "glovesWeight"),
-  );
-  return { ...SAMPLING_PLAN_DEFAULT_CONFIG, columns };
-}
 
 function sizeM(values: (number | null)[]): WeightData {
   return { sizes: { M: { values } } };
@@ -56,10 +41,10 @@ describe("weight", () => {
     const expected = STD_EG_EXPECTED.weight.M!;
     const output = calcWeight(input(weightData(STD_EG_EXAMPLE.weight), STD_EG, exampleContext(STD_EG_EXAMPLE)));
 
-    it("averages the 13 gloves of size M to 2.90 g", () => {
-      expect(STD_EG_EXAMPLE.weight.M?.gloves).toBe(13);
-      expect(output.computed.count).toEqual({ M: 13 });
-      expect(output.computed.average.M).toBeCloseTo(expected.averageG, 10);
+    it("records size M's average weight as the report prints it, 2.90 g: one value, whatever the template's n", () => {
+      expect(STD_EG.n).toBe(13);
+      expect(output.computed.count).toEqual({ M: 1 });
+      expect(output.computed.average).toEqual({ M: expected.averageG });
       expect(output.computed.shown).toEqual({ M: expected.averageG });
       expect(output.computed.indicative).toEqual({ grams: expected.indicativeG, size: "M" });
     });
@@ -112,7 +97,7 @@ describe("weight", () => {
 
   describe("the indicative weight (6.2 rule 9)", () => {
     it("warns only beyond the threshold, judged at the deviation as printed (1 decimal)", () => {
-      const at = (grams: number) => calcWeight(input(sizeM([grams]), ONE_VALUE));
+      const at = (grams: number) => calcWeight(input(sizeM([grams]), STD_EG));
       expect(at(3.15).computed.deviationPct.M).toBe(-10);
       expect(at(3.15).result.status).toBe("info");
       expect(at(3.15).issues).toEqual([]);
@@ -126,31 +111,31 @@ describe("weight", () => {
 
     it("compares the printed average: 2.894 g prints as 2.89", () => {
       expect(deviationPct(2.89, 3.5)).toBe(-17.4);
-      const output = calcWeight(input(sizeM([2.894]), ONE_VALUE));
+      const output = calcWeight(input(sizeM([2.894]), STD_EG));
       expect(output.computed.average.M).toBe(2.894);
       expect(output.computed.deviationPct.M).toBe(-17.4);
     });
 
     it("takes the template's threshold", () => {
-      const strict = calcWeight(input(sizeM([3.3]), { ...ONE_VALUE, warnThresholdPct: 5 }));
+      const strict = calcWeight(input(sizeM([3.3]), { ...STD_EG, warnThresholdPct: 5 }));
       expect(strict.result.status).toBe("warn");
       expect(strict.issues[0]?.message).toBe("Average weight 3.3 g is 5.7% below the indicative 3.5 g (threshold 5%).");
     });
 
     it("has nothing to compare without an indicative weight, or for other sizes", () => {
-      const none = calcWeight(input(sizeM([2.9]), ONE_VALUE, makeTestContext({ sizes: ["M"] })));
+      const none = calcWeight(input(sizeM([2.9]), STD_EG, makeTestContext({ sizes: ["M"] })));
       expect(none.result.status).toBe("info");
       expect(none.computed.deviationPct).toEqual({});
       expect(none.computed.indicative).toBeNull();
       const context = makeTestContext({ sizes: ["S", "M"], indicativeWeight: INDICATIVE_M });
-      const other = calcWeight(input({ sizes: { S: { values: [2.0] }, M: { values: [3.4] } } }, ONE_VALUE, context));
+      const other = calcWeight(input({ sizes: { S: { values: [2.0] }, M: { values: [3.4] } } }, STD_EG, context));
       expect(other.computed.deviationPct).toEqual({ M: -2.9 });
       expect(other.result.perSize).toMatchObject({ S: { status: "info" }, M: { status: "info" } });
     });
 
     it("compares a surgical size given as 7.0", () => {
       const context = makeTestContext({ sizes: ["7.0"], indicativeWeight: { grams: 10, size: "7.0" } });
-      const output = calcWeight(input({ sizes: { "7.0": { values: [12] } } }, ONE_VALUE, context));
+      const output = calcWeight(input({ sizes: { "7.0": { values: [12] } } }, STD_EG, context));
       expect(output.computed.deviationPct).toEqual({ "7.0": 20 });
       expect(output.issues[0]).toMatchObject({ code: "weight_deviation", size: "7.0", path: ["sizes", "7.0", "values"] });
     });
@@ -158,7 +143,7 @@ describe("weight", () => {
 
   describe("an optional spec", () => {
     const spec = (min: number, max: number): WeightConfig => ({
-      ...ONE_VALUE,
+      ...STD_EG,
       specs: [{ size: "M", spec: { kind: "range", min, max } }],
     });
 
@@ -179,123 +164,76 @@ describe("weight", () => {
     });
 
     it("judges the average as printed: 2.996 g is 3.00 and meets a minimum of 3, 2.994 g is 2.99", () => {
-      const min = { ...ONE_VALUE, specs: [{ size: "M", spec: { kind: "min" as const, min: 3 } }] };
+      const min = { ...STD_EG, specs: [{ size: "M", spec: { kind: "min" as const, min: 3 } }] };
       const context = makeTestContext({ sizes: ["M"] });
       expect(calcWeight(input(sizeM([2.996]), min, context)).result.status).toBe("pass");
       expect(calcWeight(input(sizeM([2.994]), min, context)).result.status).toBe("fail");
     });
   });
 
-  describe("the gloves weighed: the sampling plan's gloves for weight, weight's own count (BUILD_SPEC 8)", () => {
-    const planned = (weight: number | null) => makeTestContext({ sizes: ["M"], sampling: { M: makeSampling({ weight }) } });
-    const weights = (count: number) => sizeM(Array.from({ length: count }, () => 2.9));
+  describe("an inspection saved before 26 October 2026, its gloves weighed one by one", () => {
+    it("takes the average of the 13 gloves of the STD_EG example as the size's weight, as its report printed it", () => {
+      const output = calcWeight(input(gloveByGloveData(STD_EG_EXAMPLE.weight), STD_EG, exampleContext(STD_EG_EXAMPLE)));
+      expect(output.computed.count).toEqual({ M: 13 });
+      expect(output.computed.average.M).toBeCloseTo(2.9, 10);
+      expect(output.computed.shown).toEqual({ M: 2.9 });
+      expect(output.result.perSize?.M).toEqual({ status: "warn", summary: "Average 2.90 g; 17.1% below the indicative 3.5 g." });
+      expect(output.issues.map((issue) => issue.code)).toEqual(["weight_deviation"]);
+    });
 
-    it("weighs the plan's 12 gloves: 12 weights complete the size", () => {
-      const output = calcWeight(input(weights(12), STD_EG, planned(12)));
-      expect(output.computed.n).toEqual({ M: 12 });
-      expect(output.computed.count).toEqual({ M: 12 });
+    it("averages the values entered, a gap left out, printed at the template's decimals", () => {
+      const output = calcWeight(input(sizeM([2.8, null, 3.0, 3.05]), STD_EG, makeTestContext({ sizes: ["M"] })));
+      expect(output.computed.count).toEqual({ M: 3 });
+      expect(output.computed.average.M).toBeCloseTo(2.95, 10);
+      expect(output.computed.shown).toEqual({ M: 2.95 });
       expect(output.result.status).toBe("info");
       expect(output.issues).toEqual([]);
     });
 
-    it("does not count a 13th weight, and says the sampling plan has 12", () => {
-      const output = calcWeight(input(weights(13), STD_EG, planned(12)));
-      expect(output.computed.count).toEqual({ M: 12 });
-      expect(output.result.status).toBe("info");
-      expect(output.issues).toEqual([
-        {
-          level: "warning",
-          code: "weight_beyond_n",
-          message: "Size M: values for No. 13 are not counted; the sampling plan has 12 gloves for weight.",
-          size: "M",
-          path: ["sizes", "M", "values", 12],
-        },
-      ]);
-    });
-
-    it("is not done at 11 of the plan's 12", () => {
-      const output = calcWeight(input(weights(11), STD_EG, planned(12)));
-      expect(output.result.status).toBe("not_done");
-      expect(output.result.perSize?.M?.summary).toBe("Weight (g): 11 of 12 gloves.");
-    });
-
-    it("is not done when the plan has no gloves for weight", () => {
-      const output = calcWeight(input(weights(13), STD_EG, planned(0)));
-      expect(output.computed.n).toEqual({ M: 0 });
-      expect(output.result.perSize?.M).toEqual({ status: "not_done", summary: "The sampling plan has no gloves for weight." });
-      expect(output.issues.map((issue) => issue.message)).toEqual([
-        "Size M: values for No. 1 to 13 are not counted; the sampling plan has no gloves for weight.",
-      ]);
-    });
-
-    it("weighs the template's n while the plan gives no number for weight", () => {
-      expect(calcWeight(input(weights(13), STD_EG, planned(null))).computed.n).toEqual({ M: 13 });
-    });
-
-    // Kenneth, 12 October 2026: "each metrics and measurement should have their own number of glove count".
-    it("never takes another test's count: 12 gloves for dimension and 10 for force at break leave weight at 13", () => {
-      const others = makeTestContext({ sizes: ["M"], sampling: { M: makeSampling({ dimensions: 12, physical: 10 }) } });
-      const output = calcWeight(input(weights(13), STD_EG, others));
-      expect(output.computed.n).toEqual({ M: 13 });
-      expect(output.result.status).toBe("info");
-      expect(output.issues).toEqual([]);
-    });
-
-    it("reads the gloves for weight from the sampling plan's row, through the context (switched off: the template's n)", () => {
+    it("asks nothing of the sampling plan: a count of gloves for weight saved there changes nothing", () => {
       const template = makeTestTemplate(MODULE_REGISTRY, [
         "order_lots",
-        { key: "sampling_plan", config: withWeightRow(true) },
+        { key: "sampling_plan", config: { ...SAMPLING_PLAN_DEFAULT_CONFIG, columns: { ...SAMPLING_PLAN_DEFAULT_CONFIG.columns, glovesWeight: true } } },
         { key: "weight", config: STD_EG },
       ]);
-      const data = (glovesWeight: number | null) => ({
+      const data = {
         modules: {
           order_lots: { sizes: { M: { qtyCases: 100, lotNumbers: ["LOT-A01"] } } },
-          sampling_plan: { sizes: { M: { glovesDimensions: 13, glovesWeight } } },
+          sampling_plan: { sizes: { M: { glovesDimensions: 13, glovesWeight: 12 } } },
         },
         custom: {},
-      });
-      const weighs = (built: InspectionContext) => calcWeight(input(weights(12), STD_EG, built)).computed.n;
-      expect(weighs(buildInspectionContext({ template, data: data(12) }, MODULE_REGISTRY))).toEqual({ M: 12 });
-      expect(weighs(buildInspectionContext({ template, data: data(null) }, MODULE_REGISTRY))).toEqual({ M: 13 });
-      // A template version saved before the row existed: no glovesWeight switch, read as off.
-      const before = makeTestTemplate(MODULE_REGISTRY, [
-        "order_lots",
-        { key: "sampling_plan", config: withoutWeightRow() },
-        { key: "weight", config: STD_EG },
-      ]);
-      expect(weighs(buildInspectionContext({ template: before, data: data(12) }, MODULE_REGISTRY))).toEqual({ M: 13 });
-    });
-
-    it("keeps one value per size (n 1) whatever the plan says", () => {
-      const output = calcWeight(input(sizeM([3.4]), ONE_VALUE, planned(13)));
-      expect(output.computed.n).toEqual({ M: 1 });
+      };
+      const context = buildInspectionContext({ template, data }, MODULE_REGISTRY);
+      expect(context.sampling.M).not.toHaveProperty("weight");
+      const output = calcWeight(input(sizeM([3.4]), STD_EG, context));
+      expect(output.computed.count).toEqual({ M: 1 });
       expect(output.result.status).toBe("info");
+      expect(output.issues).toEqual([]);
     });
   });
 
   describe("missing data is not done, never passed (6.2 rule 5)", () => {
-    it("is not done until every glove is weighed", () => {
+    it("is not done until the size has its weight", () => {
       expect(calcWeight(input(emptyWeight())).result).toEqual({
         status: "not_done",
         summary: "Not done for size M.",
-        perSize: { M: { status: "not_done", summary: "Weight (g): 0 of 13 gloves." } },
+        perSize: { M: { status: "not_done", summary: "Weight (g): not entered." } },
       });
-      const twelve = calcWeight(input(sizeM([...Array.from({ length: 12 }, () => 2.9), null])));
-      expect(twelve.result.status).toBe("not_done");
-      expect(twelve.result.perSize?.M?.summary).toBe("Weight (g): 12 of 13 gloves.");
-      expect(twelve.computed.deviationPct).toEqual({});
-      expect(twelve.issues).toEqual([]);
+      const cleared = calcWeight(input(sizeM([null])));
+      expect(cleared.result.status).toBe("not_done");
+      expect(cleared.computed).toMatchObject({ count: { M: 0 }, average: { M: null }, shown: { M: null }, deviationPct: {} });
+      expect(cleared.issues).toEqual([]);
     });
 
     it("lists the sizes weighed and the sizes not done", () => {
       const context = makeTestContext({ sizes: ["S", "M"], indicativeWeight: INDICATIVE_M });
-      const output = calcWeight(input(sizeM([3.4]), ONE_VALUE, context));
+      const output = calcWeight(input(sizeM([3.4]), STD_EG, context));
       expect(output.result.status).toBe("not_done");
       expect(output.result.summary).toBe("Average: M 3.40 g (2.9% below the indicative 3.5 g). Not done for size S.");
     });
 
     it("is not done without ordered sizes", () => {
-      expect(calcWeight(input(sizeM([2.9]), ONE_VALUE, makeTestContext())).result).toEqual({
+      expect(calcWeight(input(sizeM([2.9]), STD_EG, makeTestContext())).result).toEqual({
         status: "not_done",
         summary: "No sizes ordered yet.",
         perSize: {},
@@ -304,46 +242,24 @@ describe("weight", () => {
   });
 
   describe("wrong data", () => {
-    it("rejects a weight of 0 or less with an error that blocks submit, with a link to the value", () => {
-      const values = Array.from({ length: 13 }, (_, index) => (index === 2 ? 0 : 2.9));
-      const output = calcWeight(input(sizeM(values)));
-      expect(output.issues[0]).toEqual({
-        level: "error",
-        code: "weight_not_positive",
-        message: "Size M, Weight (g) No. 3: must be more than 0 g.",
-        size: "M",
-        path: ["sizes", "M", "values", 2],
-      });
-      expect(calcWeight(input(sizeM([-2.9]), ONE_VALUE)).issues[0]?.message).toBe(
-        "Size M, Weight (g): must be more than 0 g.",
-      );
+    it("rejects a weight of 0 or less with an error that blocks submit, with a link to the cell", () => {
+      for (const grams of [0, -2.9]) {
+        const output = calcWeight(input(sizeM([grams])));
+        expect(output.issues[0]).toEqual({
+          level: "error",
+          code: "weight_not_positive",
+          message: "Size M, Weight (g): must be more than 0 g.",
+          size: "M",
+          path: ["sizes", "M", "values", 0],
+        });
+      }
     });
 
-    it("counts it as the grid's live average does, so the screen gives one answer", () => {
-      const values = Array.from({ length: 13 }, (_, index) => (index === 2 ? 0 : 2.9));
-      const output = calcWeight(input(sizeM(values)));
-      // MeasurementGrid's footer is lib/stats summarizeColumn over the stored column.
-      const footer = summarizeColumn(values, 13, "average", undefined, STD_EG.decimals);
-      expect(output.computed.count.M).toBe(footer.count);
-      expect(output.computed.shown.M).toBe(roundTo(footer.statistic ?? Number.NaN, STD_EG.decimals));
-      expect(output.computed.shown.M).toBe(2.68);
-      // 2.68 g is 23.4% below the indicative 3.5 g: the warning joins the error.
+    it("still records the value, so the screen gives one answer: 0 g is 100% below the indicative 3.5 g", () => {
+      const output = calcWeight(input(sizeM([0])));
+      expect(output.computed.shown.M).toBe(0);
       expect(output.result.status).toBe("warn");
       expect(output.issues.map((issue) => issue.code)).toEqual(["weight_not_positive", "weight_deviation"]);
-    });
-
-    it("counts only the first n values and warns about the rest", () => {
-      const output = calcWeight(input(sizeM([3.4, 9.9]), ONE_VALUE));
-      expect(output.computed.average.M).toBe(3.4);
-      expect(output.issues).toEqual([
-        {
-          level: "warning",
-          code: "weight_beyond_n",
-          message: "Size M: values for No. 2 are not counted; the template weighs 1 glove per size.",
-          size: "M",
-          path: ["sizes", "M", "values", 1],
-        },
-      ]);
     });
   });
 

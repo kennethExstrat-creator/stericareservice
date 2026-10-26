@@ -8,9 +8,8 @@ export const SAMPLING_PLAN_TITLE = "Sampling Plan";
 
 /**
  * Columns of the sampling plan, in report order; the last two are surgical
- * (SG onsite form). The forms print no gloves for weight: that row is the
- * app's, beside the other tests' counts, in step order (dimension, force at
- * break, weight).
+ * (SG onsite form). glovesWeight was the app's own row of gloves weighed (no
+ * form prints it): no template shows it any more (shownColumns).
  */
 export const SAMPLING_COLUMNS = [
   "cases",
@@ -26,6 +25,9 @@ export const SAMPLING_COLUMNS = [
 ] as const;
 export type SamplingColumn = (typeof SAMPLING_COLUMNS)[number];
 
+/** A column a template can show: every column but the gloves for weight. */
+export type ShownColumn = Exclude<SamplingColumn, "glovesWeight">;
+
 /** Where each column flows forward: the key other modules read in `context.sampling[size]` (BUILD_SPEC 8). */
 export const SAMPLING_CONTEXT_KEYS = {
   cases: "cases",
@@ -34,11 +36,10 @@ export const SAMPLING_CONTEXT_KEYS = {
   glovesWatertightVisual: "watertightVisual",
   glovesDimensions: "dimensions",
   glovesPhysical: "physical",
-  glovesWeight: "weight",
   innerUnitsDispensing: "packagingDispensing",
   pouches: "pouches",
   pouchesDyeLeak: "pouchesDyeLeak",
-} as const satisfies Readonly<Record<SamplingColumn, keyof SamplingValues>>;
+} as const satisfies Readonly<Record<ShownColumn, keyof SamplingValues>>;
 
 export const SAMPLING_PLAN_LABELS = {
   cases: "Case",
@@ -47,6 +48,7 @@ export const SAMPLING_PLAN_LABELS = {
   glovesWatertightVisual: "# Gloves for Watertight & Visual",
   glovesDimensions: "# Gloves for Dimension",
   glovesPhysical: "# Gloves for FAB",
+  // The row no template shows any more: templates still word it.
   glovesWeight: "# Gloves for Weight",
   innerUnitsDispensing: "# Inner Box for Packaging & Dispensing Inspection",
   pouches: "Pouches",
@@ -71,17 +73,17 @@ export const SamplingPlanConfigSchema = z.strictObject({
       glovesWatertightVisual: z.boolean(),
       glovesDimensions: z.boolean(),
       glovesPhysical: z.boolean(),
-      // Added 12 October 2026: a template version saved before it (frozen once used) reads it as off,
-      // so its inspections keep their rows and weight weighs the template's n.
+      // Added 12 October 2026 (a template version saved before it reads it as off); no template shows
+      // the row since 26 October 2026, whatever this says (shownColumns).
       glovesWeight: z
         .boolean()
         .default(false)
-        .describe("On where weight weighs glove by glove; off where it weighs one value per size or is not included."),
+        .describe("Not used since 26 October 2026: the sampling plan shows no gloves for weight, as weight records one value per size."),
       innerUnitsDispensing: z.boolean(),
       pouches: z.boolean(),
       pouchesDyeLeak: z.boolean(),
     })
-    .describe("Columns shown on this template. The surgical pouch columns and # Gloves for Weight are off by default."),
+    .describe("Columns shown on this template. The surgical pouch columns are off by default; # Gloves for Weight is never shown."),
   inspectionLevel: InspectionLevelSchema.nullable().describe(
     "ISO 2859-1 inspection level. With a level, the plan for each size's lot (cases ordered x gloves per case) is computed and a watertight and visual sample below it is flagged. None: samples are entered directly with no plan check.",
   ),
@@ -104,12 +106,17 @@ export const SAMPLING_PLAN_DEFAULT_CONFIG: SamplingPlanConfig = {
   inspectionLevel: null,
 };
 
-/** The columns a template shows, in report order. */
-export function shownColumns(config: SamplingPlanConfig): SamplingColumn[] {
-  return SAMPLING_COLUMNS.filter((column) => config.columns[column]);
+/**
+ * The columns a template shows, in report order. Never the gloves for weight,
+ * whatever the template says (Kenneth, 26 October 2026: "remove this, this is
+ * not needed"): weight records one value per size, the size's average. A
+ * count an older inspection saved there is kept, unused.
+ */
+export function shownColumns(config: SamplingPlanConfig): ShownColumn[] {
+  return SAMPLING_COLUMNS.filter((column): column is ShownColumn => column !== "glovesWeight" && config.columns[column]);
 }
 
-const QUANTITY_COLUMNS: readonly SamplingColumn[] = ["cases", "innerUnits", "gloves", "pouches"];
+const QUANTITY_COLUMNS: readonly ShownColumn[] = ["cases", "innerUnits", "gloves", "pouches"];
 
 /**
  * The shown columns as the forms group them: what was sampled under the
@@ -117,9 +124,9 @@ const QUANTITY_COLUMNS: readonly SamplingColumn[] = ["cases", "innerUnits", "glo
  * takes. The SG form has no Gloves column and counts the watertight and
  * visual gloves inside Sampling Quantity ("Sampling Quantity (WTT & Visual)").
  */
-export function columnGroups(config: SamplingPlanConfig): { quantity: SamplingColumn[]; tests: SamplingColumn[] } {
+export function columnGroups(config: SamplingPlanConfig): { quantity: ShownColumn[]; tests: ShownColumn[] } {
   const shown = shownColumns(config);
-  const inQuantity = (column: SamplingColumn) =>
+  const inQuantity = (column: ShownColumn) =>
     QUANTITY_COLUMNS.includes(column) || (column === "glovesWatertightVisual" && !config.columns.gloves);
   const quantity = [...QUANTITY_COLUMNS, "glovesWatertightVisual" as const].filter(
     (column) => shown.includes(column) && inQuantity(column),

@@ -311,9 +311,10 @@ function visualClasses(template: TemplateCode): Readonly<Record<DefectClass, Cla
 }
 
 /**
- * STD_EG's columns. # Gloves for Weight is the app's own row (no form prints
- * it): weight weighs 13 gloves one by one, its own count (Kenneth, 12
- * October 2026), so the plan says how many.
+ * STD_EG's columns, as its seed and live versions store them. # Gloves for
+ * Weight, the app's own row (no form prints it), is on: from 12 to 26
+ * October 2026 it said how many gloves weight weighed one by one. The app no
+ * longer shows it (weight records one value per size).
  */
 const STD_EG_SAMPLING_COLUMNS: Readonly<Record<SamplingColumn, boolean>> = {
   cases: true,
@@ -514,7 +515,7 @@ const SAFEDON_EG: TemplateSpec = {
     { key: "glove_info", config: stdEgConfig("glove_info") },
     { key: "order_lots", config: { fields: { packingSite: true } } },
     { key: "packing_config", config: { innerUnit: "plastic_pack", fields: { packingMode: true } } },
-    // One weight value per size (weight n 1): no gloves for weight to plan.
+    // One weight value per size: the gloves-for-weight row was off here before the app stopped showing it.
     {
       key: "sampling_plan",
       config: { ...stdEgConfig("sampling_plan"), columns: { ...STD_EG_SAMPLING_COLUMNS, glovesWeight: false } },

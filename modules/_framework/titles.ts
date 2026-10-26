@@ -1,9 +1,9 @@
 // Titles as this inspection shows them (BUILD_SPEC 6.2 rule 11). A
 // template's titles are stored with its version and never change (4.2 rule
-// 8), but a count in one follows the inspection: weight's names the gloves it
-// really weighs (Kenneth, 12 October 2026: "its not right to hardcode to
-// 13"). A module says how through `shownTitle` (ModuleDefinition); the
-// framework applies it here, once per evaluation, once the context is
+// 8), but a module may word its title for the inspection: weight's drops the
+// count of gloves it names, as it records one value per size (Kenneth, 26
+// October 2026). A module says how through `shownTitle` (ModuleDefinition);
+// the framework applies it here, once per evaluation, once the context is
 // complete. The capture, review and export pipelines evaluate with
 // buildInspectionView, so the step list, every message, the conclusion, the
 // review and the export name a module alike.
@@ -76,35 +76,4 @@ function retitled<T extends ResolvedModule | IncludedModule>(entries: readonly T
     return { ...entry, title };
   });
   return changed ? next : (entries as T[]);
-}
-
-const GLOVE_COUNT = /\b(\d+)(\s+)(gloves?)\b/i;
-
-/**
- * The title with the count of gloves in it filled in: the first "<digits>
- * glove(s)", in any case, gets `counts` in ascending order ("12", "8 or
- * 13", "5, 8 or 13"), with "Glove" only for a lone 1, in the word's own case
- * (Gloves, gloves, GLOVES; "OR" beside GLOVES). A title with no such phrase,
- * or no count to fill, comes back unchanged.
- */
-export function fillGloveCount(title: string, counts: readonly number[]): string {
-  const match = GLOVE_COUNT.exec(title);
-  const numbers = [...new Set(counts.filter((count) => Number.isInteger(count) && count >= 0))].sort((a, b) => a - b);
-  if (!match || numbers.length === 0) return title;
-  const [phrase, , space, word] = match;
-  const glove = inCaseOf(word, numbers.length === 1 && numbers[0] === 1 ? "glove" : "gloves");
-  const or = word === word.toUpperCase() ? "OR" : "or";
-  return `${title.slice(0, match.index)}${orList(numbers.map(String), or)}${space}${glove}${title.slice(match.index + phrase.length)}`;
-}
-
-/** "12", "8 or 13", "5, 8 or 13" (`or` in the title's case). */
-function orList(items: readonly string[], or: string): string {
-  return items.length <= 1 ? (items[0] ?? "") : `${items.slice(0, -1).join(", ")} ${or} ${items.at(-1)}`;
-}
-
-/** `word` in the case of `like`: "GLOVES", "Gloves" or "gloves". */
-function inCaseOf(like: string, word: string): string {
-  if (like === like.toUpperCase()) return word.toUpperCase();
-  if (like[0] === like[0].toUpperCase()) return `${word[0].toUpperCase()}${word.slice(1)}`;
-  return word;
 }

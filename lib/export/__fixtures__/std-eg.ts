@@ -175,8 +175,8 @@ function samplingPlanData(): SamplingPlanData {
           glovesWatertightVisual: row.watertightVisualGloves,
           glovesDimensions: row.dimensionGloves,
           glovesPhysical: row.physicalTestGloves,
-          // Named in the report's weight heading ("average of 13 gloves per size"), not in its Sampling Plan.
-          glovesWeight: EXAMPLE.weight[size as keyof typeof EXAMPLE.weight]?.gloves ?? null,
+          // The app shows no gloves for weight (Kenneth, 26 October 2026).
+          glovesWeight: null,
           innerUnitsDispensing: row.dispensingInners,
           pouches: null,
           pouchesDyeLeak: null,
@@ -257,15 +257,10 @@ function forceAtBreakData(labReport: string | null): ForceAtBreakData {
   };
 }
 
-/** STD_EG prints only the average of its 13 gloves: 13 gloves of that weight stand in for them. */
+/** One value per size, the average the report prints, as the weight step records it (STD_EG weighed 13 gloves). */
 function weightData(): WeightData {
   return {
-    sizes: Object.fromEntries(
-      Object.entries(EXAMPLE.weight).map(([size, entry]) => [
-        size,
-        { values: entry.values ? [...entry.values] : Array.from({ length: entry.gloves }, () => entry.averageG) },
-      ]),
-    ),
+    sizes: Object.fromEntries(Object.entries(EXAMPLE.weight).map(([size, entry]) => [size, { values: [entry.averageG] }])),
   };
 }
 

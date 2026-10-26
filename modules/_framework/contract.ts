@@ -185,8 +185,9 @@ export interface ModuleDefinition<TData = unknown, TConfig = unknown, TComputed 
   contribute?(input: ContributeInput<TData, TConfig>): ContextContribution;
   /**
    * Pure: the title this inspection shows, from the template's title as
-   * stored with the version, for a count in it that follows the inspection
-   * (weight's gloves weighed). Return `title` unchanged when nothing applies.
+   * stored with the version, for wording that follows the inspection
+   * (weight's drops its count of gloves). Return `title` unchanged when
+   * nothing applies.
    * The stored wording never changes: the framework applies this once per
    * evaluation (withShownTitles), so the step list, every message, the
    * review and the export name the module alike. A hook that throws, or

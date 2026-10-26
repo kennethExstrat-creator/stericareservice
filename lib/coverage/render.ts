@@ -184,7 +184,8 @@ function configSummary(module: TemplateModule): string {
       return `${module.config.statistic} of ${module.config.rows} gloves; measures ${module.config.measures.join(", ")}; decimals ${decimals}; specs ${module.config.specs.length ? `for ${module.config.specs.map((row) => row.size).join(", ")}, below` : "none"}`;
     }
     case "weight":
-      return `${count(module.config.n, "value", "values")} per size; spec ${module.config.specs.length ? "per size, below" : "none (info)"}; warn beyond ${module.config.warnThresholdPct}%; ${module.config.decimals} decimals`;
+      // One value per size since 26 October 2026, whatever n says.
+      return `1 value per size (n ${module.config.n}, not used); spec ${module.config.specs.length ? "per size, below" : "none (info)"}; warn beyond ${module.config.warnThresholdPct}%; ${module.config.decimals} decimals`;
     case "force_at_break":
       return `${module.config.n} readings per size; median ≥ ${module.config.specMin} N; ${module.config.decimals} decimals; standard label ${module.config.standardLabel ?? "none"}`;
     case "tensile":

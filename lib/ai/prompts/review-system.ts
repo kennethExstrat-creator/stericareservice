@@ -8,8 +8,9 @@ import { MODULE_KEYS, type ModuleKey } from "@/lib/schemas";
  * Sent first with cache_control, so it must stay byte-stable: no dates,
  * ids or per-request text here. The inspection goes in the user turn.
  * The Record type makes a new module key fail the build until it is
- * described below. Since Kenneth's decisions of 12 October 2026, weight
- * weighs the sampling plan's # Gloves for Weight. Since 13 October 2026 a
+ * described below. Since Kenneth's decision of 26 October 2026, weight
+ * records one value per size, the size's average weight, and the sampling
+ * plan has no gloves for weight. Since 13 October 2026 a
  * conclusion may be signed by hand after export (signAfterExport), its
  * signature then null, and box # and carton # are one number, worded
  * "box/carton number" (BUILD_SPEC 6.2 rule 7, reversing 12 October): the box
@@ -32,7 +33,7 @@ const MODULE_GUIDE: Record<ModuleKey, string> = {
   dimensions:
     "per size, per glove of the sampling plan's dimension sample (computed.rows; 13 when it gives none): length, width, finger, palm and cuff thickness (mm). The template's statistic (median for EN 455, average for ASTM D6319) is checked against the spec per size; any failing measure fails the module.",
   weight:
-    "per size: one weight per glove weighed, or one value per size (SAFEDON_EG), and their average (g), compared with the indicative weight. The gloves weighed are the sampling plan's # Gloves for Weight for the size (computed.n per size), or the template's n (13 on STD_EG) when the plan gives none; never the dimension sample. Warns beyond the threshold; fails only against an explicit spec.",
+    "per size: one value, the size's average weight (g) as the dimension sheet prints it (computed.shown), compared with the indicative weight. An older inspection holds one value per glove weighed (13 on STD_EG, computed.count): their average is the size's weight. The template's n is not used, and the sampling plan counts no gloves for weight. Warns beyond the threshold; fails only against an explicit spec.",
   force_at_break:
     "per size, per glove: force at break (N) and its median against the minimum (default 6 N). A lab report is attached.",
   tensile:

@@ -282,18 +282,19 @@ const REPORT_STD_EG: SourceField[] = [
     {
       label: "Weight (g) - average of 13 gloves per size",
       input: "heading",
-      // Not sampling_plan.glovesWeight: the title and n keep the heading whether that row is on or off
-      // (the app's own row, which no form prints), so a version without it still covers the heading.
+      // The title and n keep the heading as the template stores it; sampling_plan.glovesWeight, the app's
+      // own row (no form prints it), is not shown since 26 October 2026.
       targets: [l("weight", "title"), c("weight", "n")],
       notes:
-        "The app fills in the count of gloves weighed (the sampling plan's # Gloves for Weight, else config n), so the heading names the gloves really weighed.",
+        "The app shows 'Weight (g)': since 26 October 2026 the step records one value per size, the size's average weight, so its title names no count of gloves.",
     },
     { label: "Size", input: "size", targets: [tpl("sizes")] },
     {
       label: "Average",
       input: "computed",
       targets: [f("weight", "average"), f("weight", "values"), c("weight", "decimals")],
-      notes: "The 13 weighings are not printed; the app keeps them and computes the average.",
+      notes:
+        "Only the average is printed, and the app records it, one value per size; an inspection saved before 26 October 2026 kept the 13 weighings and averages them.",
     },
     {
       label: "Remark",
@@ -704,7 +705,7 @@ const REPORT_SAFEDON_EG: SourceField[] = [
       label: "Weight (g)",
       input: "number",
       targets: [f("weight", "values"), c("weight", "n"), l("weight", "title")],
-      notes: "One value per size in a merged cell (weight, n = 1), printed as a column of the dimension table.",
+      notes: "One value per size in a merged cell, printed as a column of the dimension table: the value weight records.",
     },
     {
       label: "Average",

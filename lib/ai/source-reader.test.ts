@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { fileLinkTarget } from "@/lib/inspections/source-documents";
 import { DOCUMENTS_DEFAULT_CONFIG } from "@/modules/documents/config";
-import { PAPER_FORM_GUIDE } from "./reading-guide";
+import { PAPER_FORM_GUIDE, WEIGHT_GUIDE } from "./reading-guide";
 import { attachTargets, attachToText, parseSourceAnswer, SOURCE_READER_SYSTEM_PROMPT } from "./source-reader";
 
 describe("the reading's system prompt", () => {
@@ -16,6 +16,10 @@ describe("the reading's system prompt", () => {
     expect(at).toBeLessThan(lines.findIndex((line) => line.startsWith("- Leave out fields that already hold a value in the current data")));
     expect(SOURCE_READER_SYSTEM_PROMPT).toContain(PAPER_FORM_GUIDE);
     expect(SOURCE_READER_SYSTEM_PROMPT).toContain("- So each box/carton number a document gives for a size's boxes");
+  });
+
+  it("reads weight as one average per size from a dimension sheet, after the lab report guide (Kenneth, 26 October 2026)", () => {
+    expect(SOURCE_READER_SYSTEM_PROMPT.endsWith(`\n\n${WEIGHT_GUIDE}`)).toBe(true);
   });
 });
 

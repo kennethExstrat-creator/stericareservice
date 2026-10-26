@@ -30,12 +30,13 @@ describe("the review's system prompt", () => {
     expect(REVIEW_SYSTEM_PROMPT).not.toContain("carton or box numbers");
   });
 
-  it("weighs the sampling plan's # Gloves for Weight, never the dimension sample (Kenneth, 12 October 2026)", () => {
+  it("reads weight as one average per size, an older inspection's gloves averaged (Kenneth, 26 October 2026)", () => {
     const weight = REVIEW_SYSTEM_PROMPT.split("\n").find((entry) => entry.startsWith("- weight:")) ?? "";
-    expect(weight).toContain("the sampling plan's # Gloves for Weight for the size (computed.n per size)");
-    expect(weight).toContain("the template's n (13 on STD_EG) when the plan gives none; never the dimension sample");
-    expect(weight).toContain("one value per size (SAFEDON_EG)");
-    expect(weight).not.toContain("glove of the dimension sample");
+    expect(weight).toContain("one value, the size's average weight (g) as the dimension sheet prints it (computed.shown)");
+    expect(weight).toContain("An older inspection holds one value per glove weighed (13 on STD_EG, computed.count)");
+    expect(weight).toContain("The template's n is not used, and the sampling plan counts no gloves for weight.");
+    expect(weight).not.toContain("computed.n");
+    expect(weight).not.toContain("# Gloves for Weight");
   });
 
   it("reads signAfterExport as a hand signature to come, not a missing one (Kenneth, 13 October 2026)", () => {

@@ -29,14 +29,14 @@ describe("countGroups (Kenneth, 26 October 2026: design B)", () => {
     });
   });
 
-  it("follows the template's words and columns: SAFEDON_EG's inner packs, STD_EG's weight", () => {
+  it("follows the template's words and columns: SAFEDON_EG's inner packs; never a weight row, even switched on", () => {
     const safedon = { ...SAMPLING_PLAN_LABELS, glovesPhysical: "# Gloves for Tensile", innerUnitsDispensing: "# Inner Packs for Packaging & Dispensing Inspection" };
     expect(shape(SAMPLING_PLAN_DEFAULT_CONFIG, safedon).slice(1)).toEqual([
       { heading: "# Gloves for Each Test", rows: ["Watertight & Visual", "Dimension", "Tensile"] },
       { heading: "# Inner Packs", rows: ["Packaging & Dispensing Inspection"] },
     ]);
     const weighs = { ...SAMPLING_PLAN_DEFAULT_CONFIG, columns: { ...SAMPLING_PLAN_DEFAULT_CONFIG.columns, glovesWeight: true } };
-    expect(shape(weighs, SAMPLING_PLAN_LABELS)[1].rows).toEqual(["Watertight & Visual", "Dimension", "FAB", "Weight"]);
+    expect(shape(weighs, SAMPLING_PLAN_LABELS)[1].rows).toEqual(["Watertight & Visual", "Dimension", "FAB"]);
   });
 
   it("leaves labels not worded '# … for …' as they are, after a plain divider (the SG form)", () => {

@@ -141,15 +141,16 @@ describe("sampling_plan Capture", () => {
     expect(html).toContain("Sampling Quantity");
   });
 
-  it("offers # Gloves for Weight after # Gloves for FAB where the template shows it (STD_EG), and nowhere else", () => {
+  it("never offers # Gloves for Weight, even where the template switches it on (STD_EG; Kenneth, 26 October 2026)", () => {
     const weighs = { ...LEVEL_I, columns: { ...LEVEL_I.columns, glovesWeight: true } };
-    const html = render(props(STD_EG_EXAMPLE, weighs));
-    expect(html).toContain('aria-label="# Gloves for Weight, Size M"');
-    expect(html.indexOf("# Gloves for FAB")).toBeLessThan(html.indexOf("# Gloves for Weight"));
-    expect(html.indexOf("# Gloves for Weight")).toBeLessThan(html.indexOf("# Inner Box for Packaging"));
-    // The example's 13 gloves weighed, as the report's weight heading names them.
-    expect(tagsWith(html, `id="sampling-plan-M-glovesWeight"`)[0]).toContain('value="13"');
-    expect(render(props(STD_EG_EXAMPLE))).not.toContain("# Gloves for Weight");
+    // An older inspection's count is kept in the data, never shown.
+    const data = exampleData(STD_EG_EXAMPLE, {
+      sampling_plan: { sizes: { M: { ...samplingPlanData(STD_EG_EXAMPLE).sizes.M, glovesWeight: 13 } } },
+    });
+    const html = render(props(STD_EG_EXAMPLE, weighs, SAMPLING_PLAN_LABELS, data));
+    expect(html).not.toContain("# Gloves for Weight");
+    expect(tagsWith(html, `id="sampling-plan-M-glovesWeight"`)).toHaveLength(0);
+    expect(html).toContain('aria-label="# Gloves for FAB, Size M"');
   });
 
   it("shows the order and the lot in gloves beside the counts, computed not typed, and nothing of the level's plan (6.2 rule 2)", () => {
@@ -181,35 +182,41 @@ describe("sampling_plan Capture", () => {
   });
 
   it("puts a switch at the left of each test row; off, the row is greyed, takes no typing and is not asked for (Kenneth, 26 October 2026)", () => {
-    // With the weight row on, as STD_EG shows it.
+    // STD_EG's columns as its template stores them, the weight row on: no switch for it, as there is no row.
     const withWeight: SamplingPlanConfig = { ...LEVEL_I, columns: { ...LEVEL_I.columns, glovesWeight: true } };
     const html = render(props(STD_EG_EXAMPLE, withWeight));
     const switches = tagsWith(html, 'role="switch"');
-    // Watertight & visual, dimension, the physical test, weight and packaging & dispensing: not the cases, inner units or gloves.
+    // Watertight & visual, dimension, the physical test and packaging & dispensing: not the cases, inner units or gloves.
     expect(switches.map((tag) => /aria-label="([^"]+)"/.exec(tag)?.[1])).toEqual([
       "# Gloves for Watertight &amp; Visual: counted",
       "# Gloves for Dimension: counted",
       "# Gloves for FAB: counted",
-      "# Gloves for Weight: counted",
       "# Inner Box for Packaging &amp; Dispensing Inspection: counted",
     ]);
     for (const tag of switches) expect(tag).toContain('aria-checked="true"');
 
-    // Weight switched off: still on screen, greyed, read-only, and no longer missing from the size.
+    // Dimension switched off: still on screen, greyed, read-only, and no longer missing from the size.
     const data = exampleData(STD_EG_EXAMPLE, {
-      sampling_plan: { ...samplingPlanData(STD_EG_EXAMPLE), sizes: { M: { ...samplingPlanData(STD_EG_EXAMPLE).sizes.M, glovesWeight: null } } },
+      sampling_plan: { ...samplingPlanData(STD_EG_EXAMPLE), sizes: { M: { ...samplingPlanData(STD_EG_EXAMPLE).sizes.M, glovesDimensions: null } } },
     });
     const missing = props(STD_EG_EXAMPLE, withWeight, SAMPLING_PLAN_LABELS, data);
     expect(missing.evaluation.result.perSize?.M?.status).toBe("not_done");
     const offData = exampleData(STD_EG_EXAMPLE, {
-      sampling_plan: { ...(data.modules.sampling_plan as SamplingPlanData), rowsOff: ["glovesWeight"] },
+      sampling_plan: { ...(data.modules.sampling_plan as SamplingPlanData), rowsOff: ["glovesDimensions"] },
     });
     const off = props(STD_EG_EXAMPLE, withWeight, SAMPLING_PLAN_LABELS, offData);
     expect(off.evaluation.result.perSize?.M?.status).toBe("info");
     const offHtml = render(off);
-    expect(tagsWith(offHtml, 'role="switch"').find((tag) => tag.includes("Weight"))).toContain('aria-checked="false"');
-    expect(tagsWith(offHtml, 'id="sampling-plan-M-glovesWeight"')[0]).toContain("readOnly");
+    expect(tagsWith(offHtml, 'role="switch"').find((tag) => tag.includes("Dimension"))).toContain('aria-checked="false"');
+    expect(tagsWith(offHtml, 'id="sampling-plan-M-glovesDimensions"')[0]).toContain("readOnly");
     expect(tagsWith(offHtml, 'data-row-off="true"').length).toBeGreaterThan(0);
+    // Data that switched the weight row off before it went still loads, with nothing to show for it.
+    const weightOff = exampleData(STD_EG_EXAMPLE, {
+      sampling_plan: { ...samplingPlanData(STD_EG_EXAMPLE), rowsOff: ["glovesWeight"] },
+    });
+    const loaded = props(STD_EG_EXAMPLE, withWeight, SAMPLING_PLAN_LABELS, weightOff);
+    expect(loaded.evaluation.result.perSize?.M?.status).toBe("info");
+    expect(tagsWith(render(loaded), 'role="switch"').every((tag) => tag.includes('aria-checked="true"'))).toBe(true);
   });
 
   it("marks an impossible count red in its cell", () => {

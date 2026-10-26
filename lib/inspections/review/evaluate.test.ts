@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { lookupFrom } from "@/lib/templates";
 import { resolveTemplate } from "@/modules";
-import { fillGloveCount } from "@/modules/_framework";
 import { registryWith, TEST_REGISTRY } from "@/modules/_framework/__fixtures__/test-registry";
 import { ADMIN_ID, evaluated, reviewTemplate, savedData, storedInspection } from "./__fixtures__/review";
 import { evaluateStoredInspection, inspectorDecision, isListedIssue, summariseIssues } from "./evaluate";
@@ -75,7 +74,7 @@ describe("evaluateStoredInspection", () => {
   it("names a module as the inspection shows it: a count in its title follows the inspection", () => {
     // Weight names how many sizes are ordered (two), standing in for the gloves it weighs.
     const counting = registryWith({
-      weight: { ...TEST_REGISTRY.weight, shownTitle: ({ title, context }) => fillGloveCount(title, [context.sizes.length]) },
+      weight: { ...TEST_REGISTRY.weight, shownTitle: ({ title, context }) => title.replace("13", String(context.sizes.length)) },
     });
     const template = reviewTemplate();
     const resolved = {

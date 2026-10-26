@@ -25,7 +25,7 @@ import { definition } from "./index";
 import { emptySamplingPlan, emptySamplingSize, type SamplingPlanData, type SamplingSize } from "./schema";
 
 const LEVEL_I: SamplingPlanConfig = { ...SAMPLING_PLAN_DEFAULT_CONFIG, inspectionLevel: "I" };
-/** STD_EG's columns: # Gloves for Weight on. */
+/** STD_EG's columns as its template stores them: # Gloves for Weight on, a row no template shows any more. */
 const WEIGHT_ROW: SamplingPlanConfig = {
   ...SAMPLING_PLAN_DEFAULT_CONFIG,
   columns: { ...SAMPLING_PLAN_DEFAULT_CONFIG.columns, glovesWeight: true },
@@ -165,15 +165,15 @@ describe("sampling_plan", () => {
     expect(some.result.summary).toBe("Size S, L: Not started. Size M: Missing: Gloves.");
   });
 
-  it("asks for the gloves for weight where the template shows the row (STD_EG), as for every other count", () => {
-    const missing = calcSamplingPlan(input({ M: ROW_M }, WEIGHT_ROW));
-    expect(missing.result.perSize?.M).toEqual({ status: "not_done", summary: "Missing: # Gloves for Weight." });
-    const done = calcSamplingPlan(input({ M: { ...ROW_M, glovesWeight: 13 } }, WEIGHT_ROW));
-    expect(done.result.status).toBe("info");
-    expect(done.computed.totals).toMatchObject({ glovesDimensions: 13, glovesPhysical: 13, glovesWeight: 13 });
-    // Off (the default, SAFEDON_EG, STD_SG): never asked, never totalled.
-    expect(calcSamplingPlan(input({ M: ROW_M })).result.status).toBe("info");
-    expect(calcSamplingPlan(input({ M: ROW_M })).computed.totals).not.toHaveProperty("glovesWeight");
+  it("never asks for the gloves for weight, even where the template switches the row on (Kenneth, 26 October 2026)", () => {
+    const empty = calcSamplingPlan(input({ M: ROW_M }, WEIGHT_ROW));
+    expect(empty.result.perSize?.M).toEqual({ status: "info", summary: "Case: 50; # Gloves for Watertight & Visual: 500." });
+    expect(empty.computed.totals).not.toHaveProperty("glovesWeight");
+    // A count an older inspection saved there is kept in the data, never totalled.
+    const saved = calcSamplingPlan(input({ M: { ...ROW_M, glovesWeight: 13 } }, WEIGHT_ROW));
+    expect(saved.result.status).toBe("info");
+    expect(saved.computed.totals).toMatchObject({ glovesDimensions: 13, glovesPhysical: 13 });
+    expect(saved.computed.totals).not.toHaveProperty("glovesWeight");
   });
 
   it("asks only for the columns the template shows: the surgical pouches, or no gloves column (STD_SG)", () => {
@@ -391,7 +391,6 @@ describe("sampling_plan", () => {
           watertightVisual: 500,
           dimensions: 13,
           physical: 13,
-          weight: null,
           packagingDispensing: 13,
           pouches: null,
           pouchesDyeLeak: null,
@@ -405,13 +404,11 @@ describe("sampling_plan", () => {
     expect(samplingValues({ ...ROW_M, pouches: 4 }, off)).toMatchObject({ physical: null, pouches: null, dimensions: 13 });
   });
 
-  it("passes the gloves for weight forward as weight's own count, only where the template shows the row", () => {
+  it("passes no gloves for weight forward, even one saved where the template switches the row on: weight records its own value", () => {
     const row = { ...ROW_M, glovesWeight: 12 };
-    expect(samplingValues(row, WEIGHT_ROW)).toMatchObject({ dimensions: 13, physical: 13, weight: 12 });
-    // Off by default (SAFEDON_EG weighs one value per size, STD_SG weighs nothing): weight weighs its template's n.
-    expect(samplingValues(row, SAMPLING_PLAN_DEFAULT_CONFIG)).toMatchObject({ dimensions: 13, weight: null });
-    // Never the dimension's count in its place.
-    expect(samplingValues(ROW_M, WEIGHT_ROW)).toMatchObject({ dimensions: 13, weight: null });
+    expect(samplingValues(row, WEIGHT_ROW)).toEqual(samplingValues(ROW_M, SAMPLING_PLAN_DEFAULT_CONFIG));
+    expect(samplingValues(row, WEIGHT_ROW)).not.toHaveProperty("weight");
+    expect(samplingValues(row, WEIGHT_ROW)).toMatchObject({ dimensions: 13, physical: 13 });
   });
 });
 
@@ -501,8 +498,6 @@ describe("sampling_plan with the example reports (docs/examples/expected-results
         watertightVisual: 500,
         dimensions: 13,
         physical: 13,
-        // The report names its 13 gloves weighed in the weight heading, not in its Sampling Plan (glovesWeighed).
-        weight: 13,
         packagingDispensing: 13,
         pouches: null,
         pouchesDyeLeak: null,

@@ -67,7 +67,7 @@ const expect = baseExpect.configure({ timeout: 20_000 });
 test.skip(({ hasTouch }) => !hasTouch, "The capture runs on an iPad project; the desktop checks open their own context.");
 
 const TITLES = {
-  weight: "Weight (g) - Average of 13 Gloves per Size",
+  weight: "Weight (g)",
   visual: "Visual Inspection",
   dispensing_packing: "Glove Packing Check",
   labeling: "Packaging Labeling Inspection",
@@ -103,7 +103,7 @@ const PLAN: readonly {
     module: "weight",
     input: "camera",
     files: [{ name: "scale-13-gloves.jpg", width: 3000, height: 2000, label: "Scale" }],
-    focus: (frame) => frame.getByRole("textbox", { name: "Weight (g), No. 1", exact: true }).tap(),
+    focus: (frame) => frame.getByRole("textbox", { name: "Weight (g), Size M", exact: true }).tap(),
     tags: "Size M",
     target: "size:M",
   },

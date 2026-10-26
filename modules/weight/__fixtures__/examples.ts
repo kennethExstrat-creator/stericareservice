@@ -9,10 +9,21 @@ import { WEIGHT_LABELS, WeightConfigSchema, type WeightConfig } from "../config"
 import type { WeightData } from "../schema";
 
 /**
- * The report's weights as module data. STD_EG prints only the average of its
- * 13 gloves, so 13 gloves of that weight stand in for them (docs/FIXTURES.md).
+ * The report's weights as module data: one value per size, the average the
+ * report prints, as the weight step records it (STD_EG weighed 13 gloves and
+ * printed only their average; docs/FIXTURES.md).
  */
 export function weightData(entries: PerSize<WeightEntry>): WeightData {
+  const sizes = Object.entries(entries).map(([size, entry]) => [size, { values: [entry.averageG] }]);
+  return { sizes: Object.fromEntries(sizes) };
+}
+
+/**
+ * The report's weights as an inspection saved before 26 October 2026 holds
+ * them: one value per glove weighed, `gloves` of the printed average where
+ * the report prints no individual weights.
+ */
+export function gloveByGloveData(entries: PerSize<WeightEntry>): WeightData {
   const sizes = Object.entries(entries).map(([size, entry]) => [
     size,
     { values: [...(entry.values ?? Array.from({ length: entry.gloves }, () => entry.averageG))] },

@@ -240,8 +240,9 @@ the thickness values in `safedon-eg.ts` and set `averageOfPrintedReadings` to th
    `corrections` clears them; the suggested result is then pass.
 5. The warnings in `warnings` appear and go into the export; the SAFEDON_EG sampling warnings
    only when the template sets inspection level I.
-6. The STD_EG force at break and weight modules need values the report does not print: any 13
-   readings with median 6.537 N, and weights averaging 2.9 g (or the module's single-value mode).
+6. The STD_EG force at break module needs values the report does not print: any 13 readings
+   with median 6.537 N. Weight records the printed average, 2.9 g, one value per size (`weightData`);
+   `gloveByGloveData` gives 13 weights of 2.9 g, as an inspection saved before 26 October 2026 holds them.
 7. `printed*` fields and `unorderedSizes` describe the old report. Compare the app with them only
    to show where it now differs.
 

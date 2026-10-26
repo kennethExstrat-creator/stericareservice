@@ -13,6 +13,7 @@ import { captureSections, findSection } from "@/lib/inspections/capture/sections
 import { applyModuleOverrides } from "@/lib/templates";
 import { labelFor, moduleTitle, suggestionReasons } from "@/modules/_framework";
 import type { SamplingPlanData } from "@/modules/sampling_plan/schema";
+import { gloveByGloveData } from "@/modules/weight/__fixtures__/examples";
 import { STD_EG_EXAMPLE as REPORT, STD_EG_EXPECTED as EXPECTED, type VisualClass } from "@/tests/fixtures/examples";
 import { FIXTURE_MEASURE } from "@/modules/dimensions/__fixtures__/examples";
 import { computedAt, evaluate, evaluateStdEg, inspectionMeta, seedTemplate, stdEgData } from "./examples";
@@ -318,60 +319,64 @@ describe("STD_EG example as a whole inspection (expected results B)", () => {
   });
 });
 
-describe("a count in a title follows the inspection: 12 gloves for weight (Kenneth, 12 October 2026)", () => {
-  // The corrected example with the sampling plan's # Gloves for Weight at 12 for size M, and 11 gloves weighed.
-  // Weight has its own count, never the dimension's: "each metrics and measurement should have their own number of glove count".
+describe("weight records one average per size: its title names no count, the sampling plan none for it (Kenneth, 26 October 2026)", () => {
+  // The corrected example as an inspection saved while STD_EG weighed 13 gloves one by one, with the sampling plan's
+  // # Gloves for Weight at 12 for size M: the 13 weights are averaged, as the report printed them, and nothing reads the 12.
   const STORED = "Weight (g) - Average of 13 Gloves per Size";
-  const SHOWN = "Weight (g) - Average of 12 Gloves per Size";
+  const SHOWN = "Weight (g)";
   const fixed = stdEgData({ corrected: true });
   const plan = fixed.modules.sampling_plan as SamplingPlanData;
-  const withPlanM = (row: Partial<SamplingPlanData["sizes"][string]>) => ({
+  const older = {
     ...fixed,
     modules: {
       ...fixed.modules,
-      sampling_plan: { ...plan, sizes: { ...plan.sizes, M: { ...plan.sizes.M!, ...row } } },
-      weight: { sizes: { M: { values: Array.from({ length: 11 }, () => REPORT.weight.M!.averageG) } } },
+      sampling_plan: { ...plan, sizes: { ...plan.sizes, M: { ...plan.sizes.M!, glovesWeight: 12 } } },
+      weight: gloveByGloveData(REPORT.weight),
     },
-  });
-  const data = withPlanM({ glovesWeight: 12 });
-  const twelve = evaluate(seedTemplate("STD_EG"), data, inspectionMeta(REPORT));
+  };
+  const evaluated = evaluate(seedTemplate("STD_EG"), older, inspectionMeta(REPORT));
 
-  it("keeps weight at its own 13 when only the gloves for dimension are 12", () => {
-    const dimensionOnly = evaluate(seedTemplate("STD_EG"), withPlanM({ glovesDimensions: 12 }), inspectionMeta(REPORT));
-    const weight = dimensionOnly.module("weight");
-    expect(weight.title).toBe(STORED);
-    expect(computedAt(weight, "n")).toEqual({ M: 13 });
-    expect(computedAt(dimensionOnly.module("dimensions"), "rows")).toEqual({ M: 12 });
-  });
-
-  it("weighs the plan's 12 gloves and names weight by them, its section too; the seed's wording stays 13", () => {
+  it("names weight 'Weight (g)', its section too; the seed's wording stays as stored", () => {
     expect(seedTemplate("STD_EG").modules.find((entry) => entry.key === "weight")?.title).toBe(STORED);
-    const weight = twelve.module("weight");
-    expect(weight.title).toBe(SHOWN);
-    expect(computedAt(weight, "n")).toEqual({ M: 12 });
-    expect(weight.result.perSize?.M).toEqual({ status: "not_done", summary: "Weight (g): 11 of 12 gloves." });
-    expect(findSection(captureSections(twelve.template, twelve.report, data), "weight")?.title).toBe(SHOWN);
+    expect(evaluated.module("weight").title).toBe(SHOWN);
+    expect(corrected.module("weight").title).toBe(SHOWN);
+    expect(findSection(captureSections(evaluated.template, evaluated.report, older), "weight")?.title).toBe(SHOWN);
+  });
+
+  it("averages an older inspection's 13 weights as the report printed them, whatever the plan's 12", () => {
+    const weight = evaluated.module("weight");
+    expect(computedAt(weight, "count")).toEqual({ M: 13 });
+    expect(computedAt(weight, "shown")).toEqual({ M: REPORT.weight.M!.averageG });
+    expect(weight.result.perSize?.M?.status).toBe(EXPECTED.weight.M!.status);
+    // The corrected example's warnings, no more: nothing about the plan's 12 or weights past it.
+    expect(evaluated.report.warnings.map((issue) => [issue.moduleKey, issue.code, issue.size])).toEqual(
+      EXPECTED.warnings.map((issue) => [issue.module, issue.code, issue.size]),
+    );
   });
 
   it("names it so in the not-done warning and in the Conclusion's reasons", () => {
-    expect(twelve.report.warnings).toContainEqual(
+    const empty = { ...fixed, modules: { ...fixed.modules, weight: { sizes: {} } } };
+    const notDone = evaluate(seedTemplate("STD_EG"), empty, inspectionMeta(REPORT));
+    expect(notDone.module("weight").result.perSize?.M).toEqual({ status: "not_done", summary: "Weight (g): not entered." });
+    expect(notDone.report.warnings).toContainEqual(
       expect.objectContaining({ moduleKey: "weight", code: "module_not_done", message: `${SHOWN} is not done: Not done for size M.` }),
     );
-    expect(twelve.report.suggested).toMatchObject({ result: "hold", notDone: ["weight"] });
+    expect(notDone.report.suggested).toMatchObject({ result: "hold", notDone: ["weight"] });
     // As the Conclusion lists them: moduleTitle reads the context's modules.
-    expect(suggestionReasons(twelve.report.suggested, (key) => moduleTitle(twelve.context, key))).toContain(`Not done: ${SHOWN}.`);
-    expect(twelve.module("conclusion").result.summary).toContain(`(not done: ${SHOWN})`);
+    expect(suggestionReasons(notDone.report.suggested, (key) => moduleTitle(notDone.context, key))).toContain(`Not done: ${SHOWN}.`);
+    expect(notDone.module("conclusion").result.summary).toContain(`(not done: ${SHOWN})`);
   });
 
-  it("exports the title as shown and the gloves weighed per size", () => {
-    const record = stdEgRecord({ data });
+  it("exports the title as shown and the size's average, the template's n left in its settings", () => {
+    const record = stdEgRecord({ data: older });
     const result = evaluateRecord(record);
     if (!result.ok) throw new Error(result.message);
     const links = { photos: new Map(), files: new Map(), clientLogo: null, sourceFile: null };
     const doc = assembleExport({ record, evaluated: result.evaluated, links, exportedAt: "2025-04-12T09:15:00.000Z" });
     const weight = doc.modules.find((entry) => entry.key === "weight");
     expect(weight?.title).toBe(SHOWN);
-    expect(weight?.computed.n).toEqual({ M: 12 });
+    expect(weight?.computed.shown).toEqual({ M: REPORT.weight.M!.averageG });
+    expect(weight?.computed).not.toHaveProperty("n");
     expect(weight?.config).toMatchObject({ n: 13 });
   });
 });

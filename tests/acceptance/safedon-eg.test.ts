@@ -266,9 +266,9 @@ describe("SAFEDON_EG example as a whole inspection (expected results A)", () => 
     expect(evaluated.module("conclusion").result.status).toBe("pass");
   });
 
-  it("weighs one glove per size against the indicative 3.2 g of size M without a warning (NA spec, a record)", () => {
+  it("records one weight per size against the indicative 3.2 g of size M without a warning (NA spec, a record)", () => {
     const weight = evaluated.module("weight");
-    expect(computedAt(weight, "n")).toEqual(Object.fromEntries(Object.keys(REPORT.weight).map((size) => [size, 1])));
+    expect(computedAt(weight, "count")).toEqual(Object.fromEntries(Object.keys(REPORT.weight).map((size) => [size, 1])));
     expect(computedAt(weight, "shown")).toEqual(
       Object.fromEntries(Object.entries(REPORT.weight).map(([size, entry]) => [size, entry.averageG])),
     );
