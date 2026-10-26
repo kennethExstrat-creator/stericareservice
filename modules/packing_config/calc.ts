@@ -1,6 +1,12 @@
-// Result "info" once the three counts are entered; "not done" until then
-// (BUILD_SPEC 6.2 rule 5). "warn" when the gloves per case, as printed, is
-// not the gloves per inner unit times the inner units per case (6.1): that
+// Result "info" once the gloves per inner unit and the inner units per case
+// are entered; "not done" until then (BUILD_SPEC 6.2 rule 5). The gloves per
+// case is worked out from them (Kenneth, 27 October 2026: "if there is
+// already an auto calulate field, why another to fill?"): edit.ts writes
+// their product with them, and none stored, as in data saved before, counts
+// as that product, so it never keeps the step not done. It is typed only
+// while one of them is missing (a document may state only the gloves per
+// case). "warn" when a stored gloves per case is not the gloves per inner
+// unit times the inner units per case (6.1), as in data saved before: that
 // check is computed, never typed (rule 2). The counts reach order_lots and
 // the sampling plan through the context. The onsite forms' Packing Mode text
 // is never waited for, even where the template shows it (every seed template
@@ -19,11 +25,15 @@ import {
   type ContributeInput,
   type Labels,
 } from "@/modules/_framework";
-import { INNER_UNIT_NAMES, PACKING_COUNTS, type PackingConfigConfig, type PackingCount } from "./config";
+import { CASE_FACTORS, INNER_UNIT_NAMES, PACKING_COUNTS, type PackingConfigConfig, type PackingCount } from "./config";
 import type { PackingConfigData } from "./schema";
 
 export type PackingConfigComputed = {
-  /** "Gloves per Case (Inner × per Case)": gloves per inner unit x inner units per case. Null until both are entered. */
+  /**
+   * "Gloves per Case (Inner × per Case)": gloves per inner unit x inner units
+   * per case, the gloves per case worked out and what a stored one is checked
+   * against. Null until both are entered.
+   */
   glovesPerCaseCheck: number | null;
   /** What one inner unit is ("plastic pack"), from the template: the export carries no config. */
   innerUnit: string;
@@ -44,17 +54,18 @@ export function calcPackingConfig({
   const check = glovesPerCaseCheck(counts);
   const computed: PackingConfigComputed = { glovesPerCaseCheck: check, innerUnit: INNER_UNIT_NAMES[config.innerUnit] };
 
-  const { glovesPerInner: perInner, innersPerCase: perCase, glovesPerCase: total } = counts;
+  const { glovesPerInner: perInner, innersPerCase: perCase, glovesPerCase: stored } = counts;
   const mismatch =
-    perInner !== null && perCase !== null && total !== null && total !== check
-      ? warningIssue("gloves_per_case_mismatch", mismatchMessage({ perInner, perCase, total }, labels), {
+    perInner !== null && perCase !== null && stored !== null && stored !== check
+      ? warningIssue("gloves_per_case_mismatch", mismatchMessage({ perInner, perCase, total: stored }, labels), {
           path: ["glovesPerCase"],
         })
       : null;
   if (mismatch) issues.push(mismatch);
 
-  if (perInner === null || perCase === null || total === null) {
-    const missing = PACKING_COUNTS.filter((field) => counts[field] === null);
+  // The gloves per case follows from these two: only they are ever missing.
+  if (perInner === null || perCase === null) {
+    const missing = CASE_FACTORS.filter((field) => counts[field] === null);
     return {
       result: notDone(sentence(`Missing: ${missing.map((field) => labelFor(labels, field)).join(", ")}`)),
       computed,
@@ -62,13 +73,25 @@ export function calcPackingConfig({
     };
   }
   if (mismatch) return { result: { status: "warn", summary: mismatch.message }, computed, issues };
+  const total = stored ?? perInner * perCase;
   return { result: { status: "info", summary: summarise({ perInner, perCase, total }, labels) }, computed, issues };
 }
 
 /**
- * The packing every later module reads. A gloves per case not entered yet is
- * taken as inner x per case, so the order totals and the AQL plan can start;
- * an entered one is used as printed, also when the check warns.
+ * The gloves per case worked out (Kenneth, 27 October 2026): gloves per
+ * inner unit x inner units per case once both are entered, which edit.ts
+ * writes with them and the field shows read-only; null while either is
+ * missing (or 0), when the field is typed instead.
+ */
+export function workedOutGlovesPerCase(data: PackingConfigData): number | null {
+  return glovesPerCaseCheck(positiveCounts(data));
+}
+
+/**
+ * The packing every later module reads. A gloves per case not stored is the
+ * worked-out one, inner x per case: data saved before 27 October 2026 may
+ * hold none beside both counts, and its order totals and lot sizes come all
+ * the same. A stored one is used as stored, also when the check warns.
  */
 export function contributePackingConfig({
   data,

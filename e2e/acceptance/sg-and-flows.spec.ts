@@ -345,7 +345,9 @@ test("(a) an STD_SG inspection with right and left hands and dye leak works on t
   const count = (field: string) => packing.locator(`[data-issue-path='${JSON.stringify([field])}'] input`);
   await enter(count("glovesPerInner"), "1");
   await enter(count("innersPerCase"), "200");
-  await enter(count("glovesPerCase"), "200");
+  // The gloves per case is worked out from the two, read-only (Kenneth, 27 October 2026).
+  await expect(count("glovesPerCase")).toHaveValue("200");
+  await expect(count("glovesPerCase")).not.toBeEditable();
   // Exactly: the comment below is "Inspector Comment, Packing Mode" on a page of two.
   await packing.getByRole("textbox", { name: "Packing Mode", exact: true }).fill("1 pair per pouch, 50 pouches per inner box, 4 inner boxes per case");
   await expect(packing.locator(':scope > header [data-slot="status-pill"]')).toHaveAttribute("data-status", "info");

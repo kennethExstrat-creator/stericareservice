@@ -370,15 +370,17 @@ export async function enterOrder(page: Page): Promise<void> {
 
 /**
  * Packing configuration, on the order's page below the order (its tab is
- * the order's): 125 gloves per plastic pack, 16 packs per case, 2,000 per
- * case.
+ * the order's): 125 gloves per plastic pack, 16 packs per case; the 2,000
+ * per case is worked out from them, read-only (Kenneth, 27 October 2026).
  */
 export async function enterPacking(page: Page): Promise<void> {
   await openSection(page, "packing_config");
   const section = frame(page, "packing_config");
   await typeNumber(section.getByRole("textbox", { name: "# Glove per Plastic Pack" }), REPORT.packing.glovesPerInner);
   await typeNumber(section.getByRole("textbox", { name: "# Packs per Case" }), REPORT.packing.innersPerCase);
-  await typeNumber(section.getByRole("textbox", { name: "# Gloves per Case" }), REPORT.packing.printedGlovesPerCase);
+  const perCase = section.getByRole("textbox", { name: "# Gloves per Case" });
+  await expect(perCase).toHaveValue(String(REPORT.packing.printedGlovesPerCase));
+  await expect(perCase).not.toBeEditable();
 }
 
 /** The Sampling Plan's columns in the template's wording, with the fixture's value for each. */

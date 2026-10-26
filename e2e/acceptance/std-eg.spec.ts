@@ -512,15 +512,18 @@ test("the STD_EG example entered on the iPad gives every expected result", async
     await check(frame.getByRole("definition").first(), "Total # Carton").toHaveText(grouped(EXPECTED.totals.cartons));
   });
 
-  await test.step("Packing configuration, below the order on its page: 200 per inner box, 10 per case, 2,000 per case", async () => {
+  await test.step("Packing configuration, below the order on its page: 200 per inner box, 10 per case, 2,000 per case worked out", async () => {
     // No tab of its own and no Next: packing configuration is on the order's page
     // (lib/inspections/capture/sections.ts SHOWN_WITH), right below the order.
     const frame = await sectionReady(page, SECTION.packing);
     await check(page.locator('[role="tab"][data-sections~="packing_config"]'), "on the order's tab").toHaveAttribute("data-section", "order_lots");
     await typeNumber(page, frame.getByLabel(named("# Glove per Inner Box")), REPORT.packing.glovesPerInner);
     await typeNumber(page, frame.getByLabel(named("# Inners per Case")), REPORT.packing.innersPerCase);
-    await typeNumber(page, frame.getByLabel(named("# Gloves per Case")), REPORT.packing.printedGlovesPerCase);
-    await check(frame.getByRole("definition"), "gloves per case, computed").toHaveText(grouped(REPORT.packing.printedGlovesPerCase));
+    // The gloves per case is worked out from the two (Kenneth, 27 October 2026): read-only in its place, with what it comes from.
+    const perCase = frame.getByLabel(named("# Gloves per Case"));
+    await check(perCase, "gloves per case, worked out").toHaveValue(String(REPORT.packing.printedGlovesPerCase));
+    await check(perCase, "read-only").not.toBeEditable();
+    await check(perCase).toHaveAccessibleDescription(`${grouped(REPORT.packing.glovesPerInner)} × ${grouped(REPORT.packing.innersPerCase)}`);
     await check(sectionStatus(page, SECTION.packing)).toHaveAttribute("data-status", "info");
     // The order's total gloves, on the same page, as soon as the gloves per case are in: 2,900 cases × 2,000.
     const totals = frameOf(page, SECTION.order).locator("dl").filter({ hasText: "Total # Gloves" });

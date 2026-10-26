@@ -191,15 +191,15 @@ Note: The reports print no heading over the order table: 'Order' is the app's ti
 
 ### `packing_config`: Packing Configuration
 
-Report module. Captures: Gloves per inner unit, inner units per case, gloves per case; the inner unit's name; the onsite packing mode text. Result: warn when glovesPerCase is not glovesPerInner × innersPerCase; info otherwise. Rules (6.2): 1, 2. Title in other templates: STD_SG: Packing Mode.
+Report module. Captures: Gloves per inner unit, inner units per case, gloves per case (worked out from the two once both are entered); the inner unit's name; the onsite packing mode text. Result: warn when a stored glovesPerCase is not glovesPerInner × innersPerCase; info otherwise. not_done until glovesPerInner and innersPerCase are entered. Rules (6.2): 1, 2. Title in other templates: STD_SG: Packing Mode.
 
 | Key | Label (STD_EG) | Other wording | Type | Unit | Per | Entry | Rules | Notes |
 |---|---|---|---|---|---|---|---|---|
 | `glovesPerInner` | # Glove per Inner Box | SAFEDON_EG: # Glove per Plastic Pack<br>STD_SG: # Gloves per Pouch | integer | pcs | inspection | entered | 1 |  |
 | `innersPerCase` | # Inners per Case | SAFEDON_EG: # Packs per Case<br>STD_SG: # Pouches per Case | integer |  | inspection | entered | 1 | Counts inner units. |
-| `glovesPerCase` | # Gloves per Case |  | integer | pcs | inspection | entered | 1 | Entered as printed, then checked against glovesPerCaseCheck (BUILD_SPEC 6.1). |
+| `glovesPerCase` | # Gloves per Case |  | integer | pcs | inspection | entered | 1 | glovesPerInner × innersPerCase once both are entered, written with them and read-only on screen (Kenneth, 27 October 2026); typed only while one is missing, as from a document that states only the gloves per case. Data saved before may hold none beside both (the product counts) or another number (warned about until either is edited). |
 | `packingMode` | Packing Mode |  | text |  | inspection | entered |  | **Beyond BUILD_SPEC 6.1:** All three onsite forms have a 'Packing Mode' text box (forms/README.md: packing mode text). Free text as written on site. config fields.packingMode switches it on. |
-| `glovesPerCaseCheck` | Gloves per Case (Inner × per Case) |  | integer | pcs | inspection | **computed** | 2 | glovesPerInner × innersPerCase. |
+| `glovesPerCaseCheck` | Gloves per Case (Inner × per Case) |  | integer | pcs | inspection | **computed** | 2 | glovesPerInner × innersPerCase: what glovesPerCase is worked out as, and what a stored one is checked against. |
 
 | Config key | Type | Default | Meaning |
 |---|---|---|---|

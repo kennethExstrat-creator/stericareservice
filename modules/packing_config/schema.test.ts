@@ -44,6 +44,18 @@ describe("packing_config data", () => {
     }
   });
 
+  it("reads data saved before the gloves per case was worked out (27 October 2026) as it is: none beside both counts, or one that is not their product", () => {
+    expect(PackingConfigDataSchema.parse({ glovesPerInner: 100, innersPerCase: 10 })).toEqual({
+      glovesPerInner: 100,
+      innersPerCase: 10,
+      glovesPerCase: null,
+      packingMode: null,
+    });
+    const typed = { glovesPerInner: 100, innersPerCase: 10, glovesPerCase: 999, packingMode: "10 boxes per carton" };
+    expect(PackingConfigDataSchema.parse(typed)).toEqual(typed);
+    expect(PackingConfigDataSchema.parse({ glovesPerCase: 2000 })).toEqual({ ...emptyPackingConfig(), glovesPerCase: 2000 });
+  });
+
   it("keeps the packing mode as written on site", () => {
     expect(PackingConfigDataSchema.parse({ packingMode: "10 dispenser boxes per carton" }).packingMode).toBe(
       "10 dispenser boxes per carton",

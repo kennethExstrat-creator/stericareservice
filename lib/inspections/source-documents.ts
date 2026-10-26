@@ -14,6 +14,8 @@ import { addLabReports, LabReportEntrySchema, LabReportsSchema, type FileKind, t
 import { completedCartons, pasteCartons } from "@/modules/carton_sampling/edit";
 import { emptyCartonSampling } from "@/modules/carton_sampling/schema";
 import { checklist, DOCUMENT_FILE_KIND, DOCUMENT_ITEMS, DocumentsConfigSchema } from "@/modules/documents/config";
+import { withWorkedOutGlovesPerCase } from "@/modules/packing_config/edit";
+import { PackingConfigDataSchema } from "@/modules/packing_config/schema";
 
 /** The page's key on the capture screen (?module=source_documents) and the files' module_key. */
 export const SOURCE_DOCUMENTS_KEY = "source_documents";
@@ -327,13 +329,28 @@ function dimensionsProposal(current: Record<string, unknown>, proposal: Record<s
 }
 
 /**
+ * Packing Configuration as a reading fills it (Kenneth, 27 October 2026):
+ * once the gloves per inner unit and the inner units per case are both
+ * entered, an empty gloves per case takes their product, as typing them
+ * writes it (withWorkedOutGlovesPerCase). One the document states goes in as
+ * read, and calc warns if it is not their product. Not counted as filled:
+ * the app works it out.
+ */
+function packingConfigFill(value: Record<string, unknown>): Record<string, unknown> {
+  const parsed = PackingConfigDataSchema.safeParse(value);
+  return parsed.success ? withWorkedOutGlovesPerCase(parsed.data) : value;
+}
+
+/**
  * The inspection's data with a reading's proposals filled in: only modules
  * the template includes (never the conclusion), only fields still empty,
  * only values each module's schema accepts. `filled` counts the values.
  * Box/Carton Numbers take a size's list whole, into an empty list or over
  * one it completes (cartonSamplingFill); Dimension's specs go in whole, and
  * never its P/F (dimensionsProposal); a step's lab reports take each report
- * the reading links, beside those listed (labReportsFill).
+ * the reading links, beside those listed (labReportsFill); Packing
+ * Configuration's gloves per case is worked out from the counts filled
+ * (packingConfigFill).
  */
 export function applyProposals(
   data: InspectionData,
@@ -360,7 +377,7 @@ export function applyProposals(
     const value = own ? own.value : fillModule(schema, current, proposed);
     const count = own ? own.added : countFilled(current, value);
     if (count === 0) continue;
-    next = writeModuleData(next, "modules", key, value);
+    next = writeModuleData(next, "modules", key, key === "packing_config" ? packingConfigFill(value) : value);
     filled += count;
     modules.push(key);
   }

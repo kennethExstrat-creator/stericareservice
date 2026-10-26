@@ -1084,11 +1084,11 @@ test("the order's page shows packing configuration below the order, and packing 
   await inners.press("Enter");
   // 35 cases of 100 × 10 gloves.
   await expect(totalGloves).toHaveText("35,000");
+  // The gloves per case is worked out from the two (Kenneth, 27 October 2026): read-only in its place, saved with them.
   const perCase = fieldAt(packing, ["glovesPerCase"]);
-  await expect(perCase).toBeFocused();
-  await perCase.fill("1000");
-  await perCase.press("Tab");
-  await expect(totalGloves).toHaveText("35,000");
+  await expect(perCase).toHaveValue("1000");
+  await expect(perCase).not.toBeEditable();
+  await expect(perCase).toHaveAccessibleDescription("100 × 10");
   await expect(packing.locator('header [data-slot="status-pill"]')).toHaveAttribute("data-status", "info");
   await expect
     .poll(async () => (await storedData(fixture.inspectionId)).data, { timeout: 15_000 })

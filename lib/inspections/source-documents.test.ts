@@ -278,6 +278,35 @@ describe("applyProposals on the packing check's aged sample (Kenneth, 26 October
   });
 });
 
+describe("applyProposals on Packing Configuration (Kenneth, 27 October 2026: the gloves per case is worked out)", () => {
+  const included = new Set(["packing_config"]);
+  const packing = (data: { modules: Readonly<Record<string, unknown>> }) => data.modules.packing_config;
+
+  it("fills the two counts a document states and works the gloves per case out from them, counted as the two read", () => {
+    const result = applyProposals({ modules: {}, custom: {} }, { packing_config: { glovesPerInner: 100, innersPerCase: 10 } }, MODULE_REGISTRY, included);
+    expect(packing(result.data)).toEqual({ glovesPerInner: 100, innersPerCase: 10, glovesPerCase: 1000, packingMode: null });
+    expect(result.filled).toBe(2);
+  });
+
+  it("takes a gloves per case the document states as read, even beside counts it is not the product of, and only while empty", () => {
+    const stated = applyProposals(
+      { modules: {}, custom: {} },
+      { packing_config: { glovesPerInner: 100, innersPerCase: 10, glovesPerCase: 1200 } },
+      MODULE_REGISTRY,
+      included,
+    );
+    expect(packing(stated.data)).toMatchObject({ glovesPerInner: 100, innersPerCase: 10, glovesPerCase: 1200 });
+
+    // A document that states only the gloves per case fills it while it is empty, and nothing else.
+    const alone = applyProposals({ modules: {}, custom: {} }, { packing_config: { glovesPerCase: 2000 } }, MODULE_REGISTRY, included);
+    expect(packing(alone.data)).toEqual({ glovesPerInner: null, innersPerCase: null, glovesPerCase: 2000, packingMode: null });
+    const typed = { modules: { packing_config: { glovesPerInner: 100, innersPerCase: 10, glovesPerCase: 1000, packingMode: null } }, custom: {} };
+    const kept = applyProposals(typed, { packing_config: { glovesPerCase: 2000 } }, MODULE_REGISTRY, included);
+    expect(kept.filled).toBe(0);
+    expect(packing(kept.data)).toEqual(typed.modules.packing_config);
+  });
+});
+
 describe("linkSourceFile", () => {
   const FILE = "00000000-0000-4000-8000-000000000501";
   const KEPT = "00000000-0000-4000-8000-000000000502";

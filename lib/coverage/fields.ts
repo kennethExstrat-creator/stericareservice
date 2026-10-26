@@ -346,8 +346,10 @@ const packingConfig = defineModule({
   alwaysOn: false,
   title: "Packing Configuration",
   titles: { STD_SG: "Packing Mode" },
-  captures: "Gloves per inner unit, inner units per case, gloves per case; the inner unit's name; the onsite packing mode text.",
-  result: "warn when glovesPerCase is not glovesPerInner × innersPerCase; info otherwise.",
+  captures:
+    "Gloves per inner unit, inner units per case, gloves per case (worked out from the two once both are entered); the inner unit's name; the onsite packing mode text.",
+  result:
+    "warn when a stored glovesPerCase is not glovesPerInner × innersPerCase; info otherwise. not_done until glovesPerInner and innersPerCase are entered.",
   rules: [1, 2],
   data: [
     {
@@ -379,7 +381,8 @@ const packingConfig = defineModule({
       per: [],
       entry: "entered",
       rules: [1],
-      notes: "Entered as printed, then checked against glovesPerCaseCheck (BUILD_SPEC 6.1).",
+      notes:
+        "glovesPerInner × innersPerCase once both are entered, written with them and read-only on screen (Kenneth, 27 October 2026); typed only while one is missing, as from a document that states only the gloves per case. Data saved before may hold none beside both (the product counts) or another number (warned about until either is edited).",
     },
     {
       key: "packingMode",
@@ -397,7 +400,7 @@ const packingConfig = defineModule({
       unit: "pcs",
       per: [],
       entry: "computed",
-      formula: "glovesPerInner × innersPerCase.",
+      formula: "glovesPerInner × innersPerCase: what glovesPerCase is worked out as, and what a stored one is checked against.",
       rules: [2],
     },
   ],

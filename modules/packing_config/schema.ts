@@ -17,7 +17,14 @@ export const PackingConfigDataSchema = z.strictObject({
   glovesPerInner: CountCellSchema,
   /** Inner units in one case. */
   innersPerCase: CountCellSchema,
-  /** As printed. Checked against glovesPerInner x innersPerCase, never replaced by it. */
+  /**
+   * Worked out once glovesPerInner and innersPerCase are both entered
+   * (Kenneth, 27 October 2026): their product, written with them (setCount)
+   * and read-only on screen. Typed only while one is missing, as from a
+   * document that states only the gloves per case. Data saved before may
+   * hold none beside both (calc and the context take the product) or another
+   * number (calc warns until either is edited).
+   */
   glovesPerCase: CountCellSchema,
   /** Free text as written on site; config.fields.packingMode shows it. */
   packingMode: TextCellSchema,

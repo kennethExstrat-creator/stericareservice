@@ -13,6 +13,14 @@ export type PackingField = (typeof PACKING_FIELDS)[number];
 export const PACKING_COUNTS = ["glovesPerInner", "innersPerCase", "glovesPerCase"] as const;
 export type PackingCount = (typeof PACKING_COUNTS)[number];
 
+/** The two counts the gloves per case is worked out from (Kenneth, 27 October 2026). */
+export const CASE_FACTORS = ["glovesPerInner", "innersPerCase"] as const;
+
+/**
+ * `glovesPerCaseCheck` names the computed product (calc's computed values,
+ * which the export carries). The screen no longer shows it on its own since
+ * 27 October 2026: # Gloves per Case shows it in its place.
+ */
 export const PACKING_CONFIG_LABELS: Readonly<Record<PackingField | "glovesPerCaseCheck", string>> = {
   glovesPerInner: "# Glove per Inner Box",
   innersPerCase: "# Inners per Case",
