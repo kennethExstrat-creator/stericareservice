@@ -34,7 +34,7 @@ export type InspectionSettingsState = SaveState<InspectionSettingsField>;
 
 export type ConnectionTest = { ok: boolean; message: string };
 
-const PATHS = ["/admin/ai", "/admin"] as const;
+const PATHS = ["/admin/ai"] as const;
 
 function text(formData: FormData, name: string): string {
   const value = formData.get(name);

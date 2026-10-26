@@ -4,7 +4,7 @@ import { sessionCookies, signIn, TEST_ACCOUNTS } from "../support/session";
 import { createShellFixture, type ShellFixture } from "./fixtures";
 
 /**
- * The app shell, the admin overview, Sign Out, the manifest and the 404 and
+ * The app shell, the admin dashboard, Sign Out, the manifest and the 404 and
  * error screens (BUILD_SPEC 8, 10, 12), at the three sizes in
  * playwright.config.ts. Screenshots go to screenshots/shell/ (git-ignored).
  *
@@ -29,7 +29,7 @@ const ROOT_ERROR_PAGE = process.env.SHELL_E2E_ROOT_ERROR_PAGE;
 const ERROR_TITLE = "This Page Did Not Load · SteriCare QC";
 
 /** The admin section's pages, in the nav's order (components/shell/nav.ts). */
-const ADMIN_PAGES = ["Overview", "Users", "Manufacturers", "Clients", "Defects", "Steri-AI Settings"];
+const ADMIN_PAGES = ["Dashboard", "Users", "Manufacturers", "Clients", "Defects", "General Settings", "Steri-AI Settings"];
 
 /** Photo uploads to Storage (lib/photos/supabase-adapters.ts). */
 const PHOTO_UPLOADS = "**/storage/v1/object/inspection-photos/**";
@@ -268,7 +268,7 @@ test.describe("as the admin", () => {
 
   test("the shell: top bar with tabs below 1280 px, sidebar from 1280 px", async ({ page }) => {
     await page.goto("/admin");
-    await expect(page.getByRole("heading", { level: 1, name: "Overview" })).toBeVisible();
+    await expect(page.getByRole("heading", { level: 1, name: "Dashboard" })).toBeVisible();
 
     const topBar = page.getByTestId("shell-top-bar");
     const sidebar = page.getByTestId("shell-sidebar");
@@ -281,7 +281,7 @@ test.describe("as the admin", () => {
       await expect(nav.getByText("Admin", { exact: true })).toBeVisible();
       // Every admin screen is a link; nothing is announced as coming.
       await expect(nav.getByRole("link")).toHaveText(["Inspections", ...ADMIN_PAGES]);
-      await expect(nav.getByRole("link", { name: "Overview" })).toHaveAttribute("aria-current", "page");
+      await expect(nav.getByRole("link", { name: "Dashboard" })).toHaveAttribute("aria-current", "page");
       await expect(nav.locator("a[aria-current]")).toHaveCount(1);
       await expect(nav.getByText(/Phase \d|coming/i)).toHaveCount(0);
       // The sidebar stays put while the page scrolls.
@@ -302,7 +302,7 @@ test.describe("as the admin", () => {
       // No sidebar, so the admin pages are listed at the top of the page: every one a link.
       const section = page.getByRole("navigation", { name: "Admin" });
       await expect(section.getByRole("link")).toHaveText(ADMIN_PAGES);
-      await expect(section.getByRole("link", { name: "Overview" })).toHaveAttribute("aria-current", "page");
+      await expect(section.getByRole("link", { name: "Dashboard" })).toHaveAttribute("aria-current", "page");
       await expect(section.getByText(/Coming in|Phase \d/)).toHaveCount(0);
       for (const pill of await section.getByRole("link").all()) {
         expect((await pill.boundingBox())?.height).toBeGreaterThanOrEqual(44);
@@ -316,7 +316,7 @@ test.describe("as the admin", () => {
   test("the top bar fits narrow iPad windows", async ({ page }) => {
     test.skip(test.info().project.name !== "ipad-portrait", "Sets its own iPad window sizes; once is enough.");
     await page.goto("/admin");
-    await expect(page.getByRole("heading", { level: 1, name: "Overview" })).toBeVisible();
+    await expect(page.getByRole("heading", { level: 1, name: "Dashboard" })).toBeVisible();
     const topBar = page.getByTestId("shell-top-bar");
     const nav = topBar.getByRole("navigation", { name: "Main" });
     const trigger = topBar.getByRole("button", { name: /account menu/ });
@@ -369,61 +369,43 @@ test.describe("as the admin", () => {
     await shot(page, "admin-top-bar-320", false);
   });
 
-  test("the admin overview: what waits, every admin screen, the status, never secrets", async ({ page }) => {
+  test("the admin dashboard: what is open, the period's activity, never secrets", async ({ page }) => {
     await page.goto("/admin");
-    await expect(page).toHaveTitle("Admin Overview · SteriCare QC");
+    await expect(page).toHaveTitle("Admin Dashboard · SteriCare QC");
+    await expect(page.getByRole("heading", { level: 1, name: "Dashboard" })).toBeVisible();
 
-    // What waits for an admin: the submitted inspections, counted, and linked filtered.
-    const waiting = page.getByRole("region", { name: "Inspections", exact: true });
-    const awaiting = waiting.getByRole("link", { name: /^Awaiting Approval\b/ });
+    // What is not approved yet: each count opens the list filtered to its status.
+    const open = page.getByRole("region", { name: "Open Inspections", exact: true });
+    const awaiting = open.getByRole("link", { name: /^Awaiting Approval\b/ });
     await expect(awaiting).toHaveAttribute("href", "/inspections?status=submitted");
-    await expect(awaiting).toContainText(
-      /\d+ submitted inspections? to approve or reopen\.|Nothing to approve: no inspection is submitted\./,
-    );
-    await expect(waiting.getByRole("link", { name: /Every inspection/ })).toHaveAttribute("href", "/inspections");
-
-    // Every admin screen, unmapped defect labels beside the codes; nothing announced as coming.
-    const setUp = page.getByRole("region", { name: "Set-Up", exact: true });
-    const screens: [RegExp, string][] = [
-      [/^Users\b.*Invite people/, "/admin/users"],
-      [/^Manufacturers\b/, "/admin/manufacturers"],
-      [/^Clients\b/, "/admin/clients"],
-      [/^Defect Codes\b/, "/admin/defects"],
-      [/^Unmapped Labels\b/, "/admin/defects/unmapped"],
-      [/^Steri-AI Settings\b/, "/admin/ai"],
-    ];
-    await expect(setUp.getByRole("link")).toHaveCount(screens.length);
-    for (const [name, href] of screens) {
-      await expect(setUp.getByRole("link", { name }), href).toHaveAttribute("href", href);
-    }
-    await expect(page.getByText(/Coming in|Phase \d|next build/)).toHaveCount(0);
+    await expect(open.getByRole("link", { name: /^Reopened\b/ })).toHaveAttribute("href", "/inspections?status=reopened");
+    await expect(open.getByRole("link", { name: /^Drafts\b/ })).toHaveAttribute("href", "/inspections?status=draft");
     if (isTouch()) {
-      for (const link of [awaiting, ...(await setUp.getByRole("link").all())]) {
+      for (const link of await open.getByRole("link").all()) {
         expect((await link.boundingBox())?.height).toBeGreaterThanOrEqual(44);
       }
     }
 
-    for (const card of ["Supabase", "Sign-In Emails", "AI Second Opinion", "AI Report"]) {
-      await expect(page.getByRole("heading", { level: 3, name: card })).toBeVisible();
-    }
-    await expect(page.getByRole("link", { name: /Set-Up Guide/ })).toHaveAttribute("target", "_blank");
+    // Activity: the last 30 days unless the picker says otherwise, and the address keeps the choice.
+    const activity = page.getByRole("region", { name: "Activity", exact: true });
+    const period = activity.getByRole("combobox", { name: "Period" });
+    await expect(period).toHaveText("Last 30 Days");
+    await expect(activity.getByTestId("dashboard-tiles").or(activity.getByTestId("dashboard-empty"))).toBeVisible();
+    await period.click();
+    await page.getByRole("option", { name: "All Time" }).click();
+    await expect(page).toHaveURL(/\/admin\?period=all$/);
+    await expect(period).toHaveText("All Time");
+    await expectNoPageScroll(page);
 
-    // The email links start with the Supabase project's Site URL: the card says
-    // what it must be (this app's address, as getSiteUrl() reads it) and links
-    // to the setting.
-    const siteUrl = (process.env.NEXT_PUBLIC_SITE_URL?.trim() || "http://localhost:3000").replace(/\/+$/, "");
-    await expect(page.getByText(`${siteUrl}/**`, { exact: true })).toBeVisible();
-    await expect(page.getByRole("link", { name: /Open the URL Settings/ })).toHaveAttribute(
-      "href",
-      /^https:\/\/supabase\.com\/dashboard\/project\/[a-z0-9]+\/auth\/url-configuration$/,
-    );
+    // The system status lives in General Settings and Steri-AI Settings now (settings.spec.ts).
+    await expect(page.getByRole("heading", { name: "Supabase" })).toHaveCount(0);
 
     const html = await page.content();
     for (const name of ["SUPABASE_SECRET_KEY", "SUPABASE_DB_URL", "ANTHROPIC_API_KEY", "AI_WEBHOOK_SECRET", "AI_REVIEW_WEBHOOK_URL", "AI_REPORT_WEBHOOK_URL"]) {
       const value = process.env[name]?.trim();
       if (value) expect(html.includes(value), `${name} must not reach the page`).toBe(false);
     }
-    await shot(page, "admin-overview");
+    await shot(page, "admin-dashboard");
 
     // Awaiting Approval opens the list, filtered to what an admin approves or reopens.
     await awaiting.click();
@@ -486,7 +468,7 @@ test.describe("as the admin", () => {
 
   test("Sign out that does not reach the server keeps the session and gives the menu back", async ({ page, context }) => {
     await page.goto("/admin");
-    await expect(page.getByRole("heading", { level: 1, name: "Overview" })).toBeVisible();
+    await expect(page.getByRole("heading", { level: 1, name: "Dashboard" })).toBeVisible();
     const errors = watchErrors(page);
     const release = await holdServerActions(page, "abort");
     const menu = await openUserMenu(page);
@@ -507,7 +489,7 @@ test.describe("as the admin", () => {
 
   test("Sign out with no answer gives the page back after its time limit", async ({ page, context }) => {
     await page.goto("/admin");
-    await expect(page.getByRole("heading", { level: 1, name: "Overview" })).toBeVisible();
+    await expect(page.getByRole("heading", { level: 1, name: "Dashboard" })).toBeVisible();
     const errors = watchErrors(page);
     const release = await holdServerActions(page, "stall");
     try {
@@ -539,7 +521,7 @@ test.describe("as the admin", () => {
     expect(errors()).toEqual([]);
     // The request never reached the server: the session still opens the admin pages.
     await page.goto("/admin");
-    await expect(page.getByRole("heading", { level: 1, name: "Overview" })).toBeVisible();
+    await expect(page.getByRole("heading", { level: 1, name: "Dashboard" })).toBeVisible();
   });
 
   test("an error in a page shows inside the shell", async ({ page }) => {
@@ -560,9 +542,9 @@ test.describe("as the admin", () => {
 
     // After a client-side navigation (away through the nav, then Back) the tab
     // title changes and Next's route announcer reads it out.
-    const away = isDesktop(page) ? "Overview" : "Admin";
+    const away = isDesktop(page) ? "Dashboard" : "Admin";
     await page.getByRole("navigation", { name: "Main" }).getByRole("link", { name: away }).click();
-    await expect(page.getByRole("heading", { level: 1, name: "Overview" })).toBeVisible();
+    await expect(page.getByRole("heading", { level: 1, name: "Dashboard" })).toBeVisible();
     await page.goBack();
     await expect(heading).toBeFocused();
     await expect(page).toHaveTitle(ERROR_TITLE);
@@ -652,9 +634,9 @@ test.describe("as the admin", () => {
 
       // From any other page too, reached through the shell's nav: the check covers every inspection on this device.
       const nav = page.getByRole("navigation", { name: "Main" });
-      await nav.getByRole("link", { name: isDesktop(page) ? "Overview" : "Admin", exact: true }).click();
+      await nav.getByRole("link", { name: isDesktop(page) ? "Dashboard" : "Admin", exact: true }).click();
       await expect(page).toHaveURL(/\/admin$/);
-      await expect(page.getByRole("heading", { level: 1, name: "Overview" })).toBeVisible();
+      await expect(page.getByRole("heading", { level: 1, name: "Dashboard" })).toBeVisible();
       await (await openUserMenu(page)).getByRole("menuitem", { name: "Sign Out" }).click();
       await expect(dialog).toBeVisible();
       await expect(dialog).toContainText(UPLOADS_WAITING);
@@ -691,8 +673,8 @@ test.describe("as the inspector", () => {
     expect(response?.status()).toBe(404);
     // Nothing gives the admin area away: not the tab title, not the HTML.
     await expect(page).toHaveTitle("Page Not Found · SteriCare QC");
-    expect(await response?.text()).not.toMatch(/Admin overview/i);
-    await expect(page.getByText("Overview")).toHaveCount(0);
+    expect(await response?.text()).not.toMatch(/Admin dashboard/i);
+    await expect(page.getByText("Dashboard")).toHaveCount(0);
     await expect(page.locator('a[href^="/admin"]')).toHaveCount(0);
     await shot(page, "inspector-admin-404");
   });

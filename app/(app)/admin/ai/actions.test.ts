@@ -67,7 +67,7 @@ describe("saveApiKeyAction", () => {
     expect(answer).toEqual({ status: "saved", message: "Saved. The new API key is in use." });
     expect(saveApiKey).toHaveBeenCalledWith(KEY, ADMIN.id);
     expect(saveInspectionSettings).not.toHaveBeenCalled();
-    expect(vi.mocked(revalidatePath).mock.calls).toEqual([["/admin/ai"], ["/admin"]]);
+    expect(vi.mocked(revalidatePath).mock.calls).toEqual([["/admin/ai"]]);
   });
 
   it("refuses an Admin API key, a blank field and anything else, under the field", async () => {
@@ -111,7 +111,7 @@ describe("saveInspectionSettingsAction", () => {
       ADMIN.id,
     );
     expect(saveApiKey).not.toHaveBeenCalled();
-    expect(vi.mocked(revalidatePath).mock.calls).toEqual([["/admin/ai"], ["/admin"]]);
+    expect(vi.mocked(revalidatePath).mock.calls).toEqual([["/admin/ai"]]);
   });
 
   it("keeps the server's effort when the picker shows it (xhigh or max are server settings)", async () => {
@@ -176,7 +176,7 @@ describe("saveAiPricesAction", () => {
     expect(authorizeAction).toHaveBeenCalledWith("admin");
     expect(saveAiPrices).toHaveBeenCalledWith(LIST, ADMIN.id);
     expect(vi.mocked(authorizeAction).mock.invocationCallOrder[0]).toBeLessThan(vi.mocked(saveAiPrices).mock.invocationCallOrder[0]);
-    expect(vi.mocked(revalidatePath).mock.calls).toEqual([["/admin/ai"], ["/admin"]]);
+    expect(vi.mocked(revalidatePath).mock.calls).toEqual([["/admin/ai"]]);
   });
 
   it("reads the list again: a refused price or a model listed twice saves nothing", async () => {

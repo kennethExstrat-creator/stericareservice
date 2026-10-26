@@ -38,11 +38,12 @@ describe("navForRole", () => {
     expect(admin.label).toBe("Admin");
     expect(admin.tab).toMatchObject({ label: "Admin", href: "/admin" });
     expect(admin.entries.map((entry) => [entry.key, entry.kind])).toEqual([
-      ["overview", "link"],
+      ["dashboard", "link"],
       ["users", "link"],
       ["manufacturers", "link"],
       ["clients", "link"],
       ["defects", "link"],
+      ["settings", "link"],
       ["ai", "link"],
     ]);
   });
@@ -58,11 +59,12 @@ describe("navForRole", () => {
     const links = navLinks(navForRole("admin"));
     expect(links.map((link) => [link.label, link.href, link.match])).toEqual([
       ["Inspections", "/inspections", "prefix"],
-      ["Overview", "/admin", "exact"],
+      ["Dashboard", "/admin", "exact"],
       ["Users", "/admin/users", "prefix"],
       ["Manufacturers", "/admin/manufacturers", "prefix"],
       ["Clients", "/admin/clients", "prefix"],
       ["Defects", "/admin/defects", "prefix"],
+      ["General Settings", "/admin/settings", "prefix"],
       ["Steri-AI Settings", "/admin/ai", "prefix"],
     ]);
   });
@@ -77,10 +79,10 @@ describe("navForRole", () => {
       {
         key: "mixed",
         label: "Mixed",
-        tab: { label: "Mixed", href: "/mixed", match: "prefix", icon: "overview" },
+        tab: { label: "Mixed", href: "/mixed", match: "prefix", icon: "dashboard" },
         roles: ["inspector", "admin"],
         entries: [
-          { kind: "link", key: "everyone", label: "Everyone", href: "/mixed", match: "exact", icon: "overview", roles: ["inspector", "admin"] },
+          { kind: "link", key: "everyone", label: "Everyone", href: "/mixed", match: "exact", icon: "dashboard", roles: ["inspector", "admin"] },
           { kind: "link", key: "admins", label: "Admins", href: "/mixed/admins", match: "prefix", icon: "users", roles: ["admin"] },
         ],
       },
@@ -90,7 +92,7 @@ describe("navForRole", () => {
         tab: { label: "Hidden", href: "/hidden", match: "prefix", icon: "admin" },
         roles: ["inspector", "admin"],
         entries: [
-          { kind: "planned", key: "later", label: "Later", icon: "overview", phase: "Phase 3", roles: ["admin"] },
+          { kind: "planned", key: "later", label: "Later", icon: "dashboard", phase: "Phase 3", roles: ["admin"] },
         ],
       },
     ];
@@ -132,7 +134,7 @@ describe("hiddenSectionPaths", () => {
 describe("ariaCurrentFor", () => {
   const inspections = { href: "/inspections", match: "prefix" } as const;
   const adminTab = { href: "/admin", match: "prefix" } as const;
-  const overview = { href: "/admin", match: "exact" } as const;
+  const dashboard = { href: "/admin", match: "exact" } as const;
   const defects = { href: "/admin/defects", match: "prefix" } as const;
 
   it.each([
@@ -141,8 +143,8 @@ describe("ariaCurrentFor", () => {
     [inspections, "/inspections/new", "true"],
     [adminTab, "/admin", "page"],
     [adminTab, "/admin/users", "true"],
-    [overview, "/admin", "page"],
-    [overview, "/admin/users", undefined],
+    [dashboard, "/admin", "page"],
+    [dashboard, "/admin/users", undefined],
     [defects, "/admin/defects", "page"],
     [defects, "/admin/defects/labels", "true"],
     [defects, "/admin/users", undefined],
@@ -189,10 +191,10 @@ describe("plannedByPhase", () => {
 
   it("groups planned screens by phase, in order", () => {
     const entries: NavEntry[] = [
-      { kind: "planned", key: "a", label: "A", icon: "overview", phase: "Phase 3", roles: ["admin"] },
+      { kind: "planned", key: "a", label: "A", icon: "dashboard", phase: "Phase 3", roles: ["admin"] },
       { kind: "link", key: "b", label: "B", href: "/b", match: "exact", icon: "users", roles: ["admin"] },
-      { kind: "planned", key: "c", label: "C", icon: "overview", phase: "Later", roles: ["admin"] },
-      { kind: "planned", key: "d", label: "D", icon: "overview", phase: "Phase 3", roles: ["admin"] },
+      { kind: "planned", key: "c", label: "C", icon: "dashboard", phase: "Later", roles: ["admin"] },
+      { kind: "planned", key: "d", label: "D", icon: "dashboard", phase: "Phase 3", roles: ["admin"] },
     ];
     expect(plannedByPhase(entries)).toEqual([
       { phase: "Phase 3", labels: ["A", "D"] },
@@ -215,7 +217,7 @@ describe("normalizePath", () => {
 
 describe("isNavLinkActive", () => {
   const inspections = { href: "/inspections", match: "prefix" } as const;
-  const overview = { href: "/admin", match: "exact" } as const;
+  const dashboard = { href: "/admin", match: "exact" } as const;
   const users = { href: "/admin/users", match: "prefix" } as const;
 
   it.each([
@@ -226,9 +228,9 @@ describe("isNavLinkActive", () => {
     [inspections, "/inspectionsfoo", false],
     [inspections, "/", false],
     [inspections, "/admin", false],
-    [overview, "/admin", true],
-    [overview, "/admin/", true],
-    [overview, "/admin/users", false],
+    [dashboard, "/admin", true],
+    [dashboard, "/admin/", true],
+    [dashboard, "/admin/users", false],
     [users, "/admin/users", true],
     [users, "/admin/users/invite", true],
     [users, "/admin/usersettings", false],
@@ -250,7 +252,7 @@ describe("the current entry", () => {
   it.each([
     ["/inspections", "work", ["inspections"]],
     ["/inspections/new", "work", ["inspections"]],
-    ["/admin", "admin", ["overview"]],
+    ["/admin", "admin", ["dashboard"]],
     ["/admin/users", "admin", ["users"]],
     ["/admin/users/abc", "admin", ["users"]],
     ["/admin/manufacturers", "admin", ["manufacturers"]],
@@ -258,9 +260,10 @@ describe("the current entry", () => {
     ["/admin/defects", "admin", ["defects"]],
     ["/admin/defects/labels", "admin", ["defects"]],
     ["/admin/defects/unmapped", "admin", ["defects"]],
+    ["/admin/settings", "admin", ["settings"]],
+    ["/admin/ai", "admin", ["ai"]],
     // Admin > Templates is gone (Kenneth, 26 October 2026): no entry is current on its old address.
     ["/admin/templates", "admin", []],
-    ["/admin/settings", "admin", []],
     ["/", null, []],
     ["/login", null, []],
   ] as const)("on %s: tab %s, entries %j", (pathname, tab, entries) => {
@@ -281,6 +284,7 @@ describe("the current entry", () => {
       "/admin/users",
       "/admin/users/x",
       "/admin/defects/labels",
+      "/admin/settings",
       "/admin/ai",
       "/admin/other",
     ];

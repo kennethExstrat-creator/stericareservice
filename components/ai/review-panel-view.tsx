@@ -122,8 +122,8 @@ function NotConnected({ model }: { model: AiPanelModel }) {
             {!viewer.isAdmin
               ? "An admin can connect it."
               : review.switchedOff
-                ? "It is switched off on the server: AI_REVIEW_PROVIDER is set to off. To connect it, set it to auto, with ANTHROPIC_API_KEY or AI_REVIEW_WEBHOOK_URL set. The admin overview shows the set-up."
-                : "To connect it, set ANTHROPIC_API_KEY or AI_REVIEW_WEBHOOK_URL on the server. The admin overview shows the set-up."}
+                ? "It is switched off on the server: AI_REVIEW_PROVIDER is set to off. To connect it, set it to auto, with ANTHROPIC_API_KEY or AI_REVIEW_WEBHOOK_URL set. Admin > Steri-AI Settings shows the set-up."
+                : "To connect it, set ANTHROPIC_API_KEY or AI_REVIEW_WEBHOOK_URL on the server. Admin > Steri-AI Settings shows the set-up."}
           </p>
         )}
         {(model.current || model.history.length > 0) && (

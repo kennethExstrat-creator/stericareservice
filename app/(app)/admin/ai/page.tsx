@@ -1,8 +1,10 @@
 import type { Metadata } from "next";
 import { unstable_rethrow } from "next/navigation";
 import { PageHeader } from "@/components/qc";
+import { AiReportCard, AiReviewCard } from "@/components/shell/admin-status-cards";
+import { getAiStatus } from "@/lib/ai";
 import { latestBnmRate, pickMyrRate } from "@/lib/ai/myr-rate";
-import { loadAiPrices, readAiSettingsView, readSummarySettingsView } from "@/lib/ai/settings";
+import { loadAiEnv, loadAiPrices, readAiSettingsView, readSummarySettingsView } from "@/lib/ai/settings";
 import { requireAdmin } from "@/lib/auth/session";
 import { loadSummaryPreviewTargets, type SummaryPreviewTarget } from "@/lib/inspections/ai/summary-runner";
 import { createClient } from "@/lib/supabase/server";
@@ -21,12 +23,13 @@ export async function generateMetadata(): Promise<Metadata> {
 /**
  * Admin > Steri-AI Settings (docs/AI.md, "AI Settings"), three views the
  * address names (?view=, _components/view-state.ts): General, the Anthropic
- * API key and the connection test; Inspection Settings, the Claude model for
- * each job, the second opinion's effort and photos, and the Inspection
- * Summary's model and house style with Try It; Steri-AI Cost, what Steri-AI
- * costs to run, in ringgit or US dollars. Each view loads only its own data.
- * The page learns only where the key comes from and its last four
- * characters, never the key.
+ * API key and the connection test, then whether the second opinion and the
+ * report are connected; Inspection Settings, the Claude model for each job,
+ * the second opinion's effort and photos, and the Inspection Summary's model
+ * and house style with Try It; Steri-AI Cost, what Steri-AI costs to run, in
+ * ringgit or US dollars. Each view loads only its own data. The page shows
+ * only where the key comes from and its last four characters, never the key:
+ * the status cards get getAiStatus()'s view, which holds no key or URL.
  *
  * Inspectors get a 404 from requireAdmin(); a layout is not a security
  * boundary, so the page checks for itself. No outer padding or width: the
@@ -70,7 +73,20 @@ async function viewBody(state: AiViewState) {
       />
     );
   }
-  return <GeneralView view={await readAiSettingsView()} />;
+  // The hand-offs as every call finds them (loadAiEnv: the saved key lies over the variables), drawn
+  // here on the server, under the key's form. Save Key and Remove Saved Key revalidate this page, so
+  // the cards follow at once.
+  const [view, env] = await Promise.all([readAiSettingsView(), loadAiEnv()]);
+  const ai = getAiStatus(env);
+  return (
+    <div className="flex flex-col gap-6">
+      <GeneralView view={view} />
+      <div className="grid gap-6 lg:grid-cols-2">
+        <AiReviewCard status={ai.review} />
+        <AiReportCard status={ai.report} />
+      </div>
+    </div>
+  );
 }
 
 /** Try It's inspections, read as the admin (Row Level Security decides); none when they cannot be read. */

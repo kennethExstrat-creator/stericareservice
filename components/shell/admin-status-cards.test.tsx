@@ -1,7 +1,8 @@
-// Markup of the admin overview's status cards in every state. The e2e run
-// only sees the live, fully configured project, so the failure states are
-// checked here: what each card says, and that no value of a key, secret or
-// webhook URL ever reaches the page. AI states come from getAiStatus() itself.
+// Markup of the set-up's status cards (General Settings, Steri-AI Settings'
+// General) in every state. The e2e run only sees the live, fully configured
+// project, so the failure states are checked here: what each card says, and
+// that no value of a key, secret or webhook URL ever reaches the page. AI
+// states come from getAiStatus() itself.
 import type { ReactElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
@@ -212,7 +213,7 @@ describe("the cards' labels", () => {
       render(<AiReportCard status={getAiStatus({}).report} />).html,
     ].join("");
     const all = (pattern: RegExp) => [...html.matchAll(pattern)].map((match) => match[1]);
-    const titles = all(/<h3>([^<]+)<\/h3>/g);
+    const titles = all(/<h2 [^>]*>([^<]+)<\/h2>/g);
     const rows = all(/<dt[^>]*>([^<]+)<\/dt>/g);
     const pills = all(/data-slot="status-pill"[^>]*>.*?<span>([^<]+)<\/span>/g);
     expect(titles).toEqual(["Supabase", "Sign-In Emails", "Steri-AI Second Opinion", "Steri-AI Report"]);
@@ -236,5 +237,29 @@ describe("the cards' labels", () => {
       "Not Connected",
     ]);
     for (const label of [...titles, ...rows, ...pills]) expect(lowerCaseWords(label), label).toEqual([]);
+  });
+});
+
+describe("the cards' headers", () => {
+  it("name each card's section by its h2 title, with the pill beside the title and the description under it", () => {
+    const { html } = render(
+      <>
+        <AiReviewCard status={getAiStatus({}).review} />
+        <AiReportCard status={getAiStatus({ AI_REPORT_WEBHOOK_URL: REPORT_WEBHOOK }).report} />
+      </>,
+    );
+    const sections = [...html.matchAll(/<section aria-labelledby="([^"]+)"/g)].map((match) => match[1]);
+    expect(sections).toHaveLength(2);
+    expect(new Set(sections).size).toBe(2);
+    const titleOf = (id: string) => html.slice(html.indexOf(`<h2 id="${id}"`)).match(/^<h2 [^>]*>([^<]+)<\/h2>/)?.[1];
+    expect(sections.map(titleOf)).toEqual(["Steri-AI Second Opinion", "Steri-AI Report"]);
+    expect(html).not.toContain("<h3");
+
+    // In reading order: the title, its pill, the description, then the rows.
+    const card = html.slice(html.lastIndexOf("<section"));
+    const order = [">Steri-AI Report</h2>", 'data-slot="status-pill"', "Turns an approved inspection into the client report.", "<dl"];
+    const at = order.map((part) => card.indexOf(part));
+    expect(at.every((index) => index >= 0), order.join(", ")).toBe(true);
+    expect(at).toEqual([...at].sort((a, b) => a - b));
   });
 });

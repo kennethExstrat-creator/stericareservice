@@ -28,6 +28,7 @@ const ADMIN_PAGES = [
   "/admin/manufacturers",
   "/admin/clients",
   "/admin/defects",
+  "/admin/settings",
   "/admin/ai",
 ];
 
@@ -38,8 +39,8 @@ const WITH_PLANNED: NavSection = {
   tab: { label: "Admin", href: "/admin", match: "prefix", icon: "admin" },
   roles: ["admin"],
   entries: [
-    { kind: "link", key: "overview", label: "Overview", href: "/admin", match: "exact", icon: "overview", roles: ["admin"] },
-    { kind: "planned", key: "reports", label: "Reports", icon: "overview", phase: "Later", roles: ["admin"] },
+    { kind: "link", key: "dashboard", label: "Dashboard", href: "/admin", match: "exact", icon: "dashboard", roles: ["admin"] },
+    { kind: "planned", key: "reports", label: "Reports", icon: "dashboard", phase: "Later", roles: ["admin"] },
     { kind: "planned", key: "trends", label: "Trends", icon: "defects", phase: "Later", roles: ["admin"] },
   ],
 };
@@ -48,8 +49,9 @@ describe("SidebarNav", () => {
   it("marks the current page and nothing else", () => {
     const nav = navForRole("admin");
     expect(currentLinks(render("/admin/users", <SidebarNav sections={nav} />))).toEqual([["Users", "page"]]);
-    expect(currentLinks(render("/admin", <SidebarNav sections={nav} />))).toEqual([["Overview", "page"]]);
+    expect(currentLinks(render("/admin", <SidebarNav sections={nav} />))).toEqual([["Dashboard", "page"]]);
     expect(currentLinks(render("/admin/defects", <SidebarNav sections={nav} />))).toEqual([["Defects", "page"]]);
+    expect(currentLinks(render("/admin/settings", <SidebarNav sections={nav} />))).toEqual([["General Settings", "page"]]);
     expect(currentLinks(render("/admin/ai", <SidebarNav sections={nav} />))).toEqual([["Steri-AI Settings", "page"]]);
     expect(currentLinks(render("/inspections", <SidebarNav sections={nav} />))).toEqual([["Inspections", "page"]]);
     expect(currentLinks(render("/somewhere-else", <SidebarNav sections={nav} />))).toEqual([]);
@@ -78,7 +80,7 @@ describe("SidebarNav", () => {
   it("shows an inspector no admin entries at all", () => {
     const html = render("/inspections", <SidebarNav sections={navForRole("inspector")} />);
     expect(linkHrefs(html)).toEqual(["/inspections"]);
-    expect(html).not.toMatch(/Admin|Overview|Users|Manufacturers|Clients|Defects|Steri-AI/);
+    expect(html).not.toMatch(/Admin|Dashboard|Users|Manufacturers|Clients|Defects|Settings|Steri-AI/);
   });
 
   it("is a labelled navigation landmark with a labelled admin group", () => {

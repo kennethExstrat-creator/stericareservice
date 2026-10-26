@@ -1,20 +1,17 @@
 import type { Metadata } from "next";
-import type { ReactNode } from "react";
+import { LayoutDashboardIcon, TriangleAlertIcon } from "lucide-react";
 import { PageHeader } from "@/components/qc";
-import { AdminScreenLinks, InspectionShortcuts } from "@/components/shell/admin-quick-links";
-import {
-  AiReportCard,
-  AiReviewCard,
-  EmailCard,
-  SupabaseCard,
-  type DatabaseSummary,
-} from "@/components/shell/admin-status-cards";
-import { getAiStatus } from "@/lib/ai";
-import { loadAiEnv } from "@/lib/ai/settings";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
+import { chartColumns, parseDashboardPeriod, type DashboardSummary } from "@/lib/admin/dashboard";
+import { loadDashboardSummary, loadOpenCounts } from "@/lib/admin/dashboard-data";
 import { requireAdmin } from "@/lib/auth/session";
-import { getSiteUrl, getSupabasePublicEnv } from "@/lib/env";
-import { isAdminClientConfigured } from "@/lib/supabase/admin";
+import { buildInspectionsHref } from "@/lib/inspections/search-params";
 import { createClient } from "@/lib/supabase/server";
+import { BreakdownCard } from "./_components/breakdown-card";
+import { DashboardFrame } from "./_components/dashboard-frame";
+import { ActivityTiles, OpenTiles } from "./_components/dashboard-tiles";
+import { InspectionsChart } from "./_components/inspections-chart";
 
 /**
  * The title checks the role too. Next resolves metadata on its own, so a
@@ -24,123 +21,101 @@ import { createClient } from "@/lib/supabase/server";
  */
 export async function generateMetadata(): Promise<Metadata> {
   await requireAdmin();
-  return { title: "Admin Overview" };
+  return { title: "Admin Dashboard" };
 }
 
 /**
- * The admin home: what waits for an admin (inspections to approve), a link to
- * every admin screen, then the system status: is Supabase wired up, are the
- * sign-in emails set up, are the AI hand-offs connected. This page reads the
- * facts; components/shell shows them (admin-quick-links.tsx and
- * admin-status-cards.tsx), naming the variable to set, never a value: no
- * keys, secrets or webhook URLs reach it.
+ * The admin home, a dashboard (Kenneth, 27 October 2026: "the overview should
+ * be a dashboard"; the system status it showed moved to General Settings and
+ * Steri-AI Settings). First the inspections not approved yet, each count a
+ * link to the list filtered to it; then Activity for the period the picker
+ * names (?period=, lib/admin/dashboard.ts): the inspections and their
+ * results, per day or month, and by client, manufacturer and inspector.
+ * Read as the signed-in admin: Row Level Security gives an admin every
+ * inspection.
+ *
+ * No outer padding or width: the app shell's main area provides both.
  */
-export default async function AdminOverviewPage() {
+export default async function AdminDashboardPage({ searchParams }: PageProps<"/admin">) {
   await requireAdmin();
-
-  const supabaseEnv = getSupabasePublicEnv();
-  const secretKeySet = isAdminClientConfigured();
+  const period = parseDashboardPeriod((await searchParams).period);
   const supabase = await createClient();
-  const [database, awaitingApproval] = await Promise.all([readDatabaseSummary(supabase), countAwaitingApproval(supabase)]);
-  // The settings saved in Admin > AI Settings lie over the variables.
-  const ai = getAiStatus(await loadAiEnv());
-  // A production build without NEXT_PUBLIC_SITE_URL only knows getSiteUrl()'s
-  // localhost fallback, so the email card asks for the variable instead of
-  // showing a wrong address. Read with a literal expression (see lib/env.ts).
-  const siteUrl =
-    process.env.NODE_ENV === "production" && !process.env.NEXT_PUBLIC_SITE_URL?.trim() ? null : getSiteUrl();
+  const [open, summary] = await Promise.all([loadOpenCounts(supabase), loadDashboardSummary(supabase, period)]);
 
   return (
-    <div className="space-y-10">
-      <PageHeader
-        eyebrow="Admin"
-        title="Overview"
-      />
+    <div className="flex flex-col gap-10">
+      <PageHeader eyebrow="Admin" title="Dashboard" />
 
-      <Section id="inspections-waiting" title="Inspections">
-        <InspectionShortcuts awaitingApproval={awaitingApproval} />
-      </Section>
+      <section aria-labelledby="open-inspections" className="flex flex-col gap-4">
+        <h2 id="open-inspections" className="text-2xl font-bold tracking-tight text-foreground">
+          Open Inspections
+        </h2>
+        <OpenTiles counts={open} />
+      </section>
 
-      <Section id="admin-screens" title="Set-Up">
-        <AdminScreenLinks />
-      </Section>
-
-      <Section id="system-status" title="System Status">
-        <div className="grid gap-6 lg:grid-cols-2">
-          <SupabaseCard env={supabaseEnv} secretKeySet={secretKeySet} database={database} />
-          <EmailCard env={supabaseEnv} siteUrl={siteUrl} />
-          <AiReviewCard status={ai.review} />
-          <AiReportCard status={ai.report} />
-        </div>
-      </Section>
+      <DashboardFrame id="activity" title="Activity" period={period}>
+        <Activity summary={summary} />
+      </DashboardFrame>
     </div>
   );
 }
 
-function Section({ id, title, children }: { id: string; title: string; children: ReactNode }) {
+function Activity({ summary }: { summary: DashboardSummary | null }) {
+  if (!summary) {
+    return (
+      <Alert variant="destructive">
+        <TriangleAlertIcon aria-hidden />
+        <AlertDescription className="text-destructive">
+          The figures could not be loaded. Reload the page to try again.
+        </AlertDescription>
+      </Alert>
+    );
+  }
+  if (summary.since === null) return <NoInspectionsYet />;
   return (
-    <section aria-labelledby={id} className="space-y-4">
-      <h2 id={id} className="text-2xl font-bold tracking-tight text-foreground">
-        {title}
-      </h2>
-      {children}
-    </section>
+    <>
+      <ActivityTiles summary={summary} />
+      <InspectionsChart bucket={summary.trend.bucket} columns={chartColumns(summary.trend)} />
+      <div className="grid gap-6 lg:grid-cols-3">
+        <BreakdownCard
+          id="by-client"
+          title="By Client"
+          rows={summary.byClient}
+          noun={{ one: "client", many: "clients" }}
+          hrefFor={(id) => buildInspectionsHref({ client: id })}
+        />
+        <BreakdownCard
+          id="by-manufacturer"
+          title="By Manufacturer"
+          rows={summary.byManufacturer}
+          noun={{ one: "manufacturer", many: "manufacturers" }}
+          hrefFor={(id) => buildInspectionsHref({ manufacturer: id })}
+        />
+        <BreakdownCard
+          id="by-inspector"
+          title="By Inspector"
+          rows={summary.byInspector}
+          noun={{ one: "inspector", many: "inspectors" }}
+        />
+      </div>
+    </>
   );
 }
 
-/* ------------------------------------------------------------------ *
- * Data, read as the signed-in admin: this also proves RLS lets an admin
- * see everything it should.
- * ------------------------------------------------------------------ */
-
-type Client = Awaited<ReturnType<typeof createClient>>;
-
-async function readDatabaseSummary(supabase: Client): Promise<DatabaseSummary> {
-  const head = { count: "exact", head: true } as const;
-  const [profiles, manufacturers, clients, defectCodes, templates] = await Promise.all([
-    supabase.from("profiles").select("role, active"),
-    supabase.from("manufacturers").select("id", head),
-    supabase.from("clients").select("id", head),
-    supabase.from("defect_codes").select("code", head),
-    supabase.from("templates").select("id", head),
-  ]);
-
-  let accounts: DatabaseSummary["accounts"] = null;
-  if (!profiles.error) {
-    const active = profiles.data.filter((profile) => profile.active);
-    accounts = {
-      active: active.length,
-      admins: active.filter((profile) => profile.role === "admin").length,
-      inspectors: active.filter((profile) => profile.role === "inspector").length,
-      deactivated: profiles.data.length - active.length,
-    };
-  }
-
-  const counts = [manufacturers, clients, defectCodes, templates];
-  const reference: DatabaseSummary["reference"] = counts.every((result) => !result.error && result.count !== null)
-    ? {
-        manufacturers: manufacturers.count ?? 0,
-        clients: clients.count ?? 0,
-        defectCodes: defectCodes.count ?? 0,
-        templates: templates.count ?? 0,
-      }
-    : null;
-
-  return { accounts, reference };
-}
-
-/** Submitted inspections, which an admin approves or reopens: a count only, no rows. Null when it cannot be read. */
-async function countAwaitingApproval(supabase: Client): Promise<number | null> {
-  const { count, error } = await supabase
-    .from("inspections")
-    .select("id", { count: "exact", head: true })
-    .eq("status", "submitted");
-  if (error) {
-    console.error("Admin overview: counting the inspections awaiting approval failed", {
-      code: error.code,
-      message: error.message,
-    });
-    return null;
-  }
-  return count;
+function NoInspectionsYet() {
+  return (
+    <Empty className="border border-dashed border-slate-300 bg-card px-6 py-12 md:py-16" data-testid="dashboard-empty">
+      <EmptyHeader className="max-w-md">
+        <EmptyMedia variant="icon" className="size-12 rounded-xl bg-brand-50 text-brand-600">
+          <LayoutDashboardIcon aria-hidden />
+        </EmptyMedia>
+        <EmptyTitle>
+          <h3 className="text-lg font-bold text-foreground">No Inspections Yet</h3>
+        </EmptyTitle>
+        <EmptyDescription className="text-base text-muted-foreground fine:text-sm">
+          The figures fill in as inspectors create inspections.
+        </EmptyDescription>
+      </EmptyHeader>
+    </Empty>
+  );
 }

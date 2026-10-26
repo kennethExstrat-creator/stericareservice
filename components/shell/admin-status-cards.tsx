@@ -1,9 +1,11 @@
-// The admin overview's status cards (app/(app)/admin/page.tsx): is Supabase
-// wired up, are the sign-in emails set up, are the AI hand-offs connected.
-// The page reads the facts; these cards only show them, so every state is
-// tested on its own (admin-status-cards.test.tsx). They name the variable to
-// set, never a value: no keys, secrets or webhook URLs reach the page.
-import type { ReactNode } from "react";
+// The set-up's status cards. Admin > General Settings
+// (app/(app)/admin/settings/page.tsx): is Supabase wired up, are the sign-in
+// emails set up. Steri-AI Settings' General (app/(app)/admin/ai/page.tsx),
+// under the API key: are the AI hand-offs connected. The pages read the
+// facts; these cards only show them, so every state is tested on its own
+// (admin-status-cards.test.tsx). They name the variable to set, never a
+// value: no keys, secrets or webhook URLs reach the page.
+import { useId, type ReactNode } from "react";
 import {
   DatabaseIcon,
   ExternalLinkIcon,
@@ -13,7 +15,6 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { StatusPill } from "@/components/qc";
-import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import type { AiReportStatus, AiReviewStatus } from "@/lib/ai";
 import type { Status } from "@/lib/design/status";
 import type { SupabasePublicEnv } from "@/lib/env";
@@ -135,7 +136,7 @@ export function EmailCard({ env, siteUrl }: { env: SupabasePublicEnv | null; sit
       description="Invites and password resets."
       status={siteUrl ? { status: "info", label: "Check by Hand" } : { status: "warn", label: "Needs Attention" }}
     >
-      <div className="space-y-3 text-sm text-muted-foreground">
+      <div className="space-y-3 text-sm text-muted-foreground touch:text-base">
         <p>
           Supabase sends these emails. Paste SteriCare&apos;s templates into the project once; without them the
           links in the emails do not work.
@@ -260,12 +261,12 @@ function aiPill(status: AiReviewStatus | AiReportStatus): { status: Status; labe
 function AiNote({ status, children }: { status: AiReviewStatus | AiReportStatus; children: ReactNode }) {
   if (status.provider === "misconfigured") {
     return (
-      <p className="rounded-lg border border-fail-border bg-fail-tint px-3 py-2 text-sm text-fail">
+      <p className="rounded-lg border border-fail-border bg-fail-tint px-3 py-2 text-sm text-fail touch:text-base">
         {status.detail ?? status.label}
       </p>
     );
   }
-  if (!status.connected) return <p className="text-sm text-muted-foreground">{children}</p>;
+  if (!status.connected) return <p className="text-sm text-muted-foreground touch:text-base">{children}</p>;
   return null;
 }
 
@@ -273,6 +274,12 @@ function AiNote({ status, children }: { status: AiReviewStatus | AiReportStatus;
  * Building blocks
  * ------------------------------------------------------------------ */
 
+/**
+ * Drawn as Steri-AI Settings' cards (app/(app)/admin/ai/_components/section-card.tsx),
+ * which the AI cards sit under: the icon tile and the title, an h2 under the
+ * page's h1, naming the card's section. The pill sits at the title's end
+ * (below it when the card is narrow) and the description under the title.
+ */
 function StatusCard({
   icon: Icon,
   title,
@@ -286,21 +293,29 @@ function StatusCard({
   status: { status: Status; label: string };
   children: ReactNode;
 }) {
+  const id = useId();
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2.5 text-lg font-bold">
-          <Icon aria-hidden className="size-5 shrink-0 text-brand-600" />
-          <h3>{title}</h3>
-        </CardTitle>
-        {/* The pill sits beside the title only, so the description gets the full width. */}
-        <CardDescription className="col-span-2">{description}</CardDescription>
-        <CardAction className="row-span-1">
-          <StatusPill status={status.status} label={status.label} />
-        </CardAction>
-      </CardHeader>
-      <CardContent className="gap-4">{children}</CardContent>
-    </Card>
+    <section
+      aria-labelledby={id}
+      className="flex min-w-0 flex-col gap-5 rounded-xl bg-card p-5 shadow-sm ring-1 ring-border touch:p-6"
+    >
+      <div className="flex gap-3">
+        <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-brand-50 text-brand-600">
+          <Icon aria-hidden className="size-5" />
+        </span>
+        <div className="min-w-0 flex-1">
+          {/* As tall as the tile, so the title sits level with it. */}
+          <div className="flex min-h-9 flex-wrap items-center justify-between gap-x-3 gap-y-1">
+            <h2 id={id} className="text-lg leading-tight font-bold text-foreground">
+              {title}
+            </h2>
+            <StatusPill status={status.status} label={status.label} />
+          </div>
+          <p className="text-sm text-muted-foreground touch:text-base">{description}</p>
+        </div>
+      </div>
+      <div className="flex flex-col gap-4">{children}</div>
+    </section>
   );
 }
 
@@ -330,9 +345,9 @@ function Rows({ children }: { children: ReactNode }) {
 function Row({ label, value, pill }: { label: string; value: ReactNode; pill?: ReactNode }) {
   return (
     <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-x-4 gap-y-0.5 py-3 first:pt-0 last:pb-0">
-      <dt className="text-sm font-medium text-foreground">{label}</dt>
+      <dt className="text-sm font-medium text-foreground touch:text-base">{label}</dt>
       {pill && <dd className="col-start-2 row-span-2 row-start-1 self-start">{pill}</dd>}
-      <dd className="col-start-1 text-sm break-words text-muted-foreground">{value}</dd>
+      <dd className="col-start-1 text-sm break-words text-muted-foreground touch:text-base">{value}</dd>
     </div>
   );
 }
@@ -343,7 +358,7 @@ function ExternalLink({ href, children }: { href: string; children: ReactNode })
       href={href}
       target="_blank"
       rel="noreferrer"
-      className="inline-flex min-h-9 items-center gap-1.5 text-sm font-semibold text-brand-600 underline-offset-4 hover:underline focus-visible:rounded-sm focus-ring touch:min-h-11"
+      className="inline-flex min-h-9 items-center gap-1.5 text-sm font-semibold touch:text-base text-brand-600 underline-offset-4 hover:underline focus-visible:rounded-sm focus-ring touch:min-h-11"
     >
       {children}
       <ExternalLinkIcon aria-hidden className="size-4" />

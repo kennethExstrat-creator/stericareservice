@@ -312,6 +312,8 @@ describe("AiReviewPanelView states", () => {
     const content = text(render({ aiStatus: OFF_STATUS, reviews: [], decisions: [] }));
     expect(content).toContain("Steri-AI Second Opinion Not Connected");
     expect(content).toContain("To connect it, set ANTHROPIC_API_KEY or AI_REVIEW_WEBHOOK_URL on the server.");
+    // Where the status cards are now (the dashboard has none).
+    expect(content).toContain("Admin &gt; Steri-AI Settings shows the set-up.");
     // Nothing is switched off: the hint does not send the admin looking for AI_REVIEW_PROVIDER.
     expect(content).not.toContain("AI_REVIEW_PROVIDER");
     expect(content).not.toContain("System (Computed)");

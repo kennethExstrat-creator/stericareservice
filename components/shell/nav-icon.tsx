@@ -3,6 +3,7 @@ import {
   ClipboardCheckIcon,
   FactoryIcon,
   LayoutDashboardIcon,
+  Settings2Icon,
   SettingsIcon,
   SparklesIcon,
   TagsIcon,
@@ -14,11 +15,13 @@ import type { NavIconName } from "./nav";
 const ICONS: Readonly<Record<NavIconName, LucideIcon>> = {
   inspections: ClipboardCheckIcon,
   admin: SettingsIcon,
-  overview: LayoutDashboardIcon,
+  dashboard: LayoutDashboardIcon,
   users: UsersIcon,
   manufacturers: FactoryIcon,
   clients: Building2Icon,
   defects: TagsIcon,
+  // Neither the Admin tab's gear nor the sliders on Steri-AI Settings' General pill.
+  settings: Settings2Icon,
   ai: SparklesIcon,
 };
 

@@ -1,6 +1,7 @@
 // /admin/ai as the server renders it: the role check before anything, the
 // view the address names (?view=, unknown → General), and each view's cards
-// (Inspection Settings with the Inspection Summary card and Try It's list).
+// (General with the hand-offs' status cards under the key, Inspection
+// Settings with the Inspection Summary card and Try It's list).
 // Steri-AI Cost loads its own data (an async server component), so it is
 // rendered with prerender, which waits for it: ringgit by default at Bank
 // Negara Malaysia's rate (a stand-in here), or the admin's own, or dollars.
@@ -12,7 +13,12 @@ import type { AiSettingsView } from "@/lib/schemas/ai-settings";
 import { DEFAULT_SUMMARY_STYLE } from "@/lib/schemas/summary-style";
 
 vi.mock("@/lib/auth/session", () => ({ requireAdmin: vi.fn() }));
-vi.mock("@/lib/ai/settings", () => ({ readAiSettingsView: vi.fn(), loadAiPrices: vi.fn(), readSummarySettingsView: vi.fn() }));
+vi.mock("@/lib/ai/settings", () => ({
+  readAiSettingsView: vi.fn(),
+  loadAiEnv: vi.fn(),
+  loadAiPrices: vi.fn(),
+  readSummarySettingsView: vi.fn(),
+}));
 vi.mock("@/lib/inspections/ai/summary-runner", () => ({ loadSummaryPreviewTargets: vi.fn() }));
 vi.mock("@/lib/ai/cost-report", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/ai/cost-report")>()),
@@ -39,7 +45,7 @@ vi.mock("next/navigation", async (importOriginal) => ({
 
 import { buildAiCostReport, loadAiCostReport } from "@/lib/ai/cost-report";
 import { latestBnmRate } from "@/lib/ai/myr-rate";
-import { loadAiPrices, readAiSettingsView, readSummarySettingsView, type SummarySettingsView } from "@/lib/ai/settings";
+import { loadAiEnv, loadAiPrices, readAiSettingsView, readSummarySettingsView, type SummarySettingsView } from "@/lib/ai/settings";
 import { requireAdmin } from "@/lib/auth/session";
 import { loadSummaryPreviewTargets } from "@/lib/inspections/ai/summary-runner";
 import { costNoteDetails } from "./_components/cost-filters";
@@ -47,6 +53,9 @@ import { aiViewHref, parseAiViewState } from "./_components/view-state";
 import AiSettingsPage, { generateMetadata } from "./page";
 
 const ADMIN = { id: "7c2d4e1a-0b3f-4a5c-9d8e-1f2a3b4c5d6e", email: "admin@test.local", fullName: "Test Admin", role: "admin" as const };
+
+/** The saved key, as loadAiEnv() lays it over the variables: a placeholder that must never reach the page. */
+const API_KEY = "sk-ant-api03-placeholder-key-0123456789";
 
 const VIEW = {
   key: { source: "saved", hint: "AbCd" },
@@ -152,6 +161,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   vi.mocked(requireAdmin).mockResolvedValue(ADMIN);
   vi.mocked(readAiSettingsView).mockResolvedValue(VIEW);
+  vi.mocked(loadAiEnv).mockResolvedValue({ ANTHROPIC_API_KEY: API_KEY });
   vi.mocked(loadAiPrices).mockResolvedValue(DEFAULT_AI_PRICES);
   vi.mocked(readSummarySettingsView).mockResolvedValue(SUMMARY);
   vi.mocked(loadSummaryPreviewTargets).mockResolvedValue([TARGET]);
@@ -170,6 +180,7 @@ describe("the role check", () => {
     vi.mocked(requireAdmin).mockRejectedValue(notFound);
     await expect(render(searchParams)).rejects.toBe(notFound);
     expect(readAiSettingsView).not.toHaveBeenCalled();
+    expect(loadAiEnv).not.toHaveBeenCalled();
     expect(loadAiPrices).not.toHaveBeenCalled();
     expect(readSummarySettingsView).not.toHaveBeenCalled();
     expect(loadSummaryPreviewTargets).not.toHaveBeenCalled();
@@ -180,6 +191,7 @@ describe("the role check", () => {
   it("reads the settings only after the check", async () => {
     await render();
     expect(vi.mocked(requireAdmin).mock.invocationCallOrder[0]).toBeLessThan(vi.mocked(readAiSettingsView).mock.invocationCallOrder[0]);
+    expect(vi.mocked(requireAdmin).mock.invocationCallOrder[0]).toBeLessThan(vi.mocked(loadAiEnv).mock.invocationCallOrder[0]);
   });
 });
 
@@ -229,6 +241,32 @@ describe("the views", () => {
     expect(loadSummaryPreviewTargets).not.toHaveBeenCalled();
   });
 
+  it("shows under the key whether the second opinion and the report are connected, as every call finds them, never the key", async () => {
+    const html = await render();
+    expect(loadAiEnv).toHaveBeenCalledOnce();
+    // Under the key's form: titled like its cards, the two side by side from 1024 px.
+    expect(html.indexOf(">Connection</h2>")).toBeLessThan(html.indexOf(">Steri-AI Second Opinion</h2>"));
+    expect(html.indexOf(">Steri-AI Second Opinion</h2>")).toBeLessThan(html.indexOf(">Steri-AI Report</h2>"));
+    expect(html).toContain('<div class="grid gap-6 lg:grid-cols-2"><section aria-labelledby=');
+    const second = html.slice(html.indexOf(">Steri-AI Second Opinion</h2>"), html.indexOf(">Steri-AI Report</h2>"));
+    expect(second).toContain("Connected");
+    expect(second).not.toMatch(/not connected/i);
+    expect(second).toContain("Claude (Anthropic API)");
+    expect(second).toContain("claude-opus-5-5");
+    const report = html.slice(html.indexOf(">Steri-AI Report</h2>"));
+    expect(report).toContain("Not Connected");
+    expect(report).toContain("AI_REPORT_WEBHOOK_URL");
+    expect(html).not.toContain(API_KEY);
+  });
+
+  it("says how to connect the second opinion while no key is in use", async () => {
+    vi.mocked(loadAiEnv).mockResolvedValue({});
+    const html = await render();
+    const second = html.slice(html.indexOf(">Steri-AI Second Opinion</h2>"), html.indexOf(">Steri-AI Report</h2>"));
+    expect(second).toContain("Not Connected");
+    expect(second).toContain("To connect it, set");
+  });
+
   it("opens General for a view it does not know", async () => {
     const html = await render({ view: "glossary" });
     expect(chosenView(html)).toBe("General");
@@ -259,6 +297,9 @@ describe("the views", () => {
     expect(html).toContain("Each photo adds to the cost.");
     expect(html).toMatch(/Shortforms moved to <a [^>]*href="\/admin\/defects\/shortforms"[^>]*>Defects &gt; Shortforms<\/a>\./);
     expect(html).not.toContain("Anthropic API Key");
+    // The hand-offs' status cards are General's.
+    expect(html).not.toContain(">Steri-AI Report</h2>");
+    expect(loadAiEnv).not.toHaveBeenCalled();
     // Claude reviews, and both models have a price.
     expect(html).not.toContain('data-testid="ai-review-provider"');
     expect(html).not.toContain("No price for this model yet");
@@ -325,7 +366,9 @@ describe("the views", () => {
     expect(html).toMatch(/data-testid="ai-cost" data-period="90" data-currency="myr"/);
     expect(vi.mocked(loadAiCostReport).mock.calls[0]?.[1]).toBe("90");
     expect(readAiSettingsView).not.toHaveBeenCalled();
+    expect(loadAiEnv).not.toHaveBeenCalled();
     expect(readSummarySettingsView).not.toHaveBeenCalled();
+    expect(html).not.toContain(">Steri-AI Report</h2>");
     for (const part of ["cost-filters", "cost-kpis", "cost-trend", "cost-by-job", "cost-by-model", "cost-by-inspection", "price-list"]) {
       expect(html).toContain(`data-testid="${part}"`);
     }
