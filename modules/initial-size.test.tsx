@@ -12,9 +12,23 @@ import { makeTestContext, makeTestTemplate } from "@/modules/_framework/testing"
 import { MODULE_REGISTRY } from "@/modules/registry";
 
 const PER_SIZE = MODULE_KEYS.filter((key) => MODULE_REGISTRY[key].perSize && MODULE_REGISTRY[key].loadCapture);
+/**
+ * Per-size Captures with every size on screen at once, a column each, so no
+ * size is opened: the Sampling Plan's one table (Kenneth, 26 October 2026).
+ */
+const EVERY_SIZE_AT_ONCE: readonly string[] = ["sampling_plan"];
+const TABBED = PER_SIZE.filter((key) => !EVERY_SIZE_AT_ONCE.includes(key));
 const CONTEXT = makeTestContext({ sizes: ["S", "M", "L"] });
 
 async function selectedTab(definition: AnyModuleDefinition, focus: CaptureFocus | null): Promise<string | undefined> {
+  const html = await renderCapture(definition, focus);
+  const tab = Array.from(html.matchAll(/<[^>]*role="tab"[^>]*>/g), (match) => match[0]).find((tag) =>
+    tag.includes('aria-selected="true"'),
+  );
+  return /data-size="([^"]+)"/.exec(tab ?? "")?.[1];
+}
+
+async function renderCapture(definition: AnyModuleDefinition, focus: CaptureFocus | null): Promise<string> {
   const loaded = await definition.loadCapture?.();
   if (!loaded) throw new Error(`${definition.key} has no Capture`);
   const Capture = loaded.default;
@@ -24,7 +38,7 @@ async function selectedTab(definition: AnyModuleDefinition, focus: CaptureFocus 
     evaluateInspection({ template, data: { modules: {}, custom: {} }, context: CONTEXT }, MODULE_REGISTRY).modules.find(
       (entry) => entry.key === definition.key,
     ) ?? null;
-  const html = renderToStaticMarkup(
+  return renderToStaticMarkup(
     <Capture
       data={data}
       config={definition.defaultConfig}
@@ -38,10 +52,6 @@ async function selectedTab(definition: AnyModuleDefinition, focus: CaptureFocus 
       onChange={() => {}}
     />,
   );
-  const tab = Array.from(html.matchAll(/<[^>]*role="tab"[^>]*>/g), (match) => match[0]).find((tag) =>
-    tag.includes('aria-selected="true"'),
-  );
-  return /data-size="([^"]+)"/.exec(tab ?? "")?.[1];
 }
 
 describe("per-size captures open on the size in focus", () => {
@@ -55,12 +65,21 @@ describe("per-size captures open on the size in focus", () => {
     expect(PER_SIZE.length).toBeGreaterThan(8);
   });
 
-  it.each(PER_SIZE)("%s", async (key) => {
+  it.each(TABBED)("%s", async (key) => {
     const definition = MODULE_REGISTRY[key];
     expect(await selectedTab(definition, { size: "L" })).toBe("L");
     // A size that is not ordered, or no focus: the first ordered size.
     expect(await selectedTab(definition, { size: "XL" })).toBe("S");
     expect(await selectedTab(definition, null)).toBe("S");
+  });
+
+  it.each(EVERY_SIZE_AT_ONCE)("%s shows every ordered size whatever the focus, with no tabs", async (key) => {
+    const definition = MODULE_REGISTRY[key as keyof typeof MODULE_REGISTRY];
+    for (const focus of [{ size: "L" }, null]) {
+      const html = await renderCapture(definition, focus);
+      expect(html).not.toContain('role="tab"');
+      for (const size of ["S", "M", "L"]) expect(html).toContain(`data-size="${size}"`);
+    }
   });
 });
 

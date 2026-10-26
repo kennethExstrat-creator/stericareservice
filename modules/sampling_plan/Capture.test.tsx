@@ -1,7 +1,8 @@
-// Server-rendered markup of the Sampling Plan body: the template's wording,
-// only the ordered sizes, the plan beside the counts, warnings in place,
-// issue links and read-only. Keys, paste and swipes are the kit's
-// (components/qc), checked in a browser by the integrator.
+// Server-rendered markup of the Sampling Plan body: one table with a column
+// per ordered size (Kenneth, 26 October 2026), the template's wording, the
+// order and lot beside the counts, warnings in place, issue links and
+// read-only. Keys and paste are the kit's (components/qc): here, the run
+// order they follow; they are checked in a browser by the integrator.
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { batchDataChanges, createDataUpdater } from "@/components/qc/data-updater";
@@ -56,14 +57,60 @@ const redCells = (html: string): string[] =>
   tagsWith(html, "data-enter-field").filter((tag) => /class="([^"]*)"/.exec(tag)?.[1].split(/\s+/).includes("ring-fail"));
 
 describe("sampling_plan Capture", () => {
-  it("shows a tab and a panel per ordered size only, each count a whole-number cell (6.2 rules 1 and 4)", () => {
+  it("shows one table with a column per ordered size only, each count a whole-number cell (6.2 rules 1 and 4)", () => {
     const html = render(props(SAFEDON_EG_EXAMPLE));
-    const tabs = tagsWith(html, 'role="tab"');
-    expect(tabs.map((tab) => /data-size="([^"]+)"/.exec(tab)?.[1])).toEqual(["XS", "S", "M", "L"]);
-    expect(tagsWith(html, 'role="tabpanel"')).toHaveLength(4);
+    expect(tagsWith(html, "data-size-head").map((cell) => /data-size-head="([^"]+)"/.exec(cell)?.[1])).toEqual([
+      "XS",
+      "S",
+      "M",
+      "L",
+    ]);
+    // No tabs: every size is on screen at once.
+    expect(tagsWith(html, 'role="tab"')).toEqual([]);
+    expect(tagsWith(html, 'role="group"').map((group) => /aria-label="([^"]+)"/.exec(group)?.[1])).toEqual([
+      "Size XS",
+      "Size S",
+      "Size M",
+      "Size L",
+      "Total",
+    ]);
     const inputs = tagsWith(html, "data-enter-field");
     expect(inputs).toHaveLength(4 * 7);
     for (const input of inputs) expect(input).toContain('inputMode="decimal"');
+  });
+
+  it("runs the cells size by size, top to bottom: Enter and a pasted row or column go down a size's column, then on", () => {
+    const html = render(props(SAFEDON_EG_EXAMPLE));
+    const fields = tagsWith(html, "data-enter-field");
+    expect(fields.slice(0, 8).map((field) => /id="([^"]+)"/.exec(field)?.[1])).toEqual([
+      "sampling-plan-XS-cases",
+      "sampling-plan-XS-innerUnits",
+      "sampling-plan-XS-gloves",
+      "sampling-plan-XS-glovesWatertightVisual",
+      "sampling-plan-XS-glovesDimensions",
+      "sampling-plan-XS-glovesPhysical",
+      "sampling-plan-XS-innerUnitsDispensing",
+      "sampling-plan-S-cases",
+    ]);
+    // One run in one EnterGroup: no named group splits it into columns.
+    expect(html).toContain('data-enter-scope=""');
+    for (const field of fields) expect(field).toContain('data-enter-group=""');
+  });
+
+  it("heads the counts as the forms group them, each test under what it counts (Kenneth, 26 October 2026)", () => {
+    const html = render(props(SAFEDON_EG_EXAMPLE));
+    const headings = Array.from(
+      html.matchAll(/data-slot="count-heading"[^>]*><span class="sticky left-3">([^<]+)<\/span>/g),
+      (match) => match[1],
+    );
+    expect(headings).toEqual(["Sampling Quantity", "# Gloves for Each Test", "# Inner Box"]);
+    // The row says what the test is; the cell keeps the template's whole wording as its name.
+    expect(html).toContain(">Watertight &amp; Visual</div>");
+    expect(html).toContain('aria-label="# Gloves for Watertight &amp; Visual, Size M"');
+    // The order and the lot come first, read-only, then the counts; the inspection level once, above.
+    expect(html.indexOf("Order Qty (Case)")).toBeLessThan(html.indexOf("Lot Size (Gloves)"));
+    expect(html.indexOf("Lot Size (Gloves)")).toBeLessThan(html.indexOf("Sampling Quantity"));
+    expect(html.match(/Inspection Level/g)).toHaveLength(1);
   });
 
   it("reads every label from the template's wording and never offers it for editing (6.2 rule 11)", () => {
@@ -111,8 +158,11 @@ describe("sampling_plan Capture", () => {
     expect(html).toContain("200 gloves sampled; inspection level I needs 500 (lot 1,700,000 gloves, code N).");
     expect(html).toContain(pathAttribute(["sizes", "XS", "glovesWatertightVisual"]));
     expect(html).toContain(pathAttribute(["sizes", "L", "cases"]));
-    // Warnings are amber notes, not red cells.
+    // Warnings are amber cells and notes under the table, naming the size, not red cells.
     expect(redCells(html)).toEqual([]);
+    expect(tagsWith(html, 'id="sampling-plan-XS-glovesWatertightVisual"')[0]).toContain("bg-warn-tint");
+    expect(html).toContain("Size XS, # Gloves for Watertight &amp; Visual: 80 gloves sampled");
+    expect(tagsWith(html, 'data-slot="sampling-issues"')).toHaveLength(1);
   });
 
   it("marks an impossible count red in its cell", () => {
@@ -126,15 +176,15 @@ describe("sampling_plan Capture", () => {
     expect(red[0]).toContain('aria-label="Case, Size M"');
   });
 
-  it("names each size's table and its cells with the size as its tab words it, Title Case as a label is", () => {
+  it("names each size's column and its cells with the size, Title Case as a label is", () => {
     const html = render(props(STD_EG_EXAMPLE));
-    expect(html).toContain('<caption class="sr-only">Sampling Plan, Size M</caption>');
+    expect(html).toContain('role="group" aria-label="Size M"');
     // A refused entry's link in the problem list repeats the cell's name.
     expect(html).toContain('aria-label="Case, Size M"');
     expect(html).not.toContain(", size M");
   });
 
-  it("shows each size's result at the kit's touch size: 16 px text on iPad", () => {
+  it("shows each size's result under its column, at the kit's touch size: 16 px text on iPad", () => {
     const html = render(props(SAFEDON_EG_EXAMPLE));
     const pills = tagsWith(html, 'data-slot="status-pill"');
     expect(pills).toHaveLength(4);
@@ -145,13 +195,25 @@ describe("sampling_plan Capture", () => {
     expect(empty).not.toContain("Missing:");
   });
 
-  it("totals the columns over the sizes, as the onsite forms' Total: row", () => {
+  it("totals every row over the sizes in a Total column wider than a size's (Kenneth, 26 October 2026)", () => {
     const html = render(props(SAFEDON_EG_EXAMPLE));
-    expect(html).toContain("Total:");
+    expect(html).toContain('role="group" aria-label="Total"');
     expect(html).toContain("1,530");
     expect(html).toContain("560");
-    // One size: the row is its own total.
-    expect(render(props(STD_EG_EXAMPLE))).not.toContain("Total:");
+    // At least 10rem against a size's 6rem, and it grows 1.4 times as fast.
+    expect(html).toContain("repeat(4, minmax(6rem, 1fr)) minmax(10rem, 1.4fr)");
+    // One size: the column is its own total.
+    const one = render(props(STD_EG_EXAMPLE));
+    expect(one).not.toContain('aria-label="Total"');
+    expect(one).not.toContain("1.4fr");
+  });
+
+  it("scrolls sideways in its own box where the sizes do not fit, the labels pinned at the left", () => {
+    const html = render(props(SAFEDON_EG_EXAMPLE));
+    expect(tagsWith(html, "overflow-x-auto")).toHaveLength(1);
+    // Labels 10rem, four sizes of 6rem and the 10rem total: below that the box scrolls, never the page.
+    expect(html).toContain("min-width:44rem");
+    expect(tagsWith(html, "data-label-head")[0]).toContain("sticky left-0");
   });
 
   it("groups the surgical columns as the SG form does, under Sampling Quantity (WTT & Visual)", () => {
@@ -176,10 +238,10 @@ describe("sampling_plan Capture", () => {
     expect(html).not.toContain('aria-label="Gloves, Size M"');
   });
 
-  it("is read-only for an approved inspection: cells become text, tabs still work", () => {
+  it("is read-only for an approved inspection: cells become text, every size still on screen", () => {
     const html = render({ ...props(STD_EG_EXAMPLE), readOnly: true });
     for (const input of tagsWith(html, "data-enter-field")) expect(input).toContain("readOnly");
-    expect(tagsWith(html, 'role="tab"')).toHaveLength(1);
+    expect(tagsWith(html, "data-size-head")).toHaveLength(1);
   });
 
   it("says so while no size is ordered", () => {
