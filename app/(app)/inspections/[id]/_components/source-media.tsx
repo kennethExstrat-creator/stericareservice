@@ -525,39 +525,43 @@ function AutoSortBox({ inspectionId }: { inspectionId: string }) {
   const drop = useFileDrop(start, true);
 
   return (
+    // A big drop area, like a bin to throw the visit's photos into (Kenneth, 26 October 2026: "slight bigger like a
+    // dumpster"); a tap anywhere in it opens the picker too, as New Inspection's does.
     <section
       aria-labelledby={titleId}
       data-slot="auto-sort"
       data-dragging={drop.dragging || undefined}
       className={cn(
-        "relative flex flex-col gap-3 rounded-lg border border-dashed border-brand-300 bg-brand-50 p-3 transition-colors",
+        "relative flex cursor-pointer flex-col items-center gap-4 rounded-xl border-2 border-dashed border-brand-300 bg-brand-50 px-6 py-10 text-center transition-colors",
         "data-dragging:border-primary data-dragging:outline-2 data-dragging:-outline-offset-2 data-dragging:outline-dashed data-dragging:outline-primary",
       )}
+      onClick={(event) => {
+        // The button opens the picker itself, and the picker's own click comes back up here.
+        if (!busy && !(event.target as Element).closest("button, input")) input.current?.click();
+      }}
       {...drop.handlers}
     >
-      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
-        <div className="flex min-w-0 items-start gap-2.5">
-          <SparklesIcon aria-hidden className="mt-0.5 size-5 shrink-0 text-brand-600" />
-          <div className="min-w-0">
-            <h3 id={titleId} className="text-base leading-snug font-semibold text-foreground">
-              Auto-Sort
-            </h3>
-            <p className="text-sm text-muted-foreground">
-              {drop.dragging ? (
-                <span className="font-medium text-brand-700">Drop to sort</span>
-              ) : (
-                "Drop all photos and videos here. Steri-AI sorts each into its category."
-              )}
-            </p>
-          </div>
-        </div>
-        <div className="relative">
-          <Button type="button" variant="outline" size="sm" className="touch:text-base" disabled={busy} onClick={() => input.current?.click()}>
-            <ImagePlusIcon aria-hidden />
-            Add Photos and Videos
-          </Button>
-          <MediaInput inputRef={input} onFiles={start} use="auto-sort" />
-        </div>
+      <span className="flex size-14 shrink-0 items-center justify-center rounded-full bg-brand-100 text-brand-600">
+        <SparklesIcon aria-hidden className="size-7" />
+      </span>
+      <div className="flex flex-col items-center gap-1">
+        <h3 id={titleId} className="text-lg leading-snug font-semibold text-foreground">
+          Auto-Sort
+        </h3>
+        <p className="max-w-prose text-base text-balance text-muted-foreground">
+          {drop.dragging ? (
+            <span className="font-medium text-brand-700">Drop to sort</span>
+          ) : (
+            "Drop all photos and videos here. Steri-AI sorts each into its category."
+          )}
+        </p>
+      </div>
+      <div className="relative">
+        <Button type="button" className="touch:text-base" disabled={busy} onClick={() => input.current?.click()}>
+          <ImagePlusIcon aria-hidden />
+          Add Photos and Videos
+        </Button>
+        <MediaInput inputRef={input} onFiles={start} use="auto-sort" />
       </div>
       <AutoSortStatus view={view} />
     </section>
