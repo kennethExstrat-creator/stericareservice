@@ -271,6 +271,20 @@ export function capturePages(sections: readonly CaptureSection[]): CapturePage[]
   });
 }
 
+/**
+ * The pages that come straight after Source Documents on the capture screen,
+ * in this order, outside the sidebar's Inspection Steps group (Kenneth, 26
+ * October 2026: "move order, sampling plan and box carton number below source
+ * document (out from hidden section)"). The report keeps the template's order.
+ */
+export const LEAD_PAGE_KEYS: readonly string[] = ["order_lots", "sampling_plan", "carton_sampling"];
+
+/** The capture screen's page order: the lead pages an inspection includes first, then the rest as they were. */
+export function leadPagesFirst(pages: readonly CapturePage[]): CapturePage[] {
+  const lead = LEAD_PAGE_KEYS.flatMap((key) => pages.filter((page) => page.kind === "included" && page.key === key));
+  return [...lead, ...pages.filter((page) => !lead.includes(page))];
+}
+
 export function isIncludedPage(page: CapturePage): page is IncludedPage {
   return page.kind === "included";
 }

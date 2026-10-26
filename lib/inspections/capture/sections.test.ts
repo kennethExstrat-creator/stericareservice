@@ -18,6 +18,7 @@ import {
   findPage,
   findSection,
   initialSectionKey,
+  leadPagesFirst,
   neighbours,
   pageProgress,
   pageSectionKeys,
@@ -26,6 +27,7 @@ import {
   progressSteps,
   progressSummary,
   SHOWN_WITH,
+  type CapturePage,
   type CaptureSection,
   type IncludedSection,
 } from "./sections";
@@ -378,5 +380,32 @@ describe("navigation helpers", () => {
     expect(progressOf("hold", true)).toBe("done");
     expect(progressOf("not_done", true)).toBe("in_progress");
     expect(progressOf("not_done", false)).toBe("not_started");
+  });
+});
+
+describe("leadPagesFirst", () => {
+  const page = (key: string) =>
+    ({ kind: "included", key, title: key, shortTitle: key, sections: [], status: "not_done", progress: "not_started" }) as unknown as CapturePage;
+  // A switched-off page: only its kind and key matter here.
+  const off = (key: string) => ({ kind: "excluded", key, title: key, shortTitle: key }) as unknown as CapturePage;
+
+  it("puts the order, the sampling plan and the box/carton numbers first, in that order (Kenneth, 26 October 2026)", () => {
+    const pages = [page("header"), page("glove_info"), page("carton_sampling"), page("order_lots"), page("visual"), page("sampling_plan"), page("conclusion")];
+    expect(leadPagesFirst(pages).map((entry) => entry.key)).toEqual([
+      "order_lots",
+      "sampling_plan",
+      "carton_sampling",
+      "header",
+      "glove_info",
+      "visual",
+      "conclusion",
+    ]);
+  });
+
+  it("leaves a switched-off lead page where it was, and an inspection without them as it is", () => {
+    const pages = [page("header"), off("carton_sampling"), page("order_lots"), page("conclusion")];
+    expect(leadPagesFirst(pages).map((entry) => entry.key)).toEqual(["order_lots", "header", "carton_sampling", "conclusion"]);
+    const surgical = [page("header"), page("visual"), page("conclusion")];
+    expect(leadPagesFirst(surgical)).toEqual(surgical);
   });
 });

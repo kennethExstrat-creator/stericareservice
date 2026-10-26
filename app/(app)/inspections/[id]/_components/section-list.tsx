@@ -4,8 +4,9 @@
 // 8: on desktop, modules show in a left sidebar). The included pages
 // (lib/inspections/capture/sections.ts capturePages: packing configuration
 // on the order's) are the ProgressTracker's list, each with its progress and
-// result chip. Source Documents, first, and the Conclusion, last, always
-// show; the steps between them sit in one group, Inspection Steps, whose
+// result chip. Source Documents, first, then the order, the sampling plan and
+// the box/carton numbers (LEAD_PAGE_KEYS: Kenneth, 26 October 2026), and the
+// Conclusion, last, always show; the other steps sit in one group, Inspection Steps, whose
 // header reads how many are done and the worst of their results, and which
 // collapses (Kenneth, 12 October 2026: "make these section collapsable,
 // leaving source document and conclusion visible by default"). Collapsed at
@@ -17,7 +18,7 @@
 // name"; docs/DESIGN.md, Step Names).
 import { CircleOffIcon } from "lucide-react";
 import { ProgressTracker, type ProgressGroup } from "@/components/qc";
-import { pageStatus, progressSteps, type CapturePage, type IncludedPage } from "@/lib/inspections/capture/sections";
+import { LEAD_PAGE_KEYS, pageStatus, progressSteps, type CapturePage, type IncludedPage } from "@/lib/inspections/capture/sections";
 import type { ModuleKey } from "@/lib/schemas/module-result";
 import { cn } from "@/lib/utils";
 import { useStepGroup } from "./use-step-group";
@@ -28,14 +29,15 @@ export const STEP_GROUP_LABEL = "Inspection Steps";
 const CONCLUSION_KEY: ModuleKey = "conclusion";
 
 /**
- * The pages the group holds: the steps after Source Documents and before the
- * Conclusion, in screen order (a step after the Conclusion stays after it).
- * Switched-off pages are not steps: they have a list of their own.
+ * The pages the group holds: the steps after Source Documents and the lead
+ * pages and before the Conclusion, in screen order (a step after the
+ * Conclusion stays after it). Switched-off pages are not steps: they have a
+ * list of their own.
  */
 export function groupedPages(pages: readonly CapturePage[]): IncludedPage[] {
   const grouped: IncludedPage[] = [];
   for (const page of pages) {
-    if (page.kind !== "included") continue;
+    if (page.kind !== "included" || LEAD_PAGE_KEYS.includes(page.key)) continue;
     if (page.key === CONCLUSION_KEY) break;
     grouped.push(page);
   }

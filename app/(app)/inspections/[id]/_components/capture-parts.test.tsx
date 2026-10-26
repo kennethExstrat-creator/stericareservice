@@ -13,7 +13,7 @@ vi.mock("../actions", () => ({
 
 import { SITE_NOTES, SIZE_TABLE, TEST_ADMIN_ID } from "@/lib/inspections/capture/__fixtures__/capture";
 import { captureAccess } from "@/lib/inspections/capture/access";
-import { capturePages, type CapturePage, type CaptureSection } from "@/lib/inspections/capture/sections";
+import { capturePages, leadPagesFirst, type CapturePage, type CaptureSection } from "@/lib/inspections/capture/sections";
 import { SOURCE_DOCUMENTS_KEY, SOURCE_DOCUMENTS_TITLE } from "@/lib/inspections/source-documents";
 import type { ValidationIssue } from "@/lib/validation";
 import { TEST_REGISTRY } from "@/modules/_framework/__fixtures__/test-registry";
@@ -514,7 +514,7 @@ describe("SectionList (the desktop sidebar)", () => {
     expect(order).not.toContain(PACKING_TITLE);
   });
 
-  describe("Inspection Steps: the steps between Source Documents and the Conclusion, in a group that collapses", () => {
+  describe("Inspection Steps: the steps between the lead pages and the Conclusion, in a group that collapses", () => {
     const documents: CapturePage = {
       kind: "documents",
       key: SOURCE_DOCUMENTS_KEY,
@@ -523,7 +523,20 @@ describe("SectionList (the desktop sidebar)", () => {
       status: "pass",
       progress: "done",
     };
-    const pages = [documents, ...capturePages(ORDER_PAGE)];
+    // Glove Information besides Manufacturer Information: the order is a lead page now, and one step makes no group.
+    const glove: CaptureSection = {
+      kind: "module",
+      key: "glove_info",
+      title: "Glove Information",
+      shortTitle: "Glove Information",
+      status: "warn",
+      summary: "",
+      progress: "done",
+      stub: false,
+      errors: 0,
+      warnings: 1,
+    };
+    const pages = [documents, ...leadPagesFirst(capturePages([ORDER_PAGE[0], glove, ...ORDER_PAGE.slice(1)]))];
     const list = (activeKey: string) =>
       renderToStaticMarkup(<SectionList pages={pages} activeKey={activeKey} onSelect={noop} viewerId={TEST_ADMIN_ID} />);
     /** The group's header and the list of its steps it controls. */
@@ -534,18 +547,20 @@ describe("SectionList (the desktop sidebar)", () => {
       return { header, steps, button: /<button[^>]*aria-expanded[\s\S]*?<\/button>/.exec(markup)?.[0] ?? "" };
     };
 
-    it("is collapsed by default, on Source Documents and on the Conclusion, which show either side of it", () => {
+    it("is collapsed by default, on Source Documents and on the Conclusion; the lead pages show outside it", () => {
       for (const activeKey of [SOURCE_DOCUMENTS_KEY, "conclusion"]) {
         const markup = list(activeKey);
         const { header, steps, button } = group(markup);
         expect(header).toContain('aria-expanded="false"');
         expect(steps).toMatch(/^<ol [^>]*hidden=""/);
         expect(steps).toContain('title="Manufacturer Information"');
-        expect(steps).toContain('title="Order"');
+        expect(steps).toContain('title="Glove Information"');
+        // The order comes straight after Source Documents, outside the group (Kenneth, 26 October 2026).
+        expect(steps).not.toContain('title="Order"');
         expect(steps).not.toContain(SOURCE_DOCUMENTS_TITLE);
         expect(steps).not.toContain('title="Conclusion"');
-        expect(rowTitles(markup)).toEqual([SOURCE_DOCUMENTS_TITLE, "Manufacturer Information", "Order", "Conclusion"]);
-        // Its title, how many of its steps are done and the worst of their results (the order's warning).
+        expect(rowTitles(markup)).toEqual([SOURCE_DOCUMENTS_TITLE, "Order", "Manufacturer Information", "Glove Information", "Conclusion"]);
+        // Its title, how many of its steps are done and the worst of their results (the glove information's warning).
         expect(button).toContain(`>${STEP_GROUP_LABEL}<`);
         expect(button).toContain("2 of 2 done");
         expect(button).toContain('data-status="warn"');
@@ -553,10 +568,10 @@ describe("SectionList (the desktop sidebar)", () => {
     });
 
     it("opens when the page in view is one of its steps", () => {
-      const { header, steps } = group(list("order_lots"));
+      const { header, steps } = group(list("glove_info"));
       expect(header).toContain('aria-expanded="true"');
       expect(steps).not.toMatch(/^<ol [^>]*hidden/);
-      expect(steps).toMatch(/<li aria-current="step"><button[^>]*title="Order"/);
+      expect(steps).toMatch(/<li aria-current="step"><button[^>]*title="Glove Information"/);
     });
 
     it("follows the open page: a step of it opening opens it, Source Documents or the Conclusion leave it as it is", () => {

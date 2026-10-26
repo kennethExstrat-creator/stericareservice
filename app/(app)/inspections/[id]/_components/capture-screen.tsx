@@ -112,6 +112,7 @@ import {
   findPage,
   initialSectionKey,
   isIncludedPage,
+  leadPagesFirst,
   neighbours,
   pageSectionKeys,
   progressSteps,
@@ -386,8 +387,9 @@ export function CaptureScreen({
       return result.filled;
     },
   });
-  // What a tab, a sidebar row, a progress step and Previous or Next open: Source Documents first, then a section,
-  // or a module with those shown on its page.
+  // What a tab, a sidebar row, a progress step and Previous or Next open: Source Documents first, then the order,
+  // the sampling plan and the box/carton numbers (LEAD_PAGE_KEYS), then each other section, or a module with those
+  // shown on its page.
   const pages = useMemo(
     (): CapturePage[] => [
       {
@@ -398,7 +400,7 @@ export function CaptureScreen({
         status: sourceDocuments.status,
         progress: sourceDocuments.progress,
       },
-      ...capturePages(sections),
+      ...leadPagesFirst(capturePages(sections)),
     ],
     [sections, sourceDocuments.status, sourceDocuments.progress],
   );
