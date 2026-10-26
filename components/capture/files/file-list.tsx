@@ -36,6 +36,7 @@ export function FileList({
   focusFallback,
   onRemoved,
   fileExtra,
+  fileActions,
   compactRows = false,
   className,
 }: {
@@ -52,6 +53,8 @@ export function FileList({
   onRemoved?: (fileId: string) => void;
   /** More about a file, under its name (Source Documents: what the AI read). */
   fileExtra?: (file: SlotFile) => ReactNode;
+  /** compactRows: more icon buttons for an uploaded file, before Preview (Source Documents: Read Again). */
+  fileActions?: (file: SlotFile) => ReactNode;
   /**
    * Source Documents' rows: fileExtra beside the name, no kind and state line
    * once uploaded, and Preview (on the page), Download and Delete as icons.
@@ -103,6 +106,7 @@ export function FileList({
               <div className="flex flex-wrap items-center gap-1">
                 {compactRows && file.state === "uploaded" && file.url && (
                   <>
+                    {fileActions?.(file)}
                     <Button
                       type="button"
                       variant="ghost"

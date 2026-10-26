@@ -52,6 +52,8 @@ export type FileSlotProps = {
   prepare?: (files: File[]) => Promise<File[]>;
   /** More about a file, under its name in the list. */
   fileExtra?: (file: SlotFile) => ReactNode;
+  /** compactRows: more icon buttons for an uploaded file, before Preview. */
+  fileActions?: (file: SlotFile) => ReactNode;
   /** Uploaded files without their kind and state line (the list's compactRows). */
   compactRows?: boolean;
   className?: string;
@@ -84,6 +86,7 @@ export function FileSlot({
   onRemoved,
   prepare,
   fileExtra,
+  fileActions,
   compactRows,
   className,
 }: FileSlotProps) {
@@ -133,6 +136,7 @@ export function FileSlot({
           focusFallback={focusHeading}
           onRemoved={onRemoved}
           fileExtra={fileExtra}
+          fileActions={fileActions}
           compactRows={compactRows}
         />
       ) : preparing.files === 0 ? (
