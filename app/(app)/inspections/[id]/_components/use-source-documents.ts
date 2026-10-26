@@ -6,16 +6,35 @@
 // rows, so a file is read once, whichever device uploaded it; one it could
 // not read waits for Read Again. Files uploaded together (New Inspection
 // hands its documents over at once) are each read in turn.
+//
+// A reading takes some ten seconds and is kept on the file with its
+// proposals (Kenneth, 26 October 2026: a sampling plan read while he looked
+// at another page was never filled in). The screen that started it fills
+// them in and records it (markSourceFilled); one that is gone by then leaves
+// them waiting, and the next screen to open the inspection fills them in.
+// Read Again reads a file once more, also one already read.
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { useInspectionMedia } from "@/components/capture/photos/hooks";
 import type { Status } from "@/lib/design/status";
 import type { SectionProgress } from "@/lib/inspections/capture/sections";
-import { SOURCE_DOCUMENTS_KEY, type SourceFileStatus, type SourceProposals } from "@/lib/inspections/source-documents";
-import { getSourceDocumentStatuses, readSourceFile } from "../source-actions";
+import {
+  filesToFill,
+  SOURCE_DOCUMENTS_KEY,
+  type SourceFileStatus,
+  type SourceProposals,
+} from "@/lib/inspections/source-documents";
+import { getSourceDocumentStatuses, markSourceFilled, readSourceFile } from "../source-actions";
 import { useShareSourceReading } from "./source-file-link";
 
 const UNREACHABLE = "Could not reach the server. Check the connection, then try again.";
+
+const filledFrom = (filled: number, name: string) => `Steri-AI filled ${filled} ${filled === 1 ? "field" : "fields"} from ${name}.`;
+
+/** Recorded in the background: should it fail, the next screen fills the proposals in again, empty fields only. */
+function recordFilled(inspectionId: string, fileId: string): void {
+  markSourceFilled(inspectionId, fileId).catch(() => {});
+}
 
 export type SourceDocuments = {
   /** By file id; a file without one is not read yet. */
@@ -48,6 +67,14 @@ export function useSourceDocuments({
   useEffect(() => {
     apply.current = onProposals;
   });
+  // A reading that settles after the screen is gone fills nothing here: its proposals wait on the file.
+  const alive = useRef(true);
+  useEffect(() => {
+    alive.current = true;
+    return () => {
+      alive.current = false;
+    };
+  }, []);
 
   useEffect(() => {
     let alive = true;
@@ -75,18 +102,37 @@ export function useSourceDocuments({
     queueMicrotask(() => setStatuses((current) => ({ ...current, [file.id]: { status: "reading", summary: null } })));
     readSourceFile(inspectionId, file.id).then(
       (result) => {
+        if (!alive.current) return;
         if (result.status !== "read") return settle({ status: "failed", summary: result.message });
         const filled = apply.current(result.proposals);
-        toast.success(
-          filled > 0
-            ? `Steri-AI filled ${filled} ${filled === 1 ? "field" : "fields"} from ${file.name}.`
-            : `Steri-AI read ${file.name}: nothing new to fill.`,
-        );
+        recordFilled(inspectionId, file.id);
+        toast.success(filled > 0 ? filledFrom(filled, file.name) : `Steri-AI read ${file.name}: nothing new to fill.`);
         settle({ status: "read", summary: result.summary, filled });
       },
-      () => settle({ status: "failed", summary: UNREACHABLE }),
+      () => {
+        if (alive.current) settle({ status: "failed", summary: UNREACHABLE });
+      },
     );
   }, [next, inspectionId]);
+
+  // Readings kept with their files that no screen has filled in yet: filled in now, empty fields only, once.
+  const filling = useRef(new Set<string>());
+  const waiting = useMemo(
+    () => (canRead && statuses !== null ? filesToFill(uploaded, statuses) : []),
+    [canRead, statuses, uploaded],
+  );
+  useEffect(() => {
+    for (const { file, proposals } of waiting) {
+      if (filling.current.has(file.id)) continue;
+      filling.current.add(file.id);
+      const filled = apply.current(proposals);
+      recordFilled(inspectionId, file.id);
+      if (filled > 0) toast.success(filledFrom(filled, file.name));
+      setStatuses((current) =>
+        current ? { ...current, [file.id]: { status: "read", summary: current[file.id]?.summary ?? null, filled } } : current,
+      );
+    }
+  }, [waiting, inspectionId]);
 
   const retry = useCallback((fileId: string) => {
     setStatuses((current) => {

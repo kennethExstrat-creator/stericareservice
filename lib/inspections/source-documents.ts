@@ -84,10 +84,54 @@ export const NOT_FILLED_BY_AI: readonly ModuleKey[] = ["conclusion"];
 /** What a reading proposes: partial data per module key, in each module's own shape. */
 export type SourceProposals = Record<string, Record<string, unknown>>;
 
-export type SourceFileStatus = { status: "reading" | "read" | "failed"; summary: string | null; filled?: number };
+export type SourceFileStatus = {
+  status: "reading" | "read" | "failed";
+  summary: string | null;
+  filled?: number;
+  /**
+   * A reading's proposals no capture screen has filled in yet: it finished
+   * after the screen that started it was left (Kenneth, 26 October 2026).
+   * The next screen to open the inspection fills them in, once.
+   */
+  pending?: SourceProposals;
+};
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+/** A Source Document's row as getSourceDocumentStatuses reads it (migrations 20261009150000 and 20261026120000). */
+export type SourceReadingRow = {
+  ai_status: string | null;
+  ai_summary: string | null;
+  ai_proposals: unknown;
+  ai_filled_at: string | null;
+};
+
+/**
+ * A file's reading as the capture screen shows it, or null while it is not
+ * read: a reading's proposals come with it while no screen has filled them
+ * in. A file read before the proposals were kept has none.
+ */
+export function sourceFileStatus(row: SourceReadingRow): SourceFileStatus | null {
+  if (row.ai_status === "failed") return { status: "failed", summary: row.ai_summary };
+  if (row.ai_status !== "read") return null;
+  const status: SourceFileStatus = { status: "read", summary: row.ai_summary };
+  if (row.ai_filled_at !== null || !isRecord(row.ai_proposals)) return status;
+  const pending: SourceProposals = {};
+  for (const [key, proposal] of Object.entries(row.ai_proposals)) if (isRecord(proposal)) pending[key] = proposal;
+  return Object.keys(pending).length > 0 ? { ...status, pending } : status;
+}
+
+/** The uploaded files, in their order, whose reading still waits to be filled in. */
+export function filesToFill<T extends { id: string }>(
+  files: readonly T[],
+  statuses: Readonly<Record<string, SourceFileStatus>>,
+): { file: T; proposals: SourceProposals }[] {
+  return files.flatMap((file) => {
+    const status = statuses[file.id];
+    return status?.status === "read" && status.pending ? [{ file, proposals: status.pending }] : [];
+  });
 }
 
 /** Nothing entered: null, blank text, or an array or object holding nothing. */

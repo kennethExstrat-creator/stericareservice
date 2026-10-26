@@ -360,6 +360,8 @@ export type Database = {
       }
       inspection_files: {
         Row: {
+          ai_filled_at: string | null
+          ai_proposals: Json | null
           ai_read_at: string | null
           ai_status: string | null
           ai_summary: string | null
@@ -374,6 +376,8 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          ai_filled_at?: string | null
+          ai_proposals?: Json | null
           ai_read_at?: string | null
           ai_status?: string | null
           ai_summary?: string | null
@@ -388,6 +392,8 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          ai_filled_at?: string | null
+          ai_proposals?: Json | null
           ai_read_at?: string | null
           ai_status?: string | null
           ai_summary?: string | null

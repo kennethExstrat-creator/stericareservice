@@ -9,6 +9,7 @@ import {
   applyProposals,
   countFilled,
   fillEmpty,
+  filesToFill,
   isMediaCategoryKey,
   linkSourceFile,
   MEDIA_CATEGORIES,
@@ -17,6 +18,8 @@ import {
   mediaKind,
   SOURCE_DOCUMENTS_KEY,
   SOURCE_MEDIA_KEY,
+  sourceFileStatus,
+  type SourceFileStatus,
 } from "./source-documents";
 
 describe("Media's categories", () => {
@@ -221,5 +224,49 @@ describe("linkSourceFile", () => {
     expect(result).toEqual({ proposals: { force_at_break: {} }, linked: [], kind: null });
     expect(linkSourceFile({ proposals: {}, attachTo: [], fileId: FILE, data: { modules: {}, custom: {} }, registry: MODULE_REGISTRY, modules }))
       .toEqual({ proposals: {}, linked: [], kind: null });
+  });
+});
+
+describe("a reading kept with its file (Kenneth, 26 October 2026: filled in by the next screen when the one that started it was left)", () => {
+  const proposals = { sampling_plan: { sizes: { S: { gloves: 200 } } } };
+  const row = (patch: Partial<Parameters<typeof sourceFileStatus>[0]>) =>
+    sourceFileStatus({ ai_status: "read", ai_summary: "Sampling plan table.", ai_proposals: null, ai_filled_at: null, ...patch });
+
+  it("brings the proposals no screen has filled in, and none once one has", () => {
+    expect(row({ ai_proposals: proposals })).toEqual({ status: "read", summary: "Sampling plan table.", pending: proposals });
+    expect(row({ ai_proposals: proposals, ai_filled_at: "2026-10-26T10:00:00.000Z" })).toEqual({
+      status: "read",
+      summary: "Sampling plan table.",
+    });
+  });
+
+  it("brings nothing for a file read before the proposals were kept, nor for proposals that are no module data", () => {
+    expect(row({})).toEqual({ status: "read", summary: "Sampling plan table." });
+    expect(row({ ai_proposals: [] })).toEqual({ status: "read", summary: "Sampling plan table." });
+    expect(row({ ai_proposals: { sampling_plan: "200", header: null } })).toEqual({ status: "read", summary: "Sampling plan table." });
+    // Only the module data goes on.
+    expect(row({ ai_proposals: { ...proposals, header: 3 } })?.pending).toEqual(proposals);
+  });
+
+  it("reads a failed file as failed, and an unread one as nothing yet", () => {
+    expect(row({ ai_status: "failed", ai_summary: "Not a document.", ai_proposals: proposals })).toEqual({
+      status: "failed",
+      summary: "Not a document.",
+    });
+    expect(row({ ai_status: null, ai_summary: null })).toBeNull();
+  });
+
+  it("lists the uploaded files whose reading waits, in their order", () => {
+    const files = [{ id: "a", name: "form.jpg" }, { id: "b", name: "po.pdf" }, { id: "c", name: "plan.jpg" }];
+    const statuses: Record<string, SourceFileStatus> = {
+      a: { status: "read", summary: null },
+      b: { status: "read", summary: null, pending: proposals },
+      c: { status: "read", summary: null, pending: { header: { poNumber: "PO-0001" } } },
+    };
+    expect(filesToFill(files, statuses).map(({ file, proposals: waiting }) => [file.name, Object.keys(waiting)])).toEqual([
+      ["po.pdf", ["sampling_plan"]],
+      ["plan.jpg", ["header"]],
+    ]);
+    expect(filesToFill(files, { b: { status: "reading", summary: null, pending: proposals } })).toEqual([]);
   });
 });

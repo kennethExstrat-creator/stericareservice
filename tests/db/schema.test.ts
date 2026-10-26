@@ -144,6 +144,7 @@ describe("schema guards", { timeout: 30_000 }, () => {
     "20261008140000_profile_uid.sql",
     "20261013120000_ai_usage.sql",
     "20261013130000_steri_ai_summary.sql",
+    "20261026120000_source_reading_proposals.sql",
   ])("applies %s again without changing the schema", async (name) => {
     const before = await schemaSnapshot(db);
     const migration = (await readMigrations()).find((file) => file.name === name);

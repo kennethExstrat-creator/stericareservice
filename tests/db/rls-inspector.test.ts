@@ -16,7 +16,7 @@ import {
   type InspectionRow,
   type People,
 } from "./fixtures";
-import { asOwner, asUser, column, createTestDb, pgError, type Db } from "./harness";
+import { asOwner, asService, asUser, column, createTestDb, pgError, type Db } from "./harness";
 
 // BUILD_SPEC 3 and 5, inspector role: own data only, drafts only, no admin powers.
 describe("RLS: inspector", { timeout: 30_000 }, () => {
@@ -302,6 +302,54 @@ describe("RLS: inspector", { timeout: 30_000 }, () => {
     const foreign = await pgError(insertFile(others.id));
     const impersonated = await pgError(insertFile(own.id, people.otherInspector));
     expect([foreign.code, impersonated.code]).toEqual(["42501", "42501"]);
+  });
+
+  // Migration 20261026120000: Steri-AI's reading of a Source Document (status, summary, the proposals kept until a
+  // capture screen fills them in, when it did) is recorded by the app with the secret key, never by the user's own
+  // request.
+  it("leaves Steri-AI's reading of their own file to the app", async () => {
+    const insert = (columns: string, values: string) =>
+      asUser(db, people.inspector, (tx) =>
+        tx.query(
+          `insert into public.inspection_files (inspection_id, module_key, kind, storage_path, name${columns})
+           values ($1, 'source_documents', 'other', $2, 'form.jpg'${values}) returning id`,
+          [own.id, `${own.id}/${randomUUID()}.jpg`],
+        ),
+      );
+    const proposed = await pgError(insert(", ai_proposals", `, '{"sampling_plan": {}}'::jsonb`));
+    const read = await pgError(insert(", ai_status, ai_summary", ", 'read', 'A form.'"));
+    expect([proposed.code, read.code]).toEqual(["42501", "42501"]);
+
+    const plain = await insert("", "");
+    const id = (plain.rows[0] as { id: string }).id;
+    const update = (set: string) =>
+      asUser(db, people.inspector, (tx) => tx.query(`update public.inspection_files set ${set} where id = $1`, [id]));
+    const refused = await Promise.all(
+      ["ai_filled_at = now()", "ai_proposals = '{}'::jsonb", "ai_status = 'read'", "ai_read_at = now()", "ai_summary = 'Read.'"].map(
+        (set) => pgError(update(set)),
+      ),
+    );
+    expect(refused.map((error) => error.code)).toEqual(["42501", "42501", "42501", "42501", "42501"]);
+    // Their other columns stay theirs to change.
+    expect((await update("name = 'form-2.jpg'")).affectedRows).toBe(1);
+
+    // The app, with the secret key: the reading, then the fill.
+    const recorded = await asService(db, (tx) =>
+      tx.query(
+        `update public.inspection_files
+            set ai_status = 'read', ai_read_at = now(), ai_summary = 'A form.',
+                ai_proposals = '{"sampling_plan": {"sizes": {}}}'::jsonb, ai_filled_at = null
+          where id = $1`,
+        [id],
+      ),
+    );
+    const filled = await asService(db, (tx) => tx.query("update public.inspection_files set ai_filled_at = now() where id = $1", [id]));
+    expect([recorded.affectedRows, filled.affectedRows]).toEqual([1, 1]);
+    // Proposals are a JSON object keyed by module, never anything else.
+    const notObject = await pgError(
+      asService(db, (tx) => tx.query(`update public.inspection_files set ai_proposals = '[]'::jsonb where id = $1`, [id])),
+    );
+    expect(notObject.code).toBe("23514");
   });
 
   it("cannot file a photo outside the inspection's folder or under someone else's name", async () => {

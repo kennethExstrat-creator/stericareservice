@@ -10,6 +10,7 @@ import {
   linkSourceFile,
   NOT_FILLED_BY_AI,
   SOURCE_DOCUMENTS_KEY,
+  sourceFileStatus,
   type SourceFileStatus,
   type SourceProposals,
 } from "@/lib/inspections/source-documents";
@@ -17,6 +18,7 @@ import type { ModuleKey } from "@/lib/schemas/module-result";
 import { ResolvedTemplateSchema } from "@/lib/schemas/template";
 import type { DocumentMediaType } from "@/lib/schemas/document-fill";
 import { createAdminClient } from "@/lib/supabase/admin";
+import type { Json } from "@/lib/supabase/database.types";
 import { createClient } from "@/lib/supabase/server";
 import { MODULE_REGISTRY } from "@/modules";
 import { InspectionDataSchema, readModuleEntry } from "@/modules/_framework/data";
@@ -35,6 +37,12 @@ import type { FileKind } from "@/modules/_framework/files";
  * over an earlier link), beside the values it read from it: module pages
  * link nothing by hand, and messages call the AI Steri-AI (Kenneth, 12
  * October 2026).
+ *
+ * The reading's proposals are kept with the file until a capture screen has
+ * filled them in (markSourceFilled): a reading takes some ten seconds, and
+ * the screen that started it may be gone by then (Kenneth, 26 October 2026:
+ * the sampling plan read from a photo while he looked at another page was
+ * never filled). The next screen to open the inspection fills them in.
  */
 
 export type SourceReadResult =
@@ -47,14 +55,14 @@ const EDITABLE = new Set(["draft", "reopened"]);
 const MAX_PDF_BYTES = 20 * 1024 * 1024;
 const MAX_IMAGE_BYTES = 3.75 * 1024 * 1024;
 
-/** Each Source Document's reading so far, by file id. */
+/** Each Source Document's reading so far, by file id, with the proposals no screen has filled in yet. */
 export async function getSourceDocumentStatuses(inspectionId: string): Promise<Record<string, SourceFileStatus>> {
   const auth = await authorizeAction();
   if (!auth.ok || !IdSchema.safeParse(inspectionId).success) return {};
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("inspection_files")
-    .select("id, ai_status, ai_summary")
+    .select("id, ai_status, ai_summary, ai_proposals, ai_filled_at")
     .eq("inspection_id", inspectionId)
     .eq("module_key", SOURCE_DOCUMENTS_KEY);
   if (error) {
@@ -63,9 +71,44 @@ export async function getSourceDocumentStatuses(inspectionId: string): Promise<R
   }
   const statuses: Record<string, SourceFileStatus> = {};
   for (const row of data) {
-    if (row.ai_status === "read" || row.ai_status === "failed") statuses[row.id] = { status: row.ai_status, summary: row.ai_summary };
+    const status = sourceFileStatus(row);
+    if (status) statuses[row.id] = status;
   }
   return statuses;
+}
+
+/**
+ * Records that a capture screen filled a reading's proposals in, so they go
+ * in once: a field the inspector clears afterwards is not filled again. The
+ * caller must be allowed to edit the inspection, as for readSourceFile.
+ */
+export async function markSourceFilled(inspectionId: string, fileId: string): Promise<void> {
+  try {
+    const auth = await authorizeAction();
+    if (!auth.ok || !IdSchema.safeParse(inspectionId).success || !IdSchema.safeParse(fileId).success) return;
+    const { user } = auth;
+    const supabase = await createClient();
+    const [inspection, file] = await Promise.all([
+      supabase.from("inspections").select("status, inspector_id").eq("id", inspectionId).maybeSingle(),
+      supabase
+        .from("inspection_files")
+        .select("module_key, ai_status")
+        .eq("id", fileId)
+        .eq("inspection_id", inspectionId)
+        .maybeSingle(),
+    ]);
+    if (!inspection.data || !file.data || file.data.module_key !== SOURCE_DOCUMENTS_KEY || file.data.ai_status !== "read") return;
+    if (!EDITABLE.has(inspection.data.status) || (user.role !== "admin" && inspection.data.inspector_id !== user.id)) return;
+    const { error } = await createAdminClient()
+      .from("inspection_files")
+      .update({ ai_filled_at: new Date().toISOString() })
+      .eq("id", fileId)
+      .is("ai_filled_at", null);
+    if (error) console.error("[source documents] recording the fill failed", error.code, error.message);
+  } catch (error) {
+    unstable_rethrow(error);
+    console.error("[source documents] markSourceFilled failed", error);
+  }
 }
 
 /** What the bytes are, from their first bytes: the AI reads PDFs, JPEG, PNG, WebP and GIF. */
@@ -144,8 +187,8 @@ export async function readSourceFile(inspectionId: string, fileId: string): Prom
     }
     const bytes = Buffer.from(await download.data.arrayBuffer());
     const mediaType = mediaTypeOf(bytes);
-    const record = (status: "read" | "failed", summary: string, kind: FileKind | null = null) =>
-      recordReading(fileId, status, summary, kind);
+    const record = (status: "read" | "failed", summary: string, kind: FileKind | null = null, proposals: SourceProposals | null = null) =>
+      recordReading(fileId, status, summary, kind, proposals);
     if (!mediaType) {
       const message = "Steri-AI reads PDFs and photos (JPEG or PNG). Save this file as a PDF and upload it again.";
       await record("failed", message);
@@ -203,7 +246,7 @@ export async function readSourceFile(inspectionId: string, fileId: string): Prom
     });
     // Kept with the file: what it is, then how each shortform was read and recorded, for the admin to check.
     const readAs = outcome.mappings.length > 0 ? ` Read as: ${outcome.mappings.join("; ")}.` : "";
-    await record("read", `${outcome.summary || "Read."}${readAs}`, kind);
+    await record("read", `${outcome.summary || "Read."}${readAs}`, kind, proposals);
     await logReading(inspectionId, { file: file.data.name, modules: Object.keys(proposals), linked, by: user.id, model: outcome.model });
     return { status: "read", summary: `${outcome.summary}${readAs}`.trim(), proposals };
   } catch (error) {
@@ -215,12 +258,27 @@ export async function readSourceFile(inspectionId: string, fileId: string): Prom
 
 /**
  * Marks the file read or not, and what it is when the AI read it as a lab
- * report or certificate; a failure here is logged, the reading still counts.
+ * report or certificate, with the reading's proposals waiting to be filled
+ * in (a new reading waits again, also after Read Again); a failure here is
+ * logged, the reading still counts.
  */
-async function recordReading(fileId: string, status: "read" | "failed", summary: string, kind: FileKind | null): Promise<void> {
+async function recordReading(
+  fileId: string,
+  status: "read" | "failed",
+  summary: string,
+  kind: FileKind | null,
+  proposals: SourceProposals | null,
+): Promise<void> {
   const { error } = await createAdminClient()
     .from("inspection_files")
-    .update({ ai_status: status, ai_read_at: new Date().toISOString(), ai_summary: summary.slice(0, 1000), ...(kind ? { kind } : {}) })
+    .update({
+      ai_status: status,
+      ai_read_at: new Date().toISOString(),
+      ai_summary: summary.slice(0, 1000),
+      ai_proposals: status === "read" && proposals ? (proposals as Json) : null,
+      ai_filled_at: null,
+      ...(kind ? { kind } : {}),
+    })
     .eq("id", fileId);
   if (error) console.error("[source documents] recording the reading failed", error.code, error.message);
 }

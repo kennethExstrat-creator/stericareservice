@@ -76,28 +76,36 @@ function readingNote(summary: string | null): string {
   return (summary ?? "").split(" Read as: ")[0].trim();
 }
 
-/** Beside the file's name: what Steri-AI has done with it. */
-function AiMark({ file, documents, readOnly }: { file: SlotFile; documents: SourceDocuments; readOnly: boolean }) {
+/**
+ * Beside the file's name: what Steri-AI has done with it, and Read Again,
+ * also for a file it has read (Kenneth, 26 October 2026): the new reading
+ * fills the fields still empty.
+ */
+export function AiMark({ file, documents, readOnly }: { file: SlotFile; documents: SourceDocuments; readOnly: boolean }) {
   if (file.state !== "uploaded") return null;
   const reading = documents.statuses[file.id];
   if (!reading) return readOnly ? null : <WaitingMark />;
   if (reading.status === "reading") return <ReadingMark />;
+  const again = !readOnly && (
+    <Button type="button" variant="ghost" size="xs" onClick={() => documents.retry(file.id)}>
+      <RotateCcwIcon aria-hidden />
+      Read Again<span className="sr-only">: {file.name}</span>
+    </Button>
+  );
   if (reading.status === "read") {
     return (
-      <ReadBadge title={readingNote(reading.summary)} testId="ai-verified">
-        Steri-AI Verified
-      </ReadBadge>
+      <span className="inline-flex flex-wrap items-center gap-2">
+        <ReadBadge title={readingNote(reading.summary)} testId="ai-verified">
+          Steri-AI Verified
+        </ReadBadge>
+        {again}
+      </span>
     );
   }
   return (
     <span className="inline-flex flex-wrap items-center gap-2" data-testid="ai-failed">
       <NotReadBadge title={readingNote(reading.summary)} />
-      {!readOnly && (
-        <Button type="button" variant="ghost" size="xs" onClick={() => documents.retry(file.id)}>
-          <RotateCcwIcon aria-hidden />
-          Read Again<span className="sr-only">: {file.name}</span>
-        </Button>
-      )}
+      {again}
     </span>
   );
 }
