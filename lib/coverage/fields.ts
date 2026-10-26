@@ -531,8 +531,11 @@ const samplingPlan = defineModule({
       options: INSPECTION_LEVELS,
       per: [],
       entry: "computed",
-      formula: "config inspectionLevel, else the client's; none without either. The level the plans are worked out at.",
+      formula:
+        "The inspection's own (data inspectionLevel, set in Sampling Settings), else config inspectionLevel, else the client's, else I. The level the plans are worked out at.",
       rules: [2, 8],
+      notes:
+        "Sampling Settings, beside Auto Calculate Sampling (Kenneth, 27 October 2026), sets it for one inspection; Use Default takes the inspection's own away. No count changes with it.",
     },
     {
       key: "lotSizeGloves",
@@ -552,7 +555,7 @@ const samplingPlan = defineModule({
       per: ["size"],
       entry: "computed",
       formula:
-        "ISO 2859-1 Table 1 from order_lots.lotSizeGloves and config inspectionLevel (lib/aql planFromLotSize); none without a level.",
+        "ISO 2859-1 Table 1 from order_lots.lotSizeGloves and inspectionLevel, the level in force (lib/aql planFromLotSize); none without a lot size.",
       rules: [2, 8],
     },
     {
@@ -590,7 +593,7 @@ const samplingPlan = defineModule({
       type: '"S-1" | "S-2" | "S-3" | "S-4" | "I" | "II" | "III" | null',
       default: null,
       meaning:
-        "ISO 2859-1 level used to suggest n per size from the lot size and flag a sample below the plan. null: samples are entered directly with no plan check.",
+        "ISO 2859-1 level each inspection starts with: the plan per size is worked out from the lot size at it, unless the inspection sets its own in Sampling Settings (data inspectionLevel). null: the client's level, else I.",
     },
   ],
   labels: [

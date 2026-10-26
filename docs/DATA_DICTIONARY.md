@@ -222,16 +222,16 @@ Report module. Captures: Per size: sampled cases, inner units and gloves; gloves
 | `innerUnitsDispensing` | # Inner Box for Packaging & Dispensing Inspection | SAFEDON_EG: # Inner Packs for Packaging & Dispensing Inspection | integer |  | size | entered | 1 | Counts inner units. Printed 'packaing' [sic]. Flows forward as the box rows of dispensing_packing or dispensing_safedon. |
 | `pouches` | Pouches |  | integer |  | size | entered | 1 | Counts pouches. Surgical: sampled pouches (SG onsite). |
 | `pouchesDyeLeak` | # Pouches (Dye Leak Test) |  | integer |  | size | entered | 1 | Counts pouches. Surgical: flows forward as dye_leak.pouchesTested. |
-| `inspectionLevel` | Inspection Level |  | select |  | inspection | **computed** | 2, 8 | config inspectionLevel, else the client's; none without either. The level the plans are worked out at. Values: S-1, S-2, S-3, S-4, I, II, III. |
+| `inspectionLevel` | Inspection Level |  | select |  | inspection | **computed** | 2, 8 | The inspection's own (data inspectionLevel, set in Sampling Settings), else config inspectionLevel, else the client's, else I. The level the plans are worked out at. Values: S-1, S-2, S-3, S-4, I, II, III. Sampling Settings, beside Auto Calculate Sampling (Kenneth, 27 October 2026), sets it for one inspection; Use Default takes the inspection's own away. No count changes with it. |
 | `lotSizeGloves` | Lot Size (Gloves) |  | integer | pcs | size | **computed** | 2 | order_lots.lotSizeGloves: qtyCases × packing_config.glovesPerCase. The lot the inspection level's plan is for. |
-| `codeLetter` | Code Letter |  | select |  | size | **computed** | 2, 8 | ISO 2859-1 Table 1 from order_lots.lotSizeGloves and config inspectionLevel (lib/aql planFromLotSize); none without a level. Values: A, B, C, D, E, F, G, H, J, K, L, M, N, P, Q, R. |
+| `codeLetter` | Code Letter |  | select |  | size | **computed** | 2, 8 | ISO 2859-1 Table 1 from order_lots.lotSizeGloves and inspectionLevel, the level in force (lib/aql planFromLotSize); none without a lot size. Values: A, B, C, D, E, F, G, H, J, K, L, M, N, P, Q, R. |
 | `planSampleSize` | Sample Size by Plan |  | integer | pcs | size | **computed** | 2, 8 | The largest Table 2-A n for codeLetter among the AQLs the inspection checks on the watertight and visual sample (watertight, and visual's classes switched on), arrows followed; Table 1's n when it checks none. A glovesWatertightVisual below it raises the module warning. |
 | `totals` | Total: |  | count_map |  | inspection | **computed** | 2 | Sum over the ordered sizes of each column on (the onsite forms' Total: row). Map keyed by sampling column. |
 
 | Config key | Type | Default | Meaning |
 |---|---|---|---|
 | `columns` | Record&lt;SamplingColumn, boolean> | `{"cases":true,"innerUnits":true,"gloves":true,"glovesWatertightVisual":true,"glovesDimensions":true,"glovesPhysical":true,"glovesWeight":false,"innerUnitsDispensing":true,"pouches":false,"pouchesDyeLeak":false}` | Columns on or off (BUILD_SPEC: columns on/off). The surgical pouch columns and glovesWeight are off by default; a template version saved before glovesWeight existed reads it as off. glovesWeight is never shown since 26 October 2026, on or off. |
-| `inspectionLevel` | "S-1" \| "S-2" \| "S-3" \| "S-4" \| "I" \| "II" \| "III" \| null | `null` | ISO 2859-1 level used to suggest n per size from the lot size and flag a sample below the plan. null: samples are entered directly with no plan check. |
+| `inspectionLevel` | "S-1" \| "S-2" \| "S-3" \| "S-4" \| "I" \| "II" \| "III" \| null | `null` | ISO 2859-1 level each inspection starts with: the plan per size is worked out from the lot size at it, unless the inspection sets its own in Sampling Settings (data inspectionLevel). null: the client's level, else I. |
 
 | Caption key | Label (STD_EG) | Other wording | Meaning |
 |---|---|---|---|

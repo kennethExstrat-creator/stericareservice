@@ -67,6 +67,25 @@ describe("sampling_plan Capture", () => {
     expect(render({ ...props(SAFEDON_EG_EXAMPLE), readOnly: true })).not.toContain("Auto Calculate Sampling");
   });
 
+  it("puts Sampling Settings right after Auto Calculate Sampling, an outline icon button of its height, read-only too (Kenneth, 27 October 2026)", () => {
+    const html = render(props(SAFEDON_EG_EXAMPLE));
+    const after = html.slice(html.indexOf("Auto Calculate Sampling</button>") + "Auto Calculate Sampling</button>".length);
+    const settings = /^<button[^>]*>/.exec(after)?.[0] ?? "";
+    expect(settings).toContain('aria-label="Sampling Settings"');
+    expect(settings).toContain('aria-haspopup="dialog"');
+    // Auto Calculate Sampling is outline, 32 px (44 px on any touchscreen): so is the icon button.
+    expect(settings).toContain('data-variant="outline"');
+    expect(settings).toContain('data-size="icon-sm"');
+    expect(settings).toMatch(/\bsize-8\b.*\btouch:size-11\b/);
+    // The dialog is closed until it is asked for: none of it on the card (no level on the card, 26 October 2026).
+    expect(html).not.toContain("General Inspection Level");
+    expect(html).not.toContain("View Code Letter Table");
+    // A read-only inspection keeps the button, to see its settings, and loses Auto Calculate Sampling.
+    const readOnly = render({ ...props(SAFEDON_EG_EXAMPLE), readOnly: true });
+    expect(readOnly).toContain('aria-label="Sampling Settings"');
+    expect(readOnly).not.toContain("Auto Calculate Sampling");
+  });
+
   it("shows one table with a column per ordered size only, each count a whole-number cell (6.2 rules 1 and 4)", () => {
     const html = render(props(SAFEDON_EG_EXAMPLE));
     expect(tagsWith(html, "data-size-head").map((cell) => /data-size-head="([^"]+)"/.exec(cell)?.[1])).toEqual([

@@ -13,6 +13,9 @@ import {
   type ConfigObject,
   type TemplateCode,
 } from "@/lib/coverage";
+import { applyProposals } from "@/lib/inspections/source-documents";
+import type { InspectionData } from "@/modules/_framework";
+import { MODULE_REGISTRY } from "@/modules/registry";
 import { resolveSeed } from "./__fixtures__/seeds";
 import {
   columnGroups,
@@ -23,7 +26,14 @@ import {
   shownColumns,
   type SamplingPlanConfig,
 } from "./config";
-import { emptySamplingPlan, emptySamplingSize, SamplingPlanDataSchema, withCount } from "./schema";
+import {
+  emptySamplingPlan,
+  emptySamplingSize,
+  samplingSettings,
+  SamplingPlanDataSchema,
+  withCount,
+  withSamplingSettings,
+} from "./schema";
 
 const FILLED_M = {
   cases: 50,
@@ -91,6 +101,66 @@ describe("sampling_plan data", () => {
     expect(withCount(next, "M", "glovesWatertightVisual", 500)).toBe(next);
     expect(withCount(next, "L", "cases", null)).toBe(next);
     expect(withCount(next, "XS", "cases", null).sizes.XS.cases).toBeNull();
+  });
+});
+
+describe("sampling_plan Sampling Settings (Kenneth, 27 October 2026)", () => {
+  it("reads data saved before the settings as the default level and no rounding", () => {
+    const saved = SamplingPlanDataSchema.parse({ sizes: { M: FILLED_M }, rowsOff: ["glovesDimensions"] });
+    expect(saved).not.toHaveProperty("inspectionLevel");
+    expect(saved).not.toHaveProperty("roundCasesTo");
+    expect(samplingSettings(saved)).toEqual({ inspectionLevel: null, roundCasesTo: null });
+    expect(emptySamplingPlan()).toEqual({ sizes: {} });
+  });
+
+  it("keeps an ISO 2859-1 level and a rounding to 5 or 10, for the whole inspection, nothing else", () => {
+    expect(SamplingPlanDataSchema.parse({ sizes: {}, inspectionLevel: "S-3", roundCasesTo: 10 })).toEqual({
+      sizes: {},
+      inspectionLevel: "S-3",
+      roundCasesTo: 10,
+    });
+    for (const bad of ["IV", "ii", "", null, 2]) {
+      expect(SamplingPlanDataSchema.safeParse({ sizes: {}, inspectionLevel: bad }).success, String(bad)).toBe(false);
+    }
+    for (const bad of [0, 1, 2, 20, "5", null]) {
+      expect(SamplingPlanDataSchema.safeParse({ sizes: {}, roundCasesTo: bad }).success, String(bad)).toBe(false);
+    }
+    expect(SamplingPlanDataSchema.safeParse({ sizes: { M: { inspectionLevel: "II" } } }).success).toBe(false);
+  });
+
+  it("saves the settings beside the counts and takes a setting back out with null; the same data when nothing changes", () => {
+    const data = withCount(emptySamplingPlan(), "M", "cases", 50);
+    const set = withSamplingSettings(data, { inspectionLevel: "II", roundCasesTo: 5 });
+    expect(set).toEqual({ sizes: data.sizes, inspectionLevel: "II", roundCasesTo: 5 });
+    expect(SamplingPlanDataSchema.parse(set)).toEqual(set);
+    expect(withSamplingSettings(set, { inspectionLevel: "II", roundCasesTo: 5 })).toBe(set);
+    // Use Default, and the rounding switched off: back to the data without them.
+    const cleared = withSamplingSettings(set, { inspectionLevel: null, roundCasesTo: null });
+    expect(cleared).toEqual(data);
+    expect(cleared).not.toHaveProperty("inspectionLevel");
+    expect(withSamplingSettings(set, { inspectionLevel: "S-1", roundCasesTo: 5 })).toEqual({ ...set, inspectionLevel: "S-1" });
+  });
+
+  it("tells Steri-AI to take the level only from a document that states it, never to work it out, and never the rounding", () => {
+    const schema = z.toJSONSchema(SamplingPlanDataSchema, { io: "input" }) as {
+      properties: Record<string, { description?: string }>;
+      required?: string[];
+    };
+    expect(schema.properties.inspectionLevel.description).toContain('"General Inspection Level II"');
+    expect(schema.properties.inspectionLevel.description).toContain("never work it out from code letters");
+    expect(schema.properties.roundCasesTo.description).toContain("Never set from a document");
+    expect(schema.required ?? []).not.toContain("inspectionLevel");
+  });
+
+  it("takes a level a document states only where the inspection has none, as every reading fills (applyProposals)", () => {
+    const included = new Set(["sampling_plan"]);
+    const proposal = { sampling_plan: { inspectionLevel: "II" } };
+    const empty: InspectionData = { modules: { sampling_plan: { sizes: {} } }, custom: {} };
+    const filled = applyProposals(empty, proposal, MODULE_REGISTRY, included);
+    expect(filled.filled).toBe(1);
+    expect(filled.data.modules.sampling_plan).toEqual({ sizes: {}, inspectionLevel: "II" });
+    const own: InspectionData = { modules: { sampling_plan: { sizes: {}, inspectionLevel: "S-4" } }, custom: {} };
+    expect(applyProposals(own, proposal, MODULE_REGISTRY, included)).toMatchObject({ filled: 0, data: own });
   });
 });
 

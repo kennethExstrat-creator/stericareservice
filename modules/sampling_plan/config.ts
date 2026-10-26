@@ -85,7 +85,7 @@ export const SamplingPlanConfigSchema = z.strictObject({
     })
     .describe("Columns shown on this template. The surgical pouch columns are off by default; # Gloves for Weight is never shown."),
   inspectionLevel: InspectionLevelSchema.nullable().describe(
-    "ISO 2859-1 inspection level. With a level, the plan for each size's lot (cases ordered x gloves per case) is computed and a watertight and visual sample below it is flagged. None: samples are entered directly with no plan check.",
+    "ISO 2859-1 inspection level each inspection starts with; Sampling Settings on the capture screen can set another for one inspection. The plan for each size's lot (cases ordered x gloves per case) is worked out at it. None: the client's level, else I.",
   ),
 });
 export type SamplingPlanConfig = z.infer<typeof SamplingPlanConfigSchema>;

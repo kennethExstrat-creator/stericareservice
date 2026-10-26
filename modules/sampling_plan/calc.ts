@@ -3,7 +3,10 @@
 // watertight and visual sample is below the plan of the inspection level
 // (BUILD_SPEC 7) or is not a standard sample size; "not done" until then and
 // while a value is impossible (6.2 rule 5). The samples flow forward to the
-// modules that test them through the context (BUILD_SPEC 8).
+// modules that test them through the context (BUILD_SPEC 8). The inspection
+// level is resolved here and nowhere else (resolveInspectionLevel): the one
+// set for the inspection in Sampling Settings, else the template's, else the
+// client's, else I (Kenneth, 27 October 2026).
 import {
   AqlSchema,
   codeLetterForSampleSize,
@@ -44,7 +47,7 @@ import { emptySamplingSize, rowsOff, type SamplingPlanData, type SamplingSize } 
 export type SizePlan = {
   /** Gloves in the lot: cases ordered x gloves per case; null until both are entered. */
   lotSizeGloves: number | null;
-  /** ISO 2859-1 Table 1 code letter of the lot at the inspection level; null without a level or a lot size. */
+  /** ISO 2859-1 Table 1 code letter of the lot at the inspection level; null without a lot size. */
   codeLetter: CodeLetter | null;
   /**
    * The sample the inspection level asks for: the largest n among the plans
@@ -60,8 +63,8 @@ export type SizePlan = {
 };
 
 export type SamplingPlanComputed = {
-  /** The level the plans are computed at: the template's, else the client's; null for none. */
-  inspectionLevel: InspectionLevel | null;
+  /** The level the plans are computed at (resolveInspectionLevel). */
+  inspectionLevel: InspectionLevel;
   /** Per ordered size. */
   sizes: Record<string, SizePlan>;
   /** Each shown column summed over the ordered sizes (the onsite forms' Total: row); null while none is entered. */
@@ -71,13 +74,53 @@ export type SamplingPlanComputed = {
 /** Watertight and visual need at least this sample: Table 2-A starts at n 2 (code A). */
 const MIN_SAMPLE = 2;
 
+/** The level when neither the inspection, its template nor its client sets one (Kenneth, 27 October 2026). */
+export const DEFAULT_INSPECTION_LEVEL: InspectionLevel = "I";
+
+/** Where the inspection level comes from: set for the inspection, the template's, the client's, or the default. */
+export type LevelSource = "inspection" | "template" | "client" | "default";
+export type SourcedLevel = { level: InspectionLevel; source: LevelSource };
+
+/**
+ * The inspection level the plans are worked out at, and where it comes from:
+ * the one set for this inspection in Sampling Settings, else the template's,
+ * else the client's, else I. The one place it is resolved: whatever needs
+ * the level asks here, or reads calc's `computed.inspectionLevel`.
+ */
+export function resolveInspectionLevel(
+  data: Pick<SamplingPlanData, "inspectionLevel">,
+  config: Pick<SamplingPlanConfig, "inspectionLevel">,
+  context: Pick<InspectionContext, "aql">,
+): SourcedLevel {
+  if (data.inspectionLevel) return { level: data.inspectionLevel, source: "inspection" };
+  return defaultInspectionLevel(data, config, context);
+}
+
+/**
+ * The level the inspection has without one of its own, which Use Default
+ * goes back to: the template's, else the client's, else I. The context
+ * holds the client's only while the inspection sets no level, since the
+ * sampling plan puts the level it sets there (contributeSamplingPlan); with
+ * one set, I stands in for the client's: no client sets a level yet
+ * (BUILD_SPEC 13).
+ */
+export function defaultInspectionLevel(
+  data: Pick<SamplingPlanData, "inspectionLevel">,
+  config: Pick<SamplingPlanConfig, "inspectionLevel">,
+  context: Pick<InspectionContext, "aql">,
+): SourcedLevel {
+  if (config.inspectionLevel !== null) return { level: config.inspectionLevel, source: "template" };
+  const client = data.inspectionLevel ? null : context.aql.inspectionLevel;
+  return client === null ? { level: DEFAULT_INSPECTION_LEVEL, source: "default" } : { level: client, source: "client" };
+}
+
 export function calcSamplingPlan({
   data,
   config,
   labels,
   context,
 }: CalcInput<SamplingPlanData, SamplingPlanConfig>): CalcOutput<SamplingPlanComputed> {
-  const level = config.inspectionLevel ?? context.aql.inspectionLevel;
+  const { level } = resolveInspectionLevel(data, config, context);
   const issues: CalcIssue[] = [];
   const sizes: Record<string, SizePlan> = {};
   // A test row switched off on screen is neither asked for nor checked (Kenneth, 26 October 2026); what it holds
@@ -105,9 +148,12 @@ export function contributeSamplingPlan({
   const sampling = Object.fromEntries(
     Object.entries(data.sizes).map(([size, row]) => [size, samplingValues(row, config)]),
   );
-  // A template without a level leaves the client's level, if any, in place.
-  if (config.inspectionLevel === null) return { sampling };
-  return { sampling, aql: { inspectionLevel: config.inspectionLevel } };
+  // The level set for this inspection in Sampling Settings, else the template's, for every reader of
+  // `context.aql`. Neither leaves the client's level, if any, in place; with none at all, a reader takes
+  // the default I, as resolveInspectionLevel does.
+  const level = data.inspectionLevel ?? config.inspectionLevel;
+  if (level === null) return { sampling };
+  return { sampling, aql: { inspectionLevel: level } };
 }
 
 /**
@@ -158,7 +204,7 @@ type SizeCheckInput = {
   size: string;
   row: SamplingSize;
   config: SamplingPlanConfig;
-  level: InspectionLevel | null;
+  level: InspectionLevel;
   labels: Labels;
   context: InspectionContext;
 };
@@ -218,7 +264,7 @@ function checkSize({ size, row, config, level, labels, context }: SizeCheckInput
   }
 
   const lot = lotSizeGloves(context, size);
-  const plan = level === null || lot === null ? null : lotPlan(lot, level, context.aql);
+  const plan = lot === null ? null : lotPlan(lot, level, context.aql);
   // A plan's n at or above the lot means inspecting every glove (docs/AQL.md rule 8). A sample below it is no
   // warning (Kenneth, 26 October 2026: "the warning is not needed"): belowPlan still says so in the computed values.
   const required = plan === null ? null : Math.min(plan.n, plan.lotSize);

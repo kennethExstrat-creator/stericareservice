@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import type { InspectionLevel } from "@/lib/aql";
 import { moduleConfig } from "@/lib/coverage";
 import {
   buildInspectionContext,
@@ -8,6 +9,7 @@ import {
   type InspectionContext,
 } from "@/modules/_framework";
 import { checkModuleContract, makeTestContext, makeTestTemplate, TEST_INSPECTOR } from "@/modules/_framework/testing";
+import type { VisualComputed } from "@/modules/visual/calc";
 import { VISUAL_DEFAULT_CONFIG } from "@/modules/visual/config";
 import { WATERTIGHT_DEFAULT_CONFIG } from "@/modules/watertight/config";
 import {
@@ -19,7 +21,15 @@ import {
 } from "@/tests/fixtures/examples";
 import { ENGINE_REGISTRY, exampleData, samplingPlanData } from "./__fixtures__/examples";
 import { resolveSeed } from "./__fixtures__/seeds";
-import { calcSamplingPlan, contributeSamplingPlan, lotPlan, samplingValues, type SamplingPlanComputed } from "./calc";
+import {
+  calcSamplingPlan,
+  contributeSamplingPlan,
+  defaultInspectionLevel,
+  lotPlan,
+  resolveInspectionLevel,
+  samplingValues,
+  type SamplingPlanComputed,
+} from "./calc";
 import { SAMPLING_PLAN_DEFAULT_CONFIG, SAMPLING_PLAN_LABELS, type SamplingPlanConfig } from "./config";
 import { definition } from "./index";
 import { emptySamplingPlan, emptySamplingSize, type SamplingPlanData, type SamplingSize } from "./schema";
@@ -90,7 +100,7 @@ describe("sampling_plan", () => {
     expect(checkModuleContract(definition)).toEqual([]);
   });
 
-  it("is info once every shown column is entered for every ordered size, with no level set", () => {
+  it("is info once every shown column is entered for every ordered size; with no level set anywhere, the plans are at I", () => {
     expect(calcSamplingPlan(input({ M: ROW_M }))).toEqual({
       result: {
         status: "info",
@@ -98,15 +108,16 @@ describe("sampling_plan", () => {
         perSize: { M: { status: "info", summary: "Case: 50; # Gloves for Watertight & Visual: 500." } },
       },
       computed: {
-        inspectionLevel: null,
+        // Neither the inspection, the template nor the client sets a level: I (Kenneth, 27 October 2026).
+        inspectionLevel: "I",
         sizes: {
           M: {
             lotSizeGloves: 5_800_000,
-            codeLetter: null,
-            planSampleSize: null,
-            planCodeLetter: null,
+            codeLetter: "N",
+            planSampleSize: 500,
+            planCodeLetter: "N",
             sampleCodeLetter: "N",
-            belowPlan: null,
+            belowPlan: false,
           },
         },
         totals: {
@@ -367,7 +378,7 @@ describe("sampling_plan", () => {
     const output = calcSamplingPlan(input({ M: ROW_M }, LEVEL_I, context));
     expect(output.result.perSize?.M).toEqual({ status: "info", summary: "Case: 50; # Gloves for Watertight & Visual: 500." });
     expect(output.computed.sizes.M).toMatchObject({ lotSizeGloves: null, codeLetter: null, belowPlan: null });
-    // Without a level there is nothing to check.
+    // Nor at the default level, with none set.
     expect(calcSamplingPlan(input({ M: ROW_M }, SAMPLING_PLAN_DEFAULT_CONFIG, context)).result.status).toBe("info");
   });
 
@@ -409,6 +420,86 @@ describe("sampling_plan", () => {
     expect(samplingValues(row, WEIGHT_ROW)).toEqual(samplingValues(ROW_M, SAMPLING_PLAN_DEFAULT_CONFIG));
     expect(samplingValues(row, WEIGHT_ROW)).not.toHaveProperty("weight");
     expect(samplingValues(row, WEIGHT_ROW)).toMatchObject({ dimensions: 13, physical: 13 });
+  });
+});
+
+describe("sampling_plan's inspection level, set for the inspection in Sampling Settings (Kenneth, 27 October 2026)", () => {
+  const CLIENT_II = { aql: { ...makeTestContext().aql, inspectionLevel: "II" as const } };
+  const NONE = { aql: makeTestContext().aql };
+
+  it("resolves the inspection's own first, then the template's, then the client's, then I, saying which", () => {
+    expect(resolveInspectionLevel({ inspectionLevel: "S-3" }, LEVEL_I, CLIENT_II)).toEqual({ level: "S-3", source: "inspection" });
+    expect(resolveInspectionLevel({}, LEVEL_I, CLIENT_II)).toEqual({ level: "I", source: "template" });
+    expect(resolveInspectionLevel({}, SAMPLING_PLAN_DEFAULT_CONFIG, CLIENT_II)).toEqual({ level: "II", source: "client" });
+    expect(resolveInspectionLevel({}, SAMPLING_PLAN_DEFAULT_CONFIG, NONE)).toEqual({ level: "I", source: "default" });
+  });
+
+  it("knows the level Use Default goes back to: the template's, else the client's while the context still holds it, else I", () => {
+    expect(defaultInspectionLevel({ inspectionLevel: "III" }, LEVEL_I, CLIENT_II)).toEqual({ level: "I", source: "template" });
+    expect(defaultInspectionLevel({}, SAMPLING_PLAN_DEFAULT_CONFIG, CLIENT_II)).toEqual({ level: "II", source: "client" });
+    // With the inspection's own level the context holds that one (contributeSamplingPlan), not a client's: I stands in.
+    const own = { aql: { ...NONE.aql, inspectionLevel: "III" as const } };
+    expect(defaultInspectionLevel({ inspectionLevel: "III" }, SAMPLING_PLAN_DEFAULT_CONFIG, own)).toEqual({ level: "I", source: "default" });
+  });
+
+  it("works the plans out at the inspection's own level, over the template's and the client's", () => {
+    const context = contextM({ aql: { ...makeTestContext().aql, inspectionLevel: "II" } });
+    const at = (inspectionLevel: InspectionLevel) => {
+      const base = input({ M: ROW_M }, LEVEL_I, context);
+      return calcSamplingPlan({ ...base, data: { ...base.data, inspectionLevel } }).computed;
+    };
+    // Lot 5,800,000: III is code R, where AQL 1.5 and the critical class need all 2,000; S-4 is code K.
+    expect(at("III")).toMatchObject({ inspectionLevel: "III", sizes: { M: { codeLetter: "R", planSampleSize: 2000, belowPlan: true } } });
+    expect(at("S-4")).toMatchObject({ inspectionLevel: "S-4", sizes: { M: { codeLetter: "K" } } });
+    // Nothing in the table changes with it: the result and the totals are the counts', not the level's.
+    const plain = calcSamplingPlan(input({ M: ROW_M }, LEVEL_I, context));
+    const base = input({ M: ROW_M }, LEVEL_I, context);
+    const own = calcSamplingPlan({ ...base, data: { ...base.data, inspectionLevel: "III" } });
+    expect(own.result).toEqual(plain.result);
+    expect(own.computed.totals).toEqual(plain.computed.totals);
+    expect(own.issues).toEqual([]);
+  });
+
+  it("passes the inspection's own level forward over the template's; neither leaves the client's in place", () => {
+    expect(contributeSamplingPlan({ data: { sizes: {}, inspectionLevel: "II" }, config: LEVEL_I })).toEqual({
+      sampling: {},
+      aql: { inspectionLevel: "II" },
+    });
+    expect(contributeSamplingPlan({ data: { sizes: {}, inspectionLevel: "S-2" }, config: SAMPLING_PLAN_DEFAULT_CONFIG }).aql).toEqual({
+      inspectionLevel: "S-2",
+    });
+    expect(contributeSamplingPlan({ data: { sizes: {}, roundCasesTo: 10 }, config: SAMPLING_PLAN_DEFAULT_CONFIG })).toEqual({ sampling: {} });
+  });
+
+  it("reaches the context and the plans through the engine; visual's code letter stays its sample's (BUILD_SPEC 6.2 rule 8)", () => {
+    const template = makeTestTemplate(ENGINE_REGISTRY, [
+      "order_lots",
+      "packing_config",
+      { key: "sampling_plan", config: templateConfig("STD_EG") },
+      "visual",
+    ]);
+    const run = (inspectionLevel?: InspectionLevel) => {
+      const sampling = samplingPlanData(STD_EG_EXAMPLE);
+      const data = exampleData(STD_EG_EXAMPLE, {
+        sampling_plan: inspectionLevel ? { ...sampling, inspectionLevel } : sampling,
+        visual: { sizes: { M: { critical: { inspected: 500 }, major: { inspected: 500 }, minor: { inspected: 500 } } } },
+      });
+      const context = buildInspectionContext({ template, data, meta: { inspector: TEST_INSPECTOR } }, ENGINE_REGISTRY);
+      const modules = evaluateInspection({ template, data, context }, ENGINE_REGISTRY).modules;
+      const computed = (key: string) => modules.find((entry) => entry.key === key)?.computed;
+      return { context, plan: computed("sampling_plan") as SamplingPlanComputed, visual: computed("visual") as VisualComputed };
+    };
+    // STD_EG's template sets I: lot 5,800,000 is code N, n 500.
+    const fromTemplate = run();
+    expect(fromTemplate.context.aql.inspectionLevel).toBe("I");
+    expect(fromTemplate.plan).toMatchObject({ inspectionLevel: "I", sizes: { M: { codeLetter: "N", planSampleSize: 500 } } });
+    // Set to II for the inspection: every reader of the context gets II, and the plan is code Q, n 1,250.
+    const own = run("II");
+    expect(own.context.aql.inspectionLevel).toBe("II");
+    expect(own.plan).toMatchObject({ inspectionLevel: "II", sizes: { M: { codeLetter: "Q", planSampleSize: 1250, belowPlan: true } } });
+    // Visual judges the 500 gloves it inspected: code N at either level.
+    expect(fromTemplate.visual.codeLetters).toBe("N");
+    expect(own.visual.codeLetters).toBe("N");
   });
 });
 
@@ -463,10 +554,14 @@ describe("sampling_plan with the example reports (docs/examples/expected-results
     }
   });
 
-  it("A. SAFEDON_EG without an inspection level: the samples are taken as entered, nothing flagged", () => {
-    const { evaluation } = evaluate(SAFEDON_EG_EXAMPLE, { ...templateConfig("SAFEDON_EG"), inspectionLevel: null });
+  it("A. SAFEDON_EG without a level in the template: the plans at the default I, the samples taken as entered, nothing flagged", () => {
+    const { context, evaluation } = evaluate(SAFEDON_EG_EXAMPLE, { ...templateConfig("SAFEDON_EG"), inspectionLevel: null });
     expect(evaluation.result.status).toBe("info");
     expect(evaluation.issues).toEqual([]);
+    expect(evaluation.computed.inspectionLevel).toBe("I");
+    expect(evaluation.computed.sizes.XS).toMatchObject({ codeLetter: "L", planSampleSize: 200, belowPlan: true });
+    // The context keeps no level of its own: the default is calc's (resolveInspectionLevel), never a client's.
+    expect(context.aql.inspectionLevel).toBeNull();
   });
 
   it("B. STD_EG at level I: M (5,800,000 gloves) is code N, n 500, matching the 500 sampled", () => {
