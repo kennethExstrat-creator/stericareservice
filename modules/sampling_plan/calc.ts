@@ -7,7 +7,6 @@
 import {
   AqlSchema,
   codeLetterForSampleSize,
-  formatAql,
   formatCount,
   isStandardSampleSize,
   planFromLotSize,
@@ -94,7 +93,7 @@ export function calcSamplingPlan({
     return checked.result;
   });
   return {
-    result: resultFromSizes(perSize, summarise(perSize, context, level)),
+    result: resultFromSizes(perSize, summarise(perSize, context)),
     computed: { inspectionLevel: level, sizes, totals: totalsOf(data, config, context.sizes) },
     issues,
   };
@@ -219,23 +218,9 @@ function checkSize({ size, row, config, level, labels, context }: SizeCheckInput
 
   const lot = lotSizeGloves(context, size);
   const plan = level === null || lot === null ? null : lotPlan(lot, level, context.aql);
-  // A plan's n at or above the lot means inspecting every glove (docs/AQL.md rule 8).
+  // A plan's n at or above the lot means inspecting every glove (docs/AQL.md rule 8). A sample below it is no
+  // warning (Kenneth, 26 October 2026: "the warning is not needed"): belowPlan still says so in the computed values.
   const required = plan === null ? null : Math.min(plan.n, plan.lotSize);
-  if (plan !== null && required !== null && sample !== null && sample >= MIN_SAMPLE && sample < required) {
-    // Name the AQL only when its arrow, not Table 1, sets the sample.
-    const who =
-      plan.usedLetter === plan.codeLetter
-        ? `inspection level ${plan.level}`
-        : `inspection level ${plan.level} at AQL ${formatAql(plan.aql)}`;
-    const needs = required < plan.n ? `all ${formatCount(required)}` : formatCount(plan.n);
-    findings.push({
-      level: "warning",
-      code: "sample_below_plan",
-      column: "glovesWatertightVisual",
-      brief: `${formatCount(sample)} sampled, ${who} needs ${needs} (code ${plan.usedLetter})`,
-      detail: `${formatCount(sample)} gloves sampled; ${who} needs ${needs} (lot ${formatCount(plan.lotSize)} gloves, code ${plan.usedLetter}).`,
-    });
-  }
 
   const name = sizeLabel(context, size);
   const issues = findings.map((finding) =>
@@ -253,20 +238,17 @@ function checkSize({ size, row, config, level, labels, context }: SizeCheckInput
     sampleCodeLetter,
     belowPlan: required === null || sample === null ? null : sample < required,
   };
-  return { plan: sizePlan, issues, result: sizeResult({ row, config, level, lot, plan, findings, label }) };
+  return { plan: sizePlan, issues, result: sizeResult({ row, config, findings, label }) };
 }
 
 type SizeResultInput = {
   row: SamplingSize;
   config: SamplingPlanConfig;
-  level: InspectionLevel | null;
-  lot: number | null;
-  plan: LotSizePlan | null;
   findings: readonly Finding[];
   label: (column: SamplingColumn) => string;
 };
 
-function sizeResult({ row, config, level, lot, plan, findings, label }: SizeResultInput): PerSizeResult {
+function sizeResult({ row, config, findings, label }: SizeResultInput): PerSizeResult {
   const shown = shownColumns(config);
   const errors = findings.filter((finding) => finding.level === "error");
   if (errors.length > 0) return { status: "not_done", summary: sentence(errors.map((finding) => finding.brief)) };
@@ -274,38 +256,24 @@ function sizeResult({ row, config, level, lot, plan, findings, label }: SizeResu
   // Listing every column of an empty size would repeat the whole table in the summary.
   if (missing.length > 0 && missing.length === shown.length) return { status: "not_done", summary: "Not started." };
   if (missing.length > 0) return { status: "not_done", summary: `Missing: ${missing.map(label).join(", ")}.` };
-  if (level !== null && lot === null) {
-    return {
-      status: "not_done",
-      summary: `Lot size unknown: the inspection level ${level} plan needs the order quantity and the gloves per case.`,
-    };
-  }
-  if (level !== null && plan === null) {
-    const gloves = formatCount(lot ?? 0);
-    return { status: "not_done", summary: `No inspection level ${level} plan for a lot of ${gloves} gloves.` };
-  }
+  // Nothing waits on the inspection level's plan, and no summary names it (Kenneth, 26 October 2026: "remove the
+  // level of inspection"): the plan is still worked out for the computed values.
   if (findings.length > 0) return { status: "warn", summary: sentence(findings.map((finding) => finding.brief)) };
   if (shown.length === 0) return { status: "info", summary: "No columns are switched on." };
 
   const parts = (["cases", "glovesWatertightVisual"] as const)
     .filter((column) => config.columns[column])
     .map((column) => `${label(column)}: ${formatCount(row[column] ?? 0)}`);
-  if (plan !== null) parts.push(`inspection level ${level} needs ${formatCount(plan.n)} (code ${plan.usedLetter})`);
   return { status: "info", summary: sentence(parts) };
 }
 
-function summarise(
-  perSize: Readonly<Record<string, PerSizeResult>>,
-  context: InspectionContext,
-  level: InspectionLevel | null,
-): string {
+function summarise(perSize: Readonly<Record<string, PerSizeResult>>, context: InspectionContext): string {
   const sizes = context.sizes;
   if (sizes.length === 0) return "No sizes ordered yet.";
   const worst = worstStatus(sizes.map((size) => perSize[size].status));
   if (worst === "info" && sizes.length > 1) {
     const names = sizes.map((size) => sizeLabel(context, size)).join(", ");
-    if (level === null) return `Sampling plan entered for size ${names}.`;
-    return `Samples meet inspection level ${level} for size ${names}.`;
+    return `Sampling plan entered for size ${names}.`;
   }
   return bySummary(sizes.filter((size) => perSize[size].status === worst), perSize, context);
 }

@@ -209,13 +209,13 @@ describe("sampling_plan", () => {
     expect(Object.keys(output.computed.sizes)).toEqual(["S", "M"]);
   });
 
-  it("computes the inspection level's plan from the lot in gloves: STD_EG M at level I is code N, n 500, met", () => {
+  it("computes the inspection level's plan from the lot in gloves, naming no level: STD_EG M at level I is code N, n 500, met", () => {
     const output = calcSamplingPlan(input({ M: ROW_M }, LEVEL_I));
     expect(output.result).toEqual({
       status: "info",
-      summary: "Size M: Case: 50; # Gloves for Watertight & Visual: 500; inspection level I needs 500 (code N).",
+      summary: "Size M: Case: 50; # Gloves for Watertight & Visual: 500.",
       perSize: {
-        M: { status: "info", summary: "Case: 50; # Gloves for Watertight & Visual: 500; inspection level I needs 500 (code N)." },
+        M: { status: "info", summary: "Case: 50; # Gloves for Watertight & Visual: 500." },
       },
     });
     expect(output.computed.sizes.M).toEqual({
@@ -229,30 +229,22 @@ describe("sampling_plan", () => {
     expect(output.issues).toEqual([]);
   });
 
-  it("warns when the watertight and visual sample is below the plan, with a link to the cell (BUILD_SPEC 6.1, 7)", () => {
+  it("does not warn when the watertight and visual sample is below the plan (Kenneth, 26 October 2026: \"the warning is not needed\")", () => {
     const output = calcSamplingPlan(input({ M: { ...ROW_M, glovesWatertightVisual: 315 } }, LEVEL_I));
     expect(output.result).toMatchObject({
-      status: "warn",
-      perSize: { M: { status: "warn", summary: "315 sampled, inspection level I needs 500 (code N)." } },
+      status: "info",
+      perSize: { M: { status: "info", summary: "Case: 50; # Gloves for Watertight & Visual: 315." } },
     });
+    // The plan is still worked out, and says the sample is below it.
     expect(output.computed.sizes.M).toMatchObject({ planSampleSize: 500, sampleCodeLetter: "M", belowPlan: true });
-    expect(output.issues).toEqual([
-      {
-        level: "warning",
-        code: "sample_below_plan",
-        message:
-          "Size M, # Gloves for Watertight & Visual: 315 gloves sampled; inspection level I needs 500 (lot 5,800,000 gloves, code N).",
-        size: "M",
-        path: ["sizes", "M", "glovesWatertightVisual"],
-      },
-    ]);
+    expect(output.issues).toEqual([]);
     // A larger sample than the plan sets its own, stricter code letter: nothing to flag.
     const larger = calcSamplingPlan(input({ M: { ...ROW_M, glovesWatertightVisual: 800 } }, LEVEL_I));
     expect(larger.issues).toEqual([]);
     expect(larger.computed.sizes.M).toMatchObject({ sampleCodeLetter: "P", belowPlan: false });
   });
 
-  it("asks for the largest n the AQLs need: an arrow down names its AQL (docs/AQL.md, BUILD_SPEC 7 lot 100)", () => {
+  it("works out the largest n the AQLs need, with no warning below it (docs/AQL.md, BUILD_SPEC 7 lot 100)", () => {
     // Lot 100 at level I is code D (n 8): AQL 1.5 takes 8, 2.5 points up to 5, 4.0 points down to E (n 13).
     const context = contextM({ order: { M: { qtyCases: 1, lotNumbers: [] } }, packing: { ...contextM().packing, glovesPerCase: 100 } });
     expect(lotPlan(100, "I", context.aql)).toMatchObject({ codeLetter: "D", usedLetter: "E", n: 13, aql: 4 });
@@ -264,9 +256,7 @@ describe("sampling_plan", () => {
       planCodeLetter: "E",
       belowPlan: true,
     });
-    expect(output.issues.map((issue) => issue.message)).toEqual([
-      "Size M, # Gloves for Watertight & Visual: 8 gloves sampled; inspection level I at AQL 4.0 needs 13 (lot 100 gloves, code E).",
-    ]);
+    expect(output.issues).toEqual([]);
     // A client's AQLs: watertight 1.0 on lot 1,000 at level I needs H (n 50) where Table 1 gives G (n 32).
     expect(lotPlan(1_000, "I", { ...context.aql, watertight: 1.0 })).toMatchObject({ codeLetter: "G", usedLetter: "H", n: 50 });
     // An AQL Table 2-A does not have is left out; none left means no plan.
@@ -285,7 +275,7 @@ describe("sampling_plan", () => {
     expect(lotPlan(5_800_000, "I", none)).toMatchObject({ codeLetter: "N", n: 500 });
   });
 
-  it("asks for every glove when the plan's n is not smaller than the lot", () => {
+  it("works out every glove when the plan's n is not smaller than the lot, with no warning below it", () => {
     // Lot 8 at level III, watertight AQL 0.65: the arrow down needs more than the lot holds.
     const context = contextM({
       order: { M: { qtyCases: 1, lotNumbers: [] } },
@@ -303,9 +293,7 @@ describe("sampling_plan", () => {
       planCodeLetter: "F",
       belowPlan: true,
     });
-    expect(output.issues.map((issue) => issue.message)).toEqual([
-      "Size M, # Gloves for Watertight & Visual: 5 gloves sampled; inspection level III at AQL 0.65 needs all 8 (lot 8 gloves, code F).",
-    ]);
+    expect(output.issues).toEqual([]);
     const whole = calcSamplingPlan(
       input({ M: { ...ROW_M, cases: 1, glovesWatertightVisual: 8 } }, { ...LEVEL_I, inspectionLevel: "III" }, context),
     );
@@ -327,9 +315,9 @@ describe("sampling_plan", () => {
         path: ["sizes", "M", "glovesWatertightVisual"],
       },
     ]);
-    // Below a level's plan too: both are flagged.
+    // Below a level's plan too: only the sample size is flagged (Kenneth, 26 October 2026).
     const both = calcSamplingPlan(input({ M: { ...ROW_M, glovesWatertightVisual: 400 } }, LEVEL_I));
-    expect(both.issues.map((issue) => issue.code)).toEqual(["nonstandard_sample", "sample_below_plan"]);
+    expect(both.issues.map((issue) => issue.code)).toEqual(["nonstandard_sample"]);
     expect(calcSamplingPlan(input({ M: { ...ROW_M, glovesWatertightVisual: 2500 } })).computed.sizes.M.sampleCodeLetter).toBe("R");
   });
 
@@ -374,13 +362,10 @@ describe("sampling_plan", () => {
     expect(calcSamplingPlan(input({ M: { ...ROW_M, cases: 0 } }, noCases)).issues).toEqual([]);
   });
 
-  it("is not done with a level set until the lot size is known: the plan cannot be checked", () => {
+  it("does not wait on the lot size with a level set: nothing checks the plan (Kenneth, 26 October 2026)", () => {
     const context = contextM({ packing: { ...contextM().packing, glovesPerCase: null } });
     const output = calcSamplingPlan(input({ M: ROW_M }, LEVEL_I, context));
-    expect(output.result.perSize?.M).toEqual({
-      status: "not_done",
-      summary: "Lot size unknown: the inspection level I plan needs the order quantity and the gloves per case.",
-    });
+    expect(output.result.perSize?.M).toEqual({ status: "info", summary: "Case: 50; # Gloves for Watertight & Visual: 500." });
     expect(output.computed.sizes.M).toMatchObject({ lotSizeGloves: null, codeLetter: null, belowPlan: null });
     // Without a level there is nothing to check.
     expect(calcSamplingPlan(input({ M: ROW_M }, SAMPLING_PLAN_DEFAULT_CONFIG, context)).result.status).toBe("info");
@@ -391,7 +376,7 @@ describe("sampling_plan", () => {
     // Lot 5,800,000 at level II is code Q (n 1,250).
     const client = calcSamplingPlan(input({ M: ROW_M }, SAMPLING_PLAN_DEFAULT_CONFIG, context));
     expect(client.computed).toMatchObject({ inspectionLevel: "II", sizes: { M: { codeLetter: "Q", planSampleSize: 1250 } } });
-    expect(client.issues.map((issue) => issue.code)).toEqual(["sample_below_plan"]);
+    expect(client.issues).toEqual([]);
     const template = calcSamplingPlan(input({ M: ROW_M }, LEVEL_I, context));
     expect(template.computed).toMatchObject({ inspectionLevel: "I", sizes: { M: { codeLetter: "N", planSampleSize: 500 } } });
   });
@@ -431,21 +416,15 @@ describe("sampling_plan", () => {
 });
 
 describe("sampling_plan with the example reports (docs/examples/expected-results.md)", () => {
-  it("A. SAFEDON_EG at level I: XS and L (120,000 gloves) need 200, S and M (over 500,000) need 500, so 80 and 200 are flagged", () => {
+  it("A. SAFEDON_EG at level I: XS and L (120,000 gloves) need 200, S and M (over 500,000) need 500; 80 and 200 are below, unflagged", () => {
     const config = templateConfig("SAFEDON_EG");
     expect(config.inspectionLevel).toBe("I");
     const { context, evaluation } = evaluate(SAFEDON_EG_EXAMPLE, config);
 
-    expect(evaluation.result.status).toBe("warn");
-    expect(evaluation.result.summary).toBe(
-      "Size XS, L: 80 sampled, inspection level I needs 200 (code L). Size S, M: 200 sampled, inspection level I needs 500 (code N).",
-    );
-    expect(evaluation.result.perSize).toEqual({
-      XS: { status: "warn", summary: "80 sampled, inspection level I needs 200 (code L)." },
-      S: { status: "warn", summary: "200 sampled, inspection level I needs 500 (code N)." },
-      M: { status: "warn", summary: "200 sampled, inspection level I needs 500 (code N)." },
-      L: { status: "warn", summary: "80 sampled, inspection level I needs 200 (code L)." },
-    });
+    // No warning below the plan (Kenneth, 26 October 2026): the counts stand as entered.
+    expect(evaluation.result.status).toBe("info");
+    expect(evaluation.result.summary).toBe("Sampling plan entered for size XS, S, M, L.");
+    expect(Object.values(evaluation.result.perSize ?? {}).every((entry) => entry.status === "info")).toBe(true);
     for (const [size, expected] of Object.entries(SAFEDON_EG_EXPECTED.sampling)) {
       expect(evaluation.computed.sizes, size).toMatchObject({
         [size]: {
@@ -456,14 +435,7 @@ describe("sampling_plan with the example reports (docs/examples/expected-results
         },
       });
     }
-    const warnings = evaluation.issues.filter((issue) => issue.code === "sample_below_plan");
-    expect(warnings.map(({ level, moduleKey, size }) => ({ level, module: moduleKey, size }))).toEqual(
-      SAFEDON_EG_EXPECTED.warnings.map(({ level, module, size }) => ({ level, module, size })),
-    );
-    SAFEDON_EG_EXPECTED.warnings.forEach((expected, index) => {
-      expect(warnings[index].message).toContain(expected.message);
-      expect(warnings[index].path).toEqual(["sizes", expected.size, "glovesWatertightVisual"]);
-    });
+    expect(evaluation.issues.filter((issue) => issue.code === "sample_below_plan")).toEqual([]);
     expect(evaluation.issues.filter((issue) => issue.level === "error")).toEqual([]);
 
     // Numbers flow forward: n for watertight and visual, dimensions, tensile and dispensing.
@@ -505,9 +477,9 @@ describe("sampling_plan with the example reports (docs/examples/expected-results
     const expected = STD_EG_EXPECTED.sampling.M!;
     expect(evaluation.result).toEqual({
       status: "info",
-      summary: "Size M: Case: 50; # Gloves for Watertight & Visual: 500; inspection level I needs 500 (code N).",
+      summary: "Size M: Case: 50; # Gloves for Watertight & Visual: 500.",
       perSize: {
-        M: { status: "info", summary: "Case: 50; # Gloves for Watertight & Visual: 500; inspection level I needs 500 (code N)." },
+        M: { status: "info", summary: "Case: 50; # Gloves for Watertight & Visual: 500." },
       },
     });
     expect(evaluation.computed.sizes).toEqual({
@@ -587,15 +559,12 @@ describe("sampling_plan against the AQLs the template's watertight and visual ap
     key: "visual",
     config: { ...VISUAL_DEFAULT_CONFIG, classes: { ...VISUAL_DEFAULT_CONFIG.classes, minor: { ...VISUAL_DEFAULT_CONFIG.classes.minor, ...minor } } },
   });
-  const AQL_0065 =
-    "Size M, # Gloves for Watertight & Visual: 500 gloves sampled; inspection level I at AQL 0.065 needs 800 (lot 5,800,000 gloves, code P).";
-
-  it("flags the larger sample a template watertight AQL's arrow down asks for", () => {
+  it("works out the larger sample a template watertight AQL's arrow down asks for, flagging nothing", () => {
     // AQL 0.065 at code N points down to P (n 800); the 500 sampled are enough for STD_EG's 1.5.
     const strict = lotCheck([watertight(0.065), visual({ include: true, aql: null })]);
     expect(strict.context.aql.watertight).toBe(0.065);
     expect(strict.computed.sizes.M).toMatchObject({ codeLetter: "N", planSampleSize: 800, planCodeLetter: "P", belowPlan: true });
-    expect(strict.messages).toEqual([AQL_0065]);
+    expect(strict.messages).toEqual([]);
 
     const plain = lotCheck([watertight(1.5), visual({ include: true, aql: null })]);
     expect(plain.computed.sizes.M).toMatchObject({ planSampleSize: 500, planCodeLetter: "N", belowPlan: false });
@@ -604,7 +573,8 @@ describe("sampling_plan against the AQLs the template's watertight and visual ap
 
   it("asks nothing for a visual class the template switches off", () => {
     const on = lotCheck([watertight(1.5), visual({ include: true, aql: 0.065 })]);
-    expect(on.messages).toEqual([AQL_0065]);
+    expect(on.computed.sizes.M).toMatchObject({ planSampleSize: 800, belowPlan: true });
+    expect(on.messages).toEqual([]);
     const off = lotCheck([watertight(1.5), visual({ include: false, aql: 0.065 })]);
     expect(off.context.aql.minor).toBeNull();
     expect(off.computed.sizes.M).toMatchObject({ planSampleSize: 500, belowPlan: false });
@@ -613,7 +583,10 @@ describe("sampling_plan against the AQLs the template's watertight and visual ap
 
   it("asks nothing for watertight when the inspection does not run it, not even the client's AQL", () => {
     const client = { watertight: 0.065 };
-    expect(lotCheck([watertight(null), visual({ include: true, aql: null })], client).messages).toEqual([AQL_0065]);
+    expect(lotCheck([watertight(null), visual({ include: true, aql: null })], client).computed.sizes.M).toMatchObject({
+      planSampleSize: 800,
+      belowPlan: true,
+    });
     const switchedOff: Entry = {
       key: "watertight",
       config: { ...WATERTIGHT_DEFAULT_CONFIG, aql: null },
@@ -622,6 +595,6 @@ describe("sampling_plan against the AQLs the template's watertight and visual ap
     };
     const off = lotCheck([switchedOff, visual({ include: true, aql: null })], client);
     expect(off.context.aql.watertight).toBeNull();
-    expect(off.messages).toEqual([]);
+    expect(off.computed.sizes.M).toMatchObject({ planSampleSize: 500, belowPlan: false });
   });
 });

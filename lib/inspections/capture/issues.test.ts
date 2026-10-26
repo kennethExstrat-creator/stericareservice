@@ -217,8 +217,8 @@ describe("pendingTasks on real inspections (the seed templates, empty to full)",
     const find = (name: string, key: string) => corpus.find((entry) => entry.name === name)?.tasks.find((task) => task.key === key);
     // The conclusion's reasoning stays in the review: here only what to do.
     expect(find("SAFEDON_EG empty", "conclusion")).toMatchObject({ needed: true, status: "Final result and date", sizes: [] });
-    // Four "Size XS, 80 gloves for watertight & Visual: 80 gloves sampled; inspection level I needs 200 (lot …)".
-    expect(find("SAFEDON_EG full", "sampling_plan")).toMatchObject({ status: "Sample below plan", sizes: ["XS", "S", "M", "L"] });
+    // The example's samples below inspection level I's plan are no task: the warning went (Kenneth, 26 October 2026).
+    expect(find("SAFEDON_EG full", "sampling_plan")).toBeUndefined();
     // "Not done for size XS, S, M, L." for a section with nothing in it.
     expect(find("SAFEDON_EG full without weight", "weight")).toMatchObject({ status: "Not started", sizes: [] });
     // "size XS: not done, No. of sample tested missing (sampling plan: …); size S: …" for one size left.
@@ -232,7 +232,7 @@ describe("pendingTasks on real inspections (the seed templates, empty to full)",
   });
 
   it("counts sections, not issues: the summary line and the refused submit say the same", () => {
-    const full = corpus.find((entry) => entry.name === "SAFEDON_EG full")!;
+    const full = corpus.find((entry) => entry.name === "SAFEDON_EG full without weight")!;
     const counts = pendingCounts(full.tasks);
     expect(counts.total).toBe(full.tasks.length);
     expect(describePending(counts)).toMatch(/^\d+ to do( · \d+ needed before you submit)?$/);

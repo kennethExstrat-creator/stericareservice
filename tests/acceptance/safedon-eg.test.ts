@@ -220,7 +220,7 @@ describe("SAFEDON_EG example as a whole inspection (expected results A)", () => 
     }
   });
 
-  it("Sampling notice at inspection level I: XS and L need 200, S and M need 500; 80 and 200 are flagged as below plan", () => {
+  it("Sampling at inspection level I: XS and L need 200, S and M need 500; 80 and 200 are below it, unflagged (Kenneth, 26 October 2026)", () => {
     const sampling = evaluated.module("sampling_plan");
     expect(computedAt(sampling, "inspectionLevel")).toBe("I");
     // The lot check uses the AQLs the template's watertight and visual apply (AQL_SOURCES).
@@ -232,11 +232,10 @@ describe("SAFEDON_EG example as a whole inspection (expected results A)", () => 
         planSampleSize: expected.required,
         belowPlan: expected.belowPlan,
       });
-      expect(sampling.result.perSize?.[size]?.status).toBe("warn");
+      expect(sampling.result.perSize?.[size]?.status).toBe("info");
     }
-    const warnings = evaluated.report.warnings.filter((issue) => issue.moduleKey === "sampling_plan");
-    expect(warnings.map((issue) => [issue.code, issue.size])).toEqual(EXPECTED.warnings.map((issue) => [issue.code, issue.size]));
-    for (const [index, warning] of warnings.entries()) expect(warning.message).toContain(EXPECTED.warnings[index].message);
+    // The paper's sample below the plan is no warning any more ("the warning is not needed").
+    expect(evaluated.report.warnings.filter((issue) => issue.moduleKey === "sampling_plan")).toEqual([]);
   });
 
   it("Sampling notice only when the template sets the inspection level", () => {
@@ -252,17 +251,16 @@ describe("SAFEDON_EG example as a whole inspection (expected results A)", () => 
     expect(unset.module("sampling_plan").result.status).toBe("info");
   });
 
-  it("finds no errors, warns only below the sampling plan, and suggests pass: the conclusion", () => {
+  it("finds no errors or warnings, and suggests pass: the conclusion", () => {
     expect(evaluated.report.errors).toEqual(EXPECTED.errors);
     expect(evaluated.report.canSubmit).toBe(true);
-    expect(evaluated.report.warnings.map((issue) => [issue.moduleKey, issue.code, issue.size])).toEqual(
-      EXPECTED.warnings.map((issue) => [issue.module, issue.code, issue.size]),
-    );
+    // Its only warnings were the samples below the plan, gone since 26 October 2026.
+    expect(evaluated.report.warnings).toEqual([]);
     expect(evaluated.report.suggested).toMatchObject({
       result: EXPECTED.conclusion.result,
       failed: [],
       notDone: [],
-      warned: ["sampling_plan"],
+      warned: [],
     });
     expect(computedAt(evaluated.module("conclusion"), "suggestedResult")).toBe(EXPECTED.conclusion.result);
     expect(evaluated.module("conclusion").result.status).toBe("pass");

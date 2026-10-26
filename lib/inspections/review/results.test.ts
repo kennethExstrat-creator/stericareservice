@@ -35,11 +35,11 @@ describe("moduleSummary on the example reports", () => {
 
   it("does the same with SAFEDON_EG's four sizes, sizes listed together included", () => {
     const safedon = evaluateSafedonEg();
-    // "Size XS, L: 80 sampled, …. Size S, M: 200 sampled, …."
+    // No warning below the level's plan (Kenneth, 26 October 2026): the sampling plan's one line says it is entered.
     expect(shownSummaries(safedon, ["watertight", "dispensing_safedon", "sampling_plan"])).toEqual({
       watertight: null,
       dispensing_safedon: null,
-      sampling_plan: null,
+      sampling_plan: "Sampling plan entered for size XS, S, M, L.",
     });
     expect(moduleSummary(safedon.module("tensile"), safedon.context)).toBe("Spec. (ASTM D6319) ≥ 14.00 MPa / ≥ 500%.");
     expect(moduleSummary(safedon.module("carton_sampling"), safedon.context)).toBe(

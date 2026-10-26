@@ -117,10 +117,10 @@ describe("sampling_plan Capture", () => {
     // The row says what the test is; the cell keeps the template's whole wording as its name.
     expect(html).toContain(">Watertight &amp; Visual</div>");
     expect(html).toContain('aria-label="# Gloves for Watertight &amp; Visual, Size M"');
-    // The order and the lot come first, read-only, then the counts; the inspection level once, above.
+    // The order and the lot come first, read-only, then the counts; no inspection level (Kenneth, 26 October 2026).
     expect(html.indexOf("Order Qty (Case)")).toBeLessThan(html.indexOf("Lot Size (Gloves)"));
     expect(html.indexOf("Lot Size (Gloves)")).toBeLessThan(html.indexOf("Sampling Quantity"));
-    expect(html.match(/Inspection Level/g)).toHaveLength(1);
+    expect(html).not.toContain("Inspection Level");
   });
 
   it("reads every label from the template's wording and never offers it for editing (6.2 rule 11)", () => {
@@ -150,28 +150,31 @@ describe("sampling_plan Capture", () => {
     expect(render(props(STD_EG_EXAMPLE))).not.toContain("# Gloves for Weight");
   });
 
-  it("shows the order, the lot in gloves and the inspection level beside the counts, computed not typed (6.2 rule 2)", () => {
+  it("shows the order and the lot in gloves beside the counts, computed not typed, and nothing of the level's plan (6.2 rule 2)", () => {
     const html = render(props(SAFEDON_EG_EXAMPLE));
-    for (const text of ["Order Qty (Case)", "Lot Size (Gloves)", "Inspection Level"]) expect(html).toContain(text);
+    for (const text of ["Order Qty (Case)", "Lot Size (Gloves)"]) expect(html).toContain(text);
     for (const value of ["120,000", "1,700,000", "1,120,000"]) expect(html).toContain(value);
-    // No code letter or plan sample size on the card (Kenneth, 26 October 2026).
+    // No inspection level, code letter or plan sample size on the card (Kenneth, 26 October 2026).
+    expect(html).not.toContain("Inspection Level");
     expect(html).not.toContain("Code Letter");
     expect(html).not.toContain("Sample Size by Plan");
-    // No level: no level to show.
-    const plain = render(props(SAFEDON_EG_EXAMPLE, SAMPLING_PLAN_DEFAULT_CONFIG));
-    expect(plain).not.toContain("Inspection Level");
   });
 
-  it("puts the below-plan warning under the cell it concerns, and links issues to the cells (BUILD_SPEC 6.1, 6.2)", () => {
-    const html = render(props(SAFEDON_EG_EXAMPLE));
-    expect(html).toContain("80 gloves sampled; inspection level I needs 200 (lot 120,000 gloves, code L).");
-    expect(html).toContain("200 gloves sampled; inspection level I needs 500 (lot 1,700,000 gloves, code N).");
-    expect(html).toContain(pathAttribute(["sizes", "XS", "glovesWatertightVisual"]));
-    expect(html).toContain(pathAttribute(["sizes", "L", "cases"]));
-    // Warnings are amber cells and notes under the table, naming the size, not red cells.
+  it("warns of nothing below the level's plan; a warning it does give sits in its cell and under the table (BUILD_SPEC 6.1, 6.2)", () => {
+    // The example's 80 and 200 are below inspection level I's plan: no warning (Kenneth, 26 October 2026).
+    const below = render(props(SAFEDON_EG_EXAMPLE));
+    expect(below).not.toContain("inspection level I needs");
+    expect(tagsWith(below, 'data-slot="sampling-issues"')).toHaveLength(0);
+    expect(below).toContain(pathAttribute(["sizes", "XS", "glovesWatertightVisual"]));
+    expect(below).toContain(pathAttribute(["sizes", "L", "cases"]));
+    // A sample size Table 2-A does not have is still flagged: an amber cell and a note naming the size, not a red cell.
+    const data = exampleData(STD_EG_EXAMPLE, {
+      sampling_plan: { sizes: { M: { ...samplingPlanData(STD_EG_EXAMPLE).sizes.M, glovesWatertightVisual: 100 } } },
+    });
+    const html = render(props(STD_EG_EXAMPLE, LEVEL_I, SAMPLING_PLAN_LABELS, data));
     expect(redCells(html)).toEqual([]);
-    expect(tagsWith(html, 'id="sampling-plan-XS-glovesWatertightVisual"')[0]).toContain("bg-warn-tint");
-    expect(html).toContain("Size XS, # Gloves for Watertight &amp; Visual: 80 gloves sampled");
+    expect(tagsWith(html, 'id="sampling-plan-M-glovesWatertightVisual"')[0]).toContain("bg-warn-tint");
+    expect(html).toContain("Size M, # Gloves for Watertight &amp; Visual: 100 is not a standard sample size");
     expect(tagsWith(html, 'data-slot="sampling-issues"')).toHaveLength(1);
   });
 

@@ -6,8 +6,10 @@
 // the left: the order quantity and the lot in gloves, read-only; the
 // template's counts under their headings (rows.ts), each a whole-number cell
 // on the numeric keypad; then each size's result. A Total column, wider than
-// a size's, sums every row while more than one size is ordered. The
-// inspection level is said once, above the table.
+// a size's, sums every row while more than one size is ordered. No
+// inspection level on the card and no warning for a sample below its plan
+// (Kenneth, 26 October 2026: "remove the level of inspection, the warning is
+// not needed").
 //
 // The table is a CSS grid written size by size, so the cells keep the run
 // they had as one panel per size: Enter moves down the size's column and on
@@ -124,7 +126,6 @@ export default function Capture({
   const sizeName = (size: string) => formatSize(size, { sizes: context.templateSizes, prefix: true });
   const sizeHead = (size: string) => formatSize(size, { sizes: context.templateSizes });
   const computed = evaluation?.computed;
-  const level = computed?.inspectionLevel ?? config.inspectionLevel ?? context.aql.inspectionLevel;
   const groups = countGroups(config, label);
   // The issues of the cells on screen, size by size: the screen lists the module's own (not done) elsewhere.
   const cells = new Set(sizes.flatMap((size) => groups.flatMap((group) => group.rows.map((row) => cellKey(size, row.column)))));
@@ -366,11 +367,6 @@ export default function Capture({
             onApply={applyAutoCases}
           />
         </ModuleHeaderActions>
-      )}
-      {level !== null && (
-        <p className="text-sm text-muted-foreground touch:text-base">
-          {label("inspectionLevel")} <span className="font-semibold text-foreground">{level}</span>
-        </p>
       )}
       <EnterGroup>
         <div data-slot="sampling-table" className="overflow-hidden rounded-lg border border-border bg-card">
