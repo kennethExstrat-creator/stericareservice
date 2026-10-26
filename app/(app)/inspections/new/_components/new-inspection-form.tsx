@@ -17,8 +17,8 @@
 //
 // Uploading the documents is where a new inspection starts and Steri-AI
 // fills in the picks from them, so from 1024 px Source Documents is the main
-// column, with Start From Previous under it, and the picks, the template and
-// the Create button are the side column (Kenneth, 26 October 2026). Below
+// column, with the template and Start From Previous under it, and the picks
+// and the Create button are the side column (Kenneth, 26 October 2026). Below
 // 1024 px: one column in that order, 44 px targets, 16 px text. Until the
 // three picks are made, the template lists the ones it still needs. Cards
 // have their title and no line under it (Kenneth, 12 October 2026).
@@ -342,6 +342,28 @@ function ChoicesForm({ userId, storageKey, initial, role, clients, manufacturers
           <div className="flex min-w-0 flex-col gap-6">
             <SourceDocumentsPanel id={id} sources={sources} disabled={creating} filled={filled} unlisted={unlisted} />
 
+            <TemplatePanel
+              id={id}
+              role={role}
+              picks={[
+                { label: "Client", done: client !== undefined },
+                { label: "Manufacturer", done: manufacturerId !== "" },
+                { label: "Product Type", done: productType !== null },
+              ]}
+              productType={productType}
+              names={names}
+              choice={choice}
+              chosen={chosen}
+              overrides={templates}
+              overrideId={overrideId}
+              onOverrideChange={(value) => {
+                update({ templateId: value });
+                changed("templateId");
+              }}
+              overrideError={errors.templateId}
+              disabled={creating}
+            />
+
             <PreviousPicker
               id={id}
               role={role}
@@ -512,28 +534,6 @@ function ChoicesForm({ userId, storageKey, initial, role, clients, manufacturers
                 )}
               </Field>
             </Panel>
-
-            <TemplatePanel
-              id={id}
-              role={role}
-              picks={[
-                { label: "Client", done: client !== undefined },
-                { label: "Manufacturer", done: manufacturerId !== "" },
-                { label: "Product Type", done: productType !== null },
-              ]}
-              productType={productType}
-              names={names}
-              choice={choice}
-              chosen={chosen}
-              overrides={templates}
-              overrideId={overrideId}
-              onOverrideChange={(value) => {
-                update({ templateId: value });
-                changed("templateId");
-              }}
-              overrideError={errors.templateId}
-              disabled={creating}
-            />
 
             {message && (
               <Alert ref={alertRef} tabIndex={-1} variant="destructive" className="outline-none" data-testid="form-error">
