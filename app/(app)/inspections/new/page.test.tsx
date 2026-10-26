@@ -69,8 +69,12 @@ describe("/inspections/new", () => {
     expect(metadata).toEqual({ title: "New Inspection" });
   });
 
-  it("shows the form: the picks, start from previous, Source Documents and the template", async () => {
+  it("shows the form: Source Documents first, then the picks, start from previous and the template", async () => {
     const html = await render();
+    // Where a new inspection starts (Kenneth, 26 October 2026): above the picks, across the page.
+    expect(html.indexOf('data-testid="source-documents"')).toBeLessThan(html.indexOf("What You Are Inspecting"));
+    expect(html).toContain('data-slot="read-drop" data-roomy="true"');
+    expect(html).toContain("Start Here");
     expect(html).toContain("<h1");
     expect(html).toContain("New Inspection");
     expect(html).toContain('data-testid="new-inspection-form"');
@@ -87,8 +91,9 @@ describe("/inspections/new", () => {
     expect(html).toContain(">Source Documents</h2>");
     expect(html).toContain('data-testid="source-tabs"');
     expect(html).toContain("Add Document");
-    // The template shows once the three picks are made.
-    expect(html).not.toContain('data-testid="template-panel"');
+    // The template lists the picks it still needs.
+    expect(html).toContain('data-testid="template-panel"');
+    expect(html).toContain("The template follows from the client, manufacturer and product type.");
     // Cards have their title and no line under it (Kenneth, 12 October 2026).
     expect(html).not.toContain("as on the order, and the type of glove");
     expect(html).not.toContain("Copies the product's details");

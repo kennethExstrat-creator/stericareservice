@@ -1,8 +1,9 @@
 // The form's panels as the server renders them, in the states the live
 // database cannot show on demand: a draft or unreadable template, ties, an
 // admin's choice, a long list of earlier products, a copy into a template
-// that lacks some of the copied sections, and an earlier inspection with
-// nothing to copy. The page and its flows run end to end in e2e/new.
+// that lacks some of the copied sections, an earlier inspection with
+// nothing to copy, and Source Documents before and after the first document.
+// The page and its flows run end to end in e2e/new.
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { chooseTemplate, type PreviousProduct, type TemplateChoice } from "@/lib/inspections/create";
@@ -10,9 +11,12 @@ import { buildSeedBundle, SEED_TEMPLATES } from "@/lib/templates/definitions";
 import { MODULE_REGISTRY } from "@/modules/registry";
 import { toTemplateOption } from "../_lib/options";
 import { PREVIOUS_SHOWN, type TemplateOption } from "../_lib/types";
+import type { HeldDocument } from "../_lib/sources";
 import { ChoiceCard } from "./choice-card";
 import { PreviousPicker } from "./previous-picker";
+import { SourceDocumentsPanel } from "./source-documents-panel";
 import { TemplatePanel, type PickState } from "./template-panel";
+import type { HeldSources } from "./use-held-sources";
 import { RadioGroup } from "@/components/ui/radio-group";
 
 const CLIENT = "20000000-0000-4000-8000-000000000001";
@@ -286,5 +290,43 @@ describe("a choice card", () => {
     expect(html).toContain('role="radio"');
     expect(html).toContain("border-destructive");
     expect(html).toContain("Counted in pieces.");
+  });
+});
+
+describe("Source Documents", () => {
+  const order = new File(["%PDF-1.4"], "Purchase Order.pdf", { type: "application/pdf" });
+
+  function panel(documents: HeldDocument[], filled: { label: string; value: string }[] = []) {
+    const sources: HeldSources = {
+      documents,
+      media: [],
+      preparing: 0,
+      canRead: true,
+      fill: null,
+      addDocuments: noop,
+      addMedia: noop,
+      removeDocument: noop,
+      removeMedia: noop,
+      readAgain: noop,
+      handOver: async () => {},
+    };
+    return renderToStaticMarkup(<SourceDocumentsPanel id="s" sources={sources} disabled={false} filled={filled} unlisted={[]} />);
+  }
+
+  it("opens on a large drop area to start from (Kenneth, 26 October 2026)", () => {
+    const html = panel([]);
+    expect(html).toContain('data-slot="read-drop" data-roomy="true"');
+    expect(html).toContain("Start Here");
+    expect(html).toContain("Add Document");
+    expect(html).not.toContain('data-testid="fill-summary"');
+  });
+
+  it("makes the drop area a row once a document is in, with what Steri-AI filled in beside the files where there is room", () => {
+    const html = panel([{ key: "a", file: order, url: "blob:a", state: { step: "reading" } }], [{ label: "Client", value: "Test Client" }]);
+    expect(html).toContain('data-slot="read-drop"');
+    expect(html).not.toContain("data-roomy");
+    expect(html).toContain("More Documents");
+    expect(html).toContain('data-testid="fill-summary"');
+    expect(html).toContain("@3xl:grid-cols-[minmax(0,1fr)_minmax(16rem,22rem)]");
   });
 });

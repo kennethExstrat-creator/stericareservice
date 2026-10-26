@@ -15,10 +15,13 @@
 // filled; a reading fills only what is still empty, and the PO, codes, dates
 // and order lines it read go in with Create (documentFill).
 //
-// iPad: one column, 44 px targets, 16 px text. From 1024 px Source
-// Documents, the template and the Create button sit in a column on the right
-// that stays in view. The template shows once the three picks are made.
-// Cards have their title and no line under it (Kenneth, 12 October 2026).
+// Uploading the documents is where a new inspection starts and Steri-AI
+// fills in the picks from them, so from 1024 px Source Documents is the main
+// column, with Start From Previous under it, and the picks, the template and
+// the Create button are the side column (Kenneth, 26 October 2026). Below
+// 1024 px: one column in that order, 44 px targets, 16 px text. Until the
+// three picks are made, the template lists the ones it still needs. Cards
+// have their title and no line under it (Kenneth, 12 October 2026).
 //
 // Create runs from onSubmit, not from the form's action prop: React resets a
 // form after every action, and the pickers (Radix Select and RadioGroup) go
@@ -335,14 +338,44 @@ function ChoicesForm({ userId, storageKey, initial, role, clients, manufacturers
     <form onSubmit={submit} noValidate aria-busy={creating || undefined} data-testid="new-inspection-form">
       <fieldset disabled={creating} className="relative m-0 min-w-0 border-0 p-0">
         <legend className="sr-only">New Inspection</legend>
-        <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(20rem,26rem)] lg:items-start">
+        <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(20rem,26rem)]">
+          <div className="flex min-w-0 flex-col gap-6">
+            <SourceDocumentsPanel
+              id={id}
+              sources={sources}
+              disabled={creating}
+              filled={filled}
+              unlisted={unlisted}
+              // Main: as tall as the side column, so an empty drop area fills it.
+              className="lg:flex-1"
+            />
+
+            <PreviousPicker
+              id={id}
+              role={role}
+              ready={picks !== null}
+              products={products}
+              value={fromPrevious?.inspectionId ?? START_BLANK}
+              onValueChange={(value) => {
+                const product = products.find((entry) => entry.inspectionId === value) ?? null;
+                // A named product fills in its name; Start Blank or an unnamed one gives back what was typed.
+                update({ previous: product?.inspectionId ?? "", nameFromPrevious: Boolean(product?.productName) });
+                changed("previousId");
+              }}
+              template={chosen}
+              error={errors.previousId}
+            />
+          </div>
+
           <div className="flex min-w-0 flex-col gap-6">
             <Panel
               headingId={`${id}-order-heading`}
               icon={ClipboardListIcon}
               title="What You Are Inspecting"
+              // A size container: client and manufacturer, and the two product types, side by side only where the card is wide.
+              className="@container"
             >
-              <div className="grid gap-5 md:grid-cols-2">
+              <div className="grid gap-5 @lg:grid-cols-2">
                 <Field data-invalid={errors.clientId ? true : undefined}>
                   <FieldLabel htmlFor={`${id}-client`}>Client</FieldLabel>
                   <Select
@@ -437,7 +470,7 @@ function ChoicesForm({ userId, storageKey, initial, role, clients, manufacturers
                     changed("productType");
                   }}
                   aria-invalid={errors.productType ? true : undefined}
-                  className="grid gap-3 sm:grid-cols-2"
+                  className="grid gap-3 @md:grid-cols-2"
                 >
                   {ProductTypeSchema.options.map((type) => (
                     <ChoiceCard
@@ -488,49 +521,27 @@ function ChoicesForm({ userId, storageKey, initial, role, clients, manufacturers
               </Field>
             </Panel>
 
-            <PreviousPicker
+            <TemplatePanel
               id={id}
               role={role}
-              ready={picks !== null}
-              products={products}
-              value={fromPrevious?.inspectionId ?? START_BLANK}
-              onValueChange={(value) => {
-                const product = products.find((entry) => entry.inspectionId === value) ?? null;
-                // A named product fills in its name; Start Blank or an unnamed one gives back what was typed.
-                update({ previous: product?.inspectionId ?? "", nameFromPrevious: Boolean(product?.productName) });
-                changed("previousId");
+              picks={[
+                { label: "Client", done: client !== undefined },
+                { label: "Manufacturer", done: manufacturerId !== "" },
+                { label: "Product Type", done: productType !== null },
+              ]}
+              productType={productType}
+              names={names}
+              choice={choice}
+              chosen={chosen}
+              overrides={templates}
+              overrideId={overrideId}
+              onOverrideChange={(value) => {
+                update({ templateId: value });
+                changed("templateId");
               }}
-              template={chosen}
-              error={errors.previousId}
+              overrideError={errors.templateId}
+              disabled={creating}
             />
-          </div>
-
-          <div className="flex min-w-0 flex-col gap-4 lg:sticky lg:top-[calc(var(--shell-top)+1.5rem)]">
-            <SourceDocumentsPanel id={id} sources={sources} disabled={creating} filled={filled} unlisted={unlisted} />
-
-            {picks !== null && (
-              <TemplatePanel
-                id={id}
-                role={role}
-                picks={[
-                  { label: "Client", done: client !== undefined },
-                  { label: "Manufacturer", done: manufacturerId !== "" },
-                  { label: "Product Type", done: productType !== null },
-                ]}
-                productType={productType}
-                names={names}
-                choice={choice}
-                chosen={chosen}
-                overrides={templates}
-                overrideId={overrideId}
-                onOverrideChange={(value) => {
-                  update({ templateId: value });
-                  changed("templateId");
-                }}
-                overrideError={errors.templateId}
-                disabled={creating}
-              />
-            )}
 
             {message && (
               <Alert ref={alertRef} tabIndex={-1} variant="destructive" className="outline-none" data-testid="form-error">

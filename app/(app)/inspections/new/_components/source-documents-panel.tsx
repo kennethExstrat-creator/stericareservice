@@ -11,9 +11,17 @@
 // visit's photos and videos, which Auto-Sort files into categories once the
 // inspection exists. Everything stays in the browser until Create
 // (use-held-sources.ts), then uploads to the new inspection.
+//
+// It is where a new inspection starts (Kenneth, 26 October 2026: "one of the
+// most important section to start with, uploading document and let AI
+// prefill straightaway"), so it is the form's main column, and each side
+// opens on a drop area that fills the card, a tap anywhere in it opening the
+// picker. Once something is added, the drop area is a row above the list. On
+// a wide card (48rem), what Steri-AI filled in sits beside the files.
 import {
   CheckIcon,
   EyeIcon,
+  FilePlusIcon,
   FileTextIcon,
   FolderOpenIcon,
   ImageIcon,
@@ -23,9 +31,10 @@ import {
   SparklesIcon,
   Trash2Icon,
   TriangleAlertIcon,
+  type LucideIcon,
 } from "lucide-react";
-import { useId, useRef, useState, type ChangeEvent, type ReactNode } from "react";
-import { FileAddControls } from "@/components/capture/files/file-add-controls";
+import { useId, useRef, useState, type ChangeEvent, type MouseEvent, type ReactNode } from "react";
+import { FILE_ACCEPT } from "@/components/capture/files/file-add-controls";
 import { FilePreviewDialog, type PreviewKind } from "@/components/capture/files/file-preview-dialog";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
@@ -59,9 +68,11 @@ type SourceDocumentsPanelProps = {
   filled: readonly SummaryLine[];
   /** Companies it read that are in neither list, while that field is still empty. */
   unlisted: readonly SummaryLine[];
+  /** The card's: the form makes it as tall as the side column. */
+  className?: string;
 };
 
-export function SourceDocumentsPanel({ id, sources, disabled, filled, unlisted }: SourceDocumentsPanelProps) {
+export function SourceDocumentsPanel({ id, sources, disabled, filled, unlisted, className }: SourceDocumentsPanelProps) {
   const [tab, setTab] = useState<SourceTab>("files");
   const [previewing, setPreviewing] = useState<{ name: string; url: string; kind: PreviewKind } | null>(null);
   const reading = sources.documents.find((document) => document.state.step === "reading");
@@ -71,7 +82,7 @@ export function SourceDocumentsPanel({ id, sources, disabled, filled, unlisted }
       icon={FolderOpenIcon}
       title={SOURCE_DOCUMENTS_TITLE}
       actions={<SourceTabs value={tab} onValueChange={setTab} />}
-      className="gap-4"
+      className={cn("gap-4", className)}
       data-testid="source-documents"
     >
       <p role="status" className="sr-only">
@@ -107,70 +118,92 @@ function FilesSide({
   filled,
   unlisted,
   onPreview,
-}: Omit<SourceDocumentsPanelProps, "id"> & { onPreview: (document: HeldDocument) => void }) {
+}: Omit<SourceDocumentsPanelProps, "id" | "className"> & { onPreview: (document: HeldDocument) => void }) {
   const { documents, preparing, canRead } = sources;
   const lines = createLines(sources.fill);
+  const empty = documents.length === 0 && preparing === 0;
+  const summary = filled.length > 0 || unlisted.length > 0 || lines.length > 0;
   return (
-    <div className="flex flex-col gap-3" data-slot="held-files">
-      {documents.length > 0 && (
-        <ul className="divide-y divide-border overflow-hidden rounded-lg bg-card ring-1 ring-border">
-          {documents.map((document) => (
-            <li
-              key={document.key}
-              data-slot="file-row"
-              data-read={document.state.step}
-              // relative: anchors the buttons' sr-only names (docs/DESIGN.md).
-              className="relative flex flex-wrap items-center gap-x-3 gap-y-2 px-3 py-2.5"
-            >
-              <FileTextIcon aria-hidden className="size-5 shrink-0 text-brand-600" />
-              <div className="min-w-0 flex-1">
-                <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
-                  <p className="min-w-0 truncate font-medium text-foreground" title={document.file.name}>
-                    {document.file.name}
-                  </p>
-                  <ReadMark
-                    state={document.state}
-                    canRead={canRead}
-                    name={document.file.name}
-                    onReadAgain={() => sources.readAgain(document.key)}
-                  />
-                </div>
-                {document.state.step === "failed" && <p className="mt-1 text-sm text-warn">{document.state.message}</p>}
-              </div>
-              <RowButtons name={document.file.name} onPreview={() => onPreview(document)} onRemove={() => sources.removeDocument(document.key)} />
-            </li>
-          ))}
-        </ul>
-      )}
-      {preparing > 0 && (
-        <p role="status" className="flex items-center gap-2 text-sm text-brand-700">
-          <Spinner aria-hidden className="size-4" />
-          Preparing {countFiles(preparing)}…
-        </p>
-      )}
-      <FileAddControls label="Add Document" onFiles={sources.addDocuments} disabled={disabled} />
-      {/* Short: what it filled and what goes in. Steri-AI's note on a file is its badge's tooltip. */}
-      {(filled.length > 0 || unlisted.length > 0 || lines.length > 0) && (
-        <div className="flex flex-col gap-3 rounded-lg bg-muted p-3 text-sm touch:text-base" data-testid="fill-summary">
-          {(filled.length > 0 || unlisted.length > 0) && (
-            <SummaryList title="Filled In">
-              {filled.map((line) => (
-                <SummaryItem key={line.label} line={line} />
+    // A size container: the summary goes beside the files once the card is 48rem wide (landscape and desktop), under them in portrait.
+    <div className="@container flex flex-1 flex-col" data-slot="held-files">
+      <div className={cn("grid flex-1 gap-4", summary && "@3xl:grid-cols-[minmax(0,1fr)_minmax(16rem,22rem)] @3xl:items-start")}>
+        <div className="flex min-w-0 flex-col gap-3">
+          <DropArea
+            slot="read-drop"
+            title={empty ? "Start Here" : "More Documents"}
+            text={
+              empty
+                ? "Drop the PO, packing list and inspection forms here. Steri-AI reads each one and fills in the inspection."
+                : "Drop them here. Steri-AI reads each one in turn."
+            }
+            buttonLabel="Add Document"
+            buttonIcon={FilePlusIcon}
+            accept={FILE_ACCEPT}
+            inputData={{ "data-file-input": "" }}
+            roomy={empty}
+            disabled={disabled}
+            onFiles={sources.addDocuments}
+          />
+          {documents.length > 0 && (
+            <ul className="divide-y divide-border overflow-hidden rounded-lg bg-card ring-1 ring-border">
+              {documents.map((document) => (
+                <li
+                  key={document.key}
+                  data-slot="file-row"
+                  data-read={document.state.step}
+                  // relative: anchors the buttons' sr-only names (docs/DESIGN.md).
+                  className="relative flex flex-wrap items-center gap-x-3 gap-y-2 px-3 py-2.5"
+                >
+                  <FileTextIcon aria-hidden className="size-5 shrink-0 text-brand-600" />
+                  <div className="min-w-0 flex-1">
+                    <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
+                      <p className="min-w-0 truncate font-medium text-foreground" title={document.file.name}>
+                        {document.file.name}
+                      </p>
+                      <ReadMark
+                        state={document.state}
+                        canRead={canRead}
+                        name={document.file.name}
+                        onReadAgain={() => sources.readAgain(document.key)}
+                      />
+                    </div>
+                    {document.state.step === "failed" && <p className="mt-1 text-sm text-warn">{document.state.message}</p>}
+                  </div>
+                  <RowButtons name={document.file.name} onPreview={() => onPreview(document)} onRemove={() => sources.removeDocument(document.key)} />
+                </li>
               ))}
-              {unlisted.map((line) => (
-                <SummaryItem key={`unlisted-${line.label}`} line={line} warn />
-              ))}
-            </SummaryList>
+            </ul>
           )}
-          {lines.length > 0 && (
-            <SummaryList title="Added on Create">
-              {lines.map((line) => (
-                <SummaryItem key={line.label} line={line} />
-              ))}
-            </SummaryList>
+          {preparing > 0 && (
+            <p role="status" className="flex items-center gap-2 text-sm text-brand-700">
+              <Spinner aria-hidden className="size-4" />
+              Preparing {countFiles(preparing)}…
+            </p>
           )}
         </div>
-      )}
+        {/* Short: what it filled and what goes in. Steri-AI's note on a file is its badge's tooltip. */}
+        {summary && (
+          <div className="flex flex-col gap-3 rounded-lg bg-muted p-3 text-sm touch:text-base" data-testid="fill-summary">
+            {(filled.length > 0 || unlisted.length > 0) && (
+              <SummaryList title="Filled In">
+                {filled.map((line) => (
+                  <SummaryItem key={line.label} line={line} />
+                ))}
+                {unlisted.map((line) => (
+                  <SummaryItem key={`unlisted-${line.label}`} line={line} warn />
+                ))}
+              </SummaryList>
+            )}
+            {lines.length > 0 && (
+              <SummaryList title="Added on Create">
+                {lines.map((line) => (
+                  <SummaryItem key={line.label} line={line} />
+                ))}
+              </SummaryList>
+            )}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
@@ -244,8 +277,19 @@ function MediaSide({
   onPreview: (item: HeldMedia) => void;
 }) {
   return (
-    <div className="flex flex-col gap-3" data-slot="held-media">
-      <AutoSortDrop disabled={disabled} onFiles={sources.addMedia} />
+    <div className="flex flex-1 flex-col gap-3" data-slot="held-media">
+      <DropArea
+        slot="auto-sort"
+        title="Auto-Sort"
+        text="Drop all photos and videos here. Steri-AI sorts each into its category after Create."
+        buttonLabel="Add Photos and Videos"
+        buttonIcon={ImagePlusIcon}
+        accept="image/*,video/*"
+        inputData={{ "data-media-input": "new-inspection" }}
+        roomy={sources.media.length === 0}
+        disabled={disabled}
+        onFiles={sources.addMedia}
+      />
       {sources.media.length > 0 && (
         <ul className="divide-y divide-border overflow-hidden rounded-lg bg-card ring-1 ring-border">
           {sources.media.map((item) => (
@@ -265,11 +309,32 @@ function MediaSide({
   );
 }
 
+/* ------------------------------------------------------------------ *
+ * Drop areas
+ * ------------------------------------------------------------------ */
+
+type DropAreaProps = {
+  slot: string;
+  title: string;
+  text: string;
+  buttonLabel: string;
+  buttonIcon: LucideIcon;
+  accept: string;
+  /** On the picker, for the e2e specs: data-file-input, data-media-input. */
+  inputData: Record<`data-${string}`, string>;
+  /** Nothing added yet: it fills the card, centred, with the solid button, as the place to start. */
+  roomy: boolean;
+  disabled: boolean;
+  onFiles: (files: readonly File[]) => void;
+};
+
 /**
- * Media's drop area, as Auto-Sort on the capture screen: the photos and
- * videos dropped here (or chosen) wait for Create, then Auto-Sort files them.
+ * A side's drop area, like Auto-Sort on the capture screen: files dropped
+ * here (or chosen) are held for Create. While the side is empty it fills the
+ * card and a tap anywhere in it opens the picker; then it is a row above the
+ * list.
  */
-function AutoSortDrop({ disabled, onFiles }: { disabled: boolean; onFiles: (files: readonly File[]) => void }) {
+function DropArea({ slot, title, text, buttonLabel, buttonIcon: ButtonIcon, accept, inputData, roomy, disabled, onFiles }: DropAreaProps) {
   const titleId = useId();
   const input = useRef<HTMLInputElement>(null);
   const drop = useFileDrop(onFiles, !disabled);
@@ -279,59 +344,68 @@ function AutoSortDrop({ disabled, onFiles }: { disabled: boolean; onFiles: (file
     event.target.value = "";
     if (files.length > 0) onFiles(files);
   };
+  // The button opens the picker itself, and the picker's own click comes back up here.
+  const open = (event: MouseEvent<HTMLElement>) => {
+    if (!(event.target as Element).closest("button, input")) input.current?.click();
+  };
   return (
     <section
       aria-labelledby={titleId}
-      data-slot="auto-sort"
+      data-slot={slot}
+      data-roomy={roomy || undefined}
       data-dragging={drop.dragging || undefined}
       className={cn(
-        "relative flex flex-col gap-3 rounded-lg border border-dashed border-brand-300 bg-brand-50 p-3 transition-colors",
+        "relative flex rounded-lg border border-dashed border-brand-300 bg-brand-50 transition-colors",
+        roomy
+          ? "flex-1 cursor-pointer flex-col items-center justify-center gap-4 px-6 py-10 text-center"
+          : "flex-wrap items-center justify-between gap-x-4 gap-y-2 p-3",
         "data-dragging:border-primary data-dragging:outline-2 data-dragging:-outline-offset-2 data-dragging:outline-dashed data-dragging:outline-primary",
       )}
+      onClick={roomy && !disabled ? open : undefined}
       {...drop.handlers}
     >
-      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
-        <div className="flex min-w-0 items-start gap-2.5">
+      <div className={cn("flex min-w-0", roomy ? "flex-col items-center gap-3" : "items-start gap-2.5")}>
+        {roomy ? (
+          <span className="flex size-12 shrink-0 items-center justify-center rounded-full bg-brand-100 text-brand-600">
+            <SparklesIcon aria-hidden className="size-6" />
+          </span>
+        ) : (
           <SparklesIcon aria-hidden className="mt-0.5 size-5 shrink-0 text-brand-600" />
-          <div className="min-w-0">
-            <h3 id={titleId} className="text-base leading-snug font-semibold text-foreground">
-              Auto-Sort
-            </h3>
-            <p className="text-sm text-muted-foreground">
-              {drop.dragging ? (
-                <span className="font-medium text-brand-700">Drop to add</span>
-              ) : (
-                "Drop all photos and videos here. Steri-AI sorts each into its category after Create."
-              )}
-            </p>
-          </div>
+        )}
+        <div className="min-w-0">
+          <h3 id={titleId} className={cn("leading-snug font-semibold text-foreground", roomy ? "text-lg" : "text-base")}>
+            {title}
+          </h3>
+          <p className={cn("text-muted-foreground", roomy ? "mt-1 max-w-prose text-base text-balance" : "text-sm")}>
+            {drop.dragging ? <span className="font-medium text-brand-700">Drop to add</span> : text}
+          </p>
         </div>
-        <div className="relative">
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            className="touch:text-base"
-            disabled={disabled}
-            onClick={() => input.current?.click()}
-          >
-            <ImagePlusIcon aria-hidden />
-            Add Photos and Videos
-          </Button>
-          {/* Visually hidden rather than display:none, which older iOS Safari will not open from a script. */}
-          <input
-            ref={input}
-            type="file"
-            accept="image/*,video/*"
-            multiple
-            tabIndex={-1}
-            aria-hidden
-            className="sr-only"
-            data-media-input="new-inspection"
-            disabled={disabled}
-            onChange={take}
-          />
-        </div>
+      </div>
+      <div className="relative">
+        <Button
+          type="button"
+          variant={roomy ? "default" : "outline"}
+          size={roomy ? "default" : "sm"}
+          className="touch:text-base"
+          disabled={disabled}
+          onClick={() => input.current?.click()}
+        >
+          <ButtonIcon aria-hidden />
+          {buttonLabel}
+        </Button>
+        {/* Visually hidden rather than display:none, which older iOS Safari will not open from a script. */}
+        <input
+          ref={input}
+          type="file"
+          accept={accept}
+          multiple
+          tabIndex={-1}
+          aria-hidden
+          className="sr-only"
+          {...inputData}
+          disabled={disabled}
+          onChange={take}
+        />
       </div>
     </section>
   );
