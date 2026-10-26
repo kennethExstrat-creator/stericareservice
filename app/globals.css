@@ -338,6 +338,18 @@
     scroll-padding-top: 0px;
   }
 
+  /* New Inspection's Create bar floats 1rem above the window's bottom edge
+     (new-inspection-form.tsx): a control reached with Tab scrolls into view
+     above it, with 1rem to spare. The bar is a 36 px button (44 px on a
+     touchscreen) in 0.5rem of padding. */
+  html:has([data-slot="create-bar"]) {
+    scroll-padding-bottom: calc(2.25rem + 1rem + 2rem + env(safe-area-inset-bottom));
+
+    @variant touch {
+      scroll-padding-bottom: calc(2.75rem + 1rem + 2rem + env(safe-area-inset-bottom));
+    }
+  }
+
   body {
     @apply bg-background text-foreground;
     -webkit-font-smoothing: antialiased;

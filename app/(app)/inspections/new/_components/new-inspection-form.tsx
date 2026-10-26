@@ -18,10 +18,11 @@
 // Uploading the documents is where a new inspection starts and Steri-AI
 // fills in the picks from them, so from 1024 px Source Documents is the main
 // column, with the template and Start From Previous under it, and the picks
-// and the Create button are the side column (Kenneth, 26 October 2026). Below
-// 1024 px: one column in that order, 44 px targets, 16 px text. Until the
-// three picks are made, the template lists the ones it still needs. Cards
-// have their title and no line under it (Kenneth, 12 October 2026).
+// are the side column (Kenneth, 26 October 2026); Cancel and Create float at
+// the window's bottom right. Below 1024 px: one column in that order, 44 px
+// targets, 16 px text. Until the three picks are made, the template lists the
+// ones it still needs. Cards have their title and no line under it (Kenneth,
+// 12 October 2026).
 //
 // Create runs from onSubmit, not from the form's action prop: React resets a
 // form after every action, and the pickers (Radix Select and RadioGroup) go
@@ -541,19 +542,24 @@ function ChoicesForm({ userId, storageKey, initial, role, clients, manufacturers
                 <AlertDescription className="text-destructive">{message}</AlertDescription>
               </Alert>
             )}
-
-            <div className="flex flex-wrap items-center justify-end gap-3">
-              <Button asChild variant="outline">
-                <Link href={INSPECTIONS_PATH} onClick={cancel}>
-                  Cancel
-                </Link>
-              </Button>
-              <Button type="submit" className="min-w-44">
-                {creating ? <Spinner aria-hidden /> : <PlusIcon aria-hidden />}
-                {creating ? "Creating…" : "Create Inspection"}
-              </Button>
-            </div>
           </div>
+        </div>
+
+        {/* Create, always in view (Kenneth, 26 October 2026: "easy to find and visible"): the bar floats at the
+            window's bottom right until the end of the form comes up. globals.css keeps focus clear of it. */}
+        <div
+          data-slot="create-bar"
+          className="sticky bottom-[calc(1rem+env(safe-area-inset-bottom))] z-20 mt-6 ml-auto flex w-fit flex-wrap items-center justify-end gap-3 rounded-full bg-card/95 p-2 shadow-lg ring-1 ring-border backdrop-blur-sm"
+        >
+          <Button asChild variant="outline">
+            <Link href={INSPECTIONS_PATH} onClick={cancel}>
+              Cancel
+            </Link>
+          </Button>
+          <Button type="submit" className="min-w-44">
+            {creating ? <Spinner aria-hidden /> : <PlusIcon aria-hidden />}
+            {creating ? "Creating…" : "Create Inspection"}
+          </Button>
         </div>
       </fieldset>
 
