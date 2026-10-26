@@ -488,21 +488,21 @@ test("Visual: critical 0 at 0 / 1 (labelled critical, not 'Visual Minor'); major
   const section = frame(page, "visual");
   await expect(sectionStatus(page, "visual")).toHaveText("Passed");
   const headings = { critical: "Critical Defects (AQL 0.0)", major: "Major Defects (AQL 2.5)", minor: "Minor Defects (AQL 4.0)" };
-  const totals = { critical: 'Total Number of "Critical Defects" Found', major: 'Total Number of "Major Defects" Found', minor: 'Total Number of "Minor Defects" Found' };
-  const results = {
-    critical: "Disposition - Visual Critical (Passed / Failed)",
-    major: "Disposition - Visual Major (Passed / Failed)",
-    minor: "Disposition - Visual Minor (Passed / Failed)",
-  };
   for (const size of SIZES) {
     await showSize(page, size);
+    // One gloves-inspected field per size, for every class (26 October 2026).
+    await expect(section.getByRole("textbox", { name: named(`No. of Sample Inspected, Size ${size}`) })).toHaveValue(
+      String(EXPECTED.visual.critical[size]!.n),
+    );
+    // A card per class: its limits in the template's words, what was found against them, its own result.
     for (const cls of ["critical", "major", "minor"] as const) {
       const expected = EXPECTED.visual[cls][size]!;
-      const block = section.getByRole("region", { name: headings[cls] });
-      await expect(block.getByRole("textbox", { name: /^No\. of Sample Inspected/i })).toHaveValue(String(expected.n));
-      await expect(row(block, `Defect Limit Accept ${expected.accept} / Reject ${expected.reject}`)).toBeVisible();
-      await expect(row(block, `${totals[cls]} ${expected.found}`)).toBeVisible();
-      await expect(row(block, `${results[cls]} Passed`)).toBeVisible();
+      const card = section.getByRole("region", { name: headings[cls] });
+      await expect(card.locator('[data-slot="class-limits"]')).toHaveText(
+        named(`Accept ${expected.accept} / Reject ${expected.reject}`),
+      );
+      await expect(card.locator('[data-slot="class-total"]')).toHaveText(`Found ${expected.found} of ${expected.accept} allowed`);
+      await expect(card.locator('[data-slot="status-pill"]')).toHaveText("Passed");
     }
     // The report printed the critical result as "Visual Minor": here it is the critical class's own.
     await expect(section.getByRole("region", { name: headings.critical }).getByText("Visual Minor")).toHaveCount(0);

@@ -1,8 +1,11 @@
-// Server-rendered markup of the visual capture body: a section per class the
-// template switches on, ordered sizes only, the template's wording, calc's
-// limits, totals and chips, the sampling plan's n one tap away, the hand
-// split, one-off rows and read-only. Taps, swipes and keys are the capture
-// kit's, tested there.
+// Server-rendered markup of the visual capture body, one size at a time
+// (Kenneth, 26 October 2026): the size's one gloves-inspected field, never
+// filled in, with the sampling plan's n one tap away while it is empty; a
+// card per class the template switches on, in its wording, with calc's
+// limits, the defects in rows of steppers, the class's total and chip; no
+// code letter line; ordered sizes only, the hand split, one-off rows and
+// read-only. Taps, swipes and keys are the capture kit's, tested there; the
+// writes are in Capture.updates.test.tsx.
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { labelOverrides, moduleConfig } from "@/lib/coverage";
@@ -24,9 +27,17 @@ type RenderInput = {
   config?: VisualConfig;
   labels?: Record<string, string>;
   readOnly?: boolean;
+  defectUsage?: Record<string, number>;
 };
 
-function render({ sizes, context, config = VISUAL_DEFAULT_CONFIG, labels = VISUAL_LABELS, readOnly = false }: RenderInput) {
+function render({
+  sizes,
+  context,
+  config = VISUAL_DEFAULT_CONFIG,
+  labels = VISUAL_LABELS,
+  readOnly = false,
+  defectUsage,
+}: RenderInput) {
   const data = VisualDataSchema.parse({ sizes });
   const template = makeTestTemplate(MODULE_REGISTRY, [{ key: "visual", config: config as ResolvedModule["config"], labels }]);
   const evaluation = evaluateInspection(
@@ -45,6 +56,7 @@ function render({ sizes, context, config = VISUAL_DEFAULT_CONFIG, labels = VISUA
       readOnly={readOnly}
       onChange={noop}
       onFocusChange={noop}
+      defectUsage={defectUsage}
     />,
   );
 }
@@ -52,16 +64,36 @@ function render({ sizes, context, config = VISUAL_DEFAULT_CONFIG, labels = VISUA
 const tagsWith = (html: string, attribute: string): string[] =>
   Array.from(html.matchAll(new RegExp(`<[^>]*${attribute}[^>]*>`, "g")), (match) => match[0]);
 
-/** Footer totals in page order: class by class, column by column. */
-const totals = (html: string) => Array.from(html.matchAll(/font-bold touch:text-lg[^"]*">(\d+)</g), (match) => Number(match[1]));
+/** The text of each element with `data-slot="slot"`, in page order (class by class). */
+const slotTexts = (html: string, slot: string) =>
+  Array.from(html.matchAll(new RegExp(`<(\\w+) data-slot="${slot}"[^>]*>([\\s\\S]*?)</\\1>`, "g")), (match) =>
+    match[2].replace(/<[^>]+>/g, ""),
+  );
+
+/** Each card's Accept / Reject line. */
+const limits = (html: string) => slotTexts(html, "class-limits");
+
+/** Each card's footer: "Found 8 of 21 allowed". */
+const totals = (html: string) => slotTexts(html, "class-total");
 
 const headings = (html: string) => Array.from(html.matchAll(/<h3[^>]*>([^<]+)<\/h3>/g), (match) => match[1]);
 
-/** The gloves inspected inputs, class by class. */
+/** The gloves inspected inputs, in page order. */
 const numberInputs = (html: string) => tagsWith(html, 'data-slot="numeric-cell"');
 
+const valueOf = (input: string) => /value="([^"]*)"/.exec(input)?.[1];
+
+/** Each card's chip. */
 const statuses = (html: string) =>
   tagsWith(html, 'data-slot="status-pill"').map((pill) => /data-status="(\w+)"/.exec(pill)?.[1]);
+
+/** The attribute that marks a control for issue links at `path`, as the markup prints it. */
+const pathAttribute = (path: readonly (string | number)[]) =>
+  `data-issue-path="${JSON.stringify(path).replaceAll('"', "&quot;")}"`;
+
+/** calc's warnings shown under a field, one block per field. */
+const warningBlocks = (html: string) =>
+  Array.from(html.matchAll(/<div id="[^"]*-calc-warning"[^>]*text-warn[^>]*>[\s\S]*?<\/div>/g), (match) => match[0]);
 
 const M_500 = () => makeTestContext({ sizes: ["M"], sampling: { M: makeSampling({ watertightVisual: 500 }) } });
 
@@ -83,35 +115,51 @@ describe("visual capture", () => {
       labels: { ...VISUAL_LABELS, ...labelOverrides("STD_EG", "visual") },
     });
 
-  it("has a section per class headed in the template's wording with its AQL", () => {
-    expect(headings(stdEg())).toEqual(["Critical Defects (AQL 0.0)", "Major Defects (AQL 2.5)", "Minor Defects (AQL 4.0)"]);
+  it("has a card per class, headed in the template's wording with its AQL", () => {
+    const html = stdEg();
+    expect(headings(html)).toEqual(["Critical Defects (AQL 0.0)", "Major Defects (AQL 2.5)", "Minor Defects (AQL 4.0)"]);
+    // Each a region named by its heading.
+    expect(tagsWith(html, 'data-slot="defect-class"').every((card) => card.includes("aria-labelledby="))).toBe(true);
   });
 
   it("B. counts the STD_EG example with calc's limits, totals and chips: 0 / 1, 21 / 22, 21 / 22", () => {
     const html = stdEg();
-    // The limit rows in the template's words, not the kit's Ac / Re: the critical row as
-    // STD_EG prints it (criticalAccept, criticalReject), the others with the shared words.
-    expect(html).toContain("Acc. = 0 / Rej. = 1");
-    expect(html).not.toContain("Accept 0 / Reject 1");
-    expect(html.match(/Accept 21 \/ Reject 22/g)).toHaveLength(2);
-    expect(totals(html)).toEqual([0, 8, 0]);
-    expect(tagsWith(html, 'data-slot="status-pill"').map((pill) => /data-status="(\w+)"/.exec(pill)?.[1])).toEqual([
-      "pass",
-      "pass",
-      "pass",
-    ]);
+    // The limits in the template's words, not the kit's Ac / Re: the critical class's as STD_EG prints
+    // them (criticalAccept, criticalReject), the others with the shared words.
+    expect(limits(html)).toEqual(["Acc. = 0 / Rej. = 1", "Accept 21 / Reject 22", "Accept 21 / Reject 22"]);
+    expect(totals(html)).toEqual(["Found 0 of 0 allowed", "Found 8 of 21 allowed", "Found 0 of 21 allowed"]);
+    expect(statuses(html)).toEqual(["pass", "pass", "pass"]);
     expect(html).toContain('aria-label="Increase Thin Spot on Glove Body, Size M"');
     expect(html).toContain('aria-valuenow="5"');
-    expect(html).toContain("Total Number of &quot;Major Defects&quot; Found");
-    expect(html).toContain("Disposition - Visual Critical (Passed / Failed)");
-    expect(html).toContain("Defect Limit : Accept / Reject");
-    expect(html).toContain("Sampling Code Letter N");
+    // A row with defects is tinted, so what was found shows at a glance.
+    expect(tagsWith(html, 'data-nonzero="true"')).toHaveLength(3);
+  });
+
+  it("has no code letter line, and no per-size sampling plan line above the classes", () => {
+    for (const html of [stdEg(), render({ sizes: {}, context: M_500() })]) {
+      expect(html).not.toContain("Code Letter");
+      expect(html).not.toContain("for Every Class");
+    }
   });
 
   it("words one code apart per class: Defective Bead (major), Defective Beads (minor)", () => {
     const html = stdEg();
     expect(html).toContain('aria-label="Increase Defective Bead, Size M"');
     expect(html).toContain('aria-label="Increase Defective Beads, Size M"');
+  });
+
+  it("orders each class's rows most-used first, ties in the template's order", () => {
+    const html = render({ sizes: {}, context: M_500(), defectUsage: { stain: 9, thin_spot: 4, bead_rolled: 2 } });
+    const rows = Array.from(html.matchAll(/aria-label="Increase ([^"]+), Size M"/g), (match) => match[1]);
+    // Critical's two rows, then major's eleven, then minor's six.
+    expect(rows.slice(0, 2)).toEqual(["Embedded Insects", "Embedded Metal Debris"]);
+    expect(rows.slice(2, 6)).toEqual([
+      "Oil Stain",
+      "Thin Spot on Glove Body",
+      "Thin Area Between Fingers (Crotch)",
+      "Ring-Shaped Thin Area (Crotch)",
+    ]);
+    expect(rows.slice(13, 15)).toEqual(["Rolled Bead", "Small Dirt / Stain"]);
   });
 
   it("leaves out a class the template switches off", () => {
@@ -122,89 +170,135 @@ describe("visual capture", () => {
     const html = render({ sizes: { M: inspectedAll(500) }, context: M_500(), config });
     expect(headings(html)).toEqual(["Major Defects (AQL 2.5)", "Minor Defects (AQL 4.0)"]);
     expect(html).not.toContain("Embedded Insects");
+    // The size's field stands for the classes on: an issue at either lands on it.
+    expect(html).toContain(pathAttribute(["sizes", "M", "major", "inspected"]));
+    expect(html).toContain(pathAttribute(["sizes", "M", "minor", "inspected"]));
+    expect(html).not.toContain(pathAttribute(["sizes", "M", "critical", "inspected"]));
   });
 
-  it("offers the sampling plan's n for every class still without one", () => {
+  it("takes the gloves inspected in one field per size, worded by the template, and never fills it in", () => {
+    const html = render({ sizes: {}, context: M_500() });
+    expect(numberInputs(html)).toHaveLength(1);
+    expect(html).toMatch(/<label[^>]*>No\. of Sample Inspected, Size M<\/label>/);
+    // Only what was entered, no placeholder: an empty field is a size not inspected yet (6.2 rule 5).
+    expect(valueOf(numberInputs(html)[0])).toBe("");
+    expect(numberInputs(html)[0]).not.toContain(" placeholder=");
+    // Every class's path marks it, so an issue about any class's gloves inspected is found and focused there;
+    // an issue about the whole size lands on it too, the first field of the size's panel.
+    const field = html.indexOf('data-slot="numeric-cell"');
+    for (const cls of DEFECT_CLASSES) {
+      const at = html.indexOf(pathAttribute(["sizes", "M", cls, "inspected"]));
+      expect(at).toBeGreaterThan(-1);
+      expect(at).toBeLessThan(field);
+    }
+    expect(html.indexOf(pathAttribute(["sizes", "M"]))).toBeLessThan(field);
+    // No class card has a field of its own.
+    expect(html.slice(html.indexOf('data-slot="defect-class"'))).not.toContain('data-slot="numeric-cell"');
+  });
+
+  it("offers the sampling plan's n beside the empty field only, and says where an entered number stands against it", () => {
     const empty = render({ sizes: {}, context: M_500() });
-    expect(empty).toContain("Sampling Plan: 500");
-    expect(empty).toMatch(/Use 500 for Every Class<span class="sr-only"> of size M<\/span>/);
+    const use = /<button[^>]*aria-label="Use 500 from the Sampling Plan for size M"[^>]*>Use 500<\/button>/.exec(empty)?.[0];
+    expect(use).toBeDefined();
     // 16 px text on touch, as every field's; size sm alone keeps 14 px there.
-    expect(/<button[^>]*>Use 500 for Every Class/.exec(empty)?.[0]).toContain("touch:text-base");
-    // Offered beside the fields, never inside them: an empty field must not look filled (6.2 rule 5).
-    expect(numberInputs(empty)).toHaveLength(3);
-    expect(numberInputs(empty).every((field) => field.includes('value=""') && !field.includes(" placeholder="))).toBe(true);
-    expect(render({ sizes: { M: inspectedAll(500) }, context: M_500() })).not.toContain("for Every Class");
+    expect(use).toContain("touch:text-base");
+    const planned = render({ sizes: { M: inspectedAll(500) }, context: M_500() });
+    expect(planned).not.toContain("Use 500");
+    expect(planned).toMatch(/<p id="[^"]*-hint"[^>]*>from Sampling Plan<\/p>/);
+    const other = render({ sizes: { M: inspectedAll(315) }, context: M_500() });
+    expect(other).toMatch(/<p id="[^"]*-hint"[^>]*>Sampling Plan: 500<\/p>/);
+    // Without a number in the plan there is nothing to offer, or to compare with.
+    for (const html of [
+      render({ sizes: {}, context: makeTestContext({ sizes: ["M"] }) }),
+      render({ sizes: { M: inspectedAll(500) }, context: makeTestContext({ sizes: ["M"] }) }),
+    ]) {
+      expect(html).not.toContain("Sampling Plan");
+    }
+  });
+
+  it("says under the size's field what calc found about each class's gloves inspected, warnings in amber", () => {
+    const html = render({ sizes: { M: inspectedAll(315) }, context: M_500() });
+    const blocks = warningBlocks(html);
+    expect(blocks).toHaveLength(1);
+    for (const name of ["Critical Defects", "Major Defects", "Minor Defects"]) {
+      expect(blocks[0]).toContain(
+        `<span>Size M, ${name}: No. of Sample Inspected is 315, but the sampling plan has 500 gloves for watertight and visual.</span>`,
+      );
+    }
+  });
+
+  it("keeps a field in each card where saved data has a different number per class", () => {
+    const html = render({ sizes: { M: { ...inspectedAll(500), minor: { inspected: 315 } } }, context: M_500() });
+    expect(numberInputs(html).map(valueOf)).toEqual(["500", "500", "315"]);
+    expect(html).not.toMatch(/>No\. of Sample Inspected, Size M</);
+    // One element in the flex Label, so the class and size follow the text with no gap.
+    expect(html).toMatch(
+      /<label[^>]*><span>No\. of Sample Inspected<span class="sr-only">, Minor Defects, Size M<\/span><\/span><\/label>/,
+    );
+    // The minor class's warning under its own field, in its card.
+    const blocks = warningBlocks(html);
+    expect(blocks).toHaveLength(1);
+    expect(blocks[0]).toContain("Size M, Minor Defects: No. of Sample Inspected is 315");
+    expect(html.indexOf(blocks[0])).toBeGreaterThan(html.indexOf('data-class="minor"'));
+    // A class with none yet is offered the plan's n in its own card.
+    const partly = render({ sizes: { M: { critical: { inspected: 500 } } }, context: M_500() });
+    expect(numberInputs(partly).map(valueOf)).toEqual(["500", "", ""]);
+    const offered = tagsWith(partly, 'aria-label="Use 500 from the Sampling Plan for ');
+    expect(offered.map((tag) => /for ([^"]+)"/.exec(tag)?.[1])).toEqual(["Major Defects, size M", "Minor Defects, size M"]);
   });
 
   it("shows a class not inspected as an empty field when read-only, never the sampling plan's n as if recorded", () => {
     const html = render({ sizes: { M: { critical: { inspected: 500 } } }, context: M_500(), readOnly: true });
     const fields = numberInputs(html);
-    expect(fields.map((field) => /value="([^"]*)"/.exec(field)?.[1])).toEqual(["500", "", ""]);
+    expect(fields.map(valueOf)).toEqual(["500", "", ""]);
     expect(fields.some((field) => field.includes(" placeholder="))).toBe(false);
     expect(statuses(html)).toEqual(["pass", "not_done", "not_done"]);
   });
 
-  it("shows the critical limit Acc. = 0 / Rej. = 1 before the gloves inspected are entered, beside a critical defect's failure", () => {
+  it("shows the critical limit before the gloves inspected are entered, beside a critical defect's failure", () => {
     const html = render({ sizes: { M: { critical: { counts: { embedded_metal: 1 } } } }, context: M_500() });
-    expect(html.match(/Acc\. = 0 \/ Rej\. = 1/g)).toHaveLength(1);
-    expect(statuses(html)).toEqual(["fail", "not_done", "not_done"]);
     // Major and minor need n for their limits.
-    const empty = render({ sizes: {}, context: M_500() });
-    expect(empty.match(/(Accept|Acc\. =) \d+ \/ (Reject|Rej\. =) \d+/g)).toEqual(["Acc. = 0 / Rej. = 1"]);
-    // SAFEDON_EG prints its critical row Accept 0 / Reject 1.
+    expect(limits(html)).toEqual(["Acc. = 0 / Rej. = 1", "Accept — / Reject —", "Accept — / Reject —"]);
+    expect(totals(html)).toEqual(["Found 1 of 0 allowed", "Found 0", "Found 0"]);
+    expect(statuses(html)).toEqual(["fail", "not_done", "not_done"]);
+    // SAFEDON_EG prints its critical limit Accept 0 / Reject 1.
     const safedon = { ...VISUAL_LABELS, ...labelOverrides("SAFEDON_EG", "visual") };
-    expect(render({ sizes: {}, context: M_500(), labels: safedon })).toContain("Accept 0 / Reject 1");
+    expect(limits(render({ sizes: {}, context: M_500(), labels: safedon }))[0]).toBe("Accept 0 / Reject 1");
   });
 
   it("words one class's limit apart where the template does (STD_EG prints Acc. = 0 / Rej. = 1 for critical)", () => {
+    const critical = (labels: Record<string, string>) => limits(render({ sizes: {}, context: M_500(), labels }))[0];
     // Keyed class first, as the dictionary keys class wording (criticalTotal): STD_EG's by default.
-    expect(render({ sizes: {}, context: M_500() })).toContain("Acc. = 0 / Rej. = 1");
-    const worded = render({
-      sizes: {},
-      context: M_500(),
-      labels: { ...VISUAL_LABELS, criticalAccept: "Accept", criticalReject: "Reject" },
-    });
-    expect(worded).toContain("Accept 0 / Reject 1");
+    expect(critical(VISUAL_LABELS)).toBe("Acc. = 0 / Rej. = 1");
+    expect(critical({ ...VISUAL_LABELS, criticalAccept: "Accept", criticalReject: "Reject" })).toBe("Accept 0 / Reject 1");
     // A dotted key added in the editor works too, in a template resolved before the dictionary
     // keyed the class's words; the class-first key wins over it.
     const older = Object.fromEntries(
       Object.entries(VISUAL_LABELS).filter(([key]) => key !== "criticalAccept" && key !== "criticalReject"),
     );
-    expect(render({ sizes: {}, context: M_500(), labels: older })).toContain("Accept 0 / Reject 1");
+    expect(critical(older)).toBe("Accept 0 / Reject 1");
     const dotted = { ...older, "critical.accept": "Acc. =", "critical.reject": "Rej. =" };
-    expect(render({ sizes: {}, context: M_500(), labels: dotted })).toContain("Acc. = 0 / Rej. = 1");
-    const both = { ...dotted, criticalAccept: "Ac =", criticalReject: "Re =" };
-    expect(render({ sizes: {}, context: M_500(), labels: both })).toContain("Ac = 0 / Re = 1");
+    expect(critical(dotted)).toBe("Acc. = 0 / Rej. = 1");
+    expect(critical({ ...dotted, criticalAccept: "Ac =", criticalReject: "Re =" })).toBe("Ac = 0 / Re = 1");
     // A blank class word falls back to the word every class shares.
-    const blank = { ...VISUAL_LABELS, criticalAccept: " ", criticalReject: "" };
-    expect(render({ sizes: {}, context: M_500(), labels: blank })).toContain("Accept 0 / Reject 1");
+    expect(critical({ ...VISUAL_LABELS, criticalAccept: " ", criticalReject: "" })).toBe("Accept 0 / Reject 1");
   });
 
-  it("says under a class's gloves inspected what calc found there, warnings in amber", () => {
-    const html = render({ sizes: { M: { ...inspectedAll(500), minor: { inspected: 315 } } }, context: M_500() });
-    const blocks = Array.from(html.matchAll(/<div id="[^"]*-calc-warning"[^>]*text-warn[^>]*>[\s\S]*?<\/div>/g), (match) => match[0]);
-    expect(blocks).toHaveLength(1);
-    expect(blocks[0]).toContain(
-      "<span>Size M, Minor Defects: No. of Sample Inspected is 315, but the sampling plan has 500 gloves for watertight and visual.</span>",
-    );
-  });
-
-  it("shows the tab's fields, and every size's only where SizeTabs puts the sizes side by side", () => {
+  it("shows one size at a time, with tabs at every width, and the cards side by side where three fit", () => {
     const context = makeTestContext({
       sizes: ["S", "M"],
       sampling: { S: makeSampling({ watertightVisual: 200 }), M: makeSampling({ watertightVisual: 500 }) },
     });
     const html = render({ sizes: {}, context });
-    const fields = tagsWith(html, 'data-issue-path="\\[&quot;sizes&quot;,&quot;M&quot;,&quot;major&quot;\\]"');
-    expect(fields).toHaveLength(1);
-    // SizeBlock: from 1280 px every size shows while SizeTabs puts them side by side (the tables fit).
-    expect(fields[0]).toContain("max-xl:hidden");
-    expect(tagsWith(html, 'data-issue-path="\\[&quot;sizes&quot;,&quot;S&quot;,&quot;major&quot;\\]"')[0]).not.toContain("hidden");
-    expect(tagsWith(html, 'data-slot="size-tabs"')[0]).toContain("data-side-by-side");
-    // One element in the flex Label, so ", Size M" follows the text with no gap when it shows.
-    expect(html).toMatch(
-      /<label[^>]*><span>No\. of Sample Inspected<span class="sr-only">, Major Defects<\/span><span class="sr-only xl:not-sr-only">, Size M<\/span><\/span><\/label>/,
-    );
+    expect(tagsWith(html, 'role="tab"').map((tab) => /data-size="([^"]+)"/.exec(tab)?.[1])).toEqual(["S", "M"]);
+    // Never every size side by side: the bar stays from 1280 px too.
+    expect(tagsWith(html, 'data-slot="size-tabs"')[0]).not.toContain("data-side-by-side");
+    expect(html).toContain("No. of Sample Inspected, Size S");
+    expect(html).not.toContain("Size M</label>");
+    expect(html).not.toContain(", Size M");
+    // A container query: three columns with a mouse from a 46rem panel, on touch from 60rem; one below.
+    expect(html).toMatch(/class="@container [^"]*"/);
+    expect(html).toContain("grid items-start gap-3 touch:gap-4 fine:@min-[46rem]:grid-cols-3 touch:@min-[60rem]:grid-cols-3");
   });
 
   it("shows only ordered sizes (6.2 rule 4)", () => {
@@ -213,9 +307,15 @@ describe("visual capture", () => {
     expect(html).not.toContain("Size XL");
   });
 
-  it("splits each size into right and left hands with a hand toggle (surgical templates)", () => {
+  it("gives each row a Right and a Left stepper with both hands on screen, the total counting both (surgical)", () => {
     const html = render({
-      sizes: { "7.0": { ...inspectedAll(125), R: { major: { counts: { thin_spot: 2 } } } } },
+      sizes: {
+        "7.0": {
+          ...inspectedAll(125),
+          R: { major: { counts: { thin_spot: 2 } } },
+          L: { major: { counts: { thin_spot: 1 } } },
+        },
+      },
       context: makeTestContext({
         sizes: ["7.0"],
         templateSizes: [{ value: "7.0", label: "7.0" }],
@@ -224,32 +324,52 @@ describe("visual capture", () => {
       config: { ...VISUAL_DEFAULT_CONFIG, handSplit: true },
     });
     expect(tagsWith(html, 'role="radio"')).toHaveLength(3);
+    expect(html).toContain('aria-label="Increase Thin Spot on Glove Body, Size 7.0, Right Hand"');
     expect(html).toContain('aria-label="Increase Thin Spot on Glove Body, Size 7.0, Left Hand"');
-    expect(totals(html)).toEqual([0, 2, 0]);
+    expect(html).toContain(pathAttribute(["sizes", "7.0", "L", "major", "counts", "thin_spot"]));
+    // Words, not R and L: size L sits on the tabs above. The steppers' names say the hand in full.
+    expect(html.match(/<span aria-hidden="true" class="[^"]*">Right<\/span>/g)).toHaveLength(19);
+    expect(html.match(/<span aria-hidden="true" class="[^"]*">Left<\/span>/g)).toHaveLength(19);
+    expect(totals(html).map((total) => /^Found (\d+)/.exec(total)?.[1])).toEqual(["0", "3", "0"]);
+    // The gloves inspected and the limits stay per size: one field.
+    expect(numberInputs(html)).toHaveLength(1);
+    // Rows of two steppers need twice the room for three cards side by side.
+    expect(html).toContain("fine:@min-[78rem]:grid-cols-3 touch:@min-[100rem]:grid-cols-3");
   });
 
-  it("flags one-off rows for an admin in their class only", () => {
+  it("flags one-off rows for an admin in their class only, removable while they count nothing", () => {
     const html = render({
       sizes: { M: { ...inspectedAll(500), minor: { inspected: 500, unmapped: [{ label: "Faint print", count: 1 }] } } },
       context: M_500(),
     });
     expect(tagsWith(html, 'data-unmapped="true"')).toHaveLength(1);
-    expect(totals(html)).toEqual([0, 0, 1]);
+    expect(totals(html)).toEqual(["Found 0 of 0 allowed", "Found 0 of 21 allowed", "Found 1 of 21 allowed"]);
+    // Each card can add one.
     expect(html.match(/Defect Not in the List/g)).toHaveLength(3);
-    // One added by mistake, counting nothing, can be taken off.
     expect(html).not.toContain("Remove Faint print");
+    // One added by mistake, counting nothing, can be taken off; it counts like any row meanwhile.
     const mistake = render({
       sizes: { M: { ...inspectedAll(500), minor: { inspected: 500, unmapped: [{ label: "Faint print", count: 0 }] } } },
       context: M_500(),
     });
     expect(mistake.match(/aria-label="Remove Faint print"/g)).toHaveLength(1);
+    expect(mistake).toContain('aria-label="Increase Faint print, Size M"');
+    expect(mistake).toContain(pathAttribute(["sizes", "M", "minor", "unmapped", 0]));
   });
 
-  it("is read-only for an approved inspection", () => {
-    const html = render({ sizes: { M: inspectedAll(500) }, context: M_500(), readOnly: true });
-    expect(html).not.toContain('role="spinbutton"');
+  it("is read-only for an approved inspection: steppers disabled, nothing to add, take off or use", () => {
+    const html = render({
+      sizes: { M: { minor: { unmapped: [{ label: "Faint print", count: 0 }] } } },
+      context: M_500(),
+      readOnly: true,
+    });
+    const steppers = tagsWith(html, 'data-slot="stepper"');
+    expect(steppers).toHaveLength(20);
+    expect(steppers.every((stepper) => stepper.includes('data-disabled="true"'))).toBe(true);
     expect(html).not.toContain("Defect Not in the List");
-    expect(html).not.toContain("for Every Class");
+    expect(html).not.toContain("Remove Faint print");
+    expect(html).not.toContain("from the Sampling Plan");
+    expect(numberInputs(html)[0]).toContain("readOnly");
   });
 
   it("says so when the template switches every class off", () => {

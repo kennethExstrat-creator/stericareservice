@@ -39,11 +39,12 @@ function render(key: "watertight" | "visual", Capture: CaptureComponent, defectU
   );
 }
 
-/** The row headings of the counter tables, in the order they render. */
+/**
+ * The counted rows in the order they render, by their steppers' names ("Palm, Size M"): watertight's
+ * counter table and visual's class cards (26 October 2026) name them alike.
+ */
 const rowLabels = (html: string) =>
-  Array.from(html.matchAll(/<th[^>]*scope="row"[^>]*>([\s\S]*?)<\/th>/g), (match) => match[1].replace(/<[^>]+>/g, "").trim()).filter(
-    (label) => label !== "",
-  );
+  Array.from(html.matchAll(/role="spinbutton"[^>]*aria-label="([^"]+), Size M"/g), (match) => match[1]);
 
 describe("most-used defects first", () => {
   it("orders watertight's hole locations by usage, ties in the template's order", () => {

@@ -11,6 +11,8 @@ import {
   setCount,
   setInspected,
   setOneOff,
+  setSizeInspected,
+  sharedInspected,
   unlistedCodes,
 } from "./edit";
 import { VisualDataSchema, type VisualData } from "./schema";
@@ -63,6 +65,33 @@ describe("visual edits", () => {
       500, 315, 500,
     ]);
     expect(fillInspected(data({}), "S", ["major"], 200).sizes.S.critical.inspected).toBeNull();
+  });
+
+  it("reads the gloves inspected a size's classes share, and none where they differ (entered class by class)", () => {
+    const all = ["critical", "major", "minor"] as const;
+    const size = (critical: number | null, major: number | null, minor: number | null) =>
+      data({ M: { critical: { inspected: critical }, major: { inspected: major }, minor: { inspected: minor } } });
+    expect(sharedInspected(data({}), "M", all)).toEqual({ value: null });
+    expect(sharedInspected(size(500, 500, 500), "M", all)).toEqual({ value: 500 });
+    expect(sharedInspected(size(500, null, null), "M", all)).toBeNull();
+    expect(sharedInspected(size(500, 500, 315), "M", ["major", "minor"])).toBeNull();
+    // Only the classes asked about: one switched off keeps what it holds out of it.
+    expect(sharedInspected(size(80, 500, 500), "M", ["major", "minor"])).toEqual({ value: 500 });
+  });
+
+  it("enters the size's gloves inspected for every given class, leaving the others and other sizes as they were", () => {
+    const start = data({
+      XL: { major: { inspected: 200 } },
+      M: { critical: { inspected: 80 }, major: { counts: { stain: 1 } } },
+    });
+    const next = setSizeInspected(start, "M", ["major", "minor"], 500);
+    const { critical, major, minor } = next.sizes.M;
+    expect([critical.inspected, major.inspected, minor.inspected]).toEqual([80, 500, 500]);
+    expect(next.sizes.M.major.counts).toEqual({ stain: 1 });
+    expect(next.sizes.XL).toBe(start.sizes.XL);
+    expect(setSizeInspected(next, "M", ["major", "minor"], null).sizes.M.minor.inspected).toBeNull();
+    // Nothing to change is no change.
+    expect(setSizeInspected(next, "M", ["major", "minor"], 500)).toBe(next);
   });
 
   it("adds a one-off label to its class once, at 0, unless the class's list or a one-off already has it", () => {

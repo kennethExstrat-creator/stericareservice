@@ -2,8 +2,9 @@
 // limit rows of the labelling and visual sections read as each example
 // report prints them. The words come from the seed template (seed-bundle.json),
 // the numbers from calc, through each module's own capture body, as the
-// inspector sees them: STD_EG prints its critical row "Acc. = 0 / Rej. = 1"
-// and its labelling rows "Accept 0 / Reject 1"; SAFEDON_EG the other way round.
+// inspector sees them (visual's class cards a size at a time): STD_EG prints
+// its critical row "Acc. = 0 / Rej. = 1" and its labelling rows "Accept 0 /
+// Reject 1"; SAFEDON_EG the other way round.
 import type { ComponentProps } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
@@ -45,9 +46,17 @@ function labelling(evaluated: Evaluated): string[] {
   return limitLines(renderToStaticMarkup(<LabelingCapture {...props} />));
 }
 
+/** Each class card's limits line, class by class. */
+function cardLimits(html: string): string[] {
+  return Array.from(html.matchAll(/<p data-slot="class-limits"[^>]*>([\s\S]*?)<\/p>/g), (match) =>
+    match[1].replace(/<[^>]+>/g, ""),
+  );
+}
+
+/** Visual shows one size at a time (26 October 2026): each size in turn, opened as the size chosen last (`focus`). */
 function visual(evaluated: Evaluated): string[] {
   const props = captureProps(evaluated, "visual") as unknown as ComponentProps<typeof VisualCapture>;
-  return limitLines(renderToStaticMarkup(<VisualCapture {...props} />));
+  return evaluated.context.sizes.flatMap((size) => cardLimits(renderToStaticMarkup(<VisualCapture {...props} focus={{ size }} />)));
 }
 
 describe("the reports' limit words (expected results A and B)", () => {
@@ -62,15 +71,15 @@ describe("the reports' limit words (expected results A and B)", () => {
 
   it("SAFEDON_EG: labelling Acc. = 0 / Rej. = 1 at both levels; the critical row Accept 0 / Reject 1", () => {
     expect(labelling(safedon)).toEqual(["Acc. = 0 / Rej. = 1", "Acc. = 0 / Rej. = 1"]);
-    // Class by class, size by size in the order of the report: critical 0 / 1 everywhere.
-    const expected = (["critical", "major", "minor"] as const).flatMap((cls) =>
-      safedon.context.sizes.map((size) => {
+    // Size by size in the order of the report, class by class: critical 0 / 1 everywhere.
+    const expected = safedon.context.sizes.flatMap((size) =>
+      (["critical", "major", "minor"] as const).map((cls) => {
         const limits = Object.entries(SAFEDON_EG_EXPECTED.visual[cls]).find(([key]) => key === size)?.[1];
         if (!limits) throw new Error(`expected-results A has no ${cls} limits for size ${size}`);
         return `Accept ${limits.accept} / Reject ${limits.reject}`;
       }),
     );
-    expect(expected.slice(0, 4)).toEqual(Array.from({ length: 4 }, () => "Accept 0 / Reject 1"));
+    expect(expected.filter((_, index) => index % 3 === 0)).toEqual(Array.from({ length: 4 }, () => "Accept 0 / Reject 1"));
     expect(visual(safedon)).toEqual(expected);
   });
 });

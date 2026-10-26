@@ -151,7 +151,7 @@ function setBox(current: DispensingData, size: string, index: number, patch: Par
 | Pick the size (per-size modules) | `SizeTabs`; `SizeStatusStrip` in summaries | your own tabs or a select |
 | A size's own block beside a table that follows the tabs | `SizeBlock`, `SideBySideText`; `useSizeTabsLayout()` for anything else | classes against `data-side-by-side` |
 | Right / left hand (`handSplit`) | `HandToggle` in SizeTabs' `actions` | two copies of the UI |
-| Counts: defects, hole locations, labelling checks, Safedon per-box defects | `CounterTable` (or `DefectChipGroup`, chips without a table) | typed counts (BUILD_SPEC 8: no typing for counts) |
+| Counts: defects, hole locations, labelling checks, Safedon per-box defects | `CounterTable` (or `DefectChipGroup`, chips without a table); visual's class cards, a `Stepper` per row | typed counts (BUILD_SPEC 8: no typing for counts) |
 | One column at a time on the iPad layout (Safedon's boxes) | `ColumnSwitcher` beside a CounterTable given `activeColumn` | your own Previous / Next |
 | One count that may be not entered yet (pouches tested, pouches failed) | `CountField` | a Stepper that shows 0 before anything is entered |
 | A column of readings per glove (dimensions, force at break, weight x 13) | `MeasurementGrid` | rows of fields, a static table for read-only |
@@ -257,32 +257,14 @@ const columns: CounterColumn[] = context.sizes.map((s) => ({
 - A one-off label is added unmapped (`unmapped: true`): the row shows a flag for the admin. Mark it `removable` too, with `onRemoveRow`: while it counts nothing in any column and hand, a remove button takes it off (one added by mistake), the table says so and keeps the focus on its "Other Defect" button; while that button's form is open, or where the table offers none, on the first count of the row taking the removed one's place (the row before, for the last row; the table, for its only row). Take it off only where it counts nothing, so no tapped count is lost.
 - The limit row reads the template's words, `limitAccept` and `limitReject`. Where they do not fit the column it wraps after the slash, "Accept 10 /" over "Reject 11" (`formatLimitParts`), never before it; screen readers read the line in one piece. A class worded apart (STD_EG prints the critical limit "Acc. = 0 / Rej. = 1") reads them keyed class first, `criticalAccept` and `criticalReject`, as the dictionary keys class wording, else the word every class shares (visual's `limitWord`).
 
-## One table per defect class (visual)
+## Defect classes side by side (visual)
 
-One `CounterTable` per class, each in a `ModuleSection` titled with the class ("Major Defects (AQL 2.5)"). Each table's chip is that class's result, not the size's:
+Since 26 October 2026 (Kenneth chose "One Size, Three Classes Side by Side", without the code letter line) visual shows one size at a time, `SizeTabs` keeping its tabs at every width, and no CounterTable:
 
-```tsx
-{classes.map((group) => (
-  <ModuleSection key={group.key} title={labelFor(labels, group.key)} status={classResult(evaluation, size, group.key)}>
-    <CounterTable
-      caption={labelFor(labels, group.key)}
-      rows={group.defects.map((code) => ({ key: code, label: labelFor(labels, group.key, code) }))} // minor.bead_defective, then bead_defective
-      columns={context.sizes.map((s) => ({
-        key: s,
-        label: formatSize(s, { sizes: context.templateSizes }),
-        name: formatSize(s, { sizes: context.templateSizes, prefix: true }),
-        n: samplingFor(context, s).watertightVisual,
-        limits: classLimits(evaluation, s, group.key), // calc's Ac/Re for this class (lib/aql)
-        status: classResult(evaluation, s, group.key), // calc's result for this class and size, from your `computed`
-      }))}
-      activeColumn={size}
-      ...
-    />
-  </ModuleSection>
-))}
-```
-
-`classResult` and `classLimits` read your own `computed` shape. Leave `status` out if calc has no per-class result: the table then decides from `limits` alone. The size's worst result (`evaluation.result.perSize`) goes on the size tabs only.
+- **The size's gloves inspected:** one `NumberField`, "No. of Sample Inspected, Size S", writes every class the template switches on (`setSizeInspected`). It is never filled in for the inspector (6.2 rule 5): while it is empty and the sampling plan has a number, "Use 200" beside it (named "Use 200 from the Sampling Plan for size S") fills it, and once filled its hint says "from Sampling Plan" or "Sampling Plan: 200". calc's messages at each class's `["sizes", size, cls, "inspected"]` show under it, and a box per class's path around it lands an issue link there. Saved data with a different number per class (`sharedInspected` is null) keeps a field in each card instead.
+- **A card per class**, three side by side where they fit (a container query: a 46rem panel with a mouse, 60rem on touch; rows with both hands' steppers need 78rem and 100rem), else one under another, aligned to the top: the heading with its AQL, calc's limits in the template's words as the report prints them ("Acc. = 0 / Rej. = 1", `formatLimitParts` with `limitWord`, wrapping after the slash), a row per defect, most-used first, with a `Stepper` (a Right and a Left one, labelled in words, while both hands show), codes the list lacks and one-off rows flagged, then "Found 2 of 10 allowed" and the class's chip. The chip is the live decision from the total, which calc's result overrides only with `not_done`, as in a CounterTable column. Each stepper is marked with the count's issue path and reports `{ size, hand, defect }` for photo tags.
+- **Read-only**, the steppers are disabled (not numbers, as in a CounterTable), and nothing can be added, taken off or used.
+- **No code letter line:** `computed.codeLetters` stays, for the report's heading.
 
 ## Per-size rows with box numbers (dispensing, labelling)
 

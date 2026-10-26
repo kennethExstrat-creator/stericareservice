@@ -520,14 +520,21 @@ export async function enterWatertight(page: Page): Promise<void> {
   }
 }
 
-/** Visual: per size the gloves inspected for every class from the sampling plan (one tap); no defects. */
+/**
+ * Visual: per size the gloves inspected from the sampling plan, one tap into
+ * the size's one field for every class (26 October 2026); no defects.
+ */
 export async function enterVisual(page: Page): Promise<void> {
   await openSection(page, "visual");
   const section = frame(page, "visual");
   for (const size of SIZES) {
     await showSize(page, size);
     const inspected = REPORT.visual.critical.perSize[size]!.inspected;
-    await press(section.getByRole("button", { name: `Use ${inspected} for Every Class of size ${size}`, exact: true }));
+    await press(section.getByRole("button", { name: `Use ${inspected} from the Sampling Plan for size ${size}`, exact: true }));
+    // The template's wording, whatever its case.
+    await expect(section.getByRole("textbox", { name: named(`No. of Sample Inspected, Size ${size}`) })).toHaveValue(
+      String(inspected),
+    );
   }
 }
 

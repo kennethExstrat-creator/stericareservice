@@ -765,7 +765,12 @@ test("the STD_EG example entered on the iPad gives every expected result", async
   await test.step("Visual: 500 for every class in one tap, 8 major defects tapped; 0 / 1, 21 / 22, 21 / 22", async () => {
     const frame = await next(page, "visual");
     await expectOnlySizeM(page, SECTION.visual);
-    await frame.getByRole("button", { name: `Use ${REPORT.visual.major.perSize.M?.inspected} for Every Class of size M` }).tap();
+    const inspected = must(REPORT.visual.major.perSize.M?.inspected, "visual gloves inspected for size M");
+    await frame.getByRole("button", { name: `Use ${inspected} from the Sampling Plan for size M` }).tap();
+    // One field for the size, for every class (26 October 2026).
+    await check(frame.getByRole("textbox", { name: named("No. of Sample Inspected, Size M") }), "Visual M").toHaveValue(
+      String(inspected),
+    );
     for (const cls of ["critical", "major", "minor"] as const) {
       const block = REPORT.visual[cls];
       for (const defect of block.rows) {
@@ -775,18 +780,22 @@ test("the STD_EG example entered on the iPad gives every expected result", async
         }
       }
     }
-    await check(frame.getByText(named(`Sampling Code Letter ${EXPECT_MAJOR.codeLetter}`))).toBeVisible();
+    // No code letter line on the capture screen (Kenneth, 26 October 2026): the report's heading keeps it.
+    await check(frame.getByText(/Code Letter/i), "Visual: no code letter line").toHaveCount(0);
+    // A card per class: its limits in the template's words (STD_EG prints the critical limit "Acc. = 0 / Rej. = 1"),
+    // what was found against them, its own result.
     const classes = [
-      { expected: EXPECT_CRITICAL, region: "Critical Defects (AQL 0.0)", limit: "Defect Limit : Accept / Reject", limitText: `Acc. = ${EXPECT_CRITICAL.accept} / Rej. = ${EXPECT_CRITICAL.reject}`, total: 'Total Number of "Critical Defects" Found', result: "Disposition - Visual Critical (Passed / Failed)" },
-      { expected: EXPECT_MAJOR, region: "Major Defects (AQL 2.5)", limit: "Defect Limit", limitText: `Accept ${EXPECT_MAJOR.accept} / Reject ${EXPECT_MAJOR.reject}`, total: 'Total Number of "Major Defects" Found', result: "Disposition - Visual Major (Passed / Failed)" },
-      { expected: EXPECT_MINOR, region: "Minor Defects (AQL 4.0)", limit: "Defect Limit", limitText: `Accept ${EXPECT_MINOR.accept} / Reject ${EXPECT_MINOR.reject}`, total: 'Total Number of "Minor Defects" Found', result: "Disposition - Visual Minor (Passed / Failed)" },
+      { expected: EXPECT_CRITICAL, region: "Critical Defects (AQL 0.0)", limits: `Acc. = ${EXPECT_CRITICAL.accept} / Rej. = ${EXPECT_CRITICAL.reject}` },
+      { expected: EXPECT_MAJOR, region: "Major Defects (AQL 2.5)", limits: `Accept ${EXPECT_MAJOR.accept} / Reject ${EXPECT_MAJOR.reject}` },
+      { expected: EXPECT_MINOR, region: "Minor Defects (AQL 4.0)", limits: `Accept ${EXPECT_MINOR.accept} / Reject ${EXPECT_MINOR.reject}` },
     ];
-    for (const { expected, region, limit, limitText, total, result } of classes) {
-      const section = frame.getByRole("region", { name: region });
-      await check(section.getByRole("textbox", { name: /^No\. of Sample Inspected/i }), expected.check).toHaveValue(String(expected.n));
-      await check(row(section, limit), expected.check).toHaveAccessibleName(`${limit} ${limitText}`);
-      await check(row(section, total), expected.check).toHaveAccessibleName(`${total} ${expected.found}`, ANY_CASE);
-      await check(row(section, result), expected.check).toHaveAccessibleName(`${result} Passed`);
+    for (const { expected, region, limits } of classes) {
+      const card = frame.getByRole("region", { name: region });
+      await check(card.locator('[data-slot="class-limits"]'), expected.check).toHaveText(named(limits));
+      await check(card.locator('[data-slot="class-total"]'), expected.check).toHaveText(
+        `Found ${expected.found} of ${expected.accept} allowed`,
+      );
+      await check(card.locator('[data-slot="status-pill"]'), expected.check).toHaveText("Passed");
     }
     for (const [code, count] of Object.entries(EXPECT_MAJOR.byDefect)) {
       const label = must(REPORT.visual.major.rows.find((defect) => defect.code === code), `major row ${code}`).label;

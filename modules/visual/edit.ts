@@ -16,7 +16,7 @@ import {
 /** Where a count goes: a size and class, and a hand when the template splits hands. */
 export type DefectCell = { size: string; cls: DefectClass; hand?: Hand };
 
-/** CounterTable row keys of one-off labels; defect codes never contain a colon. */
+/** Row keys of one-off labels on the capture screen; defect codes never contain a colon. */
 export const ONE_OFF_ROW_PREFIX = "unmapped:";
 
 /** One-off labels compare without case or extra spaces: "faint print" is "Faint  print". */
@@ -72,6 +72,40 @@ export function fillInspected(data: VisualData, size: string, classes: readonly 
   let next = data;
   for (const cls of classes) {
     if (sizeOf(next, size)[cls].inspected === null) next = setInspected(next, size, cls, n);
+  }
+  return next;
+}
+
+/**
+ * The gloves inspected the given classes of a size share, for the one field
+ * the capture screen shows per size (Kenneth, 26 October 2026): `{ value }`
+ * while every class holds the same (null: none entered yet), null where they
+ * differ (data entered class by class before then), so each class keeps a
+ * field of its own.
+ */
+export function sharedInspected(
+  data: VisualData,
+  size: string,
+  classes: readonly DefectClass[],
+): { value: number | null } | null {
+  const values = classes.map((cls) => sizeOf(data, size)[cls].inspected);
+  const value = values[0] ?? null;
+  return values.every((other) => other === value) ? { value } : null;
+}
+
+/**
+ * The gloves inspected for every given class of the size, as the size's one
+ * field enters them. The same data when none changes.
+ */
+export function setSizeInspected(
+  data: VisualData,
+  size: string,
+  classes: readonly DefectClass[],
+  inspected: number | null,
+): VisualData {
+  let next = data;
+  for (const cls of classes) {
+    if (sizeOf(next, size)[cls].inspected !== inspected) next = setInspected(next, size, cls, inspected);
   }
   return next;
 }

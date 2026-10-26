@@ -418,20 +418,21 @@ test("(a) an STD_SG inspection with right and left hands and dye leak works on t
   await expectSizeStatus(page, "7.5", "Passed");
   await expectSectionStatus(page, "watertight", "Watertight Test", "Passed");
 
-  /* Visual: three classes per size, per hand */
+  /* Visual: one size at a time, its three classes as cards, a Right and a Left stepper per row */
   await openSection(page, "visual", "Visual Inspection");
   await chooseSize(page, "6.5");
-  await press(page.getByRole("button", { name: "Use 80 for Every Class of size 6.5" }));
+  await press(page.getByRole("button", { name: "Use 80 from the Sampling Plan for size 6.5" }));
+  await expect(panel(page).getByRole("textbox", { name: "No. of Sample Inspected, Size 6.5" })).toHaveValue("80");
   await step(page, "Thin Spot on Glove Body, Size 6.5, Right Hand", 2);
   await step(page, "Oil Stain, Size 6.5, Left Hand", 1);
   await step(page, "Small Dirt / Stain, Size 6.5, Right Hand", 1);
   await step(page, "Sticky Pleats (< 5mm), Size 6.5, Left Hand", 2);
   await chooseSize(page, "7.5");
-  await press(page.getByRole("button", { name: "Use 125 for Every Class of size 7.5" }));
+  await press(page.getByRole("button", { name: "Use 125 from the Sampling Plan for size 7.5" }));
   // A critical defect on either hand fails the size at once.
   await step(page, "Embedded Insects, Size 7.5, Left Hand", 1);
-  const critical = panel(page).getByRole("table", { name: /^Critical Defects/ });
-  await expectRow(critical, /^Disposition - Visual Critical/, "Failed");
+  const critical = panel(page).getByRole("region", { name: /^Critical Defects/ });
+  await expect(critical.locator('[data-slot="status-pill"]')).toHaveText("Failed");
   await expectSizeStatus(page, "7.5", "Failed");
   await expectSectionStatus(page, "visual", "Visual Inspection", "Failed");
   await shot(page, "a-visual-7.5-critical");
@@ -444,7 +445,7 @@ test("(a) an STD_SG inspection with right and left hands and dye leak works on t
   await minor.getByRole("textbox", { name: "Defect Not in the List" }).fill("Glove stuck to pouch");
   await press(minor.getByRole("button", { name: "Add", exact: true }));
   await step(page, "Glove stuck to pouch, Size 7.5, Left Hand", 1);
-  await expect(minor.getByRole("rowheader", { name: /^Glove stuck to pouch/ })).toHaveAttribute("data-unmapped", "true");
+  await expect(minor.locator('[data-slot="defect-row"][data-unmapped="true"]', { hasText: "Glove stuck to pouch" })).toHaveCount(1);
   await expectSectionStatus(page, "visual", "Visual Inspection", "Passed");
 
   /* Dimension: 13 gloves a size, pasted as from a caliper app (no specs yet: nothing judged) */

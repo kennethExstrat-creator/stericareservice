@@ -306,10 +306,11 @@ test("Safedon's box switcher holds at either end and keeps the focus", async ({ 
   await shot(page, "switcher-at-end", switcher);
 });
 
-test("a one-off defect row taken off leaves the focus in its table", async ({ page, context, baseURL }) => {
+test("a one-off defect row taken off leaves the focus in its class card", async ({ page, context, baseURL }) => {
   await signInAs(context, baseURL!);
   const frame = await openModule(page, "visual");
-  // The first class's "Defect Not in the List"; while its form is open the button gives way to it.
+  // The first class card's "Defect Not in the List" (26 October 2026: cards, not tables); while its form is
+  // open the button gives way to it.
   const add = frame.getByRole("button", { name: "Defect Not in the List" }).first();
   for (const label of ["Seam", "Tear"]) {
     await press(add);
