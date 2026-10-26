@@ -64,6 +64,18 @@ describe("the paper form guide", () => {
     expect(line).toContain("never from the readings or a result");
     expect(line).toContain("Never write dimensions' manualResults");
   });
+
+  it("reads a packing row marked as an aged sample into the size's aged sample, never into its boxes (Kenneth, 26 October 2026)", () => {
+    const lines = PAPER_FORM_GUIDE.split("\n");
+    const at = lines.findIndex((entry) => entry.startsWith("- An aged sample is not a box"));
+    // With the box/carton number lines, after them.
+    expect(at).toBe(lines.findIndex((entry) => entry.startsWith("- So each box/carton number a document gives for a size's boxes")) + 1);
+    const line = lines[at];
+    expect(line).toContain('a dispensing or packing row marked as one (a remark such as "Aged sample" or "aged" in Others, usually with no box/carton number)');
+    expect(line).toContain("goes into that size's agedSample in dispensing_packing");
+    expect(line).toContain("(its layering %, dispensing %, stickiness code, and the remark as its note), never into its boxes.");
+    expect(line).toContain("Each size has at most one aged sample.");
+  });
 });
 
 describe("the sampling plan's counts and the weight (Kenneth, 26 October 2026)", () => {

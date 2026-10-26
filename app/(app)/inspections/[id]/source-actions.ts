@@ -2,7 +2,7 @@
 
 import { unstable_rethrow } from "next/navigation";
 import { z } from "zod";
-import { attachTargets, readSourceDocument, type SourceModule } from "@/lib/ai/source-reader";
+import { attachTargets, moduleDataJsonSchema, readSourceDocument, type SourceModule } from "@/lib/ai/source-reader";
 import { loadAiEnv, loadGlossary } from "@/lib/ai/settings";
 import { recordAiUsageLater } from "@/lib/ai/usage";
 import { authorizeAction } from "@/lib/auth/session";
@@ -14,7 +14,6 @@ import {
   type SourceFileStatus,
   type SourceProposals,
 } from "@/lib/inspections/source-documents";
-import type { ModuleKey } from "@/lib/schemas/module-result";
 import { ResolvedTemplateSchema } from "@/lib/schemas/template";
 import type { DocumentMediaType } from "@/lib/schemas/document-fill";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -123,17 +122,6 @@ function mediaTypeOf(bytes: Buffer): DocumentMediaType | null {
   return null;
 }
 
-/** The JSON Schema of a module's data, as the AI reads it; null when it cannot be written. */
-function dataJsonSchema(key: ModuleKey): unknown {
-  try {
-    const schema = z.toJSONSchema(MODULE_REGISTRY[key].dataSchema, { io: "input", unrepresentable: "any" });
-    delete schema.$schema;
-    return schema;
-  } catch {
-    return null;
-  }
-}
-
 /**
  * Reads one Source Document with the AI and answers what it proposes for
  * the inspection's modules, the file itself as a step's lab report or a
@@ -206,7 +194,7 @@ export async function readSourceFile(inspectionId: string, fileId: string): Prom
     const current: Record<string, unknown> = {};
     for (const entry of template.data.modules) {
       if (!entry.include || switchedOff.has(entry.key) || NOT_FILLED_BY_AI.includes(entry.key)) continue;
-      const schema = dataJsonSchema(entry.key);
+      const schema = moduleDataJsonSchema(MODULE_REGISTRY[entry.key].dataSchema);
       if (schema === null) continue;
       modules.push({ key: entry.key, title: entry.title, config: entry.config, schema });
       current[entry.key] = readModuleEntry(data.data, "modules", entry.key).value ?? null;

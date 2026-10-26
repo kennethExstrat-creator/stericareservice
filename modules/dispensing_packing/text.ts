@@ -25,6 +25,12 @@ export function joinWithAmpersand(items: readonly string[]): string {
   return `${items.slice(0, -1).join(", ")} & ${items.at(-1)}`;
 }
 
+/** "Layering", "Layering and Stickiness", "Layering, Dispensing and Stickiness": a list inside a sentence. */
+export function joinWithAnd(items: readonly string[]): string {
+  if (items.length <= 1) return items.join("");
+  return `${items.slice(0, -1).join(", ")} and ${items.at(-1)}`;
+}
+
 /** Distinct code letters in table order (A to R), for a heading's {codeLetters}. */
 export function codeLettersOf(letters: Iterable<string | null>): string[] {
   const present = new Set(letters);

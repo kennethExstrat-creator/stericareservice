@@ -73,9 +73,11 @@ const MAX_TOKENS = 16_000;
  * how), which the capture screen fills into an empty list or over one the
  * document's list completes (lib/inspections/source-documents.ts). Since 26
  * October 2026 weight is one value per size, the average weight a dimension
- * sheet prints (WEIGHT_GUIDE), and every lab report is filed in "attachTo",
+ * sheet prints (WEIGHT_GUIDE); every lab report is filed in "attachTo",
  * also beside one a step already lists: a lab often issues one report per
- * size.
+ * size; and a packing row marked as an aged sample goes into the size's
+ * agedSample, never its boxes (PAPER_FORM_GUIDE, and the schema's own
+ * description of the field).
  */
 export const SOURCE_READER_SYSTEM_PROMPT = `You read the source documents of a glove quality-control inspection for SteriCare and fill in the inspection's fields from them.
 
@@ -106,6 +108,21 @@ ${PAPER_FORM_GUIDE}
 ${LAB_REPORT_GUIDE}
 
 ${WEIGHT_GUIDE}`;
+
+/**
+ * The JSON Schema of a module's data as the reading gets it (`schema` of a
+ * SourceModule): the input shape, so a field with a default is optional,
+ * and each field's description with it. Null when it cannot be written.
+ */
+export function moduleDataJsonSchema(dataSchema: z.ZodType): unknown {
+  try {
+    const schema = z.toJSONSchema(dataSchema, { io: "input", unrepresentable: "any" });
+    delete schema.$schema;
+    return schema;
+  } catch {
+    return null;
+  }
+}
 
 /** What makes a lab report a step's own, for the steps that keep one (linkSourceFile). */
 const LAB_REPORT_RESULTS: Readonly<Record<string, string>> = {

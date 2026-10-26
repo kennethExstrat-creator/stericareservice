@@ -1,10 +1,39 @@
 import { describe, expect, it } from "vitest";
 import { fileLinkTarget } from "@/lib/inspections/source-documents";
+import { MODULE_REGISTRY } from "@/modules";
 import { DOCUMENTS_DEFAULT_CONFIG } from "@/modules/documents/config";
 import { LAB_REPORT_GUIDE, PAPER_FORM_GUIDE, WEIGHT_GUIDE } from "./reading-guide";
-import { attachTargets, attachToText, parseSourceAnswer, SOURCE_READER_SYSTEM_PROMPT } from "./source-reader";
+import { attachTargets, attachToText, moduleDataJsonSchema, parseSourceAnswer, SOURCE_READER_SYSTEM_PROMPT } from "./source-reader";
+
+/** A JSON Schema node, as far as these tests read it. */
+type Node = { $schema?: string; description?: string; properties?: Record<string, Node>; additionalProperties?: Node; required?: string[] };
+
+describe("the modules' data as the reading gets it (moduleDataJsonSchema)", () => {
+  it("gives the packing check's aged sample per size beside the boxes, without a box/carton number, and says what it is (Kenneth, 26 October 2026)", () => {
+    const schema = moduleDataJsonSchema(MODULE_REGISTRY.dispensing_packing.dataSchema) as Node;
+    expect(schema.$schema).toBeUndefined();
+    const size = schema.properties?.sizes?.additionalProperties;
+    expect(Object.keys(size?.properties ?? {})).toEqual(["boxes", "agedSample"]);
+    const aged = size?.properties?.agedSample;
+    expect(Object.keys(aged?.properties ?? {})).toEqual(["layeringPct", "dispensingPct", "stickiness", "note"]);
+    expect(aged?.description).toContain("The size's aged sample: the packing row marked as aged");
+    expect(aged?.description).toContain("never one of the boxes");
+    expect(size?.properties?.boxes?.description).toContain("Never the aged sample: that is agedSample.");
+    // The input shape: nothing is required, so a reading gives only what it read.
+    expect(size?.required ?? []).toEqual([]);
+    expect(aged?.required ?? []).toEqual([]);
+  });
+
+  it("writes every module's data, so no module is left out of a reading", () => {
+    for (const [key, definition] of Object.entries(MODULE_REGISTRY)) expect(moduleDataJsonSchema(definition.dataSchema), key).not.toBeNull();
+  });
+});
 
 describe("the reading's system prompt", () => {
+  it("tells the reader where an aged sample goes, as the paper form guide says (Kenneth, 26 October 2026)", () => {
+    expect(SOURCE_READER_SYSTEM_PROMPT).toContain("- An aged sample is not a box: a dispensing or packing row marked as one");
+  });
+
   it("puts a box/carton number into its test and into Box/Carton Numbers, as the paper form guide says (Kenneth, 14 October 2026)", () => {
     const lines = SOURCE_READER_SYSTEM_PROMPT.split("\n");
     const at = lines.findIndex((line) => line.startsWith("- A box/carton number goes into"));

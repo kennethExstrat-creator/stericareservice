@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { boxesOf, rowsShown, updatePackingBox, withoutTrailingBlanks } from "./edit";
-import { DispensingPackingDataSchema, emptyPackingBox, type DispensingPackingData } from "./schema";
+import { agedSampleOf, boxesOf, rowsShown, updateAgedSample, updatePackingBox, withoutTrailingBlanks } from "./edit";
+import { DispensingPackingDataSchema, emptyAgedSample, emptyPackingBox, type DispensingPackingData } from "./schema";
 
 const A = { ...emptyPackingBox(), boxNo: 13, layeringPct: 90, dispensingPct: 92, stickiness: "A" };
 
@@ -36,5 +36,37 @@ describe("dispensing_packing editing", () => {
       .toEqual([emptyPackingBox(), { ...emptyPackingBox(), note: "torn" }]);
     expect(withoutTrailingBlanks([emptyPackingBox(), A, emptyPackingBox()])).toEqual([emptyPackingBox(), A]);
     expect(updatePackingBox({ sizes: {} }, "S", 4, {})).toEqual({ sizes: { S: { boxes: [] } } });
+  });
+
+  it("keeps a size's aged sample when a box row changes", () => {
+    const aged = { ...emptyAgedSample(), layeringPct: 88 };
+    const data: DispensingPackingData = { sizes: { M: { boxes: [A], agedSample: aged } } };
+    expect(updatePackingBox(data, "M", 1, { layeringPct: 90 }).sizes.M).toEqual({ boxes: [A, { ...emptyPackingBox(), layeringPct: 90 }], agedSample: aged });
+  });
+});
+
+describe("dispensing_packing aged sample editing (Kenneth, 26 October 2026)", () => {
+  it("changes the size's aged sample, never a box, creating the size when it has none yet", () => {
+    const next = updateAgedSample({ sizes: {} }, "S", { layeringPct: 88 });
+    expect(next).toEqual({ sizes: { S: { boxes: [], agedSample: { ...emptyAgedSample(), layeringPct: 88 } } } });
+    expect(DispensingPackingDataSchema.parse(next)).toEqual(next);
+    expect(agedSampleOf(next, "S")).toEqual({ ...emptyAgedSample(), layeringPct: 88 });
+    expect(agedSampleOf(next, "M")).toEqual(emptyAgedSample());
+  });
+
+  it("keeps the size's boxes and the other sizes, and adds to what the aged sample holds", () => {
+    const data: DispensingPackingData = {
+      sizes: { M: { boxes: [A], agedSample: { ...emptyAgedSample(), layeringPct: 88 } }, XL: { boxes: [A] } },
+    };
+    const next = updateAgedSample(data, "M", { stickiness: "B" });
+    expect(next.sizes.M).toEqual({ boxes: [A], agedSample: { ...emptyAgedSample(), layeringPct: 88, stickiness: "B" } });
+    expect(next.sizes.M.boxes).toBe(data.sizes.M.boxes);
+    expect(next.sizes.XL).toBe(data.sizes.XL);
+  });
+
+  it("saves no aged sample once nothing is left in it", () => {
+    const data: DispensingPackingData = { sizes: { M: { boxes: [A], agedSample: { ...emptyAgedSample(), note: "Aged sample" } } } };
+    expect(updateAgedSample(data, "M", { note: null })).toEqual({ sizes: { M: { boxes: [A] } } });
+    expect(updateAgedSample({ sizes: {} }, "S", { note: " " })).toEqual({ sizes: { S: { boxes: [] } } });
   });
 });

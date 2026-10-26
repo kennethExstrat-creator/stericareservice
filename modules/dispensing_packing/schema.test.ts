@@ -21,9 +21,17 @@ import {
   DISPENSING_PACKING_TITLE,
   DispensingPackingConfigSchema,
 } from "./config";
-import { DispensingPackingDataSchema, emptyDispensingPacking, emptyPackingBox, isBlankPackingBox } from "./schema";
+import {
+  DispensingPackingDataSchema,
+  emptyAgedSample,
+  emptyDispensingPacking,
+  emptyPackingBox,
+  isBlankAgedSample,
+  isBlankPackingBox,
+} from "./schema";
 
 const BOX = { boxNo: 13, layeringPct: 90, dispensingPct: 92, stickiness: "A", note: null };
+const AGED = { layeringPct: 88, dispensingPct: 86, stickiness: "B", note: "Aged sample" };
 
 describe("dispensing_packing data", () => {
   it("starts empty and accepts a draft with anything missing, per size and per box", () => {
@@ -73,6 +81,63 @@ describe("dispensing_packing data", () => {
     expect(isBlankPackingBox({ ...emptyPackingBox(), note: "  " })).toBe(true);
     expect(isBlankPackingBox({ ...emptyPackingBox(), note: "torn" })).toBe(false);
     expect(isBlankPackingBox({ ...emptyPackingBox(), stickiness: "A" })).toBe(false);
+  });
+});
+
+describe("dispensing_packing aged sample (Kenneth, 26 October 2026)", () => {
+  it("reads data saved before it, with no aged sample, as it was", () => {
+    const saved = { sizes: { M: { boxes: [BOX] }, XL: { boxes: [] } } };
+    const parsed = DispensingPackingDataSchema.parse(saved);
+    expect(parsed).toEqual(saved);
+    expect(parsed.sizes.M).not.toHaveProperty("agedSample");
+  });
+
+  it("holds one per size, a box row's values without the box/carton number, each optional in a draft", () => {
+    expect(emptyAgedSample()).toEqual({ layeringPct: null, dispensingPct: null, stickiness: null, note: null });
+    expect(Object.keys(emptyAgedSample()).sort()).toEqual(dataKeys("dispensing_packing", "entered").filter((key) => key !== "boxNo").sort());
+    expect(DispensingPackingDataSchema.parse({ sizes: { S: { boxes: [BOX], agedSample: AGED } } }).sizes.S).toEqual({
+      boxes: [BOX],
+      agedSample: AGED,
+    });
+    expect(DispensingPackingDataSchema.parse({ sizes: { S: { agedSample: { dispensingPct: 86 } } } }).sizes.S).toEqual({
+      boxes: [],
+      agedSample: { ...emptyAgedSample(), dispensingPct: 86 },
+    });
+  });
+
+  it("takes the same types and limits as a box row's values, and no box/carton number", () => {
+    const aged = (agedSample: unknown) => DispensingPackingDataSchema.safeParse({ sizes: { S: { agedSample } } }).success;
+    expect(aged({ ...AGED, layeringPct: 88.5 })).toBe(true);
+    for (const text of ["88", "2 42", "88%"]) {
+      expect(aged({ layeringPct: text })).toBe(false);
+      expect(aged({ dispensingPct: text })).toBe(false);
+    }
+    for (const code of ["", "A B", 1]) expect(aged({ stickiness: code })).toBe(false);
+    expect(aged({ note: "x".repeat(2001) })).toBe(false);
+    expect(aged({ ...AGED, boxNo: 13 })).toBe(false);
+    expect(aged({ ...AGED, result: "pass" })).toBe(false);
+    // One per size: not a list.
+    expect(aged([AGED])).toBe(false);
+  });
+
+  it("tells an aged sample with nothing in it from a started one", () => {
+    expect(isBlankAgedSample(undefined)).toBe(true);
+    expect(isBlankAgedSample(emptyAgedSample())).toBe(true);
+    expect(isBlankAgedSample({ ...emptyAgedSample(), note: " " })).toBe(true);
+    expect(isBlankAgedSample({ ...emptyAgedSample(), note: "Aged sample" })).toBe(false);
+    expect(isBlankAgedSample({ ...emptyAgedSample(), layeringPct: 0 })).toBe(false);
+  });
+
+  it("tells Steri-AI in the data's JSON Schema what goes in it, and that it is never one of the boxes", () => {
+    const schema = z.toJSONSchema(DispensingPackingDataSchema, { io: "input" }) as unknown as {
+      properties: { sizes: { additionalProperties: { properties: Record<string, { description?: string; properties?: object }> } } };
+    };
+    const size = schema.properties.sizes.additionalProperties.properties;
+    expect(Object.keys(size)).toEqual(["boxes", "agedSample"]);
+    expect(Object.keys(size.agedSample.properties ?? {})).toEqual(["layeringPct", "dispensingPct", "stickiness", "note"]);
+    expect(size.agedSample.description).toContain('the packing row marked as aged (a remark such as "Aged sample")');
+    expect(size.agedSample.description).toContain("never one of the boxes");
+    expect(size.boxes.description).toContain("Never the aged sample: that is agedSample.");
   });
 });
 

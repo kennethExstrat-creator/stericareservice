@@ -181,7 +181,8 @@ describe("dispensing_packing capture", () => {
 
   it("offers the template's stickiness codes and shows its legend", () => {
     const html = render();
-    expect(count(html, '<option value="B1">B1</option>')).toBe(13);
+    // In each of the 13 box rows and in the aged sample's row.
+    expect(count(html, '<option value="B1">B1</option>')).toBe(13 + 1);
     expect(html).toContain("A mix of non sticky to light stickiness at the bead");
     expect(html).toContain("Glove Stickiness Code");
     // The legend's pills at the kit's touch size, 16 px on iPad.
@@ -237,5 +238,108 @@ describe("dispensing_packing capture", () => {
     expect(/<input[^>]*aria-label="Box\/Carton #, Item 12"[^>]*>/.exec(html)?.[0]).toContain('value="2336"');
     expect(/<input[^>]*aria-label="Box\/Carton #, Item 12"[^>]*>/.exec(html)?.[0]).toContain("readOnly");
     expect(render()).toContain("Add Box");
+  });
+});
+
+describe("dispensing_packing capture: the aged sample (Kenneth, 26 October 2026)", () => {
+  const AGED = { layeringPct: 88, dispensingPct: 86, stickiness: "B", note: "Aged sample" };
+  const withAged = (agedSample: Partial<typeof AGED>, boxes = stdEgData().sizes.M.boxes) =>
+    DispensingPackingDataSchema.parse({ sizes: { M: { boxes, agedSample } } });
+  /** The size's Aged Sample section. */
+  const agedSection = (html: string) =>
+    /<section[^>]*data-issue-path="\[&quot;sizes&quot;,&quot;M&quot;,&quot;agedSample&quot;\]"[^>]*>[\s\S]*?<\/section>/.exec(html)?.[0] ?? "";
+  /** Size M's tab, with its result. */
+  const sizeTab = (html: string) => /<button[^>]*role="tab"[^>]*data-size="M"[^>]*>[\s\S]*?<\/button>/.exec(html)?.[0] ?? "";
+
+  it("gives the size a section of its own under the boxes and their results: one row of their values, no box/carton number", () => {
+    const html = render();
+    const section = agedSection(html);
+    expect(section).toMatch(/<h3[^>]*>Aged Sample<\/h3>/);
+    expect(section).toContain("Judged on its own: not counted with the boxes or in their averages.");
+    expect(html.indexOf(section)).toBeGreaterThan(html.lastIndexOf('data-slot="requirement-list"'));
+    expect(html.indexOf(section)).toBeLessThan(html.indexOf("Glove Stickiness Code"));
+    for (const heading of ["Layering %", "Dispensing %", "Stickiness **", "Others:"]) expect(section).toContain(`>${heading}</th>`);
+    expect(section).not.toContain("Box/Carton #");
+    expect(section).not.toContain(">Item</th>");
+    for (const label of ["Layering %, Aged Sample", "Dispensing %, Aged Sample", "Others:, Aged Sample"]) {
+      expect(section).toMatch(new RegExp(`<input[^>]*aria-label="${label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}"`));
+    }
+    expect(section).toContain('aria-label="Stickiness **, Aged Sample"');
+    // Its cells are reached by issue links, and are as tall as a box row's: 44 px on a touchscreen.
+    expect(section).toContain('data-issue-path="[&quot;sizes&quot;,&quot;M&quot;,&quot;agedSample&quot;,&quot;dispensingPct&quot;]"');
+    expect(/<select[^>]*aria-label="Stickiness \*\*, Aged Sample"[^>]*>/.exec(section)?.[0]).toContain("touch:h-11");
+    expect(/<input[^>]*aria-label="Others:, Aged Sample"[^>]*>/.exec(section)?.[0]).toContain("touch:h-11");
+    // Nothing in it yet: no result of its own, and the boxes' results alone.
+    expect(section).not.toContain('data-slot="status-pill"');
+    expect(section).not.toContain('data-slot="requirement-list"');
+  });
+
+  it("shows its own Passed / Failed against the same spec, and leaves the boxes' averages and results as they are", () => {
+    const html = render({ data: withAged({ ...AGED, layeringPct: 60 }) });
+    const section = agedSection(html);
+    expect(/<header[\s\S]*?<\/header>/.exec(section)?.[0]).toContain('data-slot="status-pill" data-status="fail"');
+    expect(section).toContain("60.0");
+    expect(section).toContain("≥ 70%");
+    expect(section).toContain("≥ 80%");
+    expect(section).toContain("A, B, B1, C");
+    const outcomes = [...section.matchAll(/data-outcome="([a-z_]+)"/g)].map((match) => match[1]);
+    expect(outcomes).toEqual(["fail", "pass", "pass"]);
+    // The boxes' table: 88.3% and 90.3% passed, as without it.
+    const boxes = html.slice(0, html.indexOf(section));
+    expect(boxes).toContain("88.3");
+    expect(boxes).toContain("90.3");
+    expect(count(boxes, 'data-outcome="pass"')).toBe(3);
+    // The size fails with it.
+    expect(sizeTab(html)).toContain('data-slot="result-chip" data-status="fail"');
+  });
+
+  it("completes eight complete boxes with it, as on Kenneth's screen: nothing incomplete, every result Passed", () => {
+    const eight = makeTestContext({ sizes: ["M"], sampling: { M: makeSampling({ packagingDispensing: 8 }) } });
+    const html = render({ data: withAged(AGED, stdEgData().sizes.M.boxes.slice(0, 8)), context: eight });
+    expect(html).not.toContain("boxes complete");
+    expect(html).not.toContain("is incomplete");
+    expect(count(html, 'data-outcome="pass"')).toBe(3 + 3);
+    expect(count(html, 'data-outcome="not_done"')).toBe(0);
+    expect(/<header[\s\S]*?<\/header>/.exec(agedSection(html))?.[0]).toContain('data-status="pass"');
+    expect(sizeTab(html)).toContain('data-slot="result-chip" data-status="pass"');
+  });
+
+  it("lists a value still missing under its row with a link, Not Done, while the boxes keep their results", () => {
+    const html = render({ data: withAged({ layeringPct: 88 }) });
+    const section = agedSection(html);
+    const list = /<ul[^>]*data-slot="box-issues"[^>]*>[\s\S]*?<\/ul>/.exec(section)?.[0] ?? "";
+    expect(count(list, "<button")).toBe(1);
+    expect(list).toContain("Aged Sample for size M: Dispensing and Stickiness are not entered yet.");
+    expect(list).toContain("text-warn");
+    expect(/<header[\s\S]*?<\/header>/.exec(section)?.[0]).toContain('data-status="not_done"');
+    // An empty cell is no error: it does not turn red.
+    expect(/<input[^>]*aria-label="Dispensing %, Aged Sample"[^>]*>/.exec(section)?.[0]).not.toContain('aria-invalid="true"');
+    // The boxes are done: no line about them under their table, and their results stand.
+    expect(html).not.toContain("13 of 13 boxes complete");
+    expect(count(html.slice(0, html.indexOf(section)), 'data-outcome="pass"')).toBe(3);
+  });
+
+  it("fails the size as soon as it fails, and still says how many boxes are complete", () => {
+    const html = render({ data: withAged({ ...AGED, dispensingPct: 76 }, stdEgData().sizes.M.boxes.slice(0, 5)) });
+    expect(sizeTab(html)).toContain('data-slot="result-chip" data-status="fail"');
+    expect(html).toContain("5 of 13 boxes complete.");
+    expect(html).not.toContain("Aged Sample: Layering");
+    expect(count(html.slice(0, html.indexOf(agedSection(html))), 'data-outcome="not_done"')).toBe(3);
+  });
+
+  it("is read-only with the inspection, and left out where none was entered", () => {
+    const html = render({ data: withAged(AGED), readOnly: true });
+    const section = agedSection(html);
+    expect(section).not.toContain("<select");
+    expect(/<input[^>]*aria-label="Layering %, Aged Sample"[^>]*>/.exec(section)?.[0]).toContain("readOnly");
+    expect(section).toContain("Aged sample");
+    expect(section).toMatch(/>B<\/span>/);
+    expect(render({ readOnly: true })).not.toContain("Aged Sample");
+  });
+
+  it("is headed in the template's wording", () => {
+    const html = render({ labels: { ...DISPENSING_PACKING_LABELS, agedSample: "Retained Sample" } });
+    expect(html).toMatch(/<h3[^>]*>Retained Sample<\/h3>/);
+    expect(html).toContain('aria-label="Layering %, Retained Sample"');
   });
 });

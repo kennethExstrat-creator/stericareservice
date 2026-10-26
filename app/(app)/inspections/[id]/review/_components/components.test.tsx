@@ -189,6 +189,33 @@ describe("ModuleResults on the STD_EG example", () => {
   it("keeps a headline that says something of its own", () => {
     expect(text(row(html, "module-dimensions"))).toContain("Median within spec for size M. Size M Passed Median: Length 245");
   });
+
+  it("gives a size's aged sample its own line under the boxes', and none where none was entered (Kenneth, 26 October 2026)", () => {
+    const data = stdEgInspectionData();
+    const packing = data.modules.dispensing_packing as { sizes: { M: { boxes: unknown[] } } };
+    const agedSample = { layeringPct: 88, dispensingPct: 86, stickiness: "B", note: "Aged sample" };
+    const aged = renderToStaticMarkup(
+      <ModuleResults
+        evaluation={evaluateStoredInspection(
+          storedInspection({
+            resolved: stdEgTemplate(),
+            data: { ...data, modules: { ...data.modules, dispensing_packing: { sizes: { M: { ...packing.sizes.M, agedSample } } } } },
+          }),
+          MODULE_REGISTRY,
+        )}
+      />,
+    );
+    const found = row(aged, "module-dispensing_packing");
+    const line = /<span class="[^"]*whitespace-pre-line[^"]*">([^<]*)<\/span>/.exec(found)?.[1] ?? "";
+    expect(line).toBe(
+      "Layering 88.3% (min. 70%), Dispensing 90.3% (min. 80%), Stickiness A: Passed.\n" +
+        "Aged Sample: Layering 88.0% (min. 70%), Dispensing 86.0% (min. 80%), Stickiness B: Passed.",
+    );
+    // Said once, on the size's line: the module's summary only strings it together.
+    expect(count(text(found), "Aged Sample:")).toBe(1);
+    expect(text(found)).toMatch(/^Glove Packing Check Passed Size M Passed Layering 88\.3%/);
+    expect(text(row(html, "module-dispensing_packing"))).not.toContain("Aged Sample");
+  });
 });
 
 describe("formatCustomValue", () => {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { codeLettersOf, fillPlaceholders, inSentence, joinWithAmpersand, plainLabel } from "./text";
+import { codeLettersOf, fillPlaceholders, inSentence, joinWithAmpersand, joinWithAnd, plainLabel } from "./text";
 
 describe("dispensing_packing wording", () => {
   it("takes a column heading's words without its unit or footnote marks", () => {
@@ -25,6 +25,13 @@ describe("dispensing_packing wording", () => {
     expect(joinWithAmpersand(["D", "E"])).toBe("D & E");
     expect(joinWithAmpersand(["K", "L", "M"])).toBe("K, L & M");
     expect(codeLettersOf(["E", null, "C", "E"])).toEqual(["C", "E"]);
+  });
+
+  it("lists words inside a sentence with a comma and a last 'and'", () => {
+    expect(joinWithAnd([])).toBe("");
+    expect(joinWithAnd(["Stickiness"])).toBe("Stickiness");
+    expect(joinWithAnd(["Dispensing", "Stickiness"])).toBe("Dispensing and Stickiness");
+    expect(joinWithAnd(["Layering", "Dispensing", "Stickiness"])).toBe("Layering, Dispensing and Stickiness");
   });
 
   it("fills the placeholders it has values for and leaves the others visible", () => {

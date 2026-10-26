@@ -6,7 +6,9 @@
 // summary that only strings the per-size lines together stays out, and the
 // conclusion's HOLD reads "On Hold", as the final result does
 // (lib/inspections/review/results.ts). The header is General Information, as
-// on the capture screen (lib/design/screen-names.ts).
+// on the capture screen (lib/design/screen-names.ts). A size's summary may
+// run to more than one line (the packing check's aged sample has its own,
+// 26 October 2026): each shows on its own line.
 //
 // Desktop (from 1024 px): one row per module in three columns under a
 // header row. iPad portrait: each module stacks, and the comment is labelled.
@@ -166,7 +168,8 @@ function ModuleRow({ entry, issues, context }: { entry: ModuleEvaluation; issues
                     {formatSize(own.size, { sizes: context.templateSizes, prefix: true })}
                   </span>{" "}
                   <StatusPill status={own.status} size="sm" />{" "}
-                  {own.summary && <span className={cn("text-muted-foreground", TEXT)}>{own.summary}</span>}
+                  {/* Each line of a size's summary on its own line: the packing check's aged sample after its boxes. */}
+                  {own.summary && <span className={cn("whitespace-pre-line text-muted-foreground", TEXT)}>{own.summary}</span>}
                 </li>
               ))}
             </ul>

@@ -225,6 +225,51 @@ describe("applyProposals on Dimension's specs (Kenneth, 26 October 2026)", () =>
   });
 });
 
+describe("applyProposals on the packing check's aged sample (Kenneth, 26 October 2026)", () => {
+  const included = new Set(["dispensing_packing"]);
+  // Placeholder box/carton numbers (docs/FIXTURES.md): a size's 8 boxes, as read from a dispensing page.
+  const BOXES = [101, 102, 103, 104, 105, 106, 107, 108].map((boxNo) => ({ boxNo, layeringPct: 90, dispensingPct: 92, stickiness: "A" }));
+  const AGED = { layeringPct: 88, dispensingPct: 86, stickiness: "B", note: "Aged sample" };
+  type Packing = { sizes: Record<string, { boxes: unknown[]; agedSample?: unknown }> };
+  const packing = (data: { modules: Readonly<Record<string, unknown>> }) => data.modules.dispensing_packing as Packing;
+
+  it("fills the size's aged sample beside its boxes, never a ninth box", () => {
+    const result = applyProposals(
+      { modules: {}, custom: {} },
+      { dispensing_packing: { sizes: { S: { boxes: BOXES, agedSample: AGED } } } },
+      MODULE_REGISTRY,
+      included,
+    );
+    expect(packing(result.data).sizes.S.boxes).toHaveLength(8);
+    expect(packing(result.data).sizes.S.agedSample).toEqual(AGED);
+    // 4 values in each of the 8 boxes, and the aged sample's 4.
+    expect(result.filled).toBe(8 * 4 + 4);
+  });
+
+  it("lands in an empty aged sample of a size whose boxes are entered, and keeps what one holds", () => {
+    const entered = { modules: { dispensing_packing: { sizes: { S: { boxes: BOXES } } } }, custom: {} };
+    const filled = applyProposals(entered, { dispensing_packing: { sizes: { S: { agedSample: AGED } } } }, MODULE_REGISTRY, included);
+    expect(packing(filled.data).sizes.S).toEqual({ boxes: BOXES.map((box) => ({ ...box, note: null })), agedSample: AGED });
+    expect(filled.filled).toBe(4);
+
+    const held = { modules: { dispensing_packing: { sizes: { S: { boxes: BOXES, agedSample: { layeringPct: 87, dispensingPct: null, stickiness: null, note: null } } } } }, custom: {} };
+    const completed = applyProposals(held, { dispensing_packing: { sizes: { S: { agedSample: AGED } } } }, MODULE_REGISTRY, included);
+    expect(packing(completed.data).sizes.S.agedSample).toEqual({ ...AGED, layeringPct: 87 });
+    expect(completed.filled).toBe(3);
+  });
+
+  it("leaves out an aged sample its schema refuses, and still fills the boxes", () => {
+    const result = applyProposals(
+      { modules: {}, custom: {} },
+      { dispensing_packing: { sizes: { S: { boxes: BOXES, agedSample: { ...AGED, boxNo: 109 } } } } },
+      MODULE_REGISTRY,
+      included,
+    );
+    expect(packing(result.data).sizes.S.boxes).toHaveLength(8);
+    expect(packing(result.data).sizes.S).not.toHaveProperty("agedSample");
+  });
+});
+
 describe("linkSourceFile", () => {
   const FILE = "00000000-0000-4000-8000-000000000501";
   const KEPT = "00000000-0000-4000-8000-000000000502";

@@ -30,6 +30,15 @@ describe("the review's system prompt", () => {
     expect(REVIEW_SYSTEM_PROMPT).not.toContain("carton or box numbers");
   });
 
+  it("reads a size's aged sample as judged apart from the boxes, never one of them (Kenneth, 26 October 2026)", () => {
+    const packing = REVIEW_SYSTEM_PROMPT.split("\n").find((entry) => entry.startsWith("- dispensing_packing:")) ?? "";
+    expect(packing).toContain("A size may also hold one aged sample (data agedSample: the same values, no box/carton number)");
+    expect(packing).toContain("judged on its own against the same minimums and codes (computed agedSample)");
+    expect(packing).toContain(
+      "never counted with the boxes or in their averages: a failed one fails the size, boxes done or not, one entered in part leaves it not done.",
+    );
+  });
+
   it("reads weight as one average per size, an older inspection's gloves averaged (Kenneth, 26 October 2026)", () => {
     const weight = REVIEW_SYSTEM_PROMPT.split("\n").find((entry) => entry.startsWith("- weight:")) ?? "";
     expect(weight).toContain("one value, the size's average weight (g) as the dimension sheet prints it (computed.shown)");

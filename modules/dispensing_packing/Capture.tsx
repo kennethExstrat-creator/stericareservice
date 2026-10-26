@@ -13,7 +13,10 @@
 // size is a warning), is listed under the table with a link to its cell: the
 // cell itself only turns red or amber. Every write goes through
 // useDataUpdater, starting from the latest data: a pasted column reaches the
-// screen as one change with every value (docs/CAPTURE_KIT.md).
+// screen as one change with every value (docs/CAPTURE_KIT.md). Under the
+// boxes, each size's aged sample has a section of its own (Kenneth, 26
+// October 2026): one row of the same values with no box/carton number, its
+// own Passed / Failed once anything is in it, never one of the boxes.
 import { useEffect, useRef, useState, type CSSProperties, type KeyboardEvent, type RefObject } from "react";
 import { ChevronDownIcon, PlusIcon } from "lucide-react";
 import {
@@ -48,10 +51,10 @@ import {
 } from "@/modules/_framework";
 import { sizeOnTabs, useReportShownSize } from "@/modules/_framework/shown-size";
 import type { DispensingPackingComputed, DispensingPackingConfig, DispensingPackingData } from ".";
-import { AVERAGE_DECIMALS, packingHeading, plannedBoxes } from "./calc";
+import { AVERAGE_DECIMALS, boxesLineOf, packingHeading, plannedBoxes, type AgedSampleComputed } from "./calc";
 import { MAX_BOXES_PER_SIZE } from "./config";
-import { boxesOf, rowsShown, updatePackingBox } from "./edit";
-import { emptyPackingBox, type PackingBox } from "./schema";
+import { agedSampleOf, boxesOf, rowsShown, updateAgedSample, updatePackingBox } from "./edit";
+import { emptyPackingBox, isBlankAgedSample, type PackingAgedSample, type PackingBox } from "./schema";
 import { plainLabel } from "./text";
 
 type Props = CaptureProps<DispensingPackingData, DispensingPackingConfig, DispensingPackingComputed>;
@@ -59,11 +62,17 @@ type Update = (change: DataChange<DispensingPackingData>) => void;
 type PercentKey = "layeringPct" | "dispensingPct";
 /** The typed cells of a row: the box/carton number and the two percentages. */
 type TypedKey = "boxNo" | PercentKey;
+type Rejected = (field: PercentKey, entry: InvalidEntry | null, problem: Pick<EntryProblem, "label" | "inputId">) => void;
+
+/** The aged sample's part of a refused entry's key ("M:agedSample:layeringPct"); a box's is its field ("M:boxNo:3"). */
+const AGED = "agedSample";
 
 // A heading on one line, padded as its cells' contents are (px-2.5), so it lines up with them.
 const HEAD =
   "border-b border-border bg-slate-50 px-2.5 py-2 text-left align-bottom font-semibold whitespace-nowrap text-foreground";
 const CELL = "border-b border-l border-border p-0 align-middle";
+// The aged sample's one row sits in its frame: no rule under it, none left of its first cell.
+const AGED_CELL = "border-l border-border p-0 align-middle first:border-l-0";
 
 export default function Capture({
   data,
@@ -169,18 +178,28 @@ function PackingSizePanel({ size, props, update, requested, onRequest, rejected,
   const head = useRef<HTMLTableSectionElement>(null);
   const headHeight = useHeadHeight(head);
   const passing = config.stickinessCodes.filter((entry) => entry.pass).map((entry) => entry.code);
-  // A refused entry is listed while its cell stays empty.
+  const aged = agedSampleOf(data, size);
+  const agedKeyOf = (field: PercentKey) => `${size}:${AGED}:${field}`;
+  // A refused entry is listed while its cell stays empty: a box's under the table, the aged sample's under its own.
   const problems = rejected.filter((problem) => {
     const [owner, field, index] = problem.key.split(":");
     const box = boxes[Number(index)];
-    return owner === size && (box?.[field as TypedKey] ?? null) === null;
+    return owner === size && field !== AGED && (box?.[field as TypedKey] ?? null) === null;
   });
+  const agedProblems = rejected.filter((problem) => {
+    const [owner, part, field] = problem.key.split(":");
+    return owner === size && part === AGED && (aged[field as PercentKey] ?? null) === null;
+  });
+  // The boxes' line of calc's summary, while the boxes are not done (whatever a failed aged sample makes the
+  // size); the aged sample shows its own state. Without computed values, while the size is not done.
+  const boxesNotDone = computed ? computed.layeringResult === "not_done" : result?.status === "not_done";
+  const boxesLine = boxesLineOf(result?.summary ?? "");
 
   return (
     <div ref={panel} className="min-w-0 space-y-4">
       {planned === 0 && (
         <p className="rounded-lg border border-dashed border-not-done-border bg-not-done-tint px-4 py-3 text-sm text-not-done touch:text-base">
-          {result?.summary}
+          {boxesLine}
         </p>
       )}
       <EnterGroup className="relative overflow-clip rounded-lg border border-border bg-card">
@@ -256,11 +275,7 @@ function PackingSizePanel({ size, props, update, requested, onRequest, rejected,
       <IssueLinks issues={rowIssues} root={panel} />
 
       <div className="flex flex-wrap items-center justify-between gap-3">
-        {result?.status === "not_done" && planned > 0 ? (
-          <p className="text-sm text-muted-foreground touch:text-base">{result.summary}</p>
-        ) : (
-          <span />
-        )}
+        {boxesNotDone && planned > 0 ? <p className="text-sm text-muted-foreground touch:text-base">{boxesLine}</p> : <span />}
         {!readOnly && (
           <Button
             type="button"
@@ -310,7 +325,203 @@ function PackingSizePanel({ size, props, update, requested, onRequest, rejected,
           },
         ]}
       />
+
+      {/* Read-only, a size with no aged sample shows none. */}
+      {!(readOnly && isBlankAgedSample(aged)) && (
+        <AgedSampleSection
+          size={size}
+          sizeName={sizeName}
+          sample={aged}
+          computed={computed?.agedSample ?? null}
+          labels={labels}
+          config={config}
+          passing={passing}
+          issues={issues}
+          problems={agedProblems}
+          root={panel}
+          readOnly={readOnly}
+          onPatch={(patch) => update((current) => updateAgedSample(current, size, patch))}
+          onFocus={() => onFocusChange?.({ size })}
+          onRejected={(field, entry, problem) =>
+            onRejected(agedKeyOf(field), entry ? { ...problem, key: agedKeyOf(field), entry } : null)
+          }
+        />
+      )}
     </div>
+  );
+}
+
+type AgedSampleProps = {
+  size: string;
+  /** "Size M", as the size's tables are named. */
+  sizeName: string;
+  sample: PackingAgedSample;
+  /** calc's checks of it; null while nothing is in it (or the engine could not compute the module). */
+  computed: AgedSampleComputed | null;
+  labels: Labels;
+  config: DispensingPackingConfig;
+  /** The stickiness codes that pass, for the spec. */
+  passing: readonly string[];
+  issues: readonly ValidationIssue[];
+  problems: readonly EntryProblem[];
+  root: RefObject<HTMLElement | null>;
+  readOnly: boolean;
+  onPatch: (patch: Partial<PackingAgedSample>) => void;
+  onFocus: () => void;
+  onRejected: Rejected;
+};
+
+/**
+ * The size's aged sample (Kenneth, 26 October 2026: "give aged sample a
+ * special section"): the box table's values in one row, with no box/carton
+ * number, then its own Passed / Failed against the same minimums and codes
+ * once anything is entered, from calc. calc keeps it out of the boxes'
+ * count and averages. Its refused entries and calc's problems in it (a value
+ * still missing is a warning) are listed under its row.
+ */
+function AgedSampleSection({
+  size,
+  sizeName,
+  sample,
+  computed,
+  labels,
+  config,
+  passing,
+  issues,
+  problems,
+  root,
+  readOnly,
+  onPatch,
+  onFocus,
+  onRejected,
+}: AgedSampleProps) {
+  const title = labelFor(labels, "agedSample");
+  const path = (field: keyof PackingAgedSample) => ["sizes", size, AGED, field];
+  const inputId = (field: PercentKey) => `dispensing-packing-${size}-${AGED}-${field}`;
+  // A cell turns red for calc's error only: the warning for a value still missing is listed below.
+  const errorAt = (field: keyof PackingAgedSample) => {
+    const issue = findIssue(issues, path(field));
+    return issue?.level === "error" ? issue.message : undefined;
+  };
+  const percent = (field: PercentKey) => (
+    <PercentField
+      variant="cell"
+      id={inputId(field)}
+      label={`${labelFor(labels, field)}, ${title}`}
+      value={sample[field]}
+      onValueChange={(value) => onPatch(field === "layeringPct" ? { layeringPct: value } : { dispensingPct: value })}
+      onInvalidChange={(entry) => onRejected(field, entry, { label: `${title}, ${labelFor(labels, field)}`, inputId: inputId(field) })}
+      error={errorAt(field)}
+      issuePath={path(field)}
+      onFocus={onFocus}
+      readOnly={readOnly}
+    />
+  );
+
+  return (
+    <ModuleSection
+      title={title}
+      description="Judged on its own: not counted with the boxes or in their averages."
+      status={computed?.result}
+      issuePath={["sizes", size, AGED]}
+    >
+      <EnterGroup className="relative overflow-clip rounded-lg border border-border bg-card">
+        <table className="w-full border-separate border-spacing-0 text-sm touch:text-base">
+          <caption className="sr-only">{`${title}, ${sizeName}`}</caption>
+          {/* The two percentages and the code a fifth each, the notes what is left, as in the box table. */}
+          <colgroup>
+            <col className="w-1/5" />
+            <col className="w-1/5" />
+            <col className="w-1/5" />
+            <col />
+          </colgroup>
+          <thead>
+            <tr>
+              <th scope="col" className={cn(HEAD, "text-right")}>
+                {labelFor(labels, "layeringPct")}
+              </th>
+              <th scope="col" className={cn(HEAD, "border-l text-right")}>
+                {labelFor(labels, "dispensingPct")}
+              </th>
+              <th scope="col" className={cn(HEAD, "border-l")}>
+                {labelFor(labels, "stickiness")}
+              </th>
+              <th scope="col" className={cn(HEAD, "border-l")}>
+                {labelFor(labels, "note")}
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td className={AGED_CELL}>{percent("layeringPct")}</td>
+              <td className={AGED_CELL}>{percent("dispensingPct")}</td>
+              <td className={AGED_CELL}>
+                <StickinessCell
+                  value={sample.stickiness}
+                  config={config}
+                  label={`${labelFor(labels, "stickiness")}, ${title}`}
+                  error={errorAt("stickiness")}
+                  issuePath={path("stickiness")}
+                  readOnly={readOnly}
+                  onFocus={onFocus}
+                  onValueChange={(stickiness) => onPatch({ stickiness })}
+                />
+              </td>
+              <td className={AGED_CELL}>
+                <NoteCell
+                  value={sample.note}
+                  label={`${labelFor(labels, "note")}, ${title}`}
+                  issuePath={path("note")}
+                  readOnly={readOnly}
+                  onFocus={onFocus}
+                  onValueChange={(note) => onPatch({ note })}
+                />
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </EnterGroup>
+
+      <EntryProblems problems={problems} />
+      <IssueLinks issues={agedSampleIssues(issues, size)} root={root} />
+
+      {computed && (
+        <RequirementList
+          caption={`${title}, ${sizeName}`}
+          labels={{ result: labelFor(labels, "layeringResult") }}
+          items={[
+            {
+              key: "layering",
+              label: labelFor(labels, "layeringPct"),
+              value: sample.layeringPct,
+              unit: "%",
+              decimals: AVERAGE_DECIMALS,
+              spec: { kind: "min", min: config.minLayeringPct },
+              specText: formatSpec({ kind: "min", min: config.minLayeringPct }, { unit: "%" }),
+              status: computed.layeringResult,
+            },
+            {
+              key: "dispensing",
+              label: labelFor(labels, "dispensingPct"),
+              value: sample.dispensingPct,
+              unit: "%",
+              decimals: AVERAGE_DECIMALS,
+              spec: { kind: "min", min: config.minDispensingPct },
+              specText: formatSpec({ kind: "min", min: config.minDispensingPct }, { unit: "%" }),
+              status: computed.dispensingResult,
+            },
+            {
+              key: "stickiness",
+              label: labelFor(labels, "stickiness"),
+              value: null,
+              valueText: sample.stickiness ?? "—",
+              specText: passing.join(", "),
+              status: computed.stickinessResult,
+            },
+          ]}
+        />
+      )}
+    </ModuleSection>
   );
 }
 
@@ -576,6 +787,11 @@ function StickinessLegend({ labels, config }: { labels: Labels; config: Dispensi
 /** calc's issues about a size's rows (`["sizes", size, "boxes", ...]`), in row order. */
 function boxIssues(issues: readonly ValidationIssue[], size: string): ValidationIssue[] {
   return issues.filter((issue) => issue.path[0] === "sizes" && issue.path[1] === size && issue.path[2] === "boxes");
+}
+
+/** calc's issues about a size's aged sample (`["sizes", size, "agedSample", ...]`). */
+function agedSampleIssues(issues: readonly ValidationIssue[], size: string): ValidationIssue[] {
+  return issues.filter((issue) => issue.path[0] === "sizes" && issue.path[1] === size && issue.path[2] === AGED);
 }
 
 /**

@@ -178,9 +178,11 @@ type Schema = { safeParse(value: unknown): { success: true; data: unknown } | { 
 
 /**
  * One module's proposal over its data, checked with the module's schema: the
- * whole proposal if it passes, else each top-level field on its own, and
- * each size of a per-size module on its own, so one bad value does not
- * spoil the rest.
+ * whole proposal if it passes, else each top-level field on its own, each
+ * size of a per-size module on its own, and each field of a size the schema
+ * refuses whole on its own (a size's boxes are not lost to a bad aged
+ * sample: Kenneth, 26 October 2026), so one bad value does not spoil the
+ * rest.
  */
 export function fillModule(schema: Schema, current: Record<string, unknown>, proposal: Record<string, unknown>): Record<string, unknown> {
   const whole = schema.safeParse(fillEmpty(current, proposal));
@@ -198,7 +200,14 @@ export function fillModule(schema: Schema, current: Record<string, unknown>, pro
     if (isRecord(value) && isRecord(accepted[key])) {
       for (const [inner, innerValue] of Object.entries(value)) {
         const host = accepted[key] as Record<string, unknown>;
-        tryValue({ ...accepted, [key]: { ...host, [inner]: fillEmpty(host[inner], innerValue) } });
+        if (tryValue({ ...accepted, [key]: { ...host, [inner]: fillEmpty(host[inner], innerValue) } })) continue;
+        if (!isRecord(innerValue)) continue;
+        // Then each field of that size on its own.
+        for (const [field, fieldValue] of Object.entries(innerValue)) {
+          const sizes = accepted[key] as Record<string, unknown>;
+          const entry = isRecord(sizes[inner]) ? sizes[inner] : {};
+          tryValue({ ...accepted, [key]: { ...sizes, [inner]: { ...entry, [field]: fillEmpty(entry[field], fieldValue) } } });
+        }
       }
     }
   }

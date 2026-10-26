@@ -59,6 +59,8 @@ function renderScreen(data: DispensingPackingData, onChange: (next: DispensingPa
     layering: kit.percent.filter((field) => field.group === "layeringPct"),
     dispensing: kit.percent.filter((field) => field.group === "dispensingPct"),
     boxNumbers: [...kit.boxNumbers],
+    // The aged sample's cells: their own run, in no box column.
+    aged: kit.percent.filter((field) => field.issuePath?.[2] === "agedSample"),
   };
 }
 
@@ -100,5 +102,23 @@ describe("dispensing_packing capture writes", () => {
 
     expect(changes).toHaveLength(2);
     expect(changes[1].sizes.M.boxes).toEqual([{ ...emptyPackingBox(), boxNo: 12, dispensingPct: 91 }]);
+  });
+
+  it("writes the aged sample's values into the size's aged sample, never into a box (Kenneth, 26 October 2026)", () => {
+    const changes: DispensingPackingData[] = [];
+    const saved: DispensingPackingData = { sizes: { M: { boxes: [{ ...emptyPackingBox(), boxNo: 12, layeringPct: 90 }] } } };
+    const { aged, layering } = renderScreen(saved, (next) => changes.push(next));
+    expect(aged.map((field) => field.label)).toEqual(["Layering %, Aged Sample", "Dispensing %, Aged Sample"]);
+    expect(aged.map((field) => field.group)).toEqual([undefined, undefined]);
+    expect(layering).toHaveLength(5);
+
+    // A pasted pair fills the row's two percentages as one change.
+    batchDataChanges(() => [88, 86].forEach((value, cell) => aged[cell].onValueChange(value)));
+
+    expect(changes).toHaveLength(1);
+    expect(changes[0].sizes.M).toEqual({
+      boxes: saved.sizes.M.boxes,
+      agedSample: { layeringPct: 88, dispensingPct: 86, stickiness: null, note: null },
+    });
   });
 });

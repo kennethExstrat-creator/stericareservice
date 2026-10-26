@@ -207,6 +207,46 @@ describe("the STD_EG example's export, through the real modules", () => {
     expect(moduleOf(doc, "conclusion").result.summary).toMatch(/ To be signed after export\.$/);
   });
 
+  it("exports a size's aged sample apart from its boxes, with a line of its own, and none where none was entered (Kenneth, 26 October 2026)", async () => {
+    const without = moduleOf((await exportOf()).doc, "dispensing_packing");
+    expect(without.data.sizes).toEqual({ M: { boxes: expect.any(Array) } });
+    expect(without.computed).toMatchObject({ sizes: { M: { agedSample: null } } });
+    expect(without.result.perSize?.M.summary).not.toContain("Aged Sample");
+
+    const data = stdEgInspectionData({ labReportFileId: STD_EG_IDS.fileLabReport });
+    const packing = data.modules.dispensing_packing as { sizes: { M: { boxes: unknown[] } } };
+    const agedSample = { layeringPct: 88, dispensingPct: 76, stickiness: "B", note: "Aged sample" };
+    const record = stdEgRecord({
+      data: { ...data, modules: { ...data.modules, dispensing_packing: { sizes: { M: { ...packing.sizes.M, agedSample } } } } },
+    });
+    const { doc } = await exportOf(stdEgTables(record), stdEgObjects(record));
+    expect(ExportSchema.safeParse(doc).success).toBe(true);
+    const dispensing = moduleOf(doc, "dispensing_packing");
+    expect(dispensing.labels.agedSample).toBe("Aged Sample");
+    expect(dispensing.data.sizes).toEqual({ M: { boxes: packing.sizes.M.boxes, agedSample } });
+    // The 13 boxes' figures as without it; its checks on their own, its dispensing failing.
+    expect(dispensing.computed).toMatchObject({
+      sizes: {
+        M: {
+          boxesTested: 13,
+          boxesComplete: 13,
+          layeringResult: "pass",
+          dispensingResult: "pass",
+          stickinessResult: "pass",
+          agedSample: { layeringResult: "pass", dispensingResult: "fail", stickinessResult: "pass", result: "fail" },
+        },
+      },
+    });
+    expect((dispensing.computed as { sizes: { M: { layeringAverage: number } } }).sizes.M.layeringAverage).toBeCloseTo(88.3, 1);
+    expect(dispensing.result.perSize?.M).toEqual({
+      status: "fail",
+      summary:
+        "Layering 88.3% (min. 70%), Dispensing 90.3% (min. 80%), Stickiness A: Passed.\n" +
+        "Aged Sample: Layering 88.0% (min. 70%), Dispensing 76.0% (min. 80%), Stickiness B: Failed (Dispensing).",
+    });
+    expect(doc.conclusion.suggestedResult).toBe("fail");
+  });
+
   it("lists a module switched off for the inspection, with the reason, instead of exporting it", async () => {
     const record = stdEgRecord({
       moduleOverrides: { dimensions: { reason: "Calipers out for calibration.", by: ADMIN.id, at: "2025-04-11T08:00:00+00:00" } },

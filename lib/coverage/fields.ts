@@ -1289,9 +1289,10 @@ const dispensingPacking = defineModule({
   kind: "report",
   alwaysOn: false,
   title: "Glove Packing Check",
-  captures: "Per size, per box (its box/carton number typed): layering %, dispensing %, stickiness code, note.",
+  captures:
+    "Per size, per box (its box/carton number typed): layering %, dispensing %, stickiness code, note. Per size, one aged sample: the same four values, no box/carton number.",
   result:
-    "Per size: layering and dispensing averages against the minimums; any box with a failing stickiness code fails. not_done until the size's boxes are entered.",
+    "Per size: layering and dispensing averages against the minimums; any box with a failing stickiness code fails; an aged sample that fails the same minimums or codes fails, the boxes done or not. not_done until the size's boxes are entered, or while its aged sample is entered in part.",
   rules: [1, 2, 4, 5, 7],
   data: [
     {
@@ -1432,7 +1433,11 @@ const dispensingPacking = defineModule({
       meaning: "Full heading as printed: code letters of the box counts and the two minimums.",
     },
     { key: "itemColumn", label: "Item", meaning: "Caption of the box row number column." },
+    { key: "agedSample", label: "Aged Sample", meaning: "Heading of each size's aged sample, and its name in summaries and messages." },
     { key: "stickinessLegend", label: "**Glove Stickiness Code", meaning: "Caption of the stickiness code legend." },
+  ],
+  notes: [
+    "Aged sample (Kenneth, 26 October 2026: \"each size has aged sample for packing check, give aged sample a special section\"): each size's data may hold `agedSample`, one aged box's layeringPct, dispensingPct, stickiness and note, typed as a box row's, with no box/carton number; optional, so data saved before has none. It is never a box: not in the boxes counted, the code letter, the averages or the stickiness summary. It is judged on its own against the same minimums and codes (computed `agedSample`: layeringResult, dispensingResult, stickinessResult and result; null while nothing is entered in it), and a failed one fails the size, even while boxes are still to come. One entered in part keeps the size not_done, with a warning at the first value missing (`aged_sample_incomplete`); an empty one changes nothing. Summaries give it a line of its own after the boxes' (\"Aged Sample: Layering 88.0% (min. 70%), Dispensing 86.0% (min. 80%), Stickiness B: Passed.\").",
   ],
 });
 
