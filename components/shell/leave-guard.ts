@@ -132,7 +132,7 @@ export function leaveDestination(click: LinkClick, here: string): string | null 
  * the page already handled (its default prevented), or one that does not
  * leave the page. The shell sees a click after a page's own listeners on
  * document or window (leave-guard-area.tsx), so a page that stops the click
- * itself, as the template editor's guard does, keeps it.
+ * itself keeps it.
  */
 export function guardedDestination(
   click: LinkClick & { defaultPrevented: boolean },

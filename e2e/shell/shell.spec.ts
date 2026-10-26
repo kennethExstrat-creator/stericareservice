@@ -29,7 +29,7 @@ const ROOT_ERROR_PAGE = process.env.SHELL_E2E_ROOT_ERROR_PAGE;
 const ERROR_TITLE = "This Page Did Not Load · SteriCare QC";
 
 /** The admin section's pages, in the nav's order (components/shell/nav.ts). */
-const ADMIN_PAGES = ["Overview", "Users", "Manufacturers", "Clients", "Defects", "Templates"];
+const ADMIN_PAGES = ["Overview", "Users", "Manufacturers", "Clients", "Defects", "Steri-AI Settings"];
 
 /** Photo uploads to Storage (lib/photos/supabase-adapters.ts). */
 const PHOTO_UPLOADS = "**/storage/v1/object/inspection-photos/**";
@@ -390,7 +390,7 @@ test.describe("as the admin", () => {
       [/^Clients\b/, "/admin/clients"],
       [/^Defect Codes\b/, "/admin/defects"],
       [/^Unmapped Labels\b/, "/admin/defects/unmapped"],
-      [/^Templates\b/, "/admin/templates"],
+      [/^Steri-AI Settings\b/, "/admin/ai"],
     ];
     await expect(setUp.getByRole("link")).toHaveCount(screens.length);
     for (const [name, href] of screens) {
@@ -577,6 +577,29 @@ test.describe("as the admin", () => {
     await shot(page, "admin-loading", false);
   });
 
+  test("Defects stays current on the pages below it", async ({ page }) => {
+    const path = "/admin/defects/labels";
+    await page.goto(path);
+    await expect(page.getByRole("heading", { level: 1, name: "Defects" })).toBeVisible();
+    // Inside the section, not the page itself: "true", never "page", and only this entry.
+    const pages = adminPages(page);
+    const defects = pages.getByRole("link", { name: "Defects", exact: true });
+    await expect(defects, path).toHaveAttribute("aria-current", "true");
+    await expect(pages.locator("a[aria-current]"), path).toHaveCount(1);
+    if (!isDesktop(page)) {
+      const tabs = page.getByRole("navigation", { name: "Main" });
+      await expect(tabs.getByRole("link", { name: "Admin" })).toHaveAttribute("aria-current", "true");
+      await expect(tabs.locator("a[aria-current]")).toHaveCount(1);
+    }
+    await shot(page, "admin-nav-defects-below", false);
+
+    // Back up to the codes, where the entry is the page itself.
+    await defects.click();
+    await expect(page).toHaveURL(/\/admin\/defects$/);
+    await expect(page.getByRole("heading", { level: 1, name: "Defects" })).toBeVisible();
+    await expect(defects).toHaveAttribute("aria-current", "page");
+  });
+
   test.describe("with a template version and an inspection of its own", () => {
     let fixture: ShellFixture;
 
@@ -586,34 +609,6 @@ test.describe("as the admin", () => {
 
     test.afterAll(async () => {
       await fixture?.cleanup();
-    });
-
-    test("Defects and Templates stay current on the pages below them", async ({ page }) => {
-      const below = [
-        { path: "/admin/defects/labels", entry: "Defects", heading: "Defects" },
-        { path: `/admin/templates/${fixture.templateId}/edit`, entry: "Templates", heading: null },
-      ];
-      for (const { path, entry, heading } of below) {
-        await page.goto(path);
-        if (heading) await expect(page.getByRole("heading", { level: 1, name: heading })).toBeVisible();
-        // Inside the section, not the page itself: "true", never "page", and only this entry.
-        const pages = adminPages(page);
-        await expect(pages.getByRole("link", { name: entry, exact: true }), path).toHaveAttribute("aria-current", "true");
-        await expect(pages.locator("a[aria-current]"), path).toHaveCount(1);
-        if (!isDesktop(page)) {
-          const tabs = page.getByRole("navigation", { name: "Main" });
-          await expect(tabs.getByRole("link", { name: "Admin" })).toHaveAttribute("aria-current", "true");
-          await expect(tabs.locator("a[aria-current]")).toHaveCount(1);
-        }
-        await shot(page, `admin-nav-${entry.toLowerCase()}-below`, false);
-      }
-
-      // Back up to the list, where the entry is the page itself.
-      const templates = adminPages(page).getByRole("link", { name: "Templates", exact: true });
-      await templates.click();
-      await expect(page).toHaveURL(/\/admin\/templates$/);
-      await expect(page.getByRole("heading", { level: 1, name: "Templates" })).toBeVisible();
-      await expect(templates).toHaveAttribute("aria-current", "page");
     });
 
     test("Sign out asks first while a photo waits on this device", async ({ page, context, baseURL }) => {

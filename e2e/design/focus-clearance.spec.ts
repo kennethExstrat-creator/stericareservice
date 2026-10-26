@@ -1,20 +1,18 @@
 import { expect, test, type Page } from "@playwright/test";
-import { createDraftTemplate, type EditorFixture } from "../editor/fixtures";
 import { sessionCookies, TEST_ACCOUNTS } from "../support/session";
 
 /**
  * Keyboard focus is never hidden under a sticky bar (WCAG 2.4.11; the page's
  * scroll padding in app/globals.css, docs/DESIGN.md "Focus"): the shell's top
- * bar below 1280 px and on every touchscreen, and the template editor's tab
- * bar. Each check walks back up a form with Shift+Tab and, before every step,
- * scrolls the control it reaches under the bars; the page must bring it back
- * into view below them, focus ring included. A bar's own controls must not
- * scroll the page when they take focus.
+ * bar below 1280 px and on every touchscreen. The check walks back up a form
+ * with Shift+Tab and, before every step, scrolls the control it reaches under
+ * the bar; the page must bring it back into view below it, focus ring
+ * included. The bar's own controls must not scroll the page when they take
+ * focus. (The template editor's tab bar, checked here before, went with
+ * Admin > Templates: Kenneth, 26 October 2026.)
  *
- * One admin sign-in per size. The editor opens a temporary E2E_FINAL_DESIGN
- * draft of its own, deleted afterwards, and changes it without saving (which
- * puts Discard in the bar: two rows at 820 px); nothing is saved or created
- * through the app. Screenshots go to screenshots/design/.
+ * One admin sign-in per size; nothing is saved or created through the app.
+ * Screenshots go to screenshots/design/.
  */
 
 // A walk is two dozen Shift+Tabs, each with a scroll and a measurement: slow on a dev server.
@@ -23,10 +21,9 @@ test.describe.configure({ mode: "serial", timeout: 120_000 });
 type SessionCookie = Awaited<ReturnType<typeof sessionCookies>>[number];
 
 let cookies: SessionCookie[] = [];
-let draft: EditorFixture | undefined;
 
-/** The bars that can cover the top of the page. */
-const BARS = '[data-testid="shell-top-bar"], [data-slot="editor-bar"]';
+/** The bar that can cover the top of the page: the shell's. */
+const BARS = '[data-testid="shell-top-bar"]';
 
 /** The room the page keeps between the bars and a control it scrolls up to them (1rem, app/globals.css). */
 const ROOM_PX = 16;
@@ -34,13 +31,8 @@ const ROOM_PX = 16;
 /** The focus ring reaches 4 px outside a control (2 px out, 2 px wide): at least that much room below the bars. */
 const RING_PX = 4;
 
-test.beforeAll(async ({}, testInfo) => {
+test.beforeAll(async () => {
   cookies = await sessionCookies(TEST_ACCOUNTS.admin);
-  draft = await createDraftTemplate(`E2E_FINAL_DESIGN_${testInfo.project.name.toUpperCase().replace(/[^A-Z0-9]+/g, "_")}`);
-});
-
-test.afterAll(async () => {
-  await draft?.cleanup();
 });
 
 test.beforeEach(async ({ context, baseURL }) => {
@@ -79,7 +71,7 @@ async function roomToScroll(page: Page) {
 
 type Step = { name: string; top: number; bars: number; covered: number };
 
-/** Where the bars stuck at the top of the window end (the editor's sits under the shell's), in px. */
+/** Where the bars stuck at the top of the window end, in px. */
 function barsBottom(page: Page) {
   return page.evaluate((bars) => {
     let bottom = 0;
@@ -95,7 +87,7 @@ function barsBottom(page: Page) {
 /**
  * One Shift+Tab from the focused control, after the control it reaches has
  * been scrolled under the bars: wholly (`under` 1) or half way (0.5). Null
- * once focus would leave `scope` or land in the editor's bar.
+ * once focus would leave `scope`.
  */
 async function shiftTabFromUnderTheBars(page: Page, scope: string, under: number): Promise<Step | null> {
   // Which control does Shift+Tab reach from here? Mark it, and come back.
@@ -109,7 +101,7 @@ async function shiftTabFromUnderTheBars(page: Page, scope: string, under: number
   await page.keyboard.press("Shift+Tab");
   const inScope = await page.evaluate((scope) => {
     const target = document.activeElement;
-    if (!target || !target.closest(scope) || target.closest('[data-slot="editor-bar"]')) return false;
+    if (!target || !target.closest(scope)) return false;
     target.setAttribute("data-e2e-to", "");
     return true;
   }, scope);
@@ -231,80 +223,5 @@ test("New inspection: Shift+Tab brings each field out from under the top bar", a
     await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
     const moved = await scrollAfterFocus(page, '[data-testid="shell-top-bar"] a[href]');
     expect(moved.after).toBe(moved.before);
-  }
-});
-
-test("Template editor: Shift+Tab up the Details tab clears the shell's bar and the editor's", async ({ page }) => {
-  await page.goto(`/admin/templates/${draft!.id}/edit`);
-  await hydrated(page);
-  const touch = Boolean(test.info().project.use.hasTouch);
-  const bar = page.locator('[data-slot="editor-bar"]');
-  await expect(bar).toBeVisible();
-
-  const include = page.getByTestId("module-list").locator('[data-module-key="visual"]').getByRole("switch");
-  if (touch) {
-    // The module switches: 48 × 28 px with a 44 px tall hit area (components/ui/switch.tsx).
-    const area = await include.evaluate((element) => {
-      const after = getComputedStyle(element, "::after");
-      return { width: Number.parseFloat(after.width), height: Number.parseFloat(after.height) };
-    });
-    expect(area.width).toBeGreaterThanOrEqual(44);
-    expect(area.height).toBeGreaterThanOrEqual(44);
-  }
-  // Unsaved changes put Discard in the bar, which then wraps to two rows at 820 px. Never saved.
-  if (touch) await include.tap();
-  else await include.click();
-  await expect(bar.getByRole("button", { name: /Discard/ })).toBeVisible();
-
-  const detailsTab = page.getByRole("tab", { name: "Details" });
-  if (touch) await detailsTab.tap();
-  else await detailsTab.click();
-  const details = page.getByTestId("template-details");
-  await expect(details).toBeVisible();
-  await roomToScroll(page);
-
-  // The room kept above a control in the tab is the bars' height and 16 px: the shell's top bar
-  // (where it shows) and the editor's as measured, two rows or one. The page's padding alone
-  // keeps it, as WebKit goes by the padding only: it counts the editor's bar as the editor
-  // measures it (--editor-bar-height on <html>), and a control has no scroll margin of its own.
-  // (With focus out of the bar: the tab just pressed holds it on a mouse.)
-  await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
-  const room = await details.evaluate((section) => {
-    const height = (selector: string) => {
-      const element = document.querySelector(selector);
-      return element && element.getClientRects().length > 0 ? element.getBoundingClientRect().height : 0;
-    };
-    const field = section.querySelector("input")!;
-    return {
-      shell: height('[data-testid="shell-top-bar"]'),
-      editor: height('[data-slot="editor-bar"]'),
-      measured: Number.parseFloat(document.documentElement.style.getPropertyValue("--editor-bar-height")),
-      padding: Number.parseFloat(getComputedStyle(document.documentElement).scrollPaddingTop),
-      margin: getComputedStyle(field).scrollMarginTop,
-    };
-  });
-  test.info().annotations.push({ type: "editor bar", description: `${room.editor} px` });
-  expect(Math.abs(room.measured - room.editor), JSON.stringify(room)).toBeLessThanOrEqual(1);
-  expect(room.margin, JSON.stringify(room)).toBe("0px");
-  expect(Math.abs(room.padding - (room.shell + room.editor + ROOM_PX)), JSON.stringify(room)).toBeLessThanOrEqual(1);
-
-  // From the last control in the tab back up towards the tab bar.
-  await details.evaluate((section) => {
-    const focusable = [...section.querySelectorAll<HTMLElement>("a[href], button, input, select, textarea, [tabindex]")].filter(
-      (element) =>
-        !element.matches(":disabled, [tabindex='-1'], [type='hidden']") && element.getClientRects().length > 0,
-    );
-    focusable.at(-1)!.focus();
-  });
-  // The size rows are among the controls (the ones the audit found under the bars).
-  const walked = await walkBack(page, '[data-testid="template-details"]', 24, /Size \d/, "editor-details-shift-tab");
-  expect(walked.length, "controls walked").toBeGreaterThanOrEqual(8);
-
-  // The bar's own controls take focus where they are, stuck under the shell's bar: the page does not scroll.
-  const tab = await scrollAfterFocus(page, '[data-slot="editor-bar"] [role="tab"][aria-selected="true"]');
-  expect(tab.after).toBe(tab.before);
-  if (touch) {
-    const link = await scrollAfterFocus(page, '[data-testid="shell-top-bar"] a[href]');
-    expect(link.after).toBe(link.before);
   }
 });

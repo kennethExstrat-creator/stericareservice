@@ -111,7 +111,7 @@ Supabase Auth, email and password. No public sign-up.
 | Role | Can |
 |---|---|
 | `inspector` | Log in, create inspections, edit own drafts, submit, view own inspections |
-| `admin` | All of the above, plus: invite and deactivate users, set roles, change users' names (Kenneth, 8 October 2026), manage manufacturers, clients, templates and defect codes, switch modules on or off, view and edit all inspections, approve or reopen, send to AI report, act on AI reviews |
+| `admin` | All of the above, plus: invite and deactivate users, set roles, change users' names (Kenneth, 8 October 2026), manage manufacturers, clients and defect codes (not templates since Admin > Templates went: Kenneth, 26 October 2026), switch modules on or off, view and edit all inspections, approve or reopen, send to AI report, act on AI reviews |
 
 - Admin invites users by email (server action using the secret key). The invitee sets a password from the email link.
 - Forgot password and reset password flow.
@@ -205,10 +205,7 @@ Every client uses the standard template of the product type: the active template
 
 ### 4.5 Adding a new form (admin flow)
 
-1. Upload the original form or report (Excel, Word, PDF or photo) to the template record.
-2. Create a template that extends the closest existing one.
-3. Switch modules on or off, set labels, specs, defect lists and AQL until every field on the source is covered. Add a custom module for anything left.
-4. Preview the capture screen, tick the coverage checklist, then activate.
+Kenneth, 26 October 2026: no admin flow. Every client uses the one standard inspection flow, so Admin > Templates (upload the form, extend a template, switch modules and set labels, preview, tick the coverage checklist, activate) is gone. A template changes in its definition in `lib/templates/definitions`, and `npm run seed:templates` publishes it.
 
 ---
 
@@ -403,7 +400,7 @@ An AI reviews each submitted inspection on top of the inspector's results and co
 - `/inspections/[id]`: capture screen, modules as tabs with progress and a result chip per tab; one tab per module, except packing configuration, on the order's tab below the order
 - `/inspections/[id]/review`: module results, inspector comments, photos, AI second opinion panel, approve or reopen
 - `/admin/users`, `/admin/manufacturers`, `/admin/clients` (with logo), `/admin/defects` (codes and label mapping)
-- `/admin/templates`: list and versions. Editor: module list with include switches, drag to reorder, label overrides, a config form per module (generated from its config schema), custom modules, a JSON view for advanced edits, live capture preview, coverage checklist, activate or retire.
+- No `/admin/templates` (Kenneth, 26 October 2026): every client uses the one standard inspection flow, so the Templates screens (the list, the versions, the editor) are gone and the address is an unknown page. Templates stay behind the scenes: `npm run seed:templates` publishes them, `/inspections/new` shows the one it picks (an admin can Use Another Template), and `/admin/defects/labels` lists their labels, read only.
 - Look and feel: light theme per section 2.1.
 
 ---
@@ -471,7 +468,7 @@ Build every seed template field for field from `docs/forms/reports/` first, then
 
 **Phase 3: Optional modules, admin and AI slots**
 - Optional modules `dye_leak`, `documents`, `loading`; `handSplit`; template `STD_SG`
-- Template editor with module switches (section 10), defect mapping screen
+- Template editor with module switches (section 10; removed with Admin > Templates, Kenneth, 26 October 2026), defect mapping screen
 - Approve, reopen, per-inspection module overrides, audit log
 - Export endpoint and AI report webhook (9.1)
 - AI second opinion slot (9.2) tested against a mock webhook

@@ -28,7 +28,6 @@ const ADMIN_PAGES = [
   "/admin/manufacturers",
   "/admin/clients",
   "/admin/defects",
-  "/admin/templates",
   "/admin/ai",
 ];
 
@@ -40,7 +39,7 @@ const WITH_PLANNED: NavSection = {
   roles: ["admin"],
   entries: [
     { kind: "link", key: "overview", label: "Overview", href: "/admin", match: "exact", icon: "overview", roles: ["admin"] },
-    { kind: "planned", key: "reports", label: "Reports", icon: "templates", phase: "Later", roles: ["admin"] },
+    { kind: "planned", key: "reports", label: "Reports", icon: "overview", phase: "Later", roles: ["admin"] },
     { kind: "planned", key: "trends", label: "Trends", icon: "defects", phase: "Later", roles: ["admin"] },
   ],
 };
@@ -51,7 +50,7 @@ describe("SidebarNav", () => {
     expect(currentLinks(render("/admin/users", <SidebarNav sections={nav} />))).toEqual([["Users", "page"]]);
     expect(currentLinks(render("/admin", <SidebarNav sections={nav} />))).toEqual([["Overview", "page"]]);
     expect(currentLinks(render("/admin/defects", <SidebarNav sections={nav} />))).toEqual([["Defects", "page"]]);
-    expect(currentLinks(render("/admin/templates", <SidebarNav sections={nav} />))).toEqual([["Templates", "page"]]);
+    expect(currentLinks(render("/admin/ai", <SidebarNav sections={nav} />))).toEqual([["Steri-AI Settings", "page"]]);
     expect(currentLinks(render("/inspections", <SidebarNav sections={nav} />))).toEqual([["Inspections", "page"]]);
     expect(currentLinks(render("/somewhere-else", <SidebarNav sections={nav} />))).toEqual([]);
   });
@@ -61,9 +60,6 @@ describe("SidebarNav", () => {
     expect(currentLinks(render("/inspections/new", <SidebarNav sections={nav} />))).toEqual([["Inspections", "true"]]);
     expect(currentLinks(render("/admin/users/abc", <SidebarNav sections={nav} />))).toEqual([["Users", "true"]]);
     expect(currentLinks(render("/admin/defects/labels", <SidebarNav sections={nav} />))).toEqual([["Defects", "true"]]);
-    expect(currentLinks(render("/admin/templates/0b1c/edit", <SidebarNav sections={nav} />))).toEqual([
-      ["Templates", "true"],
-    ]);
   });
 
   it("links every admin screen, with nothing announced as coming", () => {
@@ -82,7 +78,7 @@ describe("SidebarNav", () => {
   it("shows an inspector no admin entries at all", () => {
     const html = render("/inspections", <SidebarNav sections={navForRole("inspector")} />);
     expect(linkHrefs(html)).toEqual(["/inspections"]);
-    expect(html).not.toMatch(/Admin|Overview|Users|Manufacturers|Clients|Defects|Templates/);
+    expect(html).not.toMatch(/Admin|Overview|Users|Manufacturers|Clients|Defects|Steri-AI/);
   });
 
   it("is a labelled navigation landmark with a labelled admin group", () => {
@@ -100,7 +96,7 @@ describe("TabNav", () => {
     // On /admin/users the tab is the section, not the page: "true", not "page".
     expect(currentLinks(html)).toEqual([["Admin", "true"]]);
     expect(currentLinks(render("/admin", <TabNav sections={nav} />))).toEqual([["Admin", "page"]]);
-    expect(currentLinks(render("/admin/templates/0b1c/edit", <TabNav sections={nav} />))).toEqual([["Admin", "true"]]);
+    expect(currentLinks(render("/admin/defects/labels", <TabNav sections={nav} />))).toEqual([["Admin", "true"]]);
     expect(currentLinks(render("/inspections", <TabNav sections={nav} />))).toEqual([["Inspections", "page"]]);
   });
 
@@ -129,12 +125,9 @@ describe("SectionNav", () => {
     expect(html).not.toContain("Coming in");
   });
 
-  it("keeps Defects and Templates current on the pages below them", () => {
+  it("keeps Defects current on the pages below it", () => {
     expect(currentLinks(render("/admin/defects/labels", <SectionNav section={admin} />))).toEqual([["Defects", "true"]]);
     expect(currentLinks(render("/admin/defects/unmapped", <SectionNav section={admin} />))).toEqual([["Defects", "true"]]);
-    expect(currentLinks(render("/admin/templates/0b1c/edit", <SectionNav section={admin} />))).toEqual([
-      ["Templates", "true"],
-    ]);
   });
 
   it("gives planned screens one line per phase, never links", () => {

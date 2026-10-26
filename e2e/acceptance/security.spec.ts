@@ -107,9 +107,6 @@ test.beforeAll(async ({ baseURL }, testInfo) => {
     { path: "/admin/ai", session: admin },
     { path: "/admin/ai?view=inspection", session: admin },
     { path: "/admin/ai?view=cost", session: admin },
-    { path: "/admin/templates", session: admin },
-    { path: `/admin/templates/${fx.templateId}`, session: admin },
-    { path: `/admin/templates/${fx.templateId}/edit`, session: admin },
   ]);
   actions = discovered.actions;
   scanned = discovered.chunks;
@@ -160,9 +157,6 @@ function protectedPages(): string[] {
     "/admin/ai",
     "/admin/ai?view=inspection",
     "/admin/ai?view=cost",
-    "/admin/templates",
-    `/admin/templates/${fx.templateId}`,
-    `/admin/templates/${fx.templateId}/edit`,
     "/a-page-that-does-not-exist",
   ];
 }
@@ -179,9 +173,6 @@ const ADMIN_PAGES = () => [
   "/admin/ai",
   "/admin/ai?view=inspection",
   "/admin/ai?view=cost",
-  "/admin/templates",
-  `/admin/templates/${fx.templateId}`,
-  `/admin/templates/${fx.templateId}/edit`,
 ];
 
 test("signed out, every page sends the visitor to sign in and every API answers 401", async ({ baseURL }) => {
@@ -224,7 +215,7 @@ test("an inspector and a lead inspector get a 404 on every admin page; an admin 
     ] as const) {
       const answer = await probe(baseURL!, path, { session });
       expect.soft(answer.status, `${who} ${path}`).toBe(404);
-      // The 404 never names what is there (the template's title is read after requireAdmin).
+      // The 404 never names what is there (the defects pages list the templates, read after requireAdmin).
       expect.soft(answer.body, `${who} ${path} names nothing`).not.toContain(SECURITY_TEMPLATE_CODE);
     }
     expect.soft((await probe(baseURL!, path, { session: admin })).status, `admin ${path}`).toBe(200);
@@ -266,14 +257,6 @@ test("an inspector opens only their own inspections; a lead also their team's, r
   for (const path of ["/inspections/not-a-uuid", "/inspections/not-a-uuid/photos", "/inspections/not-a-uuid/review", `/inspections/${NOWHERE}`]) {
     await expectNotFound(baseURL!, path, member, { ref: "INS-0000-0000" });
   }
-  // An admin asking for a template that is not there gets the not-found screen. Its status is
-  // recorded, not asserted: the page streams behind app/(app)/loading.tsx, as above.
-  for (const path of ["/admin/templates/not-a-uuid", "/admin/templates/not-a-uuid/edit", `/admin/templates/${NOWHERE}`]) {
-    const answer = await probe(baseURL!, path, { session: admin });
-    expect.soft(answer.body, `admin ${path} shows the not-found screen`).toMatch(/Page not found|could not be found|not found/i);
-    test.info().annotations.push({ type: "status", description: `admin ${path}: HTTP ${answer.status}` });
-  }
-
   // The list: each sees what RLS gives them.
   const outsiderList = (await probe(baseURL!, "/inspections", { session: outsider })).body;
   expect.soft(outsiderList).toContain(i.oDraft.ref);
@@ -361,7 +344,6 @@ function actionCases(): ActionCase[] {
   const capture = `/inspections/${i.mDraft.id}`;
   const photos = `${capture}/photos`;
   const review = `/inspections/${i.mSubmitted.id}/review`;
-  const version = `/admin/templates/${fx.templateId}`;
   return [
     // Auth screens.
     { name: "signIn", kind: "public", path: "/login", args: [idle, form({ email: "not-an-email", password: "x", next: "/inspections" })] },
@@ -418,17 +400,6 @@ function actionCases(): ActionCase[] {
     { name: "testAiConnectionAction", kind: "admin", path: "/admin/ai", args: [form({ apiKey: "not-a-key" })] },
     { name: "saveInspectionSettingsAction", kind: "admin", path: "/admin/ai", args: [{ status: "idle" }, form({ documentModel: "", reviewModel: "", reviewEffort: "", reviewMaxPhotos: "" })] },
     { name: "saveAiPricesAction", kind: "admin", path: "/admin/ai", args: [{ checkedOn: "", models: [], myrPerUsd: null, myrRateOn: null }] },
-    // Admin: templates (never the fixture's own id where a missing check could change it).
-    { name: "createTemplate", kind: "admin", path: "/admin/templates", args: [{ status: "idle" }, form({ code: "", productType: "examination" })] },
-    { name: "activateVersion", kind: "admin", path: version, args: [{ status: "idle" }, form({ templateId: R, seen: "x" })] },
-    { name: "retireVersion", kind: "admin", path: version, args: [{ status: "idle" }, form({ templateId: R, seen: "x" })] },
-    { name: "createNewVersion", kind: "admin", path: version, args: [{ status: "idle" }, form({ templateId: R, seen: "x" })] },
-    { name: "confirmCoverage", kind: "admin", path: version, args: [{ status: "idle" }, form({ templateId: R, seen: "x" })] },
-    { name: "prepareSourceUpload", kind: "admin", path: version, args: [{ templateId: R, fileName: "probe.pdf", type: "application/pdf", size: 10 }] },
-    { name: "confirmSourceUpload", kind: "admin", path: version, args: [{ templateId: R, path: "probe.pdf" }] },
-    { name: "getSourceDownload", kind: "admin", path: version, args: [{ templateId: R }] },
-    { name: "saveTemplate", kind: "admin", path: `${version}/edit`, args: [{ status: "idle" }, form({ id: R, definition: "{}", seen: "x" })] },
-    { name: "createTemplateVersion", kind: "admin", path: `${version}/edit`, args: [{ status: "idle" }, form({ id: R, definition: "{}" })] },
   ];
 }
 
@@ -989,12 +960,13 @@ test("error pages and answers say nothing about the server", async ({ baseURL })
   const notFound = [
     await probe(baseURL!, "/a-page-that-does-not-exist", { session: member }),
     await probe(baseURL!, "/api/inspections/not-a-uuid/export", { session: member }),
+    // Admin > Templates is gone (Kenneth, 26 October 2026): its address is an unknown one, even for an admin.
+    await probe(baseURL!, "/admin/templates", { session: admin }),
   ];
   for (const answer of notFound) expect.soft(answer.status).toBe(404);
   const streamed = [
     await probe(baseURL!, "/inspections/not-a-uuid", { session: member }),
     await probe(baseURL!, `/inspections/${NOWHERE}/review`, { session: member }),
-    await probe(baseURL!, "/admin/templates/not-a-uuid", { session: admin }),
   ];
   for (const answer of [...notFound, ...streamed]) {
     expect.soft(leaks.test(answer.body), answer.body.slice(0, 200)).toBe(false);

@@ -110,7 +110,7 @@ deployment. Design rules and tokens: [docs/DESIGN.md](docs/DESIGN.md).
    ```bash
    npm run seed:templates                         # dry run: one line per template; writes nothing
    npm run seed:templates -- --apply              # writes them, active
-   npm run seed:templates -- --apply --drafts     # or as drafts that an admin checks and activates
+   npm run seed:templates -- --apply --drafts     # or as drafts, activated by a later run (below)
    ```
 
    It writes to the Supabase project that `.env.local` names, and says which. Nothing is
@@ -124,9 +124,10 @@ deployment. Design rules and tokens: [docs/DESIGN.md](docs/DESIGN.md).
    no `--replace`, and a second run with the same bundle (`lib/templates/definitions/seed-bundle.json`)
    writes nothing. After the bundle is regenerated, a changed definition (or, with `--refresh`,
    new module defaults) becomes a new version, and retiring the seeded version that is active
-   needs `--replace`; without it the run stops before writing anything. Drafts need their source
-   form and coverage checklist in the template editor before they can be activated. Details: the
-   comment at the top of `scripts/seed-templates.mts`.
+   needs `--replace`; without it the run stops before writing anything. Admin > Templates, where
+   an admin checked and activated drafts, is gone (Kenneth, 26 October 2026): a later run without
+   `--drafts` activates a draft that matches the bundle (with `--replace` while another version is
+   active). Details: the comment at the top of `scripts/seed-templates.mts`.
 
 8. **Types.** After changing the schema: `npm run db:types` (needs `supabase link`).
 
@@ -136,7 +137,7 @@ deployment. Design rules and tokens: [docs/DESIGN.md](docs/DESIGN.md).
 |---|---|
 | Inspector | Records inspections and sees their own. Works in a lead inspector's team. |
 | Lead Inspector | An inspector who also sees every inspection of their team, in every status, read-only: the list, the review, the photos and files, the history. They cannot edit, submit, approve, reopen or delete their team's inspections. Their own inspections work like any inspector's. |
-| Admin | Everything (BUILD_SPEC 3): users and their teams, templates and reference data, every inspection, approve and reopen, the AI hand-offs. Admins are in no team. |
+| Admin | Everything (BUILD_SPEC 3): users and their teams, reference data (templates no longer, since Admin > Templates went: Kenneth, 26 October 2026), every inspection, approve and reopen, the AI hand-offs. Admins are in no team. |
 
 Set up on `/admin/users`:
 

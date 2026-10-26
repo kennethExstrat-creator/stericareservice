@@ -103,7 +103,7 @@ describe("the leave guards", () => {
 });
 
 describe("leaveDestination", () => {
-  const HERE = "http://localhost:3000/admin/templates/abc/edit?tab=modules";
+  const HERE = "http://localhost:3000/inspections/abc?module=header";
   const click = (overrides: Partial<LinkClick> = {}): LinkClick => ({
     href: "/inspections",
     target: "",
@@ -116,7 +116,7 @@ describe("leaveDestination", () => {
   it.each([
     ["another page", click(), "/inspections"],
     ["a resolved href with a query and hash", click({ href: "http://localhost:3000/admin/users?x=1#top" }), "/admin/users?x=1#top"],
-    ["the same page with another query", click({ href: "/admin/templates/abc/edit?tab=json" }), "/admin/templates/abc/edit?tab=json"],
+    ["the same page with another query", click({ href: "/inspections/abc?module=visual" }), "/inspections/abc?module=visual"],
     ["target _self", click({ target: "_self" }), "/inspections"],
   ])("follows %s", (_, input, expected) => {
     expect(leaveDestination(input, HERE)).toBe(expected);
@@ -129,7 +129,7 @@ describe("leaveDestination", () => {
     ["a download", click({ download: true })],
     ["another site", click({ href: "https://supabase.com/dashboard" })],
     ["a mail link", click({ href: "mailto:qc@example.com" })],
-    ["a place on this page", click({ href: "/admin/templates/abc/edit?tab=modules#main-content" })],
+    ["a place on this page", click({ href: "/inspections/abc?module=header#main-content" })],
     ["an href that is not a URL", click({ href: "http://[::1" })],
   ])("leaves %s alone", (_, input) => {
     expect(leaveDestination(input, HERE)).toBeNull();
@@ -184,7 +184,7 @@ describe("the shell's taps while the guards answer", () => {
   it("goes where the last tap chose: a later tap joins the check and changes the destination", async () => {
     const { guards, check, answer } = handAnswered();
     const requests = createLeaveRequests<string>(guards);
-    const first = requests.ask({ to: "/admin/templates", link: "Templates" });
+    const first = requests.ask({ to: "/admin/defects", link: "Defects" });
     const second = requests.ask({ to: "/admin/users", link: "Users" });
     const third = requests.ask({ to: "/inspections", link: "Inspections tab" });
     expect(await second).toBeNull();

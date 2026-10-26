@@ -282,7 +282,8 @@ describe("/admin/defects/labels", () => {
     expect(html).toContain("Oil stain");
     expect(html).toContain("Not a Defect Code");
     expect(html).toContain('href="/admin/defects?add=torn_cuff&amp;name=Torn+cuff"');
-    expect(html).toContain('href="/admin/templates/template-1/edit"');
+    // Read only: Admin > Templates is gone (Kenneth, 26 October 2026), so no template editor to open.
+    expect(html).not.toContain("/admin/templates");
     expect(html).toContain("Switched off in this template: minor defects.");
     expect(html).toContain("1 label needs attention");
   });
@@ -293,11 +294,11 @@ describe("/admin/defects/labels", () => {
     expect(html).toContain("This version has not resolved yet");
   });
 
-  it("points to the template editor when there are no templates", async () => {
+  it("says when there are no templates, with nowhere to go for them", async () => {
     vi.mocked(loadDefectsData).mockResolvedValue(data({ templates: [] }));
     const html = await render(LabelMappingPage(props()));
     expect(html).toContain("No Templates Yet");
-    expect(html).toContain('href="/admin/templates"');
+    expect(html).not.toContain("/admin/templates");
   });
 });
 

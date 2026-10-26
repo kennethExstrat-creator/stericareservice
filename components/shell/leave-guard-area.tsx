@@ -7,8 +7,8 @@
 //
 // It listens on its own element, in the capture phase:
 // - after a page's own click listeners on document or window. A page that
-//   stops the click itself (its default prevented, as the template editor's
-//   guard does) keeps it, and the shell steps aside. React's onClickCapture
+//   stops the click itself (its default prevented) keeps it, and the shell
+//   steps aside. React's onClickCapture
 //   would not do: React listens on document from hydration, so it would run
 //   before any listener a page adds there later.
 // - before Next.js's Link sees the click (Link leaves a click whose default

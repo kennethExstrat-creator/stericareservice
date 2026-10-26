@@ -47,7 +47,6 @@ import {
   searchText,
   suggestCodes,
   suggestNewCode,
-  templateEditorHref,
   templateLabels,
   templatesMentioning,
   whereLabel,
@@ -1493,8 +1492,7 @@ describe("helpers", () => {
     expect(addPrefill({ add: "x", name: "n".repeat(500) })?.name).toHaveLength(120);
   });
 
-  it("links to the template editor, the inspection and a filled-in add panel", () => {
-    expect(templateEditorHref("abc")).toBe("/admin/templates/abc/edit");
+  it("links to the inspection and a filled-in add panel", () => {
     expect(inspectionHref("abc", "submitted")).toBe("/inspections/abc/review");
     expect(inspectionHref("abc", "draft")).toBe("/inspections/abc");
     expect(addCodeHref("torn_cuff", "Torn cuff & tear")).toBe("/admin/defects?add=torn_cuff&name=Torn+cuff+%26+tear");

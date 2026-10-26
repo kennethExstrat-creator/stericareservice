@@ -1,7 +1,8 @@
 // What a number field stores for what is typed (B1 of the editor review: an
 // emptied setting must never turn back into the value it inherits under the
 // caret). The browser half, keeping the typed text while the field has focus,
-// is covered in e2e/editor.
+// was covered in e2e/editor, which went with Admin > Templates (Kenneth, 26
+// October 2026).
 import { describe, expect, it } from "vitest";
 import { numberFromText, numberText } from "./controls";
 

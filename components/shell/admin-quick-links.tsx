@@ -10,7 +10,6 @@ import {
   ClipboardCheckIcon,
   FactoryIcon,
   FlagIcon,
-  LayoutTemplateIcon,
   SendIcon,
   SparklesIcon,
   TagsIcon,
@@ -25,7 +24,6 @@ import {
   ADMIN_DEFECTS_PATH,
   ADMIN_MANUFACTURERS_PATH,
   ADMIN_AI_PATH,
-  ADMIN_TEMPLATES_PATH,
   ADMIN_USERS_PATH,
 } from "./nav";
 
@@ -102,12 +100,6 @@ export function AdminScreenLinks() {
           icon: FlagIcon,
           title: "Unmapped Labels",
           description: "One-off defect labels inspectors added, waiting for a code.",
-        },
-        {
-          href: ADMIN_TEMPLATES_PATH,
-          icon: LayoutTemplateIcon,
-          title: "Templates",
-          description: "Each template's versions, the editor, activating and retiring.",
         },
         {
           href: ADMIN_AI_PATH,

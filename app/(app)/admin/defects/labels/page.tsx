@@ -16,8 +16,9 @@ export async function generateMetadata(): Promise<Metadata> {
 /**
  * /admin/defects/labels (BUILD_SPEC 4.2 rule 4, 10): for every template, its
  * defect labels per class with the code each maps to and its severity, read
- * from the templates' resolved definitions. Read only: templates are changed
- * in the template editor, which each template links to.
+ * from the templates' resolved definitions. Read only: the templates come
+ * from lib/templates/definitions (npm run seed:templates), since Admin >
+ * Templates is gone (Kenneth, 26 October 2026).
  */
 export default async function LabelMappingPage({ searchParams }: PageProps<"/admin/defects/labels">) {
   await requireAdmin();

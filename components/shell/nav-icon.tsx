@@ -3,7 +3,6 @@ import {
   ClipboardCheckIcon,
   FactoryIcon,
   LayoutDashboardIcon,
-  LayoutTemplateIcon,
   SettingsIcon,
   SparklesIcon,
   TagsIcon,
@@ -20,7 +19,6 @@ const ICONS: Readonly<Record<NavIconName, LucideIcon>> = {
   manufacturers: FactoryIcon,
   clients: Building2Icon,
   defects: TagsIcon,
-  templates: LayoutTemplateIcon,
   ai: SparklesIcon,
 };
 

@@ -92,7 +92,7 @@ function offListNote(inspection: InspectionLabels, label: OneOffLabel, choice: C
   const list =
     label.defectClass === null ? "hole locations" : `${CLASS_LABEL[label.defectClass].toLowerCase()} defects`;
   const subject = choice ? `${choice.name} (${choice.code}) is not` : "A new code is not";
-  return `${subject} one of ${templateVersionLabel(inspection.template)}’s ${list}. It still counts, as an extra row on the inspection; add it in the template editor so inspectors can tap it next time.`;
+  return `${subject} one of ${templateVersionLabel(inspection.template)}’s ${list}. It still counts, as an extra row on the inspection, but inspectors can tap it only once the template lists it.`;
 }
 
 /**

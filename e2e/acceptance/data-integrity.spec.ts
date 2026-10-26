@@ -581,7 +581,10 @@ test("an admin's own session cannot delete a submitted inspection (D1)", async (
  * Template versions
  * ------------------------------------------------------------------ */
 
-test("a template version in use cannot be edited: the editor is read-only, New version copies it, and inspections keep theirs", async ({
+// Admin > Templates, with its editor, is gone (Kenneth, 26 October 2026): new versions come from
+// lib/templates/definitions through npm run seed:templates, with the secret key. The database keeps a
+// used version frozen, so that is what this checks.
+test("a template version in use is frozen: the database refuses to change or delete it, and inspections keep theirs", async ({
   browser,
   baseURL,
 }) => {
@@ -589,17 +592,8 @@ test("a template version in use cannot be edited: the editor is read-only, New v
   const v1Before = await fx.template(fx.templateId);
   const adminSession = await fx.session("admin");
   const inspectorSession = await fx.session("inspector");
-  const desk = await device(browser, baseURL!, adminSession, "desktop", "admin-desktop");
   const ipad = await device(browser, baseURL!, inspectorSession, "ipad", "inspector-ipad");
   try {
-    // The editor of the used version is read-only and says why.
-    await desk.page.goto(`/admin/templates/${fx.templateId}/edit`);
-    const locked = desk.page.getByTestId("locked");
-    await expect(locked).toContainText(/Version 1 cannot be changed: \d+ inspections? uses? it, and an inspection keeps the version it started with\./);
-    await expect(desk.page.getByRole("switch", { name: "Include Glove Information" })).toBeDisabled();
-    await expect(desk.page.getByRole("button", { name: "Save", exact: true })).toHaveCount(0);
-    await shot(desk.page, "template-locked");
-
     // The database refuses a change to it whoever asks, as the admin's own session shows.
     const changed = await adminSession.client
       .from("templates")
@@ -611,26 +605,10 @@ test("a template version in use cannot be edited: the editor is read-only, New v
     const removed = await adminSession.client.from("templates").delete().eq("id", fx.templateId).select("id");
     expect(removed.error?.code, "a used version cannot be deleted either").toMatch(/^(23503|23001)$/);
 
-    // New Version: a draft copy, opened in the editor.
-    await press(locked.getByRole("button", { name: "New Version" }), false);
-    await desk.page.waitForURL((url) => /\/admin\/templates\/[0-9a-f-]{36}\/edit$/.test(url.pathname) && !url.pathname.includes(fx.templateId), {
-      timeout: 30_000,
-    });
-    const v2Id = desk.page.url().split("/").at(-2)!;
-    const v2 = await fx.template(v2Id);
+    // A new version, as the seed script adds one: a draft beside version 1.
+    const v2 = await fx.addDraftVersion();
     expect(v2).toMatchObject({ code: fx.templateCode, version: 2, status: "draft" });
-    expect(v2?.definition).toEqual(v1Before?.definition);
-
-    // The draft is editable: Glove Information switched off and saved.
-    const include = desk.page.getByRole("switch", { name: "Include Glove Information" });
-    await expect(include).toBeEnabled();
-    await press(include, false);
-    await press(desk.page.getByRole("button", { name: "Save", exact: true }), false);
-    await expect(desk.page.getByText(`Saved ${fx.templateCode} version 2.`)).toBeVisible({ timeout: 20_000 });
-    const v2After = await fx.template(v2Id);
-    const modulesOf = (definition: unknown) =>
-      (definition as { modules: { key: string; include: boolean }[] }).modules.map(({ key, include: on }) => [key, on]);
-    expect(modulesOf(v2After?.definition)).toContainEqual(["glove_info", false]);
+    expect(v2.definition).toEqual(v1Before?.definition);
 
     // Version 1 has not moved, and the inspection that uses it still shows Glove Information.
     const v1After = await fx.template(fx.templateId);
@@ -644,13 +622,12 @@ test("a template version in use cannot be edited: the editor is read-only, New v
     // An inspector cannot start from the draft (it would freeze it), nor move an inspection to another version.
     const fromDraft = await inspectorSession.client
       .from("inspections")
-      .insert({ template_id: v2Id, manufacturer_id: "10000000-0000-4000-8000-000000000001", client_id: fx.client.id })
+      .insert({ template_id: v2.id, manufacturer_id: "10000000-0000-4000-8000-000000000001", client_id: fx.client.id })
       .select("id");
     expect(fromDraft.error?.code).toBe("23514");
-    const moved = await adminSession.client.from("inspections").update({ template_id: v2Id }).eq("id", onV1.id).select("id");
+    const moved = await adminSession.client.from("inspections").update({ template_id: v2.id }).eq("id", onV1.id).select("id");
     expect(moved.error?.code).toBe("42501");
   } finally {
-    await desk.context.close();
     await ipad.context.close();
   }
 });

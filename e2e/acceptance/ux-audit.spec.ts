@@ -27,8 +27,9 @@ import { addSession, open, signInOnce } from "./ux/session";
  *   PLAYWRIGHT_BASE_URL=http://localhost:3900 npx playwright test e2e/acceptance/ux-audit.spec.ts --project=desktop
  *   node e2e/acceptance/ux/report.mts desktop          # what broke a rule, screen by screen
  *
- * Rows: ./ux/fixtures.ts (five inspections, three throwaway accounts and a
- * draft template per project, deleted at the end). Switches:
+ * Rows: ./ux/fixtures.ts (five inspections and three throwaway accounts per
+ * project, deleted at the end). Admin > Templates, with its editor, is gone
+ * (Kenneth, 26 October 2026), so it is not audited. Switches:
  *
  *   UX_AUDIT_KEEP=1      keep the rows for the next run (no new ref numbers);
  *                        UX_AUDIT_CLEANUP=1 deletes them afterwards
@@ -110,8 +111,8 @@ const ACCEPTED = {
    * label-content-name-mismatch also wants the rest of what it shows in the
    * name. UX-10's verdict judged that a best-practice cleanup for two
    * controls: the account menu (the email under its name, "Test Admin,
-   * account menu") and the template editor's module buttons (a module's key
-   * and tags, "Visual Inspection, edit"). The Pending rows ([data-task], a
+   * account menu") and the template editor's module buttons, gone with
+   * Admin > Templates (Kenneth, 26 October 2026). The Pending rows ([data-task], a
    * row's status and sizes) are this spec's addition under DESIGN.md's rule,
    * not part of that verdict. Only these controls are accepted, and only when
    * the name starts with the first words they show: any other control, or a
@@ -119,7 +120,7 @@ const ACCEPTED = {
    */
   axeNode: (rule: string, node: AxeNode) =>
     rule === "label-content-name-mismatch" &&
-    (/^\["(button|div)\[data-(edit-module|task)=/.test(node.target) || /, account menu$/.test(node.label ?? "")) &&
+    (/^\["(button|div)\[data-task=/.test(node.target) || /, account menu$/.test(node.label ?? "")) &&
     spoken(node.shows) !== "" &&
     spoken(node.label).startsWith(spoken(node.shows)),
   /** A stepper's value sits between its 44 px − and + as a keyboard stop; the buttons are the touch targets. */
@@ -754,7 +755,6 @@ test.describe("keyboard, going back up", () => {
       ["review", `/inspections/${fixture.inspections.memberSubmitted.id}/review`],
       ["capture-header", `/inspections/${fixture.inspections.stdSg.id}?module=header`],
       ["users", "/admin/users"],
-      ["template-version", `/admin/templates/${fixture.templateId}`],
     ];
     for (const [name, url] of pages) {
       await step(auditor, `back-${name}`, async () => {
@@ -762,12 +762,6 @@ test.describe("keyboard, going back up", () => {
         await audit(auditor, `back-${name}`, { shot: false, axe: false, tabsBack: 40 });
       });
     }
-    await step(auditor, "back-editor-details", async () => {
-      await open(page, `/admin/templates/${fixture.templateId}/edit`);
-      await press(page, page.getByRole("tab", { name: "Details", exact: true }));
-      await page.waitForTimeout(400);
-      await audit(auditor, "back-editor-details", { shot: false, axe: false, tabsBack: 40 });
-    });
   });
 });
 
@@ -950,84 +944,6 @@ test.describe("admin", () => {
       await settle(page);
       await audit(auditor, "defects-map-dialog", { shot: "viewport", within: "[role=dialog]", tabs: 14 });
       await closeOverlay(page);
-    });
-  });
-
-  test("templates: list, version page, editor", async ({ page }) => {
-    const auditor = new Auditor(page, "admin");
-    await open(page, "/admin/templates");
-    await audit(auditor, "templates", { tabs: 30, maxParts: 8 });
-
-    await step(auditor, "templates-new-dialog", async () => {
-      await press(page, page.getByRole("button", { name: "New Template" }));
-      await expect(page.getByRole("dialog")).toBeVisible();
-      await settle(page);
-      await audit(auditor, "templates-new-dialog", { shot: "viewport", within: "[role=dialog]", tabs: 14 });
-      await closeOverlay(page);
-    });
-
-    await step(auditor, "template-version-std-eg", async () => {
-      const admin = createTestAdminClient();
-      const { data } = await admin.from("templates").select("id").eq("code", "STD_EG").eq("status", "active").single();
-      await open(page, `/admin/templates/${data!.id}`);
-      await audit(auditor, "template-version-std-eg", { tabs: 30, maxParts: 8 });
-    });
-
-    await step(auditor, "template-version-draft", async () => {
-      await open(page, `/admin/templates/${fixture.templateId}`);
-      await audit(auditor, "template-version-draft", { tabs: 30, maxParts: 8 });
-    });
-
-    await open(page, `/admin/templates/${fixture.templateId}/edit`);
-    await expect(page.getByRole("tab", { name: "Modules", exact: true })).toBeVisible({ timeout: 30_000 });
-    await audit(auditor, "editor-modules", { tabs: 50, maxParts: 8 });
-
-    await step(auditor, "editor-module-details", async () => {
-      await press(page, page.locator('[data-module-key="dimensions"]').getByRole("button", { name: /, edit$/ }).first());
-      await page.waitForTimeout(400);
-      await settle(page);
-      await audit(auditor, "editor-module-dimensions", { tabs: 40, maxParts: 8 });
-      if (await page.getByRole("dialog").count()) await closeOverlay(page);
-    });
-    await step(auditor, "editor-module-visual", async () => {
-      await press(page, page.locator('[data-module-key="visual"]').getByRole("button", { name: /, edit$/ }).first());
-      await page.waitForTimeout(400);
-      await settle(page);
-      await audit(auditor, "editor-module-visual", { maxParts: 10 });
-      if (await page.getByRole("dialog").count()) await closeOverlay(page);
-    });
-    for (const tab of ["Custom Modules", "Details", "JSON", "Preview"]) {
-      await step(auditor, `editor-${tab}`, async () => {
-        await press(page, page.getByRole("tab", { name: tab, exact: true }));
-        await page.waitForTimeout(400);
-        await audit(auditor, `editor-${tab.toLowerCase().replace(/ /g, "-")}`, { tabs: tab === "Details" ? 30 : 0, maxParts: 8 });
-      });
-    }
-    await step(auditor, "editor-add-custom-module", async () => {
-      await press(page, page.getByRole("tab", { name: "Custom Modules", exact: true }));
-      await press(page, page.getByRole("button", { name: "Add Custom Module" }).first());
-      await page.waitForTimeout(400);
-      await settle(page);
-      await audit(auditor, "editor-custom-module-form", { maxParts: 8 });
-    });
-    await step(auditor, "editor-reload", async () => {
-      // Kenneth: nothing typed is ever lost on a reload. The editor keeps a copy on the device.
-      await open(page, `/admin/templates/${fixture.templateId}/edit`);
-      await press(page, page.getByRole("tab", { name: "Details", exact: true }));
-      const name = page.getByLabel("Name", { exact: true });
-      await name.fill("Final UX audit gloves, renamed before a reload");
-      await page.waitForTimeout(1_500);
-      await page.reload();
-      await page.waitForLoadState("networkidle").catch(() => undefined);
-      const restore = page.getByRole("button", { name: "Restore Changes" });
-      const offered = await restore.isVisible({ timeout: 10_000 }).catch(() => false);
-      await audit(auditor, "editor-after-reload", {
-        axe: false,
-        shot: "viewport",
-        notes: [`typed template name after a reload: ${offered ? "offered back (Restore Changes)" : "lost"}`],
-      });
-      // Nothing is saved: the copy on the device goes.
-      if (offered) await press(page, page.getByRole("button", { name: "Discard Them" }));
     });
   });
 

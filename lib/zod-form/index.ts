@@ -1,7 +1,8 @@
 // Forms generated from zod schemas: describe a schema (describe.ts), draw it
 // (schema-form.tsx), check it with the schema's own messages (issues.ts).
-// The template editor builds every module's config form with it; nothing in
-// here knows about templates, so any zod schema of plain JSON works.
+// The template editor built every module's config form with it until Admin >
+// Templates went (Kenneth, 26 October 2026); nothing in here knows about
+// templates, so any zod schema of plain JSON works.
 export {
   describeSchema,
   unitOf,

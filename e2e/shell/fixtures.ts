@@ -7,12 +7,12 @@ import { TEST_ACCOUNTS } from "../support/session";
 /**
  * Temporary rows for the shell specs (e2e/README.md), one set per Playwright
  * project so the three sizes never share a row: a draft template resolved
- * with the real modules (code E2E_SHELL_<PROJECT>), for the template editor's
- * place in the nav, and one draft inspection of it by the test admin, whose
- * gallery holds a photo back while Sign out is tried. Created with the
- * secret key and deleted afterwards: the inspection's Storage objects first,
- * then the inspection through deleteTestInspection(), then the template. A
- * run that died half way is cleaned up by the next.
+ * with the real modules (code E2E_SHELL_<PROJECT>) and one draft inspection
+ * of it by the test admin, whose gallery holds a photo back while Sign out
+ * is tried. Created with the secret key and deleted afterwards: the
+ * inspection's Storage objects first, then the inspection through
+ * deleteTestInspection(), then the template. A run that died half way is
+ * cleaned up by the next.
  *
  * Side effects that cannot be undone through the API, by design: the
  * inspection draws a number from the ref sequence, and its deletion leaves an

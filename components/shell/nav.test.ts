@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 import { DEFECTS_PATH } from "@/lib/admin/defects";
-import { TEMPLATES_PATH } from "@/lib/admin/templates";
 import { lowerCaseWords } from "@/lib/design/capitalisation";
 import {
   activeSection,
@@ -44,7 +43,6 @@ describe("navForRole", () => {
       ["manufacturers", "link"],
       ["clients", "link"],
       ["defects", "link"],
-      ["templates", "link"],
       ["ai", "link"],
     ]);
   });
@@ -65,15 +63,13 @@ describe("navForRole", () => {
       ["Manufacturers", "/admin/manufacturers", "prefix"],
       ["Clients", "/admin/clients", "prefix"],
       ["Defects", "/admin/defects", "prefix"],
-      ["Templates", "/admin/templates", "prefix"],
       ["Steri-AI Settings", "/admin/ai", "prefix"],
     ]);
   });
 
-  it("uses the paths the defects and template screens use themselves", () => {
+  it("uses the path the defects screens use themselves", () => {
     const byKey = new Map(navLinks(navForRole("admin")).map((link) => [link.key, link.href]));
     expect(byKey.get("defects")).toBe(DEFECTS_PATH);
-    expect(byKey.get("templates")).toBe(TEMPLATES_PATH);
   });
 
   it("filters entries inside a section and drops sections left empty", () => {
@@ -94,7 +90,7 @@ describe("navForRole", () => {
         tab: { label: "Hidden", href: "/hidden", match: "prefix", icon: "admin" },
         roles: ["inspector", "admin"],
         entries: [
-          { kind: "planned", key: "later", label: "Later", icon: "templates", phase: "Phase 3", roles: ["admin"] },
+          { kind: "planned", key: "later", label: "Later", icon: "overview", phase: "Phase 3", roles: ["admin"] },
         ],
       },
     ];
@@ -138,7 +134,6 @@ describe("ariaCurrentFor", () => {
   const adminTab = { href: "/admin", match: "prefix" } as const;
   const overview = { href: "/admin", match: "exact" } as const;
   const defects = { href: "/admin/defects", match: "prefix" } as const;
-  const templates = { href: "/admin/templates", match: "prefix" } as const;
 
   it.each([
     [inspections, "/inspections", "page"],
@@ -150,9 +145,7 @@ describe("ariaCurrentFor", () => {
     [overview, "/admin/users", undefined],
     [defects, "/admin/defects", "page"],
     [defects, "/admin/defects/labels", "true"],
-    [templates, "/admin/templates", "page"],
-    [templates, "/admin/templates/0b1c/edit", "true"],
-    [templates, "/admin/defects", undefined],
+    [defects, "/admin/users", undefined],
     [inspections, "/admin", undefined],
     [inspections, null, undefined],
   ] as const)("%o on %s is %s", (link, pathname, expected) => {
@@ -196,10 +189,10 @@ describe("plannedByPhase", () => {
 
   it("groups planned screens by phase, in order", () => {
     const entries: NavEntry[] = [
-      { kind: "planned", key: "a", label: "A", icon: "templates", phase: "Phase 3", roles: ["admin"] },
+      { kind: "planned", key: "a", label: "A", icon: "overview", phase: "Phase 3", roles: ["admin"] },
       { kind: "link", key: "b", label: "B", href: "/b", match: "exact", icon: "users", roles: ["admin"] },
-      { kind: "planned", key: "c", label: "C", icon: "templates", phase: "Later", roles: ["admin"] },
-      { kind: "planned", key: "d", label: "D", icon: "templates", phase: "Phase 3", roles: ["admin"] },
+      { kind: "planned", key: "c", label: "C", icon: "overview", phase: "Later", roles: ["admin"] },
+      { kind: "planned", key: "d", label: "D", icon: "overview", phase: "Phase 3", roles: ["admin"] },
     ];
     expect(plannedByPhase(entries)).toEqual([
       { phase: "Phase 3", labels: ["A", "D"] },
@@ -265,9 +258,8 @@ describe("the current entry", () => {
     ["/admin/defects", "admin", ["defects"]],
     ["/admin/defects/labels", "admin", ["defects"]],
     ["/admin/defects/unmapped", "admin", ["defects"]],
-    ["/admin/templates", "admin", ["templates"]],
-    ["/admin/templates/0b1c", "admin", ["templates"]],
-    ["/admin/templates/0b1c/edit", "admin", ["templates"]],
+    // Admin > Templates is gone (Kenneth, 26 October 2026): no entry is current on its old address.
+    ["/admin/templates", "admin", []],
     ["/admin/settings", "admin", []],
     ["/", null, []],
     ["/login", null, []],
@@ -289,7 +281,7 @@ describe("the current entry", () => {
       "/admin/users",
       "/admin/users/x",
       "/admin/defects/labels",
-      "/admin/templates/x/edit",
+      "/admin/ai",
       "/admin/other",
     ];
     for (const role of ["inspector", "admin"] as const) {

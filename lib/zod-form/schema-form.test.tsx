@@ -1,7 +1,8 @@
 // Server-rendered markup of generated forms: labels, controls, units,
 // messages and their wiring (aria-invalid, aria-describedby), read-only, and
-// the Changed / Reset marks. Interaction is the controls' and the page's
-// (values.ts, the editor's model tests, e2e/editor).
+// the Changed / Reset marks. Interaction is the controls' (values.ts); the
+// template editor's model tests and e2e/editor, which drove it in a page,
+// went with Admin > Templates (Kenneth, 26 October 2026).
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { stubModule } from "@/modules/_framework";

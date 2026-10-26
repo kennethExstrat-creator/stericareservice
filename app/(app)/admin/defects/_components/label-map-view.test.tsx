@@ -1,9 +1,11 @@
-// Markup of the label map: each template's link to the template editor is
-// named by the words it shows first (WCAG 2.5.3, label in name), so a speech
-// user can say "Open in Template Editor" and still hears which version opens.
+// Markup of the label map. It is read only: no card links to a template
+// editor, since Admin > Templates is gone (Kenneth, 26 October 2026). The one
+// link a label can carry, Add This Code, is named by the words it shows first
+// (WCAG 2.5.3, label in name), so a speech user can say "Add This Code" and
+// still hears which code it adds.
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
-import { templateEditorHref, type TemplateLabelMap } from "@/lib/admin/defects";
+import { addCodeHref, type TemplateLabelMap } from "@/lib/admin/defects";
 import { LabelMapView } from "./label-map-view";
 
 const map: TemplateLabelMap = {
@@ -15,37 +17,53 @@ const map: TemplateLabelMap = {
   resolved: true,
   sections: [
     {
+      section: "visual",
+      rows: [{ section: "visual", defectClass: "major", label: "Torn cuff", code: "torn_cuff", state: "unknown", codeName: null }],
+    },
+    {
       section: "watertight",
       rows: [{ section: "watertight", defectClass: null, label: "Palm", code: "hole_palm", state: "ok", codeName: "Hole in palm" }],
     },
   ],
   classesOff: [],
   classAql: {},
-  attention: 0,
+  attention: 1,
 };
 
-/** The editor link of a template: its opening tag and the text it shows (icons and screen-reader text left out). */
-function editorLink(html: string, templateId: string): { tag: string; shown: string } {
-  const href = templateEditorHref(templateId).replace(/[/]/g, "\\/");
-  const match = new RegExp(`(<a[^>]*href="${href}"[^>]*>)([\\s\\S]*?)</a>`).exec(html);
-  const shown = (match?.[2] ?? "")
-    .replace(/<svg[\s\S]*?<\/svg>/g, "")
-    .replace(/<span class="sr-only">[\s\S]*?<\/span>/g, "")
-    .replace(/<[^>]+>/g, "")
-    .trim();
-  return { tag: match?.[1] ?? "", shown };
+function render(): string {
+  return renderToStaticMarkup(
+    <LabelMapView maps={[map, { ...map, id: "template-2", code: "SAFEDON_EG", version: 1, resolved: false }]} initialQuery="" />,
+  );
+}
+
+/** Every link: its href as the browser reads it, its opening tag and the text it shows (icons left out). */
+function links(html: string): { href: string; tag: string; shown: string }[] {
+  return [...html.matchAll(/(<a [^>]*href="([^"]+)"[^>]*>)([\s\S]*?)<\/a>/g)].map((match) => ({
+    href: match[2].replace(/&amp;/g, "&"),
+    tag: match[1],
+    shown: match[3]
+      .replace(/<svg[\s\S]*?<\/svg>/g, "")
+      .replace(/<[^>]+>/g, "")
+      .trim(),
+  }));
 }
 
 describe("LabelMapView", () => {
-  it("names each template's editor link by its words first, then the version it opens", () => {
-    const html = renderToStaticMarkup(
-      <LabelMapView maps={[map, { ...map, id: "template-2", code: "SAFEDON_EG", version: 1, resolved: false }]} initialQuery="" />,
-    );
-    const first = editorLink(html, "template-1");
-    expect(first.shown).toBe("Open in Template Editor");
-    expect(first.tag).toContain('aria-label="Open in Template Editor: STD_EG v2"');
-    // A version that has not resolved yet links to the editor the same way.
-    expect(editorLink(html, "template-2").tag).toContain('aria-label="Open in Template Editor: SAFEDON_EG v1"');
-    expect(html).not.toMatch(/aria-label="Open (STD|SAFEDON)_EG/);
+  it("links to no template editor: a card's only link adds a missing code", () => {
+    const html = render();
+    expect(links(html).map((link) => link.href)).toEqual([addCodeHref("torn_cuff", "Torn cuff")]);
+    expect(html).not.toMatch(/template editor|\/admin\/templates/i);
+  });
+
+  it("names Add This Code by its words first, then the code it adds", () => {
+    const [add] = links(render());
+    expect(add.shown).toBe("Add This Code");
+    expect(add.tag).toContain('aria-label="Add This Code: torn_cuff"');
+  });
+
+  it("sends a label that needs attention to the Codes tab, and an unresolved version nowhere", () => {
+    const html = render();
+    expect(html).toContain("1 label needs attention: add or reactivate their codes on the Codes tab.");
+    expect(html).toContain("This version has not resolved yet, so its labels cannot be read.</p>");
   });
 });

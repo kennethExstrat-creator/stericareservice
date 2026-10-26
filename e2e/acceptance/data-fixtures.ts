@@ -26,7 +26,7 @@ import { TEST_ACCOUNTS, TEST_PASSWORD } from "../support/session";
  *
  * Teardown: Storage objects of each inspection, every inspection of the
  * template's versions and of the accounts (deleteTestInspection), the
- * template versions (any the run made through the UI too), the client, then
+ * template versions (any the run added too), the client, then
  * the accounts, team members before their lead. Nothing else is touched.
  *
  * The throwaway accounts never delete an inspection themselves: the deletion
@@ -77,6 +77,11 @@ export type DataFixture = {
   deletionRecords: (id: string) => Promise<AuditRow[]>;
   template: (id: string) => Promise<TemplateRow | null>;
   templateVersions: () => Promise<TemplateRow[]>;
+  /**
+   * The template's next version, a draft with the same definition, written with the secret key
+   * as npm run seed:templates writes one (Admin > Templates is gone: Kenneth, 26 October 2026).
+   */
+  addDraftVersion: () => Promise<TemplateRow>;
   cleanup: () => Promise<void>;
 };
 
@@ -252,7 +257,7 @@ export async function createDataFixture(): Promise<DataFixture> {
     return { id: data.user.id, email, password, name: fullName };
   }
 
-  /** Every version of the fixture template (the run may add some through the UI). */
+  /** Every version of the fixture template (the run may add some). */
   async function templateVersions(): Promise<TemplateRow[]> {
     const { data, error } = await admin
       .from("templates")
@@ -453,6 +458,17 @@ export async function createDataFixture(): Promise<DataFixture> {
       return data as TemplateRow | null;
     };
 
+    const addDraftVersion: DataFixture["addDraftVersion"] = async () => {
+      const version = Math.max(...(await templateVersions()).map((row) => row.version)) + 1;
+      const { data, error } = await admin
+        .from("templates")
+        .insert({ ...templateRowFields(template, resolved), version, status: "draft" })
+        .select("id, code, version, status, definition, resolved, updated_at")
+        .single();
+      if (error) fail(`adding version ${version}`, error);
+      return data as TemplateRow;
+    };
+
     return {
       suffix,
       templateCode,
@@ -469,6 +485,7 @@ export async function createDataFixture(): Promise<DataFixture> {
       deletionRecords,
       template: templateById,
       templateVersions,
+      addDraftVersion,
       cleanup,
     };
   } catch (error) {

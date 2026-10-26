@@ -50,12 +50,6 @@ export const LABEL_MAPPING_PATH = "/admin/defects/labels";
 export const UNMAPPED_PATH = "/admin/defects/unmapped";
 /** What inspectors write on paper, each defect linked to its codes (lib/admin/shortforms.ts). */
 export const SHORTFORMS_PATH = "/admin/defects/shortforms";
-export const TEMPLATES_PATH = "/admin/templates";
-
-/** The template editor for one version (BUILD_SPEC 10): /admin/templates/<version id>/edit. */
-export function templateEditorHref(templateId: string): string {
-  return `${TEMPLATES_PATH}/${templateId}/edit`;
-}
 
 /** An inspection as an admin opens it: the review screen once submitted, the capture screen before. */
 export function inspectionHref(id: string, status: InspectionStatus): string {

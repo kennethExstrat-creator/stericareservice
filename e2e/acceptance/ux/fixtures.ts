@@ -17,12 +17,13 @@ import { safedonEgData, stdEgData, stdSgData } from "./example-data";
  *   A throwaway lead inspector (e2e-fux-<p>-*@test.local) leading two
  *     throwaway inspectors: one with a submitted inspection, one with none
  *     (the empty list).
- *   A draft template E2E_FINAL_UX_<PROJECT> extending STD_EG, for the editor.
  *
  * The real templates (STD_EG, SAFEDON_EG, STD_SG active) are only read.
  * Created with the secret key and deleted afterwards: each inspection's
- * Storage objects, the inspection through deleteTestInspection(), the
- * template, then the accounts, team members before their lead. A fresh set
+ * Storage objects, the inspection through deleteTestInspection(), any
+ * E2E_FINAL_UX_<PROJECT> template an older run made for the template editor
+ * (gone with Admin > Templates: Kenneth, 26 October 2026), then the
+ * accounts, team members before their lead. A fresh set
  * draws five numbers from the ref sequence.
  *
  * UX_AUDIT_KEEP=1 keeps the set after the run, and the next run of the
@@ -53,7 +54,6 @@ export type UxFixture = {
   lead: Account;
   member: Account;
   newcomer: Account;
-  templateId: string;
   /** Replaces a draft's data, as another device's save would. */
   setData: (id: string, data: InspectionData) => Promise<void>;
   /** Sets a draft's PO column, null as on a draft whose header has no PO yet. */
@@ -152,7 +152,7 @@ function writeLedger(project: string, ids: string[]) {
   writeFileSync(ledgerPath(project), JSON.stringify([...new Set(ids)], null, 2));
 }
 
-/** Everything of this project's set: inspections, the template, the accounts. */
+/** Everything of this project's set: inspections, an older run's template, the accounts. */
 async function removeProjectRows(admin: AdminClient, project: string) {
   const tag = projectTag(project);
   const { data: inspections, error } = await admin.from("inspections").select("id").like("po_no", `${tag.po}-%`);
@@ -402,44 +402,6 @@ export async function createUxFixture(project: string): Promise<UxFixture> {
       inspections[spec.key] = { id: inserted.id, ref: inserted.ref_no };
     }
 
-    // The editor's template: a new code extending STD_EG, as BUILD_SPEC 4.5's admin flow starts one.
-    const definition = {
-      code: tag.code,
-      name: "Final UX audit gloves (temporary)",
-      extends: "STD_EG",
-      scope: { productType: "examination", standard: "EN455" },
-      unit: "pcs",
-      sizes: [{ value: "S" }, { value: "M" }, { value: "L" }],
-      modules: [],
-    };
-    const { data: templates, error: findTemplate } = await admin.from("templates").select("id").eq("code", tag.code);
-    if (findTemplate) fail("finding the editor's template", findTemplate);
-    let templateId: string;
-    if (templates.length > 0) {
-      templateId = templates[0].id;
-      const { error } = await admin
-        .from("templates")
-        .update({ definition: definition as NonNullable<Json>, resolved: null, status: "draft" })
-        .eq("id", templateId);
-      if (error) fail("resetting the editor's template", error);
-    } else {
-      const { data: template, error: templateError } = await admin
-        .from("templates")
-        .insert({
-          code: tag.code,
-          version: 1,
-          extends_code: "STD_EG",
-          product_type: "examination",
-          standard: "EN455",
-          status: "draft",
-          definition: definition as NonNullable<Json>,
-        })
-        .select("id")
-        .single();
-      if (templateError) fail("creating the editor's template", templateError);
-      templateId = template.id;
-    }
-
     return {
       code: tag.code,
       poPrefix: tag.po,
@@ -447,7 +409,6 @@ export async function createUxFixture(project: string): Promise<UxFixture> {
       lead,
       member,
       newcomer,
-      templateId,
       setData: async (id, data) => {
         const { error } = await admin.from("inspections").update({ data: data as unknown as NonNullable<Json> }).eq("id", id);
         if (error) fail(`writing the data of ${id}`, error);

@@ -2,7 +2,7 @@
 
 import { useId, useMemo } from "react";
 import Link from "next/link";
-import { ArrowRightIcon, CircleCheckIcon, LayoutTemplateIcon, PlusIcon, TriangleAlertIcon } from "lucide-react";
+import { CircleCheckIcon, LayoutTemplateIcon, PlusIcon, TriangleAlertIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { DEFECT_CLASSES, type DefectClass } from "@/lib/coverage/keys";
@@ -10,12 +10,10 @@ import { AQL_DEFAULTS } from "@/modules/_framework/context";
 import {
   CLASS_LABEL,
   SECTION_TITLE,
-  TEMPLATES_PATH,
   addCodeHref,
   filterLabelMaps,
   labelCount,
   listOf,
-  templateEditorHref,
   type LabelRow,
   type LabelSection,
   type TemplateLabelMap,
@@ -46,8 +44,9 @@ function countText(shown: number, total: number): string {
 /**
  * Every template's defect labels, each with the code it counts as and, for
  * visual defects, its class: the severity in that template (BUILD_SPEC 4.2
- * rule 4). Read from each template's resolved definition; templates are
- * changed in the template editor.
+ * rule 4). Read from each template's resolved definition, and read only:
+ * Admin > Templates is gone (Kenneth, 26 October 2026), so nothing here
+ * links to a template editor.
  */
 export function LabelMapView({ maps, initialQuery }: { maps: TemplateLabelMap[]; initialQuery: string }) {
   const { query, setQuery } = useQuery(initialQuery);
@@ -55,17 +54,8 @@ export function LabelMapView({ maps, initialQuery }: { maps: TemplateLabelMap[];
 
   if (maps.length === 0) {
     return (
-      <EmptyState
-        icon={<LayoutTemplateIcon aria-hidden />}
-        title="No Templates Yet"
-        action={
-          <Button asChild variant="outline">
-            <Link href={TEMPLATES_PATH}>Go to Templates</Link>
-          </Button>
-        }
-      >
-        Each template&rsquo;s defect labels and the codes they map to appear here once templates are built in the
-        template editor.
+      <EmptyState icon={<LayoutTemplateIcon aria-hidden />} title="No Templates Yet">
+        Each template&rsquo;s defect labels and the codes they map to appear here once templates are set up.
       </EmptyState>
     );
   }
@@ -96,7 +86,7 @@ function TemplateCard({ map }: { map: TemplateLabelMap }) {
       data-template={map.code}
       className="relative overflow-hidden rounded-xl bg-card shadow-sm ring-1 ring-border"
     >
-      <header className="flex flex-col gap-3 border-b border-border px-4 py-4 md:flex-row md:items-start md:justify-between md:px-5">
+      <header className="border-b border-border px-4 py-4 md:px-5">
         <div className="min-w-0 space-y-1">
           <h2 id={titleId} className="flex flex-wrap items-center gap-x-3 gap-y-1 text-lg font-bold text-foreground">
             <span className="[overflow-wrap:anywhere]">
@@ -106,20 +96,13 @@ function TemplateCard({ map }: { map: TemplateLabelMap }) {
           </h2>
           <p className="text-sm text-muted-foreground [overflow-wrap:anywhere]">{map.name}</p>
         </div>
-        {/* Named by its words first, then the version it opens (WCAG 2.5.3). */}
-        <Button asChild variant="outline" size="sm" className="self-start">
-          <Link href={templateEditorHref(map.id)} aria-label={`Open in Template Editor: ${map.code} v${map.version}`}>
-            Open in Template Editor
-            <ArrowRightIcon aria-hidden />
-          </Link>
-        </Button>
       </header>
 
       {map.resolved && <AttentionLine map={map} />}
 
       {!map.resolved ? (
         <p className="px-4 py-5 text-sm text-muted-foreground md:px-5">
-          This version has not resolved yet, so its labels cannot be read. Fix it in the template editor.
+          This version has not resolved yet, so its labels cannot be read.
         </p>
       ) : map.sections.length === 0 ? (
         <p className="px-4 py-5 text-sm text-muted-foreground md:px-5">
@@ -154,8 +137,8 @@ function AttentionLine({ map }: { map: TemplateLabelMap }) {
     <p className="mx-4 mt-3 flex gap-2 rounded-lg border border-warn-border bg-warn-tint px-3 py-2 text-sm text-warn md:mx-5">
       <TriangleAlertIcon aria-hidden className="mt-0.5 size-4 shrink-0" />
       <span>
-        {map.attention === 1 ? "1 label needs" : `${map.attention} labels need`} attention: add the missing codes on the
-        Codes tab, or change the template in the template editor.
+        {map.attention === 1 ? "1 label needs" : `${map.attention} labels need`} attention: add or reactivate their codes
+        on the Codes tab.
       </span>
     </p>
   );

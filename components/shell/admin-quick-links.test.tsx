@@ -4,8 +4,7 @@
 import type { ReactElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
-import { DEFECTS_PATH, TEMPLATES_PATH as DEFECTS_TEMPLATES_PATH, UNMAPPED_PATH } from "@/lib/admin/defects";
-import { TEMPLATES_PATH } from "@/lib/admin/templates";
+import { DEFECTS_PATH, UNMAPPED_PATH } from "@/lib/admin/defects";
 import { lowerCaseWords } from "@/lib/design/capitalisation";
 import { parseInspectionSearchParams } from "@/lib/inspections/search-params";
 import { AdminScreenLinks, AWAITING_APPROVAL_HREF, InspectionShortcuts, UNMAPPED_LABELS_HREF } from "./admin-quick-links";
@@ -41,7 +40,6 @@ describe("AdminScreenLinks", () => {
       "/admin/clients",
       "/admin/defects",
       "/admin/defects/unmapped",
-      "/admin/templates",
       "/admin/ai",
     ]);
     expect(links(html).map(([, name]) => name.split(" ")[0])).toEqual([
@@ -50,17 +48,14 @@ describe("AdminScreenLinks", () => {
       "Clients",
       "Defect",
       "Unmapped",
-      "Templates",
       "Steri-AI",
     ]);
   });
 
-  it("goes where the defects and template screens live", () => {
+  it("goes where the defects screens live", () => {
     const hrefs = links(render(<AdminScreenLinks />).html).map(([href]) => href);
     expect(hrefs).toContain(DEFECTS_PATH);
     expect(UNMAPPED_LABELS_HREF).toBe(UNMAPPED_PATH);
-    expect(hrefs).toContain(TEMPLATES_PATH);
-    expect(DEFECTS_TEMPLATES_PATH).toBe(TEMPLATES_PATH);
   });
 
   it("announces nothing as coming later", () => {
@@ -77,7 +72,6 @@ describe("AdminScreenLinks", () => {
       "Clients",
       "Defect Codes",
       "Unmapped Labels",
-      "Templates",
       "Steri-AI Settings",
       "Awaiting Approval",
       "All Inspections",

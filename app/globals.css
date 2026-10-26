@@ -290,23 +290,22 @@
   /* ---- Focus is never hidden under a sticky bar (WCAG 2.4.11) ---------------
      Below 1280 px and on every touchscreen the app shell's top bar sticks over
      the page (--shell-top in components/shell/app-shell.tsx: keep the two in
-     step). In the template editor its tab bar sticks below that. The page's
-     scroll padding leaves room for the bars and 1rem more, so a control
-     reached with Tab or Shift+Tab, or a link's target, scrolls into view below
-     them, never under them, focus ring and all; from 1280 px without a
+     step). The page's scroll padding leaves room for the bar and 1rem more, so
+     a control reached with Tab or Shift+Tab, or a link's target, scrolls into
+     view below it, never under it, focus ring and all; from 1280 px without a
      touchscreen the 1rem alone keeps the ring off the window's edge. Padding
      on the page, not a scroll margin on each control: WebKit (Safari and
      Chrome on the iPad) brings a focused text field into view by the page's
      padding only, and it lines the field up by its text, about 12 px inside
      its edge: so 1rem, where 0.5rem would leave the top of the field under a
      bar.
-     While focus is inside a bar, the padding stops above that bar: its
-     controls are on screen wherever it sticks, and padding over them would
-     scroll the page each time one took focus.
-     The rules find the bars by their own markers: data-testid="shell-top-bar"
-     (app-shell.tsx) and data-slot="editor-bar" (template-editor.tsx). The
-     capture screen measures its bars and sets the padding inline on <html>
-     (use-sticky-offsets.ts), which wins over these rules. */
+     While focus is inside the bar, the padding stops above it: its controls
+     are on screen wherever it sticks, and padding over them would scroll the
+     page each time one took focus.
+     The rules find the bar by its own marker, data-testid="shell-top-bar"
+     (app-shell.tsx). The capture screen measures its bars and sets the
+     padding inline on <html> (use-sticky-offsets.ts), which wins over these
+     rules. */
   html:has([data-testid="shell-top-bar"]) {
     scroll-padding-top: 1rem;
 
@@ -314,24 +313,6 @@
       --page-shell-bar: calc(4rem + 1px + env(safe-area-inset-top));
       scroll-padding-top: calc(var(--page-shell-bar) + 1rem);
     }
-  }
-
-  /* The editor's bar on one row: its tab list (components/ui/tabs.tsx: 36 px,
-     50 px on touch), 0.5rem of padding above and below, and its 1 px edge; or,
-     once the editor has measured it, its --editor-bar-height on <html>
-     (template-editor.tsx), two rows included. */
-  html:has([data-slot="editor-bar"]) {
-    --page-editor-bar: var(--editor-bar-height, calc(2.25rem + 1rem + 1px + var(--page-touch-tab-list, 0px)));
-    scroll-padding-top: calc(var(--page-shell-bar, 0px) + var(--page-editor-bar) + 1rem);
-
-    @variant touch {
-      /* 44 px tabs in 3 px of padding: 14 px more than on a fine pointer. */
-      --page-touch-tab-list: 0.875rem;
-    }
-  }
-
-  html:has([data-slot="editor-bar"]:focus-within) {
-    scroll-padding-top: var(--page-shell-bar, 0px);
   }
 
   html:has([data-testid="shell-top-bar"]:focus-within) {

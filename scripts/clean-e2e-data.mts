@@ -156,7 +156,7 @@ export function planCleanup(
   });
 }
 
-/** The folder of one version's source files in template-sources (lib/admin/templates.ts sourceFolder). */
+/** The folder of one version's source files in template-sources, where Admin > Templates kept them until it went (Kenneth, 26 October 2026). */
 export function sourceFolder(template: Pick<E2eTemplate, "code" | "version">): string {
   return `${template.code}/v${template.version}`;
 }

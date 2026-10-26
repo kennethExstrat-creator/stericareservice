@@ -145,7 +145,7 @@ describe("what goes and what stays", () => {
     expect(describePlan([], false, "E2E_NEW")).toEqual(["No templates with a code starting E2E_NEW: nothing to clean up."]);
   });
 
-  it("finds a version's source files where the template editor puts them", () => {
+  it("finds a version's source files where Admin > Templates kept them", () => {
     expect(sourceFolder({ code: "E2E_TEMPLATES_AB12CD_ROOT", version: 2 })).toBe("E2E_TEMPLATES_AB12CD_ROOT/v2");
   });
 });

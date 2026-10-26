@@ -24,7 +24,6 @@ export type NavIconName =
   | "manufacturers"
   | "clients"
   | "defects"
-  | "templates"
   | "ai";
 
 export type NavLinkEntry = {
@@ -73,8 +72,6 @@ export const ADMIN_MANUFACTURERS_PATH = "/admin/manufacturers";
 export const ADMIN_CLIENTS_PATH = "/admin/clients";
 /** DEFECTS_PATH in lib/admin/defects.ts: the codes, with label mapping and unmapped labels below. */
 export const ADMIN_DEFECTS_PATH = "/admin/defects";
-/** TEMPLATES_PATH in lib/admin/templates.ts: the list, with each version and its editor below. */
-export const ADMIN_TEMPLATES_PATH = "/admin/templates";
 /** Steri-AI Settings: General (the API key), Inspection Settings and Steri-AI Cost, by ?view= (docs/AI.md, "AI Settings"). */
 export const ADMIN_AI_PATH = "/admin/ai";
 
@@ -105,12 +102,12 @@ export const NAV: readonly NavSection[] = [
       // Exact, so it is not also current on /admin/users.
       { kind: "link", key: "overview", label: "Overview", href: ADMIN_PATH, match: "exact", icon: "overview", roles: ADMINS },
       // BUILD_SPEC 10's admin screens. Prefix: each stays current on the pages
-      // below it (/admin/defects/labels, /admin/templates/<id>/edit).
+      // below it (/admin/defects/labels). No Templates: every client uses the
+      // one standard flow (Kenneth, 26 October 2026).
       { kind: "link", key: "users", label: "Users", href: ADMIN_USERS_PATH, match: "prefix", icon: "users", roles: ADMINS },
       { kind: "link", key: "manufacturers", label: "Manufacturers", href: ADMIN_MANUFACTURERS_PATH, match: "prefix", icon: "manufacturers", roles: ADMINS },
       { kind: "link", key: "clients", label: "Clients", href: ADMIN_CLIENTS_PATH, match: "prefix", icon: "clients", roles: ADMINS },
       { kind: "link", key: "defects", label: "Defects", href: ADMIN_DEFECTS_PATH, match: "prefix", icon: "defects", roles: ADMINS },
-      { kind: "link", key: "templates", label: "Templates", href: ADMIN_TEMPLATES_PATH, match: "prefix", icon: "templates", roles: ADMINS },
       { kind: "link", key: "ai", label: "Steri-AI Settings", href: ADMIN_AI_PATH, match: "prefix", icon: "ai", roles: ADMINS },
     ],
   },

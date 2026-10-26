@@ -254,7 +254,7 @@ function StatusSection({ item }: { item: DefectCodeItem }) {
         <InfoIcon aria-hidden className="mt-0.5 size-4 shrink-0" />
         <span>
           {item.active
-            ? "Active: offered when mapping one-off labels and in the template editor."
+            ? "Active: offered when mapping one-off labels."
             : "Inactive: kept wherever templates and inspections use it, but not offered when mapping labels."}
         </span>
       </p>
@@ -332,9 +332,7 @@ function ConfirmDeactivate({
               Templates and inspections that use it keep it, and their counts do not change. It is no longer offered
               when mapping one-off labels.
               {item.usedBy.length > 0 &&
-                ` ${listOf(item.usedBy)} still ${item.usedBy.length === 1 ? "lists" : "list"} it: change ${
-                  item.usedBy.length === 1 ? "that template" : "those templates"
-                } in the template editor if inspectors should stop counting it.`}
+                ` ${listOf(item.usedBy)} still ${item.usedBy.length === 1 ? "lists" : "list"} it, so inspectors still count it there.`}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <input type="hidden" name="code" value={item.code} />
