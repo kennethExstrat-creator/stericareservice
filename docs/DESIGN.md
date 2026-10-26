@@ -154,13 +154,13 @@ Kenneth (12 October 2026): "this menu is crowded, simplify the section name". A 
 - **Limits:** one to three words, in Title Case, at most 21 characters: one line of a sidebar step (144 px of 14 px Outfit semibold), never cut. A custom step's long title wraps to two lines in the sidebar, its full title on hover.
 - **Code:** `lib/templates/short-titles.ts` holds the names and `shortTitleFor` / `customShortTitle`; capture's sections and pages carry `title` and `shortTitle` (`lib/inspections/capture/sections.ts`); module code asks `moduleShortTitle(context, key)` (`modules/_framework`; the Conclusion's reasons), and the submit dialog `submitReasons` (`lib/inspections/capture/suggestion.ts`). Code, not template data: every template version has them, with nothing published.
 
-The seed menus, in screen order (Source Documents' page holds General Information; the order, the sampling plan and the box/carton numbers come next, 26 October 2026):
+The seed menus, in screen order (Source Documents' page holds General Information; the order, the sampling plan and the box/carton numbers come next; the order's page holds Glove Information and Packing Configuration, 26 October 2026):
 
-- STD_EG: Source Documents, Order, Sampling Plan, Box/Carton Numbers, Glove Information, Dimension, Force at Break, Weight, Watertight Test, Visual Inspection, Packing Check, Labeling, Conclusion.
-- SAFEDON_EG: Source Documents, Order, Sampling Plan, Box/Carton Numbers, Glove Information, Dimension, Physical Properties, Weight, Watertight Test, Visual Inspection, Dispensing, Dispensing Notes, Labeling, Conclusion.
+- STD_EG (version 5, Safedon's flow for every client, 26 October 2026): Source Documents, Order, Sampling Plan, Box/Carton Numbers, Dimension, Physical Properties, Weight, Watertight Test, Visual Inspection, Dispensing, Dispensing Notes, Labeling, Conclusion. Versions 1 to 4 had Force at Break and Packing Check in place of Physical Properties and Dispensing.
+- SAFEDON_EG (retired 26 October 2026; its inspections keep it): the same steps as STD_EG version 5.
 - STD_SG: Source Documents, PO Info, Sampling Plan, Watertight Test, Visual Inspection, Dimension, Dye Leak Test, Conclusion.
 
-Packing Configuration (Packing Mode in STD_SG) sits on the Order's (PO Info's) page and Glove Type on Glove Information's (Shipment's in STD_SG), so their names show in Pending, photo tags and their own dialogs.
+Glove Information and Packing Configuration (Packing Mode in STD_SG) sit on the Order's (PO Info's) page, side by side under the order, Glove Information at about a third of the width (Kenneth, 26 October 2026: "move the glove information to order page, to the left side of packing configuration card"; `SHOWN_WITH` and `SIDE_BY_SIDE` in `lib/inspections/capture/sections.ts`). Glove Type, on templates that keep it as a custom module, leads Glove Information there (Shipment's in STD_SG). So their names show in Pending, photo tags and their own dialogs.
 
 ## Do / Don't
 

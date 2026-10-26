@@ -1,8 +1,10 @@
 // Glove Information (BUILD_SPEC 6.1 glove_info): the Glove Type, once per
-// inspection, and the glove's variants. A variant is one combination of
-// surface texture, indicative weight, colour and length (Kenneth, 11 October
-// 2026: one PO can hold several), for the sizes it covers. Every value may be
-// missing while the inspection is a draft.
+// inspection, and the glove's surface texture, indicative weight, colour and
+// length. One glove per inspection (Kenneth, 26 October 2026): one variant,
+// covering every size. The data keeps a list: inspections saved from 11
+// October 2026, when one PO could hold several variants each for the sizes
+// it covers, keep theirs until they are removed. Every value may be missing
+// while the inspection is a draft.
 import { z } from "zod";
 import { CanonicalSizeSchema } from "@/lib/sizes";
 import { DecimalCellSchema, TextCellSchema } from "@/modules/_framework";

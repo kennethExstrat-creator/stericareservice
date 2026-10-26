@@ -9,8 +9,9 @@
 //
 // Pages (capturePages): what a tab, a sidebar row, a progress step and
 // Previous or Next open. One section each, except a module shown on another
-// module's page (SHOWN_WITH): packing configuration sits right below the
-// order. Each module keeps its own frame, result, comment, photos and
+// module's page (SHOWN_WITH): Glove Information and packing configuration
+// sit under the order, side by side (SIDE_BY_SIDE; Kenneth, 26 October 2026).
+// Each module keeps its own frame, result, comment, photos and
 // Pending row; the page takes its host's title, the worst of their results
 // and their progress together. Screen order is template order with a guest
 // moved up to its host, the lead pages first (LEAD_PAGE_KEYS); the review
@@ -41,19 +42,35 @@ import { readModuleEntry, type InspectionData } from "@/modules/_framework";
  * configuration should go with order, if not how the total # glove be
  * calculated if the relied input is in the next page"; the printed report
  * has the packing block right below the order table
- * (docs/forms/reports/STD_EG.md). Only while both are included, overrides
- * applied: either alone has a page of its own. A guest with a sticky size
- * bar of its own would stick over the host's frame too: check the sticky
- * offsets (use-sticky-offsets.ts) before adding one.
+ * (docs/forms/reports/STD_EG.md). Glove Information too (Kenneth, 26
+ * October 2026: "move the glove information to order page ... remove the
+ * whole glove information page"): one glove per inspection, beside the
+ * packing (SIDE_BY_SIDE). Only while both are included, overrides applied:
+ * either alone has a page of its own. A guest with a sticky size bar of its
+ * own would stick over the host's frame too: check the sticky offsets
+ * (use-sticky-offsets.ts) before adding one.
  */
-export const SHOWN_WITH: Readonly<Partial<Record<ModuleKey, ModuleKey>>> = { packing_config: "order_lots" };
+export const SHOWN_WITH: Readonly<Partial<Record<ModuleKey, ModuleKey>>> = {
+  glove_info: "order_lots",
+  packing_config: "order_lots",
+};
+
+/**
+ * Two modules shown side by side on their host's page, under the host's
+ * frame (Kenneth, 26 October 2026: "to the left side of packing configuration
+ * card, glove info take 35% width while packing config get 65% width"):
+ * `left` then `right`, each with the custom modules shown with it. While the
+ * page has only one of them, it has the width (sideBySideSections).
+ */
+export const SIDE_BY_SIDE = { left: "glove_info", right: "packing_config" } as const satisfies Record<string, ModuleKey>;
 
 /**
  * Custom modules shown on a module's page, never a page of their own, on
  * the first of these the template includes (Kenneth, 11 October 2026: Glove
  * Type is not a page of its own); `first` puts it before the module. Glove
- * Type leads Glove Information's page, as Glove Information's own Glove Type
- * does since STD_EG version 3 (Kenneth, 12 October 2026); on a template
+ * Type leads Glove Information, as Glove Information's own Glove Type does
+ * since STD_EG version 3 (Kenneth, 12 October 2026): on the order's page, in
+ * its column, since Glove Information sits there (SHOWN_WITH); on a template
  * without it (STD_SG), it follows the header: the onsite forms write it under
  * Purchase Order / Shipment Information.
  */
@@ -101,6 +118,12 @@ export type CaptureSection =
       custom: CustomModule;
       /** Shown on this module's page, right below it (CUSTOM_SHOWN_WITH). */
       shownWith?: ModuleKey;
+      /**
+       * The module it is shown with when that module is itself a guest on
+       * `shownWith`'s page: Glove Type with Glove Information, in its column
+       * there (SIDE_BY_SIDE).
+       */
+      beside?: ModuleKey;
     } & Counts)
   | {
       kind: "excluded";
@@ -124,13 +147,23 @@ export function captureSections(
 ): CaptureSection[] {
   const counts = countIssues(report.issues);
   const included = new Set(template.modules.filter((entry) => entry.include).map((entry) => entry.key));
-  // A custom module on a module's page (CUSTOM_SHOWN_WITH) leads or follows that module; the rest follow their `after`.
+  // The page a module is on: its host's, while it is a guest there (SHOWN_WITH), else its own.
+  const pageOf = (key: ModuleKey): ModuleKey => {
+    const host = SHOWN_WITH[key];
+    return host !== undefined && included.has(key) && included.has(host) ? host : key;
+  };
+  // A custom module on a module's page (CUSTOM_SHOWN_WITH) leads or follows that module, on that module's page (a
+  // guest's: its host's, beside the guest); the rest follow their `after`.
   const hostOf = new Map<string, ModuleKey>();
+  const besideOf = new Map<string, ModuleKey>();
   const customBefore = new Map<string, CustomModule[]>();
   const customAfter = new Map<string, CustomModule[]>();
   for (const custom of template.customModules) {
     const place = CUSTOM_SHOWN_WITH[custom.key]?.find((entry) => included.has(entry.host));
-    if (place) hostOf.set(custom.key, place.host);
+    if (place) {
+      hostOf.set(custom.key, pageOf(place.host));
+      if (pageOf(place.host) !== place.host) besideOf.set(custom.key, place.host);
+    }
     const into = place?.first ? customBefore : customAfter;
     const key = place?.host ?? custom.after;
     into.set(key, [...(into.get(key) ?? []), custom]);
@@ -144,19 +177,25 @@ export function captureSections(
   const guests = new Set([...guestsOf.values()].flat().map((entry) => entry.key));
 
   const sections: CaptureSection[] = [];
+  const placed = (custom: CustomModule) => customSection(custom, report, data, counts, hostOf.get(custom.key), besideOf.get(custom.key));
   const addCustomAfter = (key: string) => {
-    for (const custom of customAfter.get(key) ?? []) sections.push(customSection(custom, report, data, counts, hostOf.get(custom.key)));
+    for (const custom of customAfter.get(key) ?? []) sections.push(placed(custom));
     customAfter.delete(key);
   };
   for (const entry of template.modules) {
     // On its host's page, the custom modules after it with it.
     if (guests.has(entry.key)) continue;
     if (entry.include) {
-      for (const custom of customBefore.get(entry.key) ?? []) sections.push(customSection(custom, report, data, counts, entry.key));
+      for (const custom of customBefore.get(entry.key) ?? []) sections.push(placed(custom));
       customBefore.delete(entry.key);
       sections.push(moduleSection(entry, report, counts));
       const own = guestsOf.get(entry.key) ?? [];
-      for (const guest of own) sections.push(moduleSection(guest, report, counts, entry.key));
+      for (const guest of own) {
+        // A custom module that leads the guest leads it on the host's page too.
+        for (const custom of customBefore.get(guest.key) ?? []) sections.push(placed(custom));
+        customBefore.delete(guest.key);
+        sections.push(moduleSection(guest, report, counts, entry.key));
+      }
       addCustomAfter(entry.key);
       for (const guest of own) addCustomAfter(guest.key);
     } else {
@@ -181,6 +220,21 @@ export function captureSections(
 
 export function isIncluded(section: CaptureSection): section is IncludedSection {
   return section.kind !== "excluded";
+}
+
+/**
+ * A page's sections around its side-by-side row (SIDE_BY_SIDE): those above
+ * it, in screen order, and each column's, a custom module going with the
+ * module it is shown beside. Null while the page has neither module.
+ */
+export function sideBySideSections<T extends IncludedSection>(
+  sections: readonly T[],
+): { above: T[]; left: T[]; right: T[] } | null {
+  const columnOf = (section: T): string => (section.kind === "custom" ? (section.beside ?? "") : section.key);
+  const left = sections.filter((section) => columnOf(section) === SIDE_BY_SIDE.left);
+  const right = sections.filter((section) => columnOf(section) === SIDE_BY_SIDE.right);
+  if (left.length === 0 && right.length === 0) return null;
+  return { above: sections.filter((section) => !left.includes(section) && !right.includes(section)), left, right };
 }
 
 export function findSection(sections: readonly CaptureSection[], key: string | null): CaptureSection | undefined {
@@ -486,6 +540,7 @@ function customSection(
   data: InspectionData,
   counts: Map<string, Counts>,
   shownWith?: ModuleKey,
+  beside?: ModuleKey,
 ): CaptureSection {
   const own = counts.get(custom.key) ?? NO_ISSUES;
   const hasData = readModuleEntry(data, "custom", custom.key).hasData || hasMappedValues(custom, report);
@@ -500,6 +555,7 @@ function customSection(
     progress: progressOf(status, hasData),
     custom,
     ...(shownWith ? { shownWith } : {}),
+    ...(beside ? { beside } : {}),
     ...own,
   };
 }

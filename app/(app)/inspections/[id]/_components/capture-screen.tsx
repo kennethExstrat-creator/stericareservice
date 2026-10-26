@@ -4,9 +4,10 @@
 // pages, as tabs with progress and a result chip each, the open page's
 // forms, the issues panel, autosave and submit. A page is one section, or a
 // module with the modules shown on its page (lib/inspections/capture
-// sections.ts SHOWN_WITH: packing configuration right below the order, whose
-// total gloves it works out), each in a frame of its own with its own result,
-// comment and photos. Tabs, the sidebar, the progress steps and Previous and
+// sections.ts SHOWN_WITH: packing configuration, whose total gloves it works
+// out, and Glove Information under the order, side by side; Kenneth, 26
+// October 2026), each in a frame of its own with its own result, comment and
+// photos. Tabs, the sidebar, the progress steps and Previous and
 // Next go by page; ?module=, issue links and the switches name a section,
 // and open its page with that section's title in view. A module's file slot
 // links a file uploaded on Source Documents, and opens that page while it
@@ -119,6 +120,7 @@ import {
   neighbours,
   pageSectionKeys,
   progressSteps,
+  sideBySideSections,
   withSourceDocuments,
   type CapturePage,
   type CaptureSection,
@@ -1203,6 +1205,12 @@ type ActivePageProps = SharedSectionProps & {
  * From 1024 px side by side, 2 to 3; below, General Information first. Its
  * frames are a page of several sections'; without them, the files' frame is
  * the panel itself.
+ *
+ * The order's page: Glove Information and packing configuration under the
+ * order, side by side, 35 to 65, once the page is 50rem wide (Kenneth, 26
+ * October 2026; SIDE_BY_SIDE); narrower, Glove Information first. The row is
+ * there whenever the page has either, so a frame keeps its place when the
+ * other comes or goes.
  */
 function ActivePage({
   page,
@@ -1218,7 +1226,7 @@ function ActivePage({
 }: ActivePageProps) {
   const sections: readonly CaptureSection[] = page.kind === "excluded" ? [page.section] : page.sections;
   const several = sections.length > 1 || (page.kind === "documents" && sections.length > 0);
-  const parts = sections.map((section) => (
+  const part = (section: CaptureSection) => (
     <SectionPart
       key={section.key}
       {...shared}
@@ -1235,7 +1243,8 @@ function ActivePage({
       onUnreadableRemoved={() => onUnreadableRemoved(section.key)}
       onOverridesChange={(next) => onOverridesChange(next, section.key)}
     />
-  ));
+  );
+  const parts = sections.map(part);
   if (page.kind === "documents") {
     const files = (id: string, labelledBy?: string) => (
       <SourceDocumentsPage
@@ -1253,6 +1262,25 @@ function ActivePage({
         <div data-slot="documents-columns" className="grid items-start gap-4 lg:grid-cols-[minmax(18rem,2fr)_minmax(0,3fr)]">
           <div className="flex min-w-0 flex-col gap-4">{parts}</div>
           {files(`${panelId}-${SOURCE_DOCUMENTS_KEY}`)}
+        </div>
+      </PagePanel>
+    );
+  }
+  const row = several && page.kind === "included" ? sideBySideSections(page.sections) : null;
+  if (row) {
+    const both = row.left.length > 0 && row.right.length > 0;
+    return (
+      <PagePanel id={panelId} tabLabelledBy={tabLabelledBy}>
+        {row.above.map(part)}
+        {/* The page's own width decides the row, on a touchscreen too. */}
+        <div className="@container">
+          <div
+            data-slot="side-by-side"
+            className={cn("grid items-start gap-4", both && "@min-[50rem]:grid-cols-[minmax(0,35fr)_minmax(0,65fr)]")}
+          >
+            {row.left.length > 0 && <div className="flex min-w-0 flex-col gap-4">{row.left.map(part)}</div>}
+            {row.right.length > 0 && <div className="flex min-w-0 flex-col gap-4">{row.right.map(part)}</div>}
+          </div>
         </div>
       </PagePanel>
     );

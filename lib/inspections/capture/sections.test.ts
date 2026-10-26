@@ -27,6 +27,7 @@ import {
   progressSteps,
   progressSummary,
   SHOWN_WITH,
+  sideBySideSections,
   withSourceDocuments,
   type CapturePage,
   type CaptureSection,
@@ -60,12 +61,13 @@ function titleOf(sections: readonly CaptureSection[], key: string): string {
 
 describe("captureSections", () => {
   it("lists the included modules in template order, each custom module after the one it follows", () => {
+    // Glove Information on the order's page, after the order (Kenneth, 26 October 2026): its custom module follows that page.
     expect(sectionsFor().map((section) => `${section.kind}:${section.key}`)).toEqual([
       "module:header",
-      "module:glove_info",
-      "custom:site_notes",
       "module:order_lots",
+      "module:glove_info",
       "module:packing_config",
+      "custom:site_notes",
       "module:weight",
       "custom:size_checks",
       "module:conclusion",
@@ -80,11 +82,12 @@ describe("captureSections", () => {
     expect(findSection(sections, "conclusion")).toMatchObject({ status: "not_done", errors: 1 });
   });
 
-  it("marks packing configuration as shown with the order, and nothing else", () => {
+  it("marks Glove Information and packing configuration as shown with the order, and nothing else", () => {
     const sections = sectionsFor();
-    expect(SHOWN_WITH).toEqual({ packing_config: "order_lots" });
+    expect(SHOWN_WITH).toEqual({ glove_info: "order_lots", packing_config: "order_lots" });
+    expect(findSection(sections, "glove_info")).toMatchObject({ kind: "module", shownWith: "order_lots" });
     expect(findSection(sections, "packing_config")).toMatchObject({ kind: "module", shownWith: "order_lots" });
-    expect(sections.filter((section) => section.kind === "module" && section.shownWith !== undefined)).toHaveLength(1);
+    expect(sections.filter((section) => section.kind === "module" && section.shownWith !== undefined)).toHaveLength(2);
   });
 
   it("keeps a module an admin switched off in its place, marked off with the override", () => {
@@ -163,9 +166,9 @@ describe("captureSections", () => {
     expect(named(sectionsFor(filledData(), OFF, template))).toEqual([
       // The template's "Manufacturer Information": General Information on screen, heading and short name alike (Kenneth, 26 October 2026).
       ["header", "General Information", "General Information"],
+      ["order_lots", "Order", "Order"],
       ["glove_info", "Glove Information", "Glove Information"],
       ["site_notes", "Site notes", "Site notes"],
-      ["order_lots", "Order", "Order"],
       // Switched off, it keeps one for its row and its notice.
       ["packing_config", "Packing configuration", "Packing Configuration"],
       ["weight", "Weight (g)", "Weight"],
@@ -178,14 +181,13 @@ describe("captureSections", () => {
 });
 
 describe("pages", () => {
-  it("shows packing configuration on the order's page, below it, under the order's title, with no step of its own", () => {
+  it("shows Glove Information and packing configuration on the order's page, below it, under the order's title, with no step of their own", () => {
     const sections = sectionsFor();
     const pages = capturePages(sections);
     expect(pages.map((page) => pageSectionKeys(page))).toEqual([
       ["header"],
-      ["glove_info"],
+      ["order_lots", "glove_info", "packing_config"],
       ["site_notes"],
-      ["order_lots", "packing_config"],
       ["weight"],
       ["size_checks"],
       ["conclusion"],
@@ -195,9 +197,17 @@ describe("pages", () => {
     // Each module keeps its own result and title on its frame.
     expect(order?.kind === "included" && order.sections.map((section) => [section.key, section.title, section.status])).toEqual([
       ["order_lots", titleOf(sections, "order_lots"), "info"],
+      ["glove_info", titleOf(sections, "glove_info"), "info"],
       ["packing_config", titleOf(sections, "packing_config"), "not_done"],
     ]);
+    // Side by side under the order (Kenneth, 26 October 2026): Glove Information on the left, packing on the right.
+    expect(order?.kind === "included" && sideBySideSections(order.sections)).toEqual({
+      above: [findSection(sections, "order_lots")],
+      left: [findSection(sections, "glove_info")],
+      right: [findSection(sections, "packing_config")],
+    });
     const steps = progressSteps(pages);
+    expect(steps.map((step) => step.key)).not.toContain("glove_info");
     expect(steps.map((step) => step.key)).not.toContain("packing_config");
     expect(steps.find((step) => step.key === "order_lots")).toEqual({
       key: "order_lots",
@@ -210,8 +220,9 @@ describe("pages", () => {
     expect(steps.map((step) => step.title)).not.toContain(titleOf(sections, "packing_config"));
   });
 
-  it("opens the order's page for packing configuration (?module=, issue links, a landing)", () => {
+  it("opens the order's page for Glove Information and packing configuration (?module=, issue links, a landing)", () => {
     const pages = pagesFor();
+    expect(findPage(pages, "glove_info")?.key).toBe("order_lots");
     expect(findPage(pages, "packing_config")?.key).toBe("order_lots");
     expect(findPage(pages, "order_lots")?.key).toBe("order_lots");
     expect(findPage(pages, "weight")?.key).toBe("weight");
@@ -219,23 +230,22 @@ describe("pages", () => {
     expect(findPage(pages, null)).toBeUndefined();
   });
 
-  it("gives every module a page of its own in a template without packing configuration, or without the order", () => {
-    for (const keys of [
-      ["glove_info", "order_lots", "weight"],
-      ["glove_info", "packing_config", "weight"],
-    ] as const) {
-      const template = makeTestTemplate(TEST_REGISTRY, keys);
-      const sections = sectionsFor(filledData(), {}, template);
-      const pages = capturePages(sections);
-      expect(pages.map((page) => pageSectionKeys(page))).toEqual(sections.map((section) => [section.key]));
-      expect(sections.some((section) => section.kind === "module" && section.shownWith !== undefined)).toBe(false);
-    }
+  it("gives every module a page of its own in a template without the order; without packing, Glove Information still joins the order", () => {
+    const withoutOrder = makeTestTemplate(TEST_REGISTRY, ["glove_info", "packing_config", "weight"]);
+    const sections = sectionsFor(filledData(), {}, withoutOrder);
+    expect(capturePages(sections).map((page) => pageSectionKeys(page))).toEqual(sections.map((section) => [section.key]));
+    expect(sections.some((section) => section.kind === "module" && section.shownWith !== undefined)).toBe(false);
+    const withoutPacking = pagesFor(filledData(), {}, makeTestTemplate(TEST_REGISTRY, ["glove_info", "order_lots", "weight"]));
+    const order = findPage(withoutPacking, "order_lots");
+    expect(order && pageSectionKeys(order)).toEqual(["order_lots", "glove_info"]);
+    // One of the two alone has the row's width: its column, and nothing on the other side.
+    expect(order?.kind === "included" && sideBySideSections(order.sections)?.right).toEqual([]);
   });
 
-  it("gives packing configuration a switched-off page of its own while it is switched off, the order's page holding the order alone", () => {
+  it("gives packing configuration a switched-off page of its own while it is switched off, the order's page holding the order and Glove Information", () => {
     const pages = pagesFor(filledData(), OFF);
     expect(findPage(pages, "packing_config")).toMatchObject({ kind: "excluded", key: "packing_config" });
-    expect(pageSectionKeys(findPage(pages, "order_lots")!)).toEqual(["order_lots"]);
+    expect(pageSectionKeys(findPage(pages, "order_lots")!)).toEqual(["order_lots", "glove_info"]);
     expect(findPage(pages, "order_lots")).toMatchObject({ status: "info", progress: "done" });
   });
 
@@ -250,12 +260,12 @@ describe("pages", () => {
     };
     for (const template of Object.values(listed)) {
       const pages = pagesFor(filledData(), {}, template);
+      // The order's own custom modules first, then Glove Information's and packing's, as their modules sit on the page.
       expect(pages.map((page) => pageSectionKeys(page))).toEqual([
         ["header"],
-        ["glove_info"],
-        ["site_notes"],
-        ["order_lots", "packing_config"],
+        ["order_lots", "glove_info", "packing_config"],
         ["carton_marks"],
+        ["site_notes"],
         ["pallet_notes"],
         ["weight"],
         ["size_checks"],
@@ -265,25 +275,33 @@ describe("pages", () => {
     // Switched off, packing stays where the template lists it, its custom module after it.
     expect(pagesFor(filledData(), OFF, listed.above).map((page) => `${page.kind}:${page.key}`)).toEqual([
       "included:header",
-      "included:glove_info",
-      "included:site_notes",
       "excluded:packing_config",
       "included:pallet_notes",
       "included:order_lots",
       "included:carton_marks",
+      "included:site_notes",
       "included:weight",
       "included:size_checks",
       "included:conclusion",
     ]);
   });
 
-  it("never gives Glove Type a page of its own: first on Glove Information's page, else after the header (11 and 12 October 2026)", () => {
+  it("never gives Glove Type a page of its own: first with Glove Information on the order's page, else after the header (11 and 12 October 2026)", () => {
     const gloveType: CustomModule = { ...SITE_NOTES, key: "glove_type", title: "Glove Type", after: "header" };
     const withInfo = makeTestTemplate(TEST_REGISTRY, ["glove_info", "order_lots"], { customModules: [gloveType] });
-    const pages = pagesFor(filledData(), {}, withInfo);
-    expect(pages.map((page) => pageSectionKeys(page))).toEqual([["header"], ["glove_type", "glove_info"], ["order_lots"], ["conclusion"]]);
-    // The page is Glove Information's, named as it is, though Glove Type leads it.
-    expect(pages[1]).toMatchObject({ key: "glove_info", title: "Glove Information", shortTitle: "Glove Information" });
+    const sections = sectionsFor(filledData(), {}, withInfo);
+    const pages = capturePages(sections);
+    expect(pages.map((page) => pageSectionKeys(page))).toEqual([["header"], ["order_lots", "glove_type", "glove_info"], ["conclusion"]]);
+    // The order's page, named as it is; Glove Type leads Glove Information in its column there (Kenneth, 26 October 2026).
+    expect(pages[1]).toMatchObject({ key: "order_lots", title: "Order", shortTitle: "Order" });
+    expect(findSection(sections, "glove_type")).toMatchObject({ kind: "custom", shownWith: "order_lots", beside: "glove_info" });
+    expect(pages[1].kind === "included" && sideBySideSections(pages[1].sections)?.left.map((section) => section.key)).toEqual([
+      "glove_type",
+      "glove_info",
+    ]);
+    // Without the order, Glove Information has its page again, Glove Type leading it.
+    const withoutOrder = makeTestTemplate(TEST_REGISTRY, ["glove_info"], { customModules: [gloveType] });
+    expect(pagesFor(filledData(), {}, withoutOrder).map((page) => pageSectionKeys(page))[1]).toEqual(["glove_type", "glove_info"]);
     const withoutInfo = makeTestTemplate(TEST_REGISTRY, ["order_lots"], { customModules: [gloveType] });
     expect(pagesFor(filledData(), {}, withoutInfo).map((page) => pageSectionKeys(page))[0]).toEqual(["header", "glove_type"]);
   });
@@ -342,21 +360,21 @@ describe("navigation helpers", () => {
 
   it("steps over switched-off pages with Previous and Next", () => {
     const pages = pagesFor(filledData(), OFF);
-    expect(neighbours(pages, "order_lots")).toMatchObject({ previous: { key: "site_notes" }, next: { key: "weight" } });
+    expect(neighbours(pages, "order_lots")).toMatchObject({ previous: { key: "header" }, next: { key: "site_notes" } });
     expect(neighbours(pages, "header").previous).toBeNull();
     expect(neighbours(pages, "conclusion").next).toBeNull();
     // From a switched-off page, the buttons go to the pages around it.
-    expect(neighbours(pages, "packing_config")).toMatchObject({ previous: { key: "order_lots" }, next: { key: "weight" } });
+    expect(neighbours(pages, "packing_config")).toMatchObject({ previous: { key: "site_notes" }, next: { key: "weight" } });
     // An unknown key starts at the first page.
     expect(neighbours(pages, "nothing")).toMatchObject({ previous: null, next: { key: "header" } });
   });
 
-  it("goes by page: from the order's page, packing configuration included, Next is the page after both", () => {
+  it("goes by page: from the order's page, Glove Information and packing configuration included, Next is the page after them", () => {
     const pages = pagesFor();
-    for (const key of ["order_lots", "packing_config"]) {
-      expect(neighbours(pages, key)).toMatchObject({ previous: { key: "site_notes" }, next: { key: "weight" } });
+    for (const key of ["order_lots", "glove_info", "packing_config"]) {
+      expect(neighbours(pages, key)).toMatchObject({ previous: { key: "header" }, next: { key: "site_notes" } });
     }
-    expect(neighbours(pages, "weight").previous?.key).toBe("order_lots");
+    expect(neighbours(pages, "site_notes").previous?.key).toBe("order_lots");
   });
 
   it("gives the progress tracker the included pages with their results", () => {
@@ -365,15 +383,16 @@ describe("navigation helpers", () => {
     expect(steps.map((step) => step.key)).not.toContain("packing_config");
     // Named by its short name, its full title for the hover.
     expect(steps[0]).toEqual({ key: "header", label: "General Information", title: "General Information", state: "done", result: "info" });
-    expect(steps[1]).toMatchObject({ key: "glove_info", label: "Glove Information", title: "Glove Information" });
+    expect(steps[1]).toMatchObject({ key: "order_lots", label: "Order", title: "Order" });
+    expect(steps.map((step) => step.key)).not.toContain("glove_info");
     // A switched-off page has no step, but a short name of its own.
     expect(findPage(pages, "packing_config")).toMatchObject({ kind: "excluded", shortTitle: "Packing Configuration" });
-    expect(progressSummary(pages)).toEqual({ done: 3, total: 7 });
-    // With packing on the order's page there are as many steps, the order's done only once packing is.
-    expect(progressSummary(pagesFor())).toEqual({ done: 2, total: 7 });
+    expect(progressSummary(pages)).toEqual({ done: 2, total: 6 });
+    // With Glove Information and packing on the order's page there are as many steps, the order's done only once all are.
+    expect(progressSummary(pagesFor())).toEqual({ done: 1, total: 6 });
     expect(progressSummary(pagesFor(withPacking({ glovesPerInner: 100, innersPerCase: 10, glovesPerCase: 1000 })))).toEqual({
-      done: 3,
-      total: 7,
+      done: 2,
+      total: 6,
     });
   });
 
@@ -431,7 +450,6 @@ describe("withSourceDocuments: General Information beside the files (Kenneth, 26
     expect(progressSteps(pages).map((step) => step.key)).toEqual([
       "source_documents",
       "order_lots",
-      "glove_info",
       "site_notes",
       "weight",
       "size_checks",
@@ -440,8 +458,8 @@ describe("withSourceDocuments: General Information beside the files (Kenneth, 26
     // ?module=header, an issue link or a landing in it opens Source Documents' page.
     expect(findPage(pages, "header")?.key).toBe("source_documents");
     expect(neighbours(pages, "header")).toMatchObject({ previous: null, next: { key: "order_lots" } });
-    // One included page fewer in the count.
-    expect(progressSummary(pages)).toEqual({ done: 1, total: 6 });
+    // One included page fewer in the count (and none for Glove Information, on the order's page).
+    expect(progressSummary(pages)).toEqual({ done: 0, total: 5 });
   });
 
   it("takes the worse of the two results and their progress together, as a page of two sections does", () => {

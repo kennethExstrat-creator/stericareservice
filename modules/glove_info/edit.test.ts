@@ -1,8 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { addVariant, removeVariant, setGloveType, setIndicativeWeight, setLength, setText, tidyGloveType, tidyText, toggleSize } from "./edit";
-import { emptyGloveInfo, emptyVariant, TEXT_MAX_LENGTH, type GloveInfoData } from "./schema";
+import { coverEverySize, removeVariant, setGloveType, setIndicativeWeight, setLength, setText, tidyGloveType, tidyText } from "./edit";
+import { emptyVariant, TEXT_MAX_LENGTH, type GloveInfoData } from "./schema";
 
-const ORDER = ["XS", "S", "M", "L", "XL"];
 const one = (change: Partial<ReturnType<typeof emptyVariant>> = {}): GloveInfoData => ({ gloveType: null, variants: [{ ...emptyVariant(), ...change }] });
 
 describe("glove_info edits", () => {
@@ -30,7 +29,8 @@ describe("glove_info edits", () => {
   });
 
   it("sets the weight of the variant it is typed in", () => {
-    const data = setIndicativeWeight(addVariant(one({ colour: "Blue" })), 1, 4.2);
+    const saved: GloveInfoData = { gloveType: null, variants: [{ ...emptyVariant(), colour: "Blue" }, emptyVariant()] };
+    const data = setIndicativeWeight(saved, 1, 4.2);
     expect(data.variants.map((variant) => variant.indicativeWeight)).toEqual([null, 4.2]);
   });
 
@@ -39,18 +39,20 @@ describe("glove_info edits", () => {
     expect(setLength(one({ length: 240 }), 0, null).variants[0].length).toBeNull();
   });
 
-  it("picks and drops sizes, kept in the template's order", () => {
-    let data = toggleSize(one(), 0, "L", ORDER);
-    data = toggleSize(data, 0, "S", ORDER);
-    expect(data.variants[0].sizes).toEqual(["S", "L"]);
-    expect(toggleSize(data, 0, "S", ORDER).variants[0].sizes).toEqual(["L"]);
+  it("makes a glove saved for some sizes cover every size (one glove per inspection, Kenneth, 26 October 2026)", () => {
+    const saved = one({ sizes: ["S", "L"], colour: "Blue" });
+    expect(coverEverySize(saved, 0).variants[0]).toEqual({ ...emptyVariant(), colour: "Blue" });
+    const every = one({ colour: "Blue" });
+    expect(coverEverySize(every, 0)).toBe(every);
+    expect(coverEverySize(every, 3)).toBe(every);
   });
 
-  it("adds a variant (two while none is saved: the one on screen and the new one) and removes one", () => {
-    expect(addVariant({ gloveType: null, variants: [] }).variants).toHaveLength(2);
-    expect(addVariant(emptyGloveInfo()).variants).toHaveLength(2);
-    const two = addVariant(one({ colour: "Blue" }));
-    expect(removeVariant(two, 0).variants).toEqual([emptyVariant()]);
+  it("removes a variant saved before one glove per inspection, never the last one left", () => {
+    const two: GloveInfoData = { gloveType: null, variants: [{ ...emptyVariant(), colour: "Blue" }, { ...emptyVariant(), colour: "White" }] };
+    expect(removeVariant(two, 0).variants).toEqual([{ ...emptyVariant(), colour: "White" }]);
+    expect(removeVariant(two, 1).variants).toEqual([{ ...emptyVariant(), colour: "Blue" }]);
     expect(removeVariant(two, 5)).toBe(two);
+    const glove = one({ colour: "Blue" });
+    expect(removeVariant(glove, 0)).toBe(glove);
   });
 });

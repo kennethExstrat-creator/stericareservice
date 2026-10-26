@@ -213,7 +213,7 @@ const gloveInfo = defineModule({
   alwaysOn: false,
   title: "Glove Information",
   captures:
-    "The glove's Glove Type, once per inspection, then its variants (Kenneth, 11 October 2026: one PO can hold several): each a combination of surface texture, indicative weight (g), colour and length, for the sizes it covers (none picked: every size).",
+    "The glove's Glove Type, once per inspection, then its surface texture, indicative weight (g), colour and length: one glove per inspection, for every size (Kenneth, 26 October 2026). Inspections saved from 11 October 2026, when one PO could hold several variants each for the sizes it covers, keep theirs until removed. On the order's page, beside packing configuration.",
   result: "info.",
   rules: [1, 9],
   data: [
@@ -226,7 +226,7 @@ const gloveInfo = defineModule({
       notes:
         "Once per inspection, first on the page (12 October 2026). The onsite forms' Glove Type; a custom module of its own until 11 October 2026, kept on templates saved before (no gloveType switch: off).",
     },
-    { key: "surfaceTexture", label: "Glove Surface Texture", type: "text", per: [], entry: "entered", notes: "Per variant." },
+    { key: "surfaceTexture", label: "Glove Surface Texture", type: "text", per: [], entry: "entered", notes: "One glove per inspection; per variant in one saved with several." },
     {
       key: "indicativeWeight",
       label: "Indicative Weight (Size M)",
@@ -239,7 +239,7 @@ const gloveInfo = defineModule({
         "Weight of one glove of the size in config indicativeWeightSize ('(Size M)' in the label). The weight module compares that size's average with it (rule 9).",
     },
     { key: "colour", label: "Glove Colour", type: "text", per: [], entry: "entered" },
-    { key: "length", label: "Glove Length", type: "decimal", unit: "mm", per: [], entry: "entered", notes: "Per variant, in mm (Kenneth, 11 October 2026). Saved text (\"240 mm minimum\") reads as its number." },
+    { key: "length", label: "Glove Length", type: "decimal", unit: "mm", per: [], entry: "entered", notes: "In mm (Kenneth, 11 October 2026); per variant in one saved with several. Saved text (\"240 mm minimum\") reads as its number." },
   ],
   config: [
     {

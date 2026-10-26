@@ -1,5 +1,7 @@
-// Result "info" once every variant has every field the template shows; "not
-// done" until then (BUILD_SPEC 6.2 rule 5). Each variant's indicative weight
+// Result "info" once the glove has every field the template shows; "not
+// done" until then (BUILD_SPEC 6.2 rule 5). One glove per inspection
+// (Kenneth, 26 October 2026); an inspection saved with several variants is
+// judged on each, its messages naming them. Each variant's indicative weight
 // flows forward to the weight module through the context, for the sizes it
 // covers (rule 9).
 import { formatDecimal } from "@/lib/stats";
@@ -48,12 +50,14 @@ export function calcGloveInfo({
   // What the step waits for: each variant's shown fields (Glove Type is recorded when known, never waited for).
   const needed = VARIANT_FIELDS.filter((field) => config.fields[field]);
   const issues: CalcIssue[] = [];
+  // The variant is named only where there are several (saved before one glove per inspection).
+  const several = data.variants.length > 1;
 
   data.variants.forEach((variant, index) => {
     const weight = variant.indicativeWeight;
     if (config.fields.indicativeWeight && weight !== null && weight <= 0) {
       issues.push(
-        errorIssue("indicative_weight_not_positive", `${variantName(index)}, ${weightLabel(labels)}: must be more than 0 g.`, {
+        errorIssue("indicative_weight_not_positive", `${several ? `${variantName(index)}, ` : ""}${weightLabel(labels)}: must be more than 0 g.`, {
           path: ["variants", index, "indicativeWeight"],
         }),
       );
@@ -82,7 +86,6 @@ export function calcGloveInfo({
   if (data.variants.length === 0) {
     return { result: notDone(`Missing: ${needed.map((field) => fieldLabel(labels, field)).join(", ")}.`), computed: {}, issues };
   }
-  const several = data.variants.length > 1;
   const missing = data.variants.flatMap((variant, index) =>
     needed
       .filter((field) => !isFilled(variant, field))

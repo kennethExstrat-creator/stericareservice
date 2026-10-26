@@ -1,4 +1,7 @@
-// Edits of the glove variants, pure so they are tested without a browser.
+// Edits of the glove's values, pure so they are tested without a browser.
+// One glove per inspection (Kenneth, 26 October 2026): nothing adds a
+// variant or picks its sizes any more; one saved with several keeps them
+// until each extra is removed, and one saved with sizes can cover every size.
 // Capture applies each to the latest data through useDataUpdater
 // (docs/CAPTURE_KIT.md), so a value committed on blur and one typed in the
 // same event both stay. An edit that changes nothing returns `data` itself,
@@ -8,7 +11,6 @@
 // saved: an edit of variant 0 then creates it.
 import {
   emptyVariant,
-  MAX_VARIANTS,
   TEXT_MAX_LENGTH,
   type GloveInfoData,
   type GloveInfoTextField,
@@ -66,24 +68,15 @@ export function setLength(data: GloveInfoData, index: number, mm: number | null)
   return withVariant(data, index, (variant) => (variant.length === mm ? variant : { ...variant, length: mm }));
 }
 
-/** Picks a size for the variant, or drops it; the sizes stay in the template's order. */
-export function toggleSize(data: GloveInfoData, index: number, size: string, order: readonly string[]): GloveInfoData {
-  return withVariant(data, index, (variant) => {
-    const picked = variant.sizes.includes(size) ? variant.sizes.filter((entry) => entry !== size) : [...variant.sizes, size];
-    picked.sort((a, b) => order.indexOf(a) - order.indexOf(b));
-    return { ...variant, sizes: picked };
-  });
-}
-
-/** A blank variant at the end (two, while none is saved: the one on screen and the new one). */
-export function addVariant(data: GloveInfoData): GloveInfoData {
-  const base = data.variants.length === 0 ? [emptyVariant()] : data.variants;
-  if (base.length >= MAX_VARIANTS) return data;
-  return { ...data, variants: [...base, emptyVariant()] };
-}
-
-export function removeVariant(data: GloveInfoData, index: number): GloveInfoData {
+/** The variant covers every size of the order, as the one glove of an inspection does: no sizes picked. */
+export function coverEverySize(data: GloveInfoData, index: number): GloveInfoData {
   if (index >= data.variants.length) return data;
+  return withVariant(data, index, (variant) => (variant.sizes.length === 0 ? variant : { ...variant, sizes: [] }));
+}
+
+/** One of the variants saved before one glove per inspection, gone; the last one left always stays. */
+export function removeVariant(data: GloveInfoData, index: number): GloveInfoData {
+  if (data.variants.length <= 1 || index >= data.variants.length) return data;
   return { ...data, variants: data.variants.filter((_, position) => position !== index) };
 }
 

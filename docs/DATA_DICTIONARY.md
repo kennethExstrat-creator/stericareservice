@@ -151,15 +151,15 @@ Note: The onsite forms' 'Lot Number' goes to order_lots, 'Packing Mode' to packi
 
 ### `glove_info`: Glove Information
 
-Report module. Captures: The glove's Glove Type, once per inspection, then its variants (Kenneth, 11 October 2026: one PO can hold several): each a combination of surface texture, indicative weight (g), colour and length, for the sizes it covers (none picked: every size). Result: info. Rules (6.2): 1, 9.
+Report module. Captures: The glove's Glove Type, once per inspection, then its surface texture, indicative weight (g), colour and length: one glove per inspection, for every size (Kenneth, 26 October 2026). Inspections saved from 11 October 2026, when one PO could hold several variants each for the sizes it covers, keep theirs until removed. On the order's page, beside packing configuration. Result: info. Rules (6.2): 1, 9.
 
 | Key | Label (STD_EG) | Other wording | Type | Unit | Per | Entry | Rules | Notes |
 |---|---|---|---|---|---|---|---|---|
 | `gloveType` | Glove Type |  | text |  | inspection | entered |  | Once per inspection, first on the page (12 October 2026). The onsite forms' Glove Type; a custom module of its own until 11 October 2026, kept on templates saved before (no gloveType switch: off). |
-| `surfaceTexture` | Glove Surface Texture |  | text |  | inspection | entered |  | Per variant. |
+| `surfaceTexture` | Glove Surface Texture |  | text |  | inspection | entered |  | One glove per inspection; per variant in one saved with several. |
 | `indicativeWeight` | Indicative Weight (Size M) |  | decimal | g | inspection | entered | 1, 9 | Weight of one glove of the size in config indicativeWeightSize ('(Size M)' in the label). The weight module compares that size's average with it (rule 9). |
 | `colour` | Glove Colour |  | text |  | inspection | entered |  |  |
-| `length` | Glove Length |  | decimal | mm | inspection | entered |  | Per variant, in mm (Kenneth, 11 October 2026). Saved text ("240 mm minimum") reads as its number. |
+| `length` | Glove Length |  | decimal | mm | inspection | entered |  | In mm (Kenneth, 11 October 2026); per variant in one saved with several. Saved text ("240 mm minimum") reads as its number. |
 
 | Config key | Type | Default | Meaning |
 |---|---|---|---|
