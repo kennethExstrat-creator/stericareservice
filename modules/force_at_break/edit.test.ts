@@ -6,7 +6,7 @@ import { FORCE_AT_BREAK_DEFAULT_CONFIG, FORCE_AT_BREAK_LABELS, FORCE_AT_BREAK_TI
 import {
   pastedPastGrid,
   readingsBeyond,
-  withLabReport,
+  withoutLabReport,
   withoutReadingsBeyond,
   withReadingChanges,
   withReadings,
@@ -15,10 +15,11 @@ import {
 import { emptyForceAtBreak, ForceAtBreakDataSchema, type ForceAtBreakData } from "./schema";
 
 const LAB_REPORT_ID = "00000000-0000-4000-8000-000000000401";
+const OTHER_REPORT_ID = "00000000-0000-4000-8000-000000000402";
 
 const SAVED: ForceAtBreakData = {
   sizes: { M: { values: [6.47, 6.884, 6.301] }, XL: { values: [6.9] } },
-  labReport: null,
+  labReports: [],
 };
 
 /** MeasurementGrid's onCellsChange: the cells a change touched, row by row. */
@@ -29,8 +30,8 @@ function cells(changes: Record<number, number | null>) {
 describe("force_at_break edits", () => {
   it("replaces one size's readings, dropping blanks at the end and keeping every other size", () => {
     const next = withReadings(SAVED, "M", [6.5, null, 6.6, null, null]);
-    expect(next).toEqual({ sizes: { M: { values: [6.5, null, 6.6] }, XL: { values: [6.9] } }, labReport: null });
-    expect(withReadings(emptyForceAtBreak(), "S", [null, null])).toEqual({ sizes: { S: { values: [] } }, labReport: null });
+    expect(next).toEqual({ sizes: { M: { values: [6.5, null, 6.6] }, XL: { values: [6.9] } }, labReports: [] });
+    expect(withReadings(emptyForceAtBreak(), "S", [null, null])).toEqual({ sizes: { S: { values: [] } }, labReports: [] });
     expect(SAVED.sizes.M.values).toEqual([6.47, 6.884, 6.301]);
   });
 
@@ -141,11 +142,20 @@ describe("force_at_break edits", () => {
     expect(withoutReadingsBeyond(SAVED, "M", 13)).toBe(SAVED);
   });
 
-  it("attaches and detaches the lab report by its file id", () => {
-    const attached = withLabReport(SAVED, LAB_REPORT_ID);
-    expect(attached.labReport).toBe(LAB_REPORT_ID);
-    expect(attached.sizes).toBe(SAVED.sizes);
-    expect(withLabReport(attached, null).labReport).toBeNull();
+  it("unlinks one lab report by its file id, leaving the others and every reading", () => {
+    const linked: ForceAtBreakData = {
+      ...SAVED,
+      labReports: [
+        { fileId: LAB_REPORT_ID, sizes: ["M"] },
+        { fileId: OTHER_REPORT_ID, sizes: ["XL"] },
+      ],
+    };
+    const next = withoutLabReport(linked, LAB_REPORT_ID);
+    expect(next.labReports).toEqual([{ fileId: OTHER_REPORT_ID, sizes: ["XL"] }]);
+    expect(next.sizes).toBe(SAVED.sizes);
+    expect(withoutLabReport(next, OTHER_REPORT_ID).labReports).toEqual([]);
+    // A file the step does not list: nothing to save.
+    expect(withoutLabReport(linked, "00000000-0000-4000-8000-000000000499")).toBe(linked);
   });
 
   it("always gives data the schema accepts", () => {
@@ -153,7 +163,7 @@ describe("force_at_break edits", () => {
       withReadings(SAVED, "M", [6.5, null]),
       withReadingChanges(SAVED, "L", cells({ 4: 6.5 })),
       withoutReadingsBeyond(SAVED, "M", 1),
-      withLabReport(SAVED, LAB_REPORT_ID),
+      withoutLabReport({ ...SAVED, labReports: [{ fileId: LAB_REPORT_ID, sizes: ["M"] }] }, LAB_REPORT_ID),
     ]) {
       expect(ForceAtBreakDataSchema.parse(next)).toEqual(next);
     }

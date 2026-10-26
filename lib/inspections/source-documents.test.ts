@@ -5,6 +5,7 @@ import { ModuleTagSchema } from "@/lib/inspections/photos/schemas";
 import { MODULE_KEYS } from "@/lib/schemas/module-result";
 import { MODULE_REGISTRY } from "@/modules";
 import type { ModuleRegistry } from "@/modules/_framework/contract";
+import type { InspectionData } from "@/modules/_framework/data";
 import {
   applyProposals,
   countFilled,
@@ -241,29 +242,41 @@ describe("linkSourceFile", () => {
     },
   ];
 
-  it("keeps the file's id where the AI says it belongs and nothing is kept yet, never an id the AI wrote", () => {
+  it("links the file where the AI says it belongs, beside a step's other lab reports, never by an id the AI wrote", () => {
     const result = linkSourceFile({
       proposals: {
-        tensile: { labReport: KEPT, sizes: {} },
+        tensile: { labReport: KEPT, labReports: [{ fileId: KEPT, sizes: ["M"] }], sizes: {} },
         documents: { items: { labTestReports: { referenceNo: "LAB-0001", file: KEPT } } },
       },
       attachTo: ["tensile", "force_at_break", "documents.labTestReports", "documents.iso13485", "visual", "tensile"],
       fileId: FILE,
       // Force at break keeps another report already; iso13485 is off the checklist; visual keeps no file.
-      data: { modules: { force_at_break: { labReport: KEPT } }, custom: {} },
+      data: { modules: { force_at_break: { labReports: [{ fileId: KEPT, sizes: ["S"] }] } }, custom: {} },
       registry: MODULE_REGISTRY,
       modules,
     });
-    expect(result.linked).toEqual(["tensile", "documents.labTestReports"]);
-    expect(result.proposals.tensile).toEqual({ sizes: {}, labReport: FILE });
+    expect(result.linked).toEqual(["tensile", "force_at_break", "documents.labTestReports"]);
+    expect(result.proposals.tensile).toEqual({ sizes: {}, labReports: [{ fileId: FILE, sizes: [] }] });
+    expect(result.proposals.force_at_break).toEqual({ labReports: [{ fileId: FILE, sizes: [] }] });
     expect(result.proposals.documents).toEqual({ items: { labTestReports: { referenceNo: "LAB-0001", file: FILE } } });
-    expect(result.proposals).not.toHaveProperty("force_at_break");
     expect(result.kind).toBe("lab_report");
+  });
+
+  it("links a documents row's file only where none is kept yet", () => {
+    const result = linkSourceFile({
+      proposals: {},
+      attachTo: ["documents.labTestReports"],
+      fileId: FILE,
+      data: { modules: { documents: { items: { labTestReports: { file: KEPT } } } }, custom: {} },
+      registry: MODULE_REGISTRY,
+      modules,
+    });
+    expect(result).toEqual({ proposals: {}, linked: [], kind: "lab_report" });
   });
 
   it("links nothing without attachTo, or for a module the reading may not fill", () => {
     const result = linkSourceFile({
-      proposals: { force_at_break: { labReport: KEPT } },
+      proposals: { force_at_break: { labReport: KEPT, labReports: [{ fileId: KEPT, sizes: [] }] } },
       attachTo: ["force_at_break"],
       fileId: FILE,
       data: { modules: {}, custom: {} },
@@ -273,6 +286,123 @@ describe("linkSourceFile", () => {
     expect(result).toEqual({ proposals: { force_at_break: {} }, linked: [], kind: null });
     expect(linkSourceFile({ proposals: {}, attachTo: [], fileId: FILE, data: { modules: {}, custom: {} }, registry: MODULE_REGISTRY, modules }))
       .toEqual({ proposals: {}, linked: [], kind: null });
+  });
+});
+
+describe("lab reports, one per size (Kenneth, 26 October 2026: \"there are 4 different source\")", () => {
+  // Placeholders for INS-2026-2437's four per-size lab reports, S, M, L and XL.
+  const FILES = {
+    S: "00000000-0000-4000-8000-000000000511",
+    M: "00000000-0000-4000-8000-000000000512",
+    L: "00000000-0000-4000-8000-000000000513",
+    XL: "00000000-0000-4000-8000-000000000514",
+  } as const;
+  const SIZES = ["S", "M", "L", "XL"] as const;
+  const modules = [
+    { key: "force_at_break", config: {} },
+    { key: "tensile", config: {} },
+  ];
+  const included = new Set(modules.map((module) => module.key));
+  const EMPTY = { modules: {}, custom: {} };
+  const readings = (first: number) => Array.from({ length: 13 }, (_, index) => Math.round((first + index * 0.01) * 1000) / 1000);
+
+  /** What Steri-AI answers for one size's report: its readings, and the report filed with force at break. */
+  function reading(size: (typeof SIZES)[number], data: InspectionData) {
+    return linkSourceFile({
+      proposals: { force_at_break: { sizes: { [size]: { values: readings(6.1) } } } },
+      attachTo: ["force_at_break"],
+      fileId: FILES[size],
+      data,
+      registry: MODULE_REGISTRY,
+      modules,
+    });
+  }
+
+  const reportsOf = (data: InspectionData) => (data.modules.force_at_break as { labReports: unknown }).labReports;
+
+  it("links each report read after another with the sizes it gives, never in place of one linked before", () => {
+    let data: InspectionData = EMPTY;
+    for (const size of SIZES) {
+      const link = reading(size, data);
+      expect(link.linked, size).toEqual(["force_at_break"]);
+      expect(link.kind).toBe("lab_report");
+      expect(link.proposals.force_at_break).toEqual({ sizes: { [size]: { values: readings(6.1) } }, labReports: [{ fileId: FILES[size], sizes: [size] }] });
+      const filled = applyProposals(data, link.proposals, MODULE_REGISTRY, included);
+      // The 13 readings and the report.
+      expect(filled.filled, size).toBe(14);
+      data = filled.data;
+    }
+    expect(reportsOf(data)).toEqual(SIZES.map((size) => ({ fileId: FILES[size], sizes: [size] })));
+  });
+
+  it("keeps every report when the four readings finish together: none is lost to the one filled first", () => {
+    // Each read against the data as it was when the four were uploaded: nothing linked yet.
+    const links = SIZES.map((size) => reading(size, EMPTY));
+    let data: InspectionData = EMPTY;
+    for (const link of [links[1], links[0], links[3], links[2]]) data = applyProposals(data, link.proposals, MODULE_REGISTRY, included).data;
+    expect(reportsOf(data)).toEqual([
+      { fileId: FILES.M, sizes: ["M"] },
+      { fileId: FILES.S, sizes: ["S"] },
+      { fileId: FILES.XL, sizes: ["XL"] },
+      { fileId: FILES.L, sizes: ["L"] },
+    ]);
+    const forceAtBreak = data.modules.force_at_break as { sizes: Record<string, { values: number[] }> };
+    expect(Object.keys(forceAtBreak.sizes).sort()).toEqual(["L", "M", "S", "XL"]);
+  });
+
+  it("links a new report beside one saved alone before, and gives a report read again the sizes it lacked", () => {
+    const saved = { modules: { force_at_break: { sizes: {}, labReport: FILES.S } }, custom: {} };
+    const m = reading("M", saved);
+    expect(m.linked).toEqual(["force_at_break"]);
+    const withM = applyProposals(saved, m.proposals, MODULE_REGISTRY, included).data;
+    expect(withM.modules.force_at_break).toEqual({
+      sizes: { M: { values: readings(6.1) } },
+      labReports: [
+        { fileId: FILES.S, sizes: [] },
+        { fileId: FILES.M, sizes: ["M"] },
+      ],
+    });
+    // Read Again on S: it is linked already, and now its size is known.
+    const again = reading("S", withM);
+    expect(again.linked).toEqual(["force_at_break"]);
+    const withS = applyProposals(withM, again.proposals, MODULE_REGISTRY, included).data;
+    expect(reportsOf(withS)).toEqual([
+      { fileId: FILES.S, sizes: ["S"] },
+      { fileId: FILES.M, sizes: ["M"] },
+    ]);
+    // Read once more: nothing new to link or fill.
+    const twice = reading("S", withS);
+    expect(twice.linked).toEqual([]);
+    expect(twice.proposals.force_at_break).toEqual({ sizes: { S: { values: readings(6.1) } } });
+    expect(applyProposals(withS, twice.proposals, MODULE_REGISTRY, included).filled).toBe(0);
+  });
+
+  it("fills in a reading kept before 26 October 2026, which linked its file as labReport, as one more report", () => {
+    const pending = { force_at_break: { labReport: FILES.L, sizes: { L: { values: readings(6.2) } } } };
+    const withM = { modules: { force_at_break: { sizes: {}, labReports: [{ fileId: FILES.M, sizes: ["M"] }] } }, custom: {} };
+    const result = applyProposals(withM, pending, MODULE_REGISTRY, included);
+    expect(reportsOf(result.data)).toEqual([
+      { fileId: FILES.M, sizes: ["M"] },
+      { fileId: FILES.L, sizes: ["L"] },
+    ]);
+    expect(result.filled).toBe(14);
+  });
+
+  it("files one report for several sizes under each of them, and links it to every step it holds results for", () => {
+    const link = linkSourceFile({
+      proposals: {
+        force_at_break: { sizes: { S: { values: readings(6.1) }, M: { values: readings(6.3) }, L: { values: [] } } },
+        tensile: { sizes: { M: { tensileStrength: 24.04, elongationAtBreak: 720 } } },
+      },
+      attachTo: ["force_at_break", "tensile"],
+      fileId: FILES.S,
+      data: EMPTY,
+      registry: MODULE_REGISTRY,
+      modules,
+    });
+    expect(link.linked).toEqual(["force_at_break", "tensile"]);
+    expect(link.proposals.force_at_break?.labReports).toEqual([{ fileId: FILES.S, sizes: ["S", "M"] }]);
+    expect(link.proposals.tensile?.labReports).toEqual([{ fileId: FILES.S, sizes: ["M"] }]);
   });
 });
 

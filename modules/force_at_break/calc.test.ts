@@ -42,16 +42,16 @@ function input(
     at = context(Object.keys(sizes)),
     config = FORCE_AT_BREAK_DEFAULT_CONFIG,
     labels = FORCE_AT_BREAK_LABELS,
-    labReport = null,
+    labReports = [],
   }: {
     at?: InspectionContext;
     config?: ForceAtBreakConfig;
     labels?: Readonly<Record<string, string>>;
-    labReport?: string | null;
+    labReports?: ForceAtBreakData["labReports"];
   } = {},
 ): CalcInput<ForceAtBreakData, ForceAtBreakConfig> {
   return {
-    data: { ...emptyForceAtBreak(), sizes, labReport },
+    data: { ...emptyForceAtBreak(), sizes, labReports },
     config,
     title: FORCE_AT_BREAK_TITLE,
     labels,
@@ -83,7 +83,7 @@ describe("force_at_break", () => {
 
     it("computes size M's median of 6.537 N from 13 readings: pass at 6 N or more", () => {
       const expected = STD_EG_EXPECTED.forceAtBreak.M!;
-      const output = calcForceAtBreak(input(exampleData, { at: exampleContext, labReport: LAB_REPORT_ID }));
+      const output = calcForceAtBreak(input(exampleData, { at: exampleContext, labReports: [{ fileId: LAB_REPORT_ID, sizes: ["M"] }] }));
       expect(exampleData.M.values).toHaveLength(13);
       expect(output.computed.specMin).toBe(expected.minN);
       expect(output.computed.sizes.M).toEqual({ n: 13, entered: 13, median: expected.medianN, result: expected.status });
@@ -115,7 +115,7 @@ describe("force_at_break", () => {
     it("leaves the unordered sizes out through the engine too, with a warning for data saved under them", () => {
       const template = makeTestTemplate(MODULE_REGISTRY, ["force_at_break"]);
       const data = {
-        modules: { force_at_break: { sizes: { ...exampleData, XL: { values: [6.2] } }, labReport: null } },
+        modules: { force_at_break: { sizes: { ...exampleData, XL: { values: [6.2] } }, labReports: [] } },
         custom: {},
       };
       const evaluation = evaluateInspection({ template, data, context: exampleContext }, MODULE_REGISTRY);
@@ -275,7 +275,7 @@ describe("force_at_break", () => {
   it("records whether a lab report is attached, which does not change the result", () => {
     const values = readingsWithMedian(6.537);
     const without = calcForceAtBreak(input({ M: { values } }));
-    const withReport = calcForceAtBreak(input({ M: { values } }, { labReport: LAB_REPORT_ID }));
+    const withReport = calcForceAtBreak(input({ M: { values } }, { labReports: [{ fileId: LAB_REPORT_ID, sizes: ["M"] }] }));
     expect(without.computed.labReportAttached).toBe(false);
     expect(withReport.computed.labReportAttached).toBe(true);
     expect(withReport.result).toEqual(without.result);
@@ -284,7 +284,7 @@ describe("force_at_break", () => {
   it("counts a lab report of the module added in the gallery once the inspection's files are known", () => {
     const values = readingsWithMedian(6.537);
     const gallery = makeTestContext({ sizes: ["M"], files: [{ id: LAB_REPORT_ID, moduleKey: "force_at_break", kind: "lab_report" }] });
-    const output = calcForceAtBreak(input({ M: { values } }, { at: gallery, labReport: null }));
+    const output = calcForceAtBreak(input({ M: { values } }, { at: gallery }));
     expect(output.computed.labReportAttached).toBe(true);
     expect(output.issues).toEqual([]);
   });
@@ -292,10 +292,12 @@ describe("force_at_break", () => {
   it("says when the lab report kept here is not among the inspection's files, without changing the result", () => {
     const values = readingsWithMedian(6.537);
     const held = makeTestContext({ sizes: ["M"], files: [{ id: LAB_REPORT_ID, moduleKey: "force_at_break", kind: "lab_report" }] });
-    const kept = calcForceAtBreak(input({ M: { values } }, { at: held, labReport: LAB_REPORT_ID }));
+    const kept = calcForceAtBreak(input({ M: { values } }, { at: held, labReports: [{ fileId: LAB_REPORT_ID, sizes: [] }] }));
     expect(kept.computed.labReportAttached).toBe(true);
     expect(kept.issues).toEqual([]);
-    const gone = calcForceAtBreak(input({ M: { values } }, { at: makeTestContext({ sizes: ["M"], files: [] }), labReport: LAB_REPORT_ID }));
+    const gone = calcForceAtBreak(
+      input({ M: { values } }, { at: makeTestContext({ sizes: ["M"], files: [] }), labReports: [{ fileId: LAB_REPORT_ID, sizes: [] }] }),
+    );
     expect(gone.computed.labReportAttached).toBe(false);
     expect(gone.issues).toEqual([
       {
@@ -306,6 +308,48 @@ describe("force_at_break", () => {
       },
     ]);
     expect(gone.result).toEqual(kept.result);
+  });
+
+  it("keeps a lab report per size: attached while any one is, a warning for each one gone, named by its sizes (Kenneth, 26 October 2026)", () => {
+    const values = readingsWithMedian(6.537);
+    const ids = {
+      S: "00000000-0000-4000-8000-000000000411",
+      M: "00000000-0000-4000-8000-000000000412",
+      L: "00000000-0000-4000-8000-000000000413",
+      XL: "00000000-0000-4000-8000-000000000414",
+    };
+    const labReports = [
+      { fileId: ids.XL, sizes: ["XL"] },
+      { fileId: ids.L, sizes: ["L"] },
+      { fileId: ids.S, sizes: ["S"] },
+      { fileId: ids.M, sizes: ["M"] },
+    ];
+    const files = (kept: readonly string[]) =>
+      makeTestContext({ sizes: ["M"], files: kept.map((id) => ({ id, moduleKey: "source_documents", kind: "lab_report" as const })) });
+    const all = calcForceAtBreak(input({ M: { values } }, { at: files(Object.values(ids)), labReports }));
+    expect(all.computed.labReportAttached).toBe(true);
+    expect(all.issues).toEqual([]);
+    // Two deleted since: the others still attach the step, and each gone one is named, in size order.
+    const some = calcForceAtBreak(input({ M: { values } }, { at: files([ids.M, ids.L]), labReports }));
+    expect(some.computed.labReportAttached).toBe(true);
+    expect(some.issues.map((issue) => issue.message.split(":")[0])).toEqual(["Lab Report for Size S", "Lab Report for Size XL"]);
+    expect(some.issues.every((issue) => issue.code === "lab_report_missing" && issue.level === "warning")).toBe(true);
+    const none = calcForceAtBreak(input({ M: { values } }, { at: files([]), labReports }));
+    expect(none.computed.labReportAttached).toBe(false);
+    expect(none.issues).toHaveLength(4);
+    expect(none.result).toEqual(all.result);
+  });
+
+  it("reads a lab report saved alone before 26 October 2026 as one report, through the engine", () => {
+    const template = makeTestTemplate(MODULE_REGISTRY, ["force_at_break"]);
+    const data = { modules: { force_at_break: { sizes: { M: { values: readingsWithMedian(6.537) } }, labReport: LAB_REPORT_ID } }, custom: {} };
+    const attached = makeTestContext({ sizes: ["M"], files: [{ id: LAB_REPORT_ID, moduleKey: "source_documents", kind: "lab_report" }] });
+    const evaluated = evaluateInspection({ template, data, context: attached }, MODULE_REGISTRY).modules.find(
+      (entry) => entry.key === "force_at_break",
+    );
+    expect(evaluated?.data).toMatchObject({ labReports: [{ fileId: LAB_REPORT_ID, sizes: [] }] });
+    expect(evaluated?.computed).toMatchObject({ labReportAttached: true });
+    expect(evaluated?.issues).toEqual([]);
   });
 
   it("computes the dictionary's computed keys per size, and keeps the spec with them for the export", () => {

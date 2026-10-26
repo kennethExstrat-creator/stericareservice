@@ -25,7 +25,7 @@ const EXAMPLE: TensileData = {
     M: { tensileStrength: 34.03, elongationAtBreak: 555 },
     L: { tensileStrength: 33.17, elongationAtBreak: 543 },
   },
-  labReport: LAB_REPORT_ID,
+  labReports: [{ fileId: LAB_REPORT_ID, sizes: [] }],
 };
 
 const CONTEXT = makeTestContext({ sizes: ["XS", "S", "M", "L"] });
@@ -137,14 +137,14 @@ describe("tensile capture", () => {
   });
 
   it("sizes its pills for touch as the kit's own small pills: 16 px on iPad (docs/DESIGN.md)", () => {
-    const pills = tags(render({ data: { ...EXAMPLE, labReport: null } }), 'data-slot="status-pill"');
+    const pills = tags(render({ data: { ...EXAMPLE, labReports: [] } }), 'data-slot="status-pill"');
     // Eight verdicts: the lab report's line shows the file slot, never a pill of its own.
     expect(pills).toHaveLength(8);
     expect(pills.filter((pill) => !pill.includes("touch:text-base"))).toEqual([]);
   });
 
   it("shows the lab report in one line: the screen's slot in place of the line's words, calc's state on the line", () => {
-    const missing = renderInSlot({ data: { ...EXAMPLE, labReport: null } });
+    const missing = renderInSlot({ data: { ...EXAMPLE, labReports: [] } });
     const line = (html: string) => /<div[^>]*data-slot="attachment-status"[^>]*>/.exec(html)?.[0] ?? "";
     expect(missing.html).toContain(">Lab Report</span>");
     expect(line(missing.html)).toContain('data-state="none"');
@@ -156,15 +156,36 @@ describe("tensile capture", () => {
       expect.objectContaining({ moduleKey: "tensile", kind: "lab_report", fileId: null, state: "none", countsModuleFiles: true }),
     ]);
     // Required all the same: without it calc keeps the module not done.
-    expect(evaluationOf({ ...EXAMPLE, labReport: null }, CONTEXT)?.result.status).toBe("not_done");
+    expect(evaluationOf({ ...EXAMPLE, labReports: [] }, CONTEXT)?.result.status).toBe("not_done");
     const attached = renderInSlot();
     expect(line(attached.html)).toContain('data-state="attached"');
     expect(attached.requests[0]).toMatchObject({ fileId: LAB_REPORT_ID, state: "attached" });
     expect(evaluationOf(EXAMPLE, CONTEXT)?.result.status).toBe("pass");
   });
 
+  it("lists every lab report, one per size, in size order under 'Lab Reports' (Kenneth, 26 October 2026)", () => {
+    const ids = ["00000000-0000-4000-8000-000000000421", "00000000-0000-4000-8000-000000000422", "00000000-0000-4000-8000-000000000423"];
+    const data: TensileData = {
+      ...EXAMPLE,
+      labReports: [
+        { fileId: ids[2], sizes: ["L"] },
+        { fileId: ids[0], sizes: ["XS", "S"] },
+        { fileId: ids[1], sizes: ["M"] },
+      ],
+    };
+    const { html, requests } = renderInSlot({ data });
+    expect(requests.map((request) => [request.caption, request.fileId, request.countsModuleFiles])).toEqual([
+      ["Sizes XS, S", ids[0], false],
+      ["Size M", ids[1], false],
+      ["Size L", ids[2], false],
+    ]);
+    expect(html).toContain('aria-label="Lab Reports"');
+    expect(html).toContain(">Lab Reports</span>");
+    expect(evaluationOf(data, CONTEXT)?.result.status).toBe("pass");
+  });
+
   it("says where the lab report is attached when the screen gives no file slot (preview, review)", () => {
-    const html = render({ data: { ...EXAMPLE, labReport: null } });
+    const html = render({ data: { ...EXAMPLE, labReports: [] } });
     expect(html).toContain('data-slot="module-file-slot"');
     expect(html).toContain("Attach files on the inspection screen.");
   });
@@ -191,7 +212,7 @@ describe("tensile capture", () => {
 
   it("shows a lab report uploaded on the step before as attached, though the module keeps no id", () => {
     const context = makeTestContext({ ...CONTEXT, files: [{ id: LAB_REPORT_ID, moduleKey: "tensile", kind: "lab_report" }] });
-    const { html, requests } = renderInSlot({ data: { ...EXAMPLE, labReport: null }, context });
+    const { html, requests } = renderInSlot({ data: { ...EXAMPLE, labReports: [] }, context });
     expect(html).toContain('data-state="attached"');
     // The screen shows the step's own file: any of its lab reports counts (moduleFileState).
     expect(requests[0]).toMatchObject({ fileId: null, state: "attached", countsModuleFiles: true });
@@ -224,11 +245,11 @@ describe("tensile capture", () => {
 
   it("keeps its screen-reader text inside a positioned box (docs/DESIGN.md, D1)", () => {
     expect(unanchoredSrOnly(render())).toEqual([]);
-    expect(unanchoredSrOnly(render({ readOnly: true, data: { ...EXAMPLE, labReport: null } }))).toEqual([]);
+    expect(unanchoredSrOnly(render({ readOnly: true, data: { ...EXAMPLE, labReports: [] } }))).toEqual([]);
   });
 
   it("says no sizes are ordered yet instead of showing fields", () => {
-    const html = render({ context: makeTestContext({ sizes: [] }), data: { sizes: {}, labReport: null } });
+    const html = render({ context: makeTestContext({ sizes: [] }), data: { sizes: {}, labReports: [] } });
     expect(html).toContain("No sizes ordered yet.");
     expect(html).not.toContain("<input");
   });

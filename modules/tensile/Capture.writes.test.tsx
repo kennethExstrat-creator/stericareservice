@@ -61,7 +61,7 @@ function renderFields(data: TensileData) {
 
 describe("tensile capture writes", () => {
   it("lands a pasted block of every size's averages whole, in one change", () => {
-    const { fields, changes } = renderFields({ sizes: {}, labReport: LAB_REPORT_ID });
+    const { fields, changes } = renderFields({ sizes: {}, labReports: [{ fileId: LAB_REPORT_ID, sizes: [] }] });
     // Every size side by side, in reading order (the desktop run a block fills).
     expect(fields.map((field) => field.issuePath?.slice(1).join(" "))).toEqual([
       "XS tensileStrength",
@@ -83,29 +83,37 @@ describe("tensile capture writes", () => {
           M: { tensileStrength: 34.03, elongationAtBreak: 555 },
           L: { tensileStrength: 33.17, elongationAtBreak: 543 },
         },
-        labReport: LAB_REPORT_ID,
+        labReports: [{ fileId: LAB_REPORT_ID, sizes: [] }],
       },
     ]);
   });
 
   it("drops the lab report Steri-AI linked when it is unlinked, and only that one", () => {
     const OTHER = "00000000-0000-4000-8000-000000000409";
+    const XS_REPORT = "00000000-0000-4000-8000-00000000040a";
     const sizes = { XS: { tensileStrength: 34.18, elongationAtBreak: null } };
-    const { slots, changes } = renderFields({ sizes, labReport: LAB_REPORT_ID });
+    // A report linked before 26 October 2026, its sizes not known, and one for size XS.
+    const reports = [
+      { fileId: LAB_REPORT_ID, sizes: [] },
+      { fileId: XS_REPORT, sizes: ["XS"] },
+    ];
+    const { slots, changes } = renderFields({ sizes, labReports: reports });
     expect(slots).toEqual([
-      expect.objectContaining({ moduleKey: "tensile", kind: "lab_report", fileId: LAB_REPORT_ID, countsModuleFiles: true }),
+      expect.objectContaining({ moduleKey: "tensile", kind: "lab_report", fileId: XS_REPORT, caption: "Size XS", countsModuleFiles: false }),
+      expect.objectContaining({ moduleKey: "tensile", kind: "lab_report", fileId: LAB_REPORT_ID, countsModuleFiles: false }),
     ]);
-    // Another file's id: the lab report stays.
+    expect(slots[1]).not.toHaveProperty("caption");
+    // Another file's id: the lab reports stay.
     slots[0].onRemoved(OTHER);
     expect(changes).toEqual([]);
-    slots[0].onRemoved(LAB_REPORT_ID);
-    expect(changes).toEqual([{ sizes, labReport: null }]);
+    slots[1].onRemoved(LAB_REPORT_ID);
+    expect(changes).toEqual([{ sizes, labReports: [{ fileId: XS_REPORT, sizes: ["XS"] }] }]);
   });
 
   it("keeps two fields' changes made before the screen renders again, and every saved size", () => {
     const saved: TensileData = {
       sizes: { XS: { tensileStrength: 34.18, elongationAtBreak: null }, XL: { tensileStrength: 31.5, elongationAtBreak: 540 } },
-      labReport: null,
+      labReports: [],
     };
     const { fields, changes } = renderFields(saved);
     fields[1].onValueChange(536);
@@ -117,7 +125,7 @@ describe("tensile capture writes", () => {
         XL: { tensileStrength: 31.5, elongationAtBreak: 540 },
         S: { tensileStrength: 32.99, elongationAtBreak: null },
       },
-      labReport: null,
+      labReports: [],
     });
   });
 });

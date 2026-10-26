@@ -74,22 +74,32 @@ function cells(values: Record<number, number | null>): MeasurementChange[] {
 
 const SAVED: ForceAtBreakData = {
   sizes: { M: { values: [6.47, 6.884, 6.301] }, XL: { values: [6.9] } },
-  labReport: null,
+  labReports: [],
 };
 
 describe("force_at_break capture writes", () => {
-  it("drops the lab report Steri-AI linked when it is unlinked, over the latest readings", () => {
-    const REPORT = "00000000-0000-4000-8000-000000000409";
-    const { grid, slots, changes } = renderGrid({ ...SAVED, labReport: REPORT });
+  it("drops only the lab report unlinked, over the latest readings: the other reports stay", () => {
+    const M_REPORT = "00000000-0000-4000-8000-000000000409";
+    const XL_REPORT = "00000000-0000-4000-8000-00000000040a";
+    const reports = [
+      { fileId: XL_REPORT, sizes: ["XL"] },
+      { fileId: M_REPORT, sizes: ["M"] },
+    ];
+    const { grid, slots, changes } = renderGrid({ ...SAVED, labReports: reports });
+    // A slot per report, in size order, each unlinking its own file.
     expect(slots).toEqual([
-      expect.objectContaining({ moduleKey: "force_at_break", kind: "lab_report", fileId: REPORT, countsModuleFiles: true }),
+      expect.objectContaining({ moduleKey: "force_at_break", kind: "lab_report", fileId: M_REPORT, caption: "Size M", countsModuleFiles: false }),
+      expect.objectContaining({ moduleKey: "force_at_break", kind: "lab_report", fileId: XL_REPORT, caption: "Size XL", countsModuleFiles: false }),
     ]);
     grid.onCellsChange(cells({ 3: 6.537 }));
-    slots[0].onRemoved(REPORT);
+    slots[0].onRemoved(M_REPORT);
     expect(changes.at(-1)).toEqual({
       sizes: { M: { values: [6.47, 6.884, 6.301, 6.537] }, XL: { values: [6.9] } },
-      labReport: null,
+      labReports: [{ fileId: XL_REPORT, sizes: ["XL"] }],
     });
+    // The last one unlinked: none left.
+    slots[1].onRemoved(XL_REPORT);
+    expect(changes.at(-1)?.labReports).toEqual([]);
   });
 
   it("builds each grid edit on the latest data: two edits before the screen renders again both land", () => {
@@ -101,15 +111,15 @@ describe("force_at_break capture writes", () => {
     expect(changes.at(-1)).toEqual({
       // XL is not ordered: its readings stay saved for when it is again (6.2 rule 4).
       sizes: { M: { values: [6.47, 6.884, 6.301, 6.537, 6.65] }, XL: { values: [6.9] } },
-      labReport: null,
+      labReports: [],
     });
   });
 
   it("hands a pasted column to the screen in one change", () => {
-    const { grid, changes } = renderGrid({ sizes: {}, labReport: null });
+    const { grid, changes } = renderGrid({ sizes: {}, labReports: [] });
     const pasted = [6.47, 6.884, 6.301, 6.537, 6.65, 6.214, 6.79, 6.512, 6.611, 6.42, 6.702, 6.388, 6.58];
     batchDataChanges(() => grid.onCellsChange(pasted.map((value, row) => ({ row, measure: "values", value }))));
-    expect(changes).toEqual([{ sizes: { M: { values: pasted } }, labReport: null }]);
+    expect(changes).toEqual([{ sizes: { M: { values: pasted } }, labReports: [] }]);
   });
 
   it("saves nothing when a commit changes no reading", () => {

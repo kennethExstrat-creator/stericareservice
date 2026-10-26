@@ -861,7 +861,7 @@ test("tensile counts its lab report once attached and not once it is deleted, an
   const passing = { tensileStrength: 15.2, elongationAtBreak: 560 };
   await fixture.setModules({
     order_lots: { sizes: { S: { qtyCases: 10 }, M: { qtyCases: 20 }, L: { qtyCases: 5 } } },
-    tensile: { sizes: { S: passing, M: passing, L: passing }, labReport: null },
+    tensile: { sizes: { S: passing, M: passing, L: passing }, labReports: [] },
   });
   const hydration = watchConsole(page);
   await signInAs(context, baseURL!, "inspector");
@@ -911,7 +911,7 @@ test("tensile counts its lab report once attached and not once it is deleted, an
   const fileId = files![0].id;
   await expect
     .poll(async () => (await storedData(fixture.inspectionId)).data, { timeout: 15_000 })
-    .toMatchObject({ modules: { tensile: { labReport: fileId } } });
+    .toMatchObject({ modules: { tensile: { labReports: [expect.objectContaining({ fileId })] } } });
   await shot(page, "tensile-attached");
 
   // Deleted in the slot: the module lets go of it, and tensile is not done again.
@@ -923,7 +923,7 @@ test("tensile counts its lab report once attached and not once it is deleted, an
   await expect(frame.locator("header")).toContainText("Not Done");
   await expect
     .poll(async () => (await storedData(fixture.inspectionId)).data, { timeout: 15_000 })
-    .toMatchObject({ modules: { tensile: { labReport: null } } });
+    .toMatchObject({ modules: { tensile: { labReports: [] } } });
   expect(hydration()).toEqual([]);
 });
 

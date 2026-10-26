@@ -878,7 +878,7 @@ const forceAtBreak = defineModule({
       per: [],
       entry: "entered",
       notes:
-        "'Refer to attached where applicable': inspection_files, kind lab_report, module force_at_break. Tag a size when the lab issues one report per size.",
+        "'Refer to attached where applicable', optional: inspection_files, kind lab_report. Kept in the data as labReports, a list of { fileId, sizes }: each report Steri-AI links from Source Documents, with the sizes it gives results for, often one report per size (Kenneth, 26 October 2026). Data saved with one labReport id reads as a list of it, its sizes not known.",
     },
     {
       key: "median",
@@ -954,7 +954,8 @@ const tensile = defineModule({
       type: "file",
       per: [],
       entry: "entered",
-      notes: "Required (BUILD_SPEC 6.1): inspection_files, kind lab_report, module tensile.",
+      notes:
+        "Required (BUILD_SPEC 6.1), at least one: inspection_files, kind lab_report. Kept in the data as labReports, a list of { fileId, sizes }, as force_at_break's (Kenneth, 26 October 2026).",
     },
     {
       key: "tensileResult",

@@ -2,6 +2,7 @@
 // takes the latest data (useDataUpdater's `current`) and returns the whole new
 // data (CaptureProps.onChange), keeping every saved size, also sizes no longer
 // ordered: their averages return with them (6.2 rule 4).
+import { withoutLabReportFile } from "@/modules/_framework";
 import type { TensileMeasure } from "./config";
 import { emptyTensileSize, type TensileData } from "./schema";
 
@@ -12,15 +13,10 @@ export function withAverage(data: TensileData, size: string, measure: TensileMea
 }
 
 /**
- * The lab report the file slot attached for this module (ModuleFileSlot's
- * onAdded): the id of its inspection_files row. The latest file attached is
- * the module's lab report. Null detaches it, and the module is not done again.
+ * A lab report unlinked in its file slot (Unlink, which never deletes the
+ * file): that report leaves the list, the others stay, and without any the
+ * module is not done again; the same data when it was not listed.
  */
-export function withLabReport(data: TensileData, fileId: string | null): TensileData {
-  return { ...data, labReport: fileId };
-}
-
-/** A file of the module was deleted: the lab report goes when it was that file; the same data otherwise. */
 export function withoutLabReport(data: TensileData, fileId: string): TensileData {
-  return data.labReport === fileId ? withLabReport(data, null) : data;
+  return withoutLabReportFile(data, fileId);
 }

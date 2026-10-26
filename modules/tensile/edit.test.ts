@@ -1,21 +1,22 @@
 import { describe, expect, it } from "vitest";
 import { batchDataChanges, createDataUpdater } from "@/components/qc/data-updater";
 import { TENSILE_MEASURES } from "./config";
-import { withAverage, withLabReport } from "./edit";
+import { withAverage, withoutLabReport } from "./edit";
 import { emptyTensile, TensileDataSchema, type TensileData } from "./schema";
 
 const LAB_REPORT_ID = "00000000-0000-4000-8000-000000000402";
+const OTHER_REPORT_ID = "00000000-0000-4000-8000-000000000403";
 
 const SAVED: TensileData = {
   sizes: { XS: { tensileStrength: 34.18, elongationAtBreak: 536 }, XL: { tensileStrength: 31.5, elongationAtBreak: null } },
-  labReport: null,
+  labReports: [],
 };
 
 describe("tensile edits", () => {
   it("sets one average of one size, keeping the other average and every other size", () => {
     expect(withAverage(SAVED, "XS", "elongationAtBreak", 540)).toEqual({
       sizes: { XS: { tensileStrength: 34.18, elongationAtBreak: 540 }, XL: { tensileStrength: 31.5, elongationAtBreak: null } },
-      labReport: null,
+      labReports: [],
     });
     expect(withAverage(SAVED, "XS", "tensileStrength", null).sizes.XS).toEqual({ tensileStrength: null, elongationAtBreak: 536 });
     expect(SAVED.sizes.XS.elongationAtBreak).toBe(536);
@@ -61,15 +62,24 @@ describe("tensile edits", () => {
     });
   });
 
-  it("attaches and detaches the lab report by its file id", () => {
-    const attached = withLabReport(SAVED, LAB_REPORT_ID);
-    expect(attached.labReport).toBe(LAB_REPORT_ID);
-    expect(attached.sizes).toBe(SAVED.sizes);
-    expect(withLabReport(attached, null).labReport).toBeNull();
+  it("unlinks one lab report by its file id, leaving the others and every average", () => {
+    const linked: TensileData = {
+      ...SAVED,
+      labReports: [
+        { fileId: LAB_REPORT_ID, sizes: ["XS"] },
+        { fileId: OTHER_REPORT_ID, sizes: [] },
+      ],
+    };
+    const next = withoutLabReport(linked, OTHER_REPORT_ID);
+    expect(next.labReports).toEqual([{ fileId: LAB_REPORT_ID, sizes: ["XS"] }]);
+    expect(next.sizes).toBe(SAVED.sizes);
+    // A file the step does not list: nothing to save.
+    expect(withoutLabReport(next, OTHER_REPORT_ID)).toBe(next);
   });
 
   it("always gives data the schema accepts", () => {
-    for (const next of [withAverage(SAVED, "S", "tensileStrength", 32.99), withLabReport(SAVED, LAB_REPORT_ID)]) {
+    const linked: TensileData = { ...SAVED, labReports: [{ fileId: LAB_REPORT_ID, sizes: ["XS"] }] };
+    for (const next of [withAverage(SAVED, "S", "tensileStrength", 32.99), linked, withoutLabReport(linked, LAB_REPORT_ID)]) {
       expect(TensileDataSchema.parse(next)).toEqual(next);
     }
   });

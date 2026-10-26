@@ -32,11 +32,12 @@ import type { FileKind } from "@/modules/_framework/files";
  * be allowed to edit the inspection: with the file's kind when the AI read
  * it as a lab report or certificate. The AI is told where this inspection
  * files a document itself, in the template's words (attachTargets), and the
- * file is linked there (linkSourceFile: tensile's or force at break's
- * labReport, a documents row's file, only where nothing is linked yet, never
+ * file is linked there (linkSourceFile: among tensile's or force at break's
+ * labReports with the sizes it gives results for, beside the reports already
+ * listed; a documents row's file only where nothing is linked yet, never
  * over an earlier link), beside the values it read from it: module pages
- * link nothing by hand, and messages call the AI Steri-AI (Kenneth, 12
- * October 2026).
+ * link nothing by hand, and messages call the AI Steri-AI (Kenneth, 12 and
+ * 26 October 2026).
  *
  * The reading's proposals are kept with the file until a capture screen has
  * filled them in (markSourceFilled): a reading takes some ten seconds, and
@@ -235,7 +236,7 @@ export async function readSourceFile(inspectionId: string, fileId: string): Prom
     }
 
     const read = Object.fromEntries(Object.entries(outcome.proposals).filter(([key]) => allowed.has(key)));
-    // The file itself as a step's lab report or a documents row's certificate: its id where none is kept yet.
+    // The file itself as one of a step's lab reports, or a documents row's certificate where none is kept yet.
     const { proposals, linked, kind } = linkSourceFile({
       proposals: read,
       attachTo: outcome.attachTo,

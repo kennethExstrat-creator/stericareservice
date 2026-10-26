@@ -4,7 +4,7 @@
 // computed (6.2 rule 2). Every value may be missing while the inspection is
 // a draft.
 import { z } from "zod";
-import { DecimalCellSchema, perSizeData } from "@/modules/_framework";
+import { DecimalCellSchema, LabReportsSchema, perSizeData, readingLabReports } from "@/modules/_framework";
 
 export const ForceAtBreakSizeSchema = z.strictObject({
   /**
@@ -16,14 +16,18 @@ export const ForceAtBreakSizeSchema = z.strictObject({
 });
 export type ForceAtBreakSize = z.infer<typeof ForceAtBreakSizeSchema>;
 
-export const ForceAtBreakDataSchema = perSizeData(ForceAtBreakSizeSchema).extend({
-  /**
-   * The lab report ('Refer to attached where applicable'): the id of its
-   * inspection_files row (kind lab_report, module force_at_break), which the
-   * capture screen sets when it queues the upload. Optional for this module.
-   */
-  labReport: z.uuid().nullable().default(null),
-});
+export const ForceAtBreakDataSchema = readingLabReports(
+  perSizeData(ForceAtBreakSizeSchema).extend({
+    /**
+     * The lab reports ('Refer to attached where applicable'), optional for
+     * this module: each the id of its inspection_files row (kind lab_report),
+     * which Steri-AI links from Source Documents, with the sizes it gives
+     * results for; often one report per size (Kenneth, 26 October 2026). Data
+     * saved with one `labReport` reads as a list of it, with no sizes.
+     */
+    labReports: LabReportsSchema,
+  }),
+);
 export type ForceAtBreakData = z.infer<typeof ForceAtBreakDataSchema>;
 
 export function emptyForceAtBreak(): ForceAtBreakData {

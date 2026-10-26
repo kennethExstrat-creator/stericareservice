@@ -18,14 +18,15 @@ import { TENSILE_DEFAULT_CONFIG, TENSILE_LABELS, TENSILE_TITLE, TensileConfigSch
 import { emptyTensile, emptyTensileSize, TensileDataSchema } from "./schema";
 
 const LAB_REPORT_ID = "00000000-0000-4000-8000-000000000402";
+const OTHER_REPORT_ID = "00000000-0000-4000-8000-000000000409";
 
 describe("tensile data", () => {
   it("starts empty and accepts a draft with an average still missing", () => {
-    expect(emptyTensile()).toEqual({ sizes: {}, labReport: null });
+    expect(emptyTensile()).toEqual({ sizes: {}, labReports: [] });
     expect(emptyTensileSize()).toEqual({ tensileStrength: null, elongationAtBreak: null });
     expect(TensileDataSchema.parse({ sizes: { XS: { tensileStrength: 34.18 } } })).toEqual({
       sizes: { XS: { tensileStrength: 34.18, elongationAtBreak: null } },
-      labReport: null,
+      labReports: [],
     });
   });
 
@@ -41,19 +42,48 @@ describe("tensile data", () => {
     expect(TensileDataSchema.safeParse({ sizes: { XS: { elongationResult: "pass" } } }).success).toBe(false);
   });
 
-  it("refers to the lab report by its inspection_files id", () => {
-    expect(TensileDataSchema.parse({ labReport: LAB_REPORT_ID }).labReport).toBe(LAB_REPORT_ID);
-    expect(TensileDataSchema.safeParse({ labReport: "tensile-report.pdf" }).success).toBe(false);
+  it("keeps its lab reports by their inspection_files ids, each with the sizes it gives results for", () => {
+    const reports = [
+      { fileId: LAB_REPORT_ID, sizes: ["XS"] },
+      { fileId: OTHER_REPORT_ID, sizes: [] },
+    ];
+    expect(TensileDataSchema.parse({ labReports: reports }).labReports).toEqual(reports);
+    expect(TensileDataSchema.parse({ labReports: [{ fileId: LAB_REPORT_ID }] }).labReports).toEqual([{ fileId: LAB_REPORT_ID, sizes: [] }]);
+    for (const labReports of [[{ fileId: "tensile-report.pdf" }], [LAB_REPORT_ID], [{ fileId: LAB_REPORT_ID, sizes: [""] }], LAB_REPORT_ID]) {
+      expect(TensileDataSchema.safeParse({ labReports }).success, JSON.stringify(labReports)).toBe(false);
+    }
+  });
+
+  it("reads data saved with one lab report (before 26 October 2026) as one report with no sizes", () => {
+    expect(TensileDataSchema.parse({ sizes: {}, labReport: LAB_REPORT_ID })).toEqual({
+      sizes: {},
+      labReports: [{ fileId: LAB_REPORT_ID, sizes: [] }],
+    });
+    expect(TensileDataSchema.parse({ sizes: {}, labReport: null })).toEqual({ sizes: {}, labReports: [] });
+    // Beside a list, once: never twice, never in place of another report.
+    const listed = [{ fileId: OTHER_REPORT_ID, sizes: ["XS"] }];
+    expect(TensileDataSchema.parse({ labReport: LAB_REPORT_ID, labReports: listed }).labReports).toEqual([
+      ...listed,
+      { fileId: LAB_REPORT_ID, sizes: [] },
+    ]);
+    expect(TensileDataSchema.parse({ labReport: OTHER_REPORT_ID, labReports: listed }).labReports).toEqual(listed);
+    // One that is no file id stays for the schema to reject, so it is reported and can be taken out.
+    const invalid = TensileDataSchema.safeParse({ labReport: "tensile-report.pdf" });
+    expect(invalid.success).toBe(false);
+    expect(invalid.error?.issues).toEqual([expect.objectContaining({ code: "unrecognized_keys", keys: ["labReport"] })]);
   });
 
   it("rejects fields it does not have, the reserved comment included", () => {
     expect(TensileDataSchema.safeParse({ comment: "x" }).success).toBe(false);
     expect(TensileDataSchema.safeParse({ sizes: { XS: { tensile: 34.18 } } }).success).toBe(false);
-    expect(TensileDataSchema.safeParse({ sizes: {}, labReports: [] }).success).toBe(false);
+    expect(TensileDataSchema.safeParse({ sizes: {}, labReportFiles: [] }).success).toBe(false);
   });
 
   it("holds exactly the dictionary's entered keys (docs/DATA_DICTIONARY.md)", () => {
-    const keys = [...Object.keys(emptyTensileSize()), ...Object.keys(emptyTensile()).filter((key) => key !== "sizes")];
+    // The list of lab reports is the dictionary's labReport, whose key the line keeps for its label (labels.labReport).
+    const keys = [...Object.keys(emptyTensileSize()), ...Object.keys(emptyTensile()).filter((key) => key !== "sizes")].map((key) =>
+      key === "labReports" ? "labReport" : key,
+    );
     expect(keys.sort()).toEqual(dataKeys("tensile", "entered").sort());
   });
 });

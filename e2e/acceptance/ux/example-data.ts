@@ -144,7 +144,7 @@ export function stdEgData({
       dimensions: dimensionsData(report.dimensions),
       force_at_break: {
         sizes: bySize(report.forceAtBreak, (entry) => ({ values: readingsWithMedian(entry.medianN) })),
-        labReport: null,
+        labReports: [],
       },
       weight: weightData(report.weight),
       watertight: watertightData(report),
@@ -174,7 +174,7 @@ export function safedonEgData({ finished = false }: { finished?: boolean } = {})
           tensileStrength: entry.tensileMPa,
           elongationAtBreak: entry.elongationPct,
         })),
-        labReport: null,
+        labReports: [],
       },
       weight: weightData(report.weight),
       watertight: watertightData(report),

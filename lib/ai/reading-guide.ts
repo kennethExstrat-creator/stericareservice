@@ -38,14 +38,18 @@ export const PAPER_FORM_GUIDE = `How SteriCare inspectors fill in their paper in
 /**
  * How a laboratory test report is read on Source Documents: its results go
  * into the steps that keep a lab report, as any document's values do, and
- * the report itself is filed there (the answer's attachTo).
+ * the report itself is filed there (the answer's attachTo). Every report is
+ * filed, and its results come for every size it reports, entered or not, so
+ * each is linked with its sizes (Kenneth, 26 October 2026: one report per
+ * size).
  */
 export const LAB_REPORT_GUIDE = `How to read a laboratory test report (tensile strength and elongation, force at break):
 - A lab report belongs to this inspection unless it names a PO other than this inspection's, or a lot or batch number that is none of this inspection's lot numbers: leave that one out. Compare each only where the current data holds it (the header's PO, the order's lot numbers); a report that names none of them, or that cannot be compared yet, belongs here.
-- Do both: file the report in "attachTo" where it belongs, and read its results into that module's fields, as for any document.
+- Do both: file the report in "attachTo" where it belongs, and read its results into that module's fields, as for any document. File it even when the step already has another size's report: each report is linked with the sizes it gives results for.
 - Tensile ("tensile"): per size, the average tensile strength in MPa (N/mm²) and the average elongation at break in % (536, not 5.36), as the report prints them. When it gives results before and after ageing, take those before ageing, unless the module's title or settings say aged. Leave a value out when the report prints only individual readings.
 - Force at break ("force_at_break"): per size, each glove's force at break in N, in the report's order, as that size's "values". Never a median, average or minimum in their place.
-- Each result goes under the size the report names, as the size values given; a report for one size fills only that size. Leave out sizes this inspection does not offer.`;
+- Each result goes under the size the report names, as the size values given; a report for one size fills only that size. Leave out sizes this inspection does not offer.
+- Give the results of every size the report holds, also where the current data already holds them: the app keeps what is entered, and links the report with the sizes it gives results for.`;
 
 /**
  * How the weight step is read (Kenneth, 26 October 2026: "this page should

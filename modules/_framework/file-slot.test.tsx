@@ -83,4 +83,15 @@ describe("ModuleFileSlot", () => {
     );
     expect(list.notFoundText).toBe("No documents detected by Steri-AI.");
   });
+
+  it("passes a lab report's caption, its sizes, for the screen to show before the file's name", () => {
+    const [report] = requestsOf(
+      <ModuleFileSlot moduleKey="force_at_break" kind="lab_report" fileId={REPORT} caption="Size S" state="attached" readOnly={false} onRemoved={() => {}} />,
+    );
+    expect(report).toMatchObject({ fileId: REPORT, caption: "Size S", countsModuleFiles: false });
+    const [plain] = requestsOf(
+      <ModuleFileSlot moduleKey="force_at_break" kind="lab_report" fileId={REPORT} state="attached" readOnly={false} onRemoved={() => {}} />,
+    );
+    expect(plain).not.toHaveProperty("caption");
+  });
 });

@@ -5,11 +5,12 @@
 // step then links (linkSourceFile): module pages never upload. Pure and
 // client-safe: the capture screen lays the proposals over its own data, so
 // they go through the same autosave as typing, and only into fields still
-// empty.
+// empty; a step's list of lab reports takes each report a reading links.
 import type { ModuleKey } from "@/lib/schemas/module-result";
+import { orderSizes } from "@/lib/sizes";
 import type { ModuleRegistry } from "@/modules/_framework/contract";
 import { readModuleEntry, writeModuleData, type InspectionData } from "@/modules/_framework/data";
-import type { FileKind } from "@/modules/_framework/files";
+import { addLabReports, LabReportEntrySchema, LabReportsSchema, type FileKind, type LabReportEntry } from "@/modules/_framework/files";
 import { completedCartons, pasteCartons } from "@/modules/carton_sampling/edit";
 import { emptyCartonSampling } from "@/modules/carton_sampling/schema";
 import { checklist, DOCUMENT_FILE_KIND, DOCUMENT_ITEMS, DocumentsConfigSchema } from "@/modules/documents/config";
@@ -243,6 +244,54 @@ function cartonSamplingFill(
   return parsed.success && isRecord(parsed.data) ? { value: parsed.data, added } : { value: current, added: 0 };
 }
 
+/** The steps that keep lab reports, each with the sizes it gives results for (docs/MODULES.md 10.1). */
+const LAB_REPORT_STEPS: readonly string[] = ["tensile", "force_at_break"];
+
+/** The sizes a step's proposal gives values for: what the report read gives results for, in size order. */
+function proposedSizes(proposal: unknown): string[] {
+  const sizes = isRecord(proposal) && isRecord(proposal.sizes) ? proposal.sizes : {};
+  return orderSizes(Object.keys(sizes).filter((size) => !isEmptyValue(sizes[size])));
+}
+
+/**
+ * The lab reports a step's proposal links: its list (fileLinkTarget), and
+ * the one a reading kept from before 26 October 2026 links as `labReport`,
+ * with the sizes the proposal gives values for.
+ */
+function proposedLabReports(proposal: Record<string, unknown>): LabReportEntry[] {
+  const listed = LabReportsSchema.safeParse(proposal.labReports);
+  const reports = listed.success ? [...listed.data] : [];
+  const single = LabReportEntrySchema.safeParse({ fileId: proposal.labReport, sizes: proposedSizes(proposal) });
+  if (single.success) reports.push(single.data);
+  return reports;
+}
+
+/**
+ * A step's lab reports (tensile, force at break) with a reading's in: each
+ * report it links joins the list once, with the sizes it gives results for,
+ * and a report already listed gains the sizes it lacked; no report ever
+ * replaces another (Kenneth, 26 October 2026: "there are 4 different
+ * source", one lab report per size). The reading's values go in as any
+ * proposal's, into empty fields only. `added` counts the values filled and
+ * the reports added or given a size.
+ */
+function labReportsFill(
+  schema: Schema,
+  current: Record<string, unknown>,
+  proposal: Record<string, unknown>,
+): { value: Record<string, unknown>; added: number } {
+  // As the step reads it: a lab report saved alone before is a list of one.
+  const read = schema.safeParse(current);
+  const base = read.success && isRecord(read.data) ? read.data : current;
+  const filled = fillModule(schema, base, omit(omit(proposal, "labReports"), "labReport"));
+  const count = countFilled(base, filled);
+  const held = LabReportsSchema.safeParse(filled.labReports);
+  const { reports, changed } = addLabReports(held.success ? held.data : [], proposedLabReports(proposal));
+  if (changed === 0) return { value: filled, added: count };
+  const parsed = schema.safeParse({ ...filled, labReports: reports });
+  return parsed.success && isRecord(parsed.data) ? { value: parsed.data, added: count + changed } : { value: filled, added: count };
+}
+
 /**
  * Dimension as a reading proposes it (Kenneth, 26 October 2026): a spec read
  * from the form's Spec row goes in whole, and only for a size and column
@@ -274,7 +323,8 @@ function dimensionsProposal(current: Record<string, unknown>, proposal: Record<s
  * only values each module's schema accepts. `filled` counts the values.
  * Box/Carton Numbers take a size's list whole, into an empty list or over
  * one it completes (cartonSamplingFill); Dimension's specs go in whole, and
- * never its P/F (dimensionsProposal).
+ * never its P/F (dimensionsProposal); a step's lab reports take each report
+ * the reading links, beside those listed (labReportsFill).
  */
 export function applyProposals(
   data: InspectionData,
@@ -290,10 +340,16 @@ export function applyProposals(
     const definition = registry[key as ModuleKey];
     const entry = readModuleEntry(next, "modules", key);
     const current = isRecord(entry.value) && entry.hasData ? entry.value : (definition.emptyData() as Record<string, unknown>);
-    const carton = key === "carton_sampling" ? cartonSamplingFill(definition.dataSchema as Schema, current, proposal) : null;
+    const schema = definition.dataSchema as Schema;
+    const own =
+      key === "carton_sampling"
+        ? cartonSamplingFill(schema, current, proposal)
+        : LAB_REPORT_STEPS.includes(key)
+          ? labReportsFill(schema, current, proposal)
+          : null;
     const proposed = key === "dimensions" ? dimensionsProposal(current, proposal) : proposal;
-    const value = carton ? carton.value : fillModule(definition.dataSchema as Schema, current, proposed);
-    const count = carton ? carton.added : countFilled(current, value);
+    const value = own ? own.value : fillModule(schema, current, proposed);
+    const count = own ? own.added : countFilled(current, value);
     if (count === 0) continue;
     next = writeModuleData(next, "modules", key, value);
     filled += count;
@@ -306,20 +362,25 @@ export function applyProposals(
  * The file itself as a step's lab report or certificate
  * ------------------------------------------------------------------ */
 
-/** The steps that keep a lab report's id (docs/MODULES.md 10.1). */
-const LAB_REPORT_STEPS: readonly string[] = ["tensile", "force_at_break"];
-
 /** What a file is, the strongest first: a lab report, a certificate, anything else. */
 const KIND_RANK: Readonly<Record<FileKind, number>> = { lab_report: 2, certificate: 1, other: 0 };
 
 /**
  * Where the AI says a Source Document belongs as a whole (its answer's
  * `attachTo`, lib/ai/source-reader.ts): "tensile" or "force_at_break" for
- * the step's lab report, "documents.<item>" for a documents row. What that
- * writes, and what the file then is; null for anything else.
+ * one of the step's lab reports, with the sizes the reading's proposal for
+ * that step gives values for (`proposals`), "documents.<item>" for a
+ * documents row. What that writes, and what the file then is; null for
+ * anything else.
  */
-export function fileLinkTarget(link: string, fileId: string): { key: ModuleKey; proposal: Record<string, unknown>; kind: FileKind } | null {
-  if (LAB_REPORT_STEPS.includes(link)) return { key: link as ModuleKey, proposal: { labReport: fileId }, kind: "lab_report" };
+export function fileLinkTarget(
+  link: string,
+  fileId: string,
+  proposals: SourceProposals = {},
+): { key: ModuleKey; proposal: Record<string, unknown>; kind: FileKind } | null {
+  if (LAB_REPORT_STEPS.includes(link)) {
+    return { key: link as ModuleKey, proposal: { labReports: [{ fileId, sizes: proposedSizes(proposals[link]) }] }, kind: "lab_report" };
+  }
   const item = DOCUMENT_ITEMS.find((candidate) => link === `documents.${candidate}`);
   if (item) return { key: "documents", proposal: { items: { [item]: { file: fileId } } }, kind: DOCUMENT_FILE_KIND[item] };
   return null;
@@ -341,7 +402,7 @@ function overlay(base: unknown, extra: Record<string, unknown>): Record<string, 
 /** The proposals without a file id the AI wrote itself: it knows only the file it reads, which a link names. */
 function withoutFileIds(proposals: SourceProposals): SourceProposals {
   const next: SourceProposals = { ...proposals };
-  for (const key of LAB_REPORT_STEPS) if (isRecord(next[key])) next[key] = omit(next[key], "labReport");
+  for (const key of LAB_REPORT_STEPS) if (isRecord(next[key])) next[key] = omit(omit(next[key], "labReports"), "labReport");
   const documents = next.documents;
   if (isRecord(documents) && isRecord(documents.items)) {
     const items = Object.entries(documents.items).map(([item, entry]) => [item, isRecord(entry) ? omit(entry, "file") : entry]);
@@ -353,18 +414,20 @@ function withoutFileIds(proposals: SourceProposals): SourceProposals {
 export type SourceFileLinks = {
   /** The reading's proposals, with the file's id where a link puts it. */
   proposals: SourceProposals;
-  /** The links that put it somewhere: where nothing was kept yet. */
+  /** The links that put it somewhere: a step whose lab reports did not list it (or lacked a size), a row with nothing kept yet. */
   linked: string[];
   /** What the links say the file is, a lab report before a certificate; null when they say nothing. */
   kind: FileKind | null;
 };
 
 /**
- * The file a reading was of, linked where the AI says it belongs: its id as
- * tensile's or force at break's lab report, or as a documents row's file.
- * Only for the modules the reading may fill (`modules`, the template's
- * included ones) and rows on the documents checklist, and only where
- * nothing is kept yet; the capture screen then fills it in as any proposal
+ * The file a reading was of, linked where the AI says it belongs: its id
+ * among tensile's or force at break's lab reports, with the sizes the
+ * reading gives that step values for, beside the reports already listed
+ * (one per size is common: Kenneth, 26 October 2026), or as a documents
+ * row's file, only where none is kept yet. Only for the modules the reading
+ * may fill (`modules`, the template's included ones) and rows on the
+ * documents checklist; the capture screen then fills it in as any proposal
  * (applyProposals), so a file linked there meanwhile stays.
  */
 export function linkSourceFile({
@@ -391,7 +454,7 @@ export function linkSourceFile({
   const linked: string[] = [];
   let kind: FileKind | null = null;
   for (const link of new Set(attachTo)) {
-    const target = fileLinkTarget(link, fileId);
+    const target = fileLinkTarget(link, fileId, next);
     if (!target || !included.has(target.key) || (target.key === "documents" && !rows.has(link))) continue;
     if (kind === null || KIND_RANK[target.kind] > KIND_RANK[kind]) kind = target.kind;
     if (applyProposals(data, { [target.key]: target.proposal }, registry, included).filled === 0) continue;

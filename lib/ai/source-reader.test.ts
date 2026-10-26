@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { fileLinkTarget } from "@/lib/inspections/source-documents";
 import { DOCUMENTS_DEFAULT_CONFIG } from "@/modules/documents/config";
-import { PAPER_FORM_GUIDE, WEIGHT_GUIDE } from "./reading-guide";
+import { LAB_REPORT_GUIDE, PAPER_FORM_GUIDE, WEIGHT_GUIDE } from "./reading-guide";
 import { attachTargets, attachToText, parseSourceAnswer, SOURCE_READER_SYSTEM_PROMPT } from "./source-reader";
 
 describe("the reading's system prompt", () => {
@@ -20,6 +20,26 @@ describe("the reading's system prompt", () => {
 
   it("reads weight as one average per size from a dimension sheet, after the lab report guide (Kenneth, 26 October 2026)", () => {
     expect(SOURCE_READER_SYSTEM_PROMPT.endsWith(`\n\n${WEIGHT_GUIDE}`)).toBe(true);
+  });
+
+  it("files every lab report, also beside one a step already lists, and never writes the list itself (Kenneth, 26 October 2026)", () => {
+    const lines = SOURCE_READER_SYSTEM_PROMPT.split("\n");
+    const attach = lines.find((line) => line.startsWith('List in "attachTo"')) ?? "";
+    expect(attach).toContain(
+      "File every lab report, also when the current data already lists another one for that step: a lab often issues one report per size.",
+    );
+    expect(lines).toContain('- Never write a file field (labReports, a documents item\'s file): the app fills it from "attachTo".');
+    expect(SOURCE_READER_SYSTEM_PROMPT).toContain(LAB_REPORT_GUIDE);
+    const guide = LAB_REPORT_GUIDE.split("\n");
+    expect(guide.find((line) => line.startsWith("- Do both:"))).toContain(
+      "File it even when the step already has another size's report: each report is linked with the sizes it gives results for.",
+    );
+    // Its results come with every size it reports, entered or not, so a report read again is linked with its sizes.
+    const leaveOut = lines.find((line) => line.startsWith("- Leave out fields that already hold a value in the current data")) ?? "";
+    expect(leaveOut).toContain("So are a lab report's results: give them for every size it reports (the lab report guide below).");
+    expect(guide.at(-1)).toBe(
+      "- Give the results of every size the report holds, also where the current data already holds them: the app keeps what is entered, and links the report with the sizes it gives results for.",
+    );
   });
 });
 
@@ -62,11 +82,11 @@ describe("attachTargets", () => {
     expect(targets).toEqual([
       {
         link: "force_at_break",
-        what: 'the lab report of "Force at Break in Newton (Refer to Attached Where Applicable)": a laboratory test report with force at break results',
+        what: 'the lab reports of "Force at Break in Newton (Refer to Attached Where Applicable)": each laboratory test report with force at break results',
       },
       {
         link: "tensile",
-        what: 'the lab report of "Physical Properties Average": a laboratory test report with tensile strength or elongation at break results',
+        what: 'the lab reports of "Physical Properties Average": each laboratory test report with tensile strength or elongation at break results',
       },
       { link: "documents.certificateOfAnalysis", what: '"COA" on "Supporting Documents": the certificate or record itself' },
       { link: "documents.labTestReports", what: '"Lab Test Reports" on "Supporting Documents": the laboratory test report itself' },

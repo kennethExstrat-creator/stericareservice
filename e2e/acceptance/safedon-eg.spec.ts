@@ -437,7 +437,10 @@ test("Physical properties: tensile and elongation pass at ≥ 14 MPa and ≥ 500
   await shot(page, "08-tensile", { parts: 2 });
   const { data: files } = await admin.from("inspection_files").select("id, module_key, kind").eq("inspection_id", inspectionId!);
   expect(files).toEqual([expect.objectContaining({ module_key: "tensile", kind: "lab_report" })]);
-  await expectStoredModule(admin, inspectionId!, "tensile", { ...EXPECTED_DATA.tensile, labReport: files![0].id });
+  await expectStoredModule(admin, inspectionId!, "tensile", {
+    ...EXPECTED_DATA.tensile,
+    labReports: [expect.objectContaining({ fileId: files![0].id })],
+  });
 
   await enterWeight(page);
   await saved(page);

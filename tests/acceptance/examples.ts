@@ -244,7 +244,7 @@ export function stdEgData({ corrected = false }: StdEgOptions = {}): InspectionD
       dimensions: dimensionsData(report.dimensions),
       force_at_break: {
         sizes: bySize(report.forceAtBreak, (entry) => ({ values: readingsWithMedian(entry.medianN) })),
-        labReport: null,
+        labReports: [],
       },
       weight: weightData(report.weight),
       watertight: watertightData(report),
@@ -285,6 +285,7 @@ export function safedonEgData({ textCells = "corrected", labReport = true }: Saf
           tensileStrength: entry.tensileMPa,
           elongationAtBreak: entry.elongationPct,
         })),
+        // Saved as before 26 October 2026, one labReport: the module reads it as a list of that report.
         labReport: labReport ? TENSILE_LAB_REPORT_ID : null,
       },
       weight: weightData(report.weight),

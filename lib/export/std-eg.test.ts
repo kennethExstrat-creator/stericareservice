@@ -69,12 +69,51 @@ describe("the STD_EG example's export, through the real modules", () => {
 
   it("exports the lab report a module keeps by id with a 24-hour signed link, so the report can match them", async () => {
     const { doc, fake } = await exportOf();
-    const labReport = moduleOf(doc, "force_at_break").data.labReport;
-    expect(labReport).toBe(STD_EG_IDS.fileLabReport);
-    const file = doc.files.find((entry) => entry.id === labReport);
+    expect(moduleOf(doc, "force_at_break").data.labReports).toEqual([{ fileId: STD_EG_IDS.fileLabReport, sizes: ["M"] }]);
+    const file = doc.files.find((entry) => entry.id === STD_EG_IDS.fileLabReport);
     expect(file).toMatchObject({ moduleKey: "force_at_break", kind: "lab_report", url: expect.stringContaining("inspection-files") });
     const signing = fake.signed.find((request) => request.bucket === "inspection-files");
     expect(signing).toMatchObject({ expiresIn: EXPORT_URL_TTL_SECONDS });
+  });
+
+  it("names every lab report, one per size, each with its sizes and a signed link (Kenneth, 26 October 2026)", async () => {
+    const ids = ["00000000-0000-4000-8000-000000000411", "00000000-0000-4000-8000-000000000412", "00000000-0000-4000-8000-000000000413"];
+    const files = ids.map((id, index) => ({
+      id,
+      moduleKey: "source_documents",
+      kind: "lab_report" as const,
+      storagePath: `${STD_EG_IDS.inspection}/${id}.jpg`,
+      name: `Lab report ${index + 1}.jpg`,
+      createdAt: "2025-04-11T07:30:00.000000+00:00",
+    }));
+    const saved = stdEgInspectionData();
+    const forceAtBreak = saved.modules.force_at_break as Record<string, unknown>;
+    const labReports = [
+      { fileId: ids[0], sizes: ["S"] },
+      { fileId: ids[1], sizes: ["M"] },
+      { fileId: ids[2], sizes: ["L"] },
+    ];
+    const data = { ...saved, modules: { ...saved.modules, force_at_break: { ...forceAtBreak, labReports } } };
+    const record = stdEgRecord({ data, files });
+    const { doc } = await exportOf(stdEgTables(record), stdEgObjects(record));
+    const exported = moduleOf(doc, "force_at_break");
+    expect(exported.data.labReports).toEqual(labReports);
+    expect(exported.computed).toMatchObject({ labReportAttached: true });
+    expect(exported.warnings.map((warning) => warning.code)).not.toContain("lab_report_missing");
+    expect(doc.files.map((file) => [file.id, file.name, file.kind])).toEqual(ids.map((id, index) => [id, `Lab report ${index + 1}.jpg`, "lab_report"]));
+    for (const file of doc.files) expect(file.url).toMatch(/^https:\/\//);
+  });
+
+  it("exports a lab report saved alone before 26 October 2026 as a list of it, its sizes not known", async () => {
+    const saved = stdEgInspectionData();
+    const forceAtBreak: Record<string, unknown> = { ...(saved.modules.force_at_break as Record<string, unknown>) };
+    delete forceAtBreak.labReports;
+    const data = { ...saved, modules: { ...saved.modules, force_at_break: { ...forceAtBreak, labReport: STD_EG_IDS.fileLabReport } } };
+    const record = stdEgRecord({ data });
+    const { doc } = await exportOf(stdEgTables(record), stdEgObjects(record));
+    expect(moduleOf(doc, "force_at_break").data).not.toHaveProperty("labReport");
+    expect(moduleOf(doc, "force_at_break").data.labReports).toEqual([{ fileId: STD_EG_IDS.fileLabReport, sizes: [] }]);
+    expect(moduleOf(doc, "force_at_break").computed).toMatchObject({ labReportAttached: true });
   });
 
   it("warns when a kept lab report's file was deleted, and exports no link for it", async () => {
@@ -82,7 +121,7 @@ describe("the STD_EG example's export, through the real modules", () => {
     const { doc } = await exportOf(stdEgTables(record), stdEgObjects(record));
     const forceAtBreak = moduleOf(doc, "force_at_break");
     // The id stays in the data as the inspector left it; the module reads it against the inspection's files.
-    expect(forceAtBreak.data.labReport).toBe(STD_EG_IDS.fileLabReport);
+    expect(forceAtBreak.data.labReports).toEqual([{ fileId: STD_EG_IDS.fileLabReport, sizes: ["M"] }]);
     expect(forceAtBreak.computed).toMatchObject({ labReportAttached: false });
     expect(forceAtBreak.warnings).toContainEqual({
       code: "lab_report_missing",
@@ -95,7 +134,7 @@ describe("the STD_EG example's export, through the real modules", () => {
     const record = stdEgRecord({ data: { ...stdEgInspectionData({ labReportFileId: null }), custom: {} } });
     const { doc } = await exportOf(stdEgTables(record), stdEgObjects(record));
     const forceAtBreak = moduleOf(doc, "force_at_break");
-    expect(forceAtBreak.data.labReport).toBeNull();
+    expect(forceAtBreak.data.labReports).toEqual([]);
     expect(forceAtBreak.computed).toMatchObject({ labReportAttached: true });
     expect(forceAtBreak.warnings.map((warning) => warning.code)).not.toContain("lab_report_missing");
     expect(doc.files).toEqual([expect.objectContaining({ id: STD_EG_IDS.fileLabReport, moduleKey: "force_at_break" })]);

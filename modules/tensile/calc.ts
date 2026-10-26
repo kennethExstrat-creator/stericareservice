@@ -1,29 +1,32 @@
 // Per ordered size (BUILD_SPEC 6.1, ASTM D6319): the lab report's tensile
 // strength and elongation at break averages against their minimums, each
 // judged at the decimals it is printed with; a size fails if either fails.
-// Not done until both averages of every ordered size are in and the lab
+// Not done until both averages of every ordered size are in and a lab
 // report is attached, which this module requires (6.2 rule 5): the module
-// keeps the id of the file attached through its file slot (the framework's
-// file channel). Once the inspection's files are known, a lab report of the
-// module added elsewhere (the gallery) counts too, and a kept file the
-// inspection does not hold is not attached. An average of 0 or less is wrong
-// data: an error with its path.
+// keeps the id of each file Steri-AI linked, with its sizes (the framework's
+// file channel, labReportsState), and one attached is enough. Once the
+// inspection's files are known, a lab report of the module added elsewhere
+// (the gallery) counts too, and a kept file the inspection does not hold is
+// not attached and is reported. An average of 0 or less is wrong data: an
+// error with its path.
 import type { ModuleStatus, PerSizeResult } from "@/lib/schemas/module-result";
 import { checkSpec, formatDecimal, roundTo, type Spec } from "@/lib/stats";
 import {
   combinePerSize,
   errorIssue,
   labelFor,
+  labReportSizesText,
+  labReportsState,
   missingFileMessage,
-  moduleFileState,
   perSizeResults,
   sizeLabel,
+  sortLabReports,
   warningIssue,
   worstStatus,
   type CalcInput,
   type CalcIssue,
   type CalcOutput,
-  type HeldFileState,
+  type HeldLabReport,
   type InspectionContext,
   type IssuePath,
   type Labels,
@@ -103,10 +106,10 @@ export function calcTensile({
     return { status: sizeStatus(outcomes), summary: sizeSummary(entry, outcomes, config) };
   });
 
-  // The lab report is required: without it the module is not done, whatever its sizes say.
-  const report = labReportState(context, data.labReport);
-  const attached = report === "attached";
-  if (report === "missing") issues.push(labReportMissing(labels));
+  // A lab report is required: without one attached the module is not done, whatever its sizes say.
+  const reports = labReportsState(context, "tensile", data.labReports);
+  const attached = reports.state === "attached";
+  issues.push(...labReportsMissing(context, reports.reports, labels));
   const status = attached ? combinePerSize(perSize) : worstStatus([combinePerSize(perSize), "not_done"]);
   return {
     result: { status, summary: summarise(context, perSize, sizes, attached, config, labels), perSize },
@@ -123,17 +126,21 @@ export function calcTensile({
   };
 }
 
-/** The lab report: the one kept, or any of the module's lab reports once the inspection's files are known. */
-export function labReportState(context: InspectionContext, fileId: string | null): HeldFileState {
-  return moduleFileState(context, { moduleKey: "tensile", kind: "lab_report", fileId });
+/**
+ * A warning for each kept lab report the inspection's files do not hold
+ * (deleted since, or still uploading elsewhere), in size order, named by its
+ * sizes: "Lab Report for Size L: …".
+ */
+export function labReportsMissing(context: InspectionContext, reports: readonly HeldLabReport[], labels: Labels): CalcIssue[] {
+  const label = labelFor(labels, "labReport");
+  const missing = reports.filter((report) => report.state === "missing");
+  return sortLabReports(missing, context.templateSizes.map((size) => size.value)).map((report) => {
+    const sizes = labReportSizesText(report.sizes, (size) => sizeLabel(context, size));
+    return warningIssue("lab_report_missing", missingFileMessage(sizes ? `${label} for ${sizes}` : label), { path: ["labReport"] });
+  });
 }
 
-/** A kept lab report the inspection's files do not hold: deleted since, or still uploading elsewhere. */
-export function labReportMissing(labels: Labels): CalcIssue {
-  return warningIssue("lab_report_missing", missingFileMessage(labelFor(labels, "labReport")), { path: ["labReport"] });
-}
-
-/** Where the not-done link goes, in screen order: the lab report, then the first average still to enter. */
+/** Where the not-done link goes, in screen order: the lab reports' line, then the first average still to enter. */
 function firstMissing(data: TensileData, context: InspectionContext, attached: boolean): IssuePath | undefined {
   if (!attached) return ["labReport"];
   for (const size of context.sizes) {

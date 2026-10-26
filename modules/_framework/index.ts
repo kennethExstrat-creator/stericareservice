@@ -66,10 +66,21 @@ export {
   heldFileState,
   moduleFileState,
   missingFileMessage,
+  LabReportEntrySchema,
+  LabReportsSchema,
+  addLabReports,
+  foldLabReport,
+  labReportSizesText,
+  labReportsState,
+  readingLabReports,
+  sortLabReports,
+  withoutLabReportFile,
   type AttachedFile,
   type FileKind,
   type HeldFileState,
+  type HeldLabReport,
   type InspectionFileRef,
+  type LabReportEntry,
 } from "./files";
 export { salvageData, type SalvagedData } from "./salvage";
 // A box/carton number the size's sampled list does not hold: a warning (BUILD_SPEC 6.2 rule 7).

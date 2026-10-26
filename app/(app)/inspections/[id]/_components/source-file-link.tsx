@@ -4,10 +4,12 @@
 // (docs/AI.md, "Source Documents"; docs/MODULES.md 10.1): the renderer of a
 // module's ModuleFileSlot (section-body.tsx), inside the module's attachment
 // line. Every file is uploaded once, on Source Documents, and Steri-AI links
-// each lab report or certificate it reads there to its step (readSourceFile,
-// only where nothing is linked yet): a step links nothing by hand (Kenneth,
-// 12 October 2026). Linked: the file's name, Steri-AI's mark when the file is
-// a Source Document, Preview, and Unlink, which never deletes the file. A
+// each lab report or certificate it reads there to its step (readSourceFile:
+// a documents row only where nothing is linked yet, each lab report to its
+// step's list): a step links nothing by hand (Kenneth, 12 October 2026).
+// Linked: the file's name, after the request's caption ("Size S · name", a
+// lab report of size S), Steri-AI's mark when the file is a Source Document,
+// Preview, and Unlink, which never deletes the file. A
 // lab report uploaded on its step before 12 October still counts and shows
 // the same, without Unlink: it counts by its step, not by a link. A kept file
 // that is gone: Unlink beside calc's warning, so Steri-AI can link another.
@@ -180,6 +182,12 @@ export function SourceFileLink({ inspectionId, slot, readOnly }: { inspectionId:
       <>
         {/* The name wraps rather than hides: a documents row's column is narrow on the desktop. */}
         <div data-slot="source-file-link" data-file-id={shown.id} className="relative flex min-w-0 flex-wrap items-center gap-x-1">
+          {slot.caption && (
+            <span data-slot="file-caption" className="shrink-0 text-foreground">
+              {slot.caption}
+              <span aria-hidden className="text-muted-foreground"> ·</span>
+            </span>
+          )}
           <span className="min-w-0 text-foreground [overflow-wrap:anywhere]">{shown.name}</span>
           {shown.moduleKey === SOURCE_DOCUMENTS_KEY && (
             <span data-slot="steri-ai-mark" title="Linked by Steri-AI" className="relative mr-1 inline-flex shrink-0 text-brand-600">
@@ -212,10 +220,15 @@ export function SourceFileLink({ inspectionId, slot, readOnly }: { inspectionId:
     // Kept but gone (calc's warning says so beside it): unlinking it lets Steri-AI link the next one.
     if (readOnly || fileId === null || media.status !== "ready" || !queueKnown(queue)) return null;
     return (
-      <span data-slot="source-file-link" data-missing="" className="relative inline-flex">
+      <span data-slot="source-file-link" data-missing="" className="relative inline-flex items-center gap-x-1">
+        {slot.caption && (
+          <span data-slot="file-caption" className="text-foreground">
+            {slot.caption}
+          </span>
+        )}
         <Button type="button" variant="ghost" size="icon-sm" title="Unlink" onClick={(event) => unlink(event, fileId)}>
           <UnlinkIcon aria-hidden />
-          <span className="sr-only">Unlink the missing file</span>
+          <span className="sr-only">{`Unlink the missing file${slot.caption ? ` for ${slot.caption}` : ""}`}</span>
         </Button>
       </span>
     );

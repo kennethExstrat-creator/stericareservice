@@ -21,16 +21,17 @@ import {
 import { emptyForceAtBreak, emptyForceAtBreakSize, ForceAtBreakDataSchema } from "./schema";
 
 const LAB_REPORT_ID = "00000000-0000-4000-8000-000000000401";
+const OTHER_REPORT_ID = "00000000-0000-4000-8000-000000000409";
 
 describe("force_at_break data", () => {
   it("starts empty and accepts a draft with readings still missing", () => {
-    expect(emptyForceAtBreak()).toEqual({ sizes: {}, labReport: null });
+    expect(emptyForceAtBreak()).toEqual({ sizes: {}, labReports: [] });
     expect(emptyForceAtBreakSize()).toEqual({ values: [] });
     expect(ForceAtBreakDataSchema.parse({ sizes: { M: { values: [6.47, null, 6.301] } } })).toEqual({
       sizes: { M: { values: [6.47, null, 6.301] } },
-      labReport: null,
+      labReports: [],
     });
-    expect(ForceAtBreakDataSchema.parse({ sizes: { M: {} } })).toEqual({ sizes: { M: { values: [] } }, labReport: null });
+    expect(ForceAtBreakDataSchema.parse({ sizes: { M: {} } })).toEqual({ sizes: { M: { values: [] } }, labReports: [] });
   });
 
   it("stores readings as numbers, never as text (6.2 rule 1)", () => {
@@ -45,9 +46,35 @@ describe("force_at_break data", () => {
     expect(ForceAtBreakDataSchema.safeParse({ sizes: { M: { values: [6.5], result: "pass" } } }).success).toBe(false);
   });
 
-  it("refers to the lab report by its inspection_files id", () => {
-    expect(ForceAtBreakDataSchema.parse({ labReport: LAB_REPORT_ID }).labReport).toBe(LAB_REPORT_ID);
-    expect(ForceAtBreakDataSchema.safeParse({ labReport: "lab-report.pdf" }).success).toBe(false);
+  it("keeps its lab reports by their inspection_files ids, each with the sizes it gives results for", () => {
+    const reports = [
+      { fileId: LAB_REPORT_ID, sizes: ["M"] },
+      { fileId: OTHER_REPORT_ID, sizes: [] },
+    ];
+    expect(ForceAtBreakDataSchema.parse({ labReports: reports }).labReports).toEqual(reports);
+    expect(ForceAtBreakDataSchema.parse({ labReports: [{ fileId: LAB_REPORT_ID }] }).labReports).toEqual([{ fileId: LAB_REPORT_ID, sizes: [] }]);
+    for (const labReports of [[{ fileId: "lab-report.pdf" }], [LAB_REPORT_ID], [{ fileId: LAB_REPORT_ID, sizes: [""] }], LAB_REPORT_ID]) {
+      expect(ForceAtBreakDataSchema.safeParse({ labReports }).success, JSON.stringify(labReports)).toBe(false);
+    }
+  });
+
+  it("reads data saved with one lab report (before 26 October 2026) as one report with no sizes", () => {
+    expect(ForceAtBreakDataSchema.parse({ sizes: {}, labReport: LAB_REPORT_ID })).toEqual({
+      sizes: {},
+      labReports: [{ fileId: LAB_REPORT_ID, sizes: [] }],
+    });
+    expect(ForceAtBreakDataSchema.parse({ sizes: {}, labReport: null })).toEqual({ sizes: {}, labReports: [] });
+    // Beside a list, once: never twice, never in place of another report.
+    const listed = [{ fileId: OTHER_REPORT_ID, sizes: ["M"] }];
+    expect(ForceAtBreakDataSchema.parse({ labReport: LAB_REPORT_ID, labReports: listed }).labReports).toEqual([
+      ...listed,
+      { fileId: LAB_REPORT_ID, sizes: [] },
+    ]);
+    expect(ForceAtBreakDataSchema.parse({ labReport: OTHER_REPORT_ID, labReports: listed }).labReports).toEqual(listed);
+    // One that is no file id stays for the schema to reject, so it is reported and can be taken out.
+    const invalid = ForceAtBreakDataSchema.safeParse({ labReport: "lab-report.pdf" });
+    expect(invalid.success).toBe(false);
+    expect(invalid.error?.issues).toEqual([expect.objectContaining({ code: "unrecognized_keys", keys: ["labReport"] })]);
   });
 
   it("rejects fields it does not have, the reserved comment included", () => {
@@ -57,7 +84,10 @@ describe("force_at_break data", () => {
   });
 
   it("holds exactly the dictionary's entered keys (docs/DATA_DICTIONARY.md)", () => {
-    const keys = [...Object.keys(emptyForceAtBreakSize()), ...Object.keys(emptyForceAtBreak()).filter((key) => key !== "sizes")];
+    // The list of lab reports is the dictionary's labReport, whose key the line keeps for its label (labels.labReport).
+    const keys = [...Object.keys(emptyForceAtBreakSize()), ...Object.keys(emptyForceAtBreak()).filter((key) => key !== "sizes")].map((key) =>
+      key === "labReports" ? "labReport" : key,
+    );
     expect(keys.sort()).toEqual(dataKeys("force_at_break", "entered").sort());
   });
 });

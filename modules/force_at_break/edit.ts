@@ -3,6 +3,7 @@
 // data (CaptureProps.onChange), keeping every saved size, also sizes no longer
 // ordered: their readings return with them (6.2 rule 4).
 import { parseDecimal } from "@/lib/stats";
+import { withoutLabReportFile } from "@/modules/_framework";
 import { emptyForceAtBreakSize, type ForceAtBreakData } from "./schema";
 
 type Readings = readonly (number | null)[];
@@ -80,17 +81,12 @@ export function withoutReadingsBeyond(data: ForceAtBreakData, size: string, n: n
 }
 
 /**
- * The lab report the file slot attached for this module (ModuleFileSlot's
- * onAdded): the id of its inspection_files row. The latest file attached is
- * the module's lab report. Null detaches it.
+ * A lab report unlinked in its file slot (Unlink, which never deletes the
+ * file): that report leaves the list, the others stay; the same data when it
+ * was not listed.
  */
-export function withLabReport(data: ForceAtBreakData, fileId: string | null): ForceAtBreakData {
-  return { ...data, labReport: fileId };
-}
-
-/** A file of the module was deleted: the lab report goes when it was that file; the same data otherwise. */
 export function withoutLabReport(data: ForceAtBreakData, fileId: string): ForceAtBreakData {
-  return data.labReport === fileId ? withLabReport(data, null) : data;
+  return withoutLabReportFile(data, fileId);
 }
 
 function withoutTrailingBlanks(values: Readings): (number | null)[] {

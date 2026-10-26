@@ -22,8 +22,14 @@ export type FileSlotRequest = {
   readonly moduleKey: ModuleKey;
   /** inspection_files.kind of the file kept here: what the slot says while none is. */
   readonly kind: FileKind;
-  /** The id the module keeps for this slot (tensile's labReport, a document's file), null for none. */
+  /** The id the module keeps for this slot (one of tensile's lab reports, a document's file), null for none. */
   readonly fileId: string | null;
+  /**
+   * Which of the module's files this is, shown before its name as "Size S ·
+   * name": the sizes a lab report gives results for (LabReports). Absent, the
+   * name alone.
+   */
+  readonly caption?: string;
   /**
    * calc's state of that file (heldFileState, moduleFileState): attached, kept
    * but not among the inspection's files (its warning sits beside the slot), or none.
@@ -67,6 +73,8 @@ export type ModuleFileSlotProps = {
   kind: FileKind;
   /** The id the module keeps for this slot, null for none: the screen shows that file, with Unlink. */
   fileId: string | null;
+  /** Shown before the file's name: "Size S" for a lab report of size S. */
+  caption?: string;
   /** calc's state of the kept file: `moduleFileState` for a module's one file, `heldFileState` for one kept per entry. */
   state: HeldFileState;
   /** A file of the module and kind counts kept or not (moduleFileState): tensile's and force at break's lab report. */
@@ -88,6 +96,7 @@ export function ModuleFileSlot({
   moduleKey,
   kind,
   fileId,
+  caption,
   state,
   countsModuleFiles = false,
   notFoundText,
@@ -103,6 +112,7 @@ export function ModuleFileSlot({
           moduleKey,
           kind,
           fileId,
+          ...(caption === undefined ? {} : { caption }),
           state,
           countsModuleFiles,
           ...(notFoundText === undefined ? {} : { notFoundText }),

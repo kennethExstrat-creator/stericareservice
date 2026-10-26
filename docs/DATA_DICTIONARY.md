@@ -317,7 +317,7 @@ Report module. Captures: Per size, per glove (default 13): force at break (N), i
 | Key | Label (STD_EG) | Other wording | Type | Unit | Per | Entry | Rules | Notes |
 |---|---|---|---|---|---|---|---|---|
 | `values` | Force at Break (N) |  | decimal_list | N | size | entered | 1 | One reading per glove of the sampling plan's gloves for the physical test (sampling_plan.glovesPhysical), else config n, from the lab report. The report prints only their median. |
-| `labReport` | Lab Report |  | file |  | inspection | entered |  | 'Refer to attached where applicable': inspection_files, kind lab_report, module force_at_break. Tag a size when the lab issues one report per size. |
+| `labReport` | Lab Report |  | file |  | inspection | entered |  | 'Refer to attached where applicable', optional: inspection_files, kind lab_report. Kept in the data as labReports, a list of { fileId, sizes }: each report Steri-AI links from Source Documents, with the sizes it gives results for, often one report per size (Kenneth, 26 October 2026). Data saved with one labReport id reads as a list of it, its sizes not known. |
 | `median` | Median |  | decimal | N | size | **computed** | 2 | Median of values, shown at config decimals. |
 | `result` | Passed / Failed |  | select |  | size | **computed** | 2, 5 | median ≥ config specMin. Values: pass, fail, not_done. |
 
@@ -341,7 +341,7 @@ Report module. Captures: Per size: tensile strength average (MPa) and elongation
 |---|---|---|---|---|---|---|---|---|
 | `tensileStrength` | Tensile Strength (Average) (MPa) |  | decimal | MPa | size | entered | 1 | The lab report's average, typed as printed: the app holds no individual readings (BUILD_SPEC 6.1), so this is a typed average, not one the app computes. |
 | `elongationAtBreak` | Elongation at Break, Average (%) |  | decimal | % | size | entered | 1 | The lab report's average, typed as printed. |
-| `labReport` | Lab Report |  | file |  | inspection | entered |  | Required (BUILD_SPEC 6.1): inspection_files, kind lab_report, module tensile. |
+| `labReport` | Lab Report |  | file |  | inspection | entered |  | Required (BUILD_SPEC 6.1), at least one: inspection_files, kind lab_report. Kept in the data as labReports, a list of { fileId, sizes }, as force_at_break's (Kenneth, 26 October 2026). |
 | `tensileResult` | Passed / Failed |  | select |  | size | **computed** | 2, 5 | tensileStrength ≥ config tensileMin. Values: pass, fail, not_done. |
 | `elongationResult` | Passed / Failed |  | select |  | size | **computed** | 2, 5 | elongationAtBreak ≥ config elongationMin. Values: pass, fail, not_done. |
 

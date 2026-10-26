@@ -341,8 +341,8 @@ test("photos from four modules on the iPad, the export and the AI second opinion
         `inspection-files/${files[0].storage_path}`,
       ].sort(),
     );
-    const stored = (await inspectionRow(fixture.inspectionId)).data as { modules: { force_at_break: { labReport: string | null } } };
-    expect(stored.modules.force_at_break.labReport).toBe(files[0].id);
+    const stored = (await inspectionRow(fixture.inspectionId)).data as { modules: { force_at_break: { labReports: { fileId: string }[] } } };
+    expect(stored.modules.force_at_break.labReports.map((report) => report.fileId)).toEqual([files[0].id]);
   });
 
   await test.step("iPad: submit, with nothing left to upload", async () => {
@@ -522,8 +522,9 @@ test("photos from four modules on the iPad, the export and the AI second opinion
       }
       const forceAtBreak = doc.modules.find((module) => module.key === "force_at_break")!;
       expect(forceAtBreak.computed).toMatchObject({ labReportAttached: true });
+      const [report] = forceAtBreak.data.labReports as { fileId: string }[];
       expect(doc.files).toEqual([
-        expect.objectContaining({ id: forceAtBreak.data.labReport, moduleKey: "force_at_break", kind: "lab_report", name: LAB_REPORT.name }),
+        expect.objectContaining({ id: report.fileId, moduleKey: "force_at_break", kind: "lab_report", name: LAB_REPORT.name }),
       ]);
       const pdf = await desktop.request.get(doc.files[0].url);
       expect(pdf.status()).toBe(200);

@@ -4,9 +4,10 @@
 // SizeTabs (swipe on iPad, arrow keys on desktop), the readings of the
 // gloves tested in a MeasurementGrid (decimal keypad, Enter goes down, a
 // pasted column fills down) with calc's median and verdict in its footer,
-// and the lab report in one line: the file Steri-AI linked from Source
-// Documents with Preview and Unlink, or what Steri-AI found (the framework's
-// file slot, BUILD_SPEC 8.1; no picker, Kenneth, 12 October 2026). Wording
+// and the lab reports in one line: each file Steri-AI linked from Source
+// Documents, "Size S · name", with Preview and Unlink, or what Steri-AI
+// found (the framework's LabReports, BUILD_SPEC 8.1; no picker, Kenneth, 12
+// October 2026; one report per size, 26 October 2026). Wording
 // is the template's (6.2 rule 11); the median and the verdict are computed,
 // never typed (6.2 rule 2). Read-only, the readings stay focusable on grey.
 // Every write goes through useDataUpdater, from the latest data
@@ -15,7 +16,6 @@
 // losing them at the grid's end.
 import { useRef, useState } from "react";
 import {
-  AttachmentStatus,
   findIssue,
   focusIssuePath,
   issueNoticeProps,
@@ -31,9 +31,9 @@ import {
 import { Button } from "@/components/ui/button";
 import { formatNumber, formatSize } from "@/lib/format";
 import { initialSize, labelFor, type CaptureProps, type ValidationIssue } from "@/modules/_framework";
-import { ModuleFileSlot } from "@/modules/_framework/file-slot";
+import { LabReports } from "@/modules/_framework/lab-reports";
 import { useReportShownSize } from "@/modules/_framework/shown-size";
-import { forceSpec, labReportState, plannedReadings, readingsFor, specCaption } from "./calc";
+import { forceSpec, plannedReadings, readingsFor, specCaption } from "./calc";
 import { readingSummary } from "./capture-data";
 import { MAX_READINGS } from "./config";
 import {
@@ -82,35 +82,19 @@ export default function Capture({
     },
   });
 
-  const reportLabel = labelFor(labels, "labReport");
-  const reportState = labReportState(context, data.labReport);
-
   return (
     // relative: screen-reader text inside never lays out against the page (docs/DESIGN.md).
     <div ref={root} data-slot="force-at-break" className="relative space-y-4">
-      <section
-        data-slot="lab-report"
-        aria-label={reportLabel}
-        className="relative rounded-lg border border-border bg-card px-3 py-2"
-      >
-        {/* calc's state of the kept file, and its warning when the file is missing; an issue link lands here. */}
-        <AttachmentStatus
-          label={reportLabel}
-          state={reportState}
-          warning={evaluation?.issues.find((issue) => issue.code === "lab_report_missing")?.message ?? null}
-          issuePath={["labReport"]}
-        >
-          <ModuleFileSlot
-            moduleKey="force_at_break"
-            kind="lab_report"
-            fileId={data.labReport}
-            state={reportState}
-            countsModuleFiles
-            readOnly={readOnly}
-            onRemoved={(fileId) => update((current) => withoutLabReport(current, fileId))}
-          />
-        </AttachmentStatus>
-      </section>
+      {/* Optional here: calc's state of the reports, and a warning for each kept one that is gone; an issue link lands here. */}
+      <LabReports
+        moduleKey="force_at_break"
+        label={labelFor(labels, "labReport")}
+        reports={data.labReports}
+        context={context}
+        warnings={(evaluation?.issues ?? []).filter((issue) => issue.code === "lab_report_missing").map((issue) => issue.message)}
+        readOnly={readOnly}
+        onRemoved={(fileId) => update((current) => withoutLabReport(current, fileId))}
+      />
       <SizeTabs
         sizes={context.sizes}
         templateSizes={context.templateSizes}

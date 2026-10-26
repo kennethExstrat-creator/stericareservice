@@ -174,6 +174,21 @@ describe("SourceFileLink", () => {
     expect(render(request({ readOnly: true }))).toContain("No lab report detected by Steri-AI.");
   });
 
+  it("puts a lab report's sizes before its name, 'Size S · name', and in Unlink's words when its file is gone", () => {
+    loaded.media = ready([file(REPORT, SOURCE_DOCUMENTS_KEY, "Screenshot 9.22.40 PM.jpg")]);
+    loaded.queue = QUEUE_READ;
+    const html = render(request({ fileId: REPORT, state: "attached", countsModuleFiles: false, caption: "Size S" }));
+    expect(html).toMatch(/<span data-slot="file-caption"[^>]*>Size S<span aria-hidden="true"[^>]*> ·<\/span><\/span><span[^>]*>Screenshot 9\.22\.40 PM\.jpg<\/span>/);
+    expect(html).toContain('title="Linked by Steri-AI"');
+    expect(html).toContain("Preview Screenshot 9.22.40 PM.jpg");
+    expect(html).toContain("Unlink Screenshot 9.22.40 PM.jpg");
+    // No caption: the name alone, as before.
+    expect(render(request({ fileId: REPORT, state: "attached", countsModuleFiles: false }))).not.toContain("file-caption");
+    const gone = render(request({ fileId: GONE, state: "missing", countsModuleFiles: false, caption: "Size XL" }));
+    expect(gone).toContain(">Size XL</span>");
+    expect(gone).toContain("Unlink the missing file for Size XL");
+  });
+
   it("waits for a kept file's name rather than say anything about it", () => {
     loaded.media = ready([]);
     loaded.queue = QUEUE_READ;

@@ -21,16 +21,16 @@ function input(
     at = context(Object.keys(sizes)),
     config = TENSILE_DEFAULT_CONFIG,
     labels = TENSILE_LABELS,
-    labReport = LAB_REPORT_ID,
+    labReports = [{ fileId: LAB_REPORT_ID, sizes: [] }],
   }: {
     at?: InspectionContext;
     config?: TensileConfig;
     labels?: Readonly<Record<string, string>>;
-    labReport?: string | null;
+    labReports?: TensileData["labReports"];
   } = {},
 ): CalcInput<TensileData, TensileConfig> {
   return {
-    data: { ...emptyTensile(), sizes, labReport },
+    data: { ...emptyTensile(), sizes, labReports },
     config,
     title: TENSILE_TITLE,
     labels,
@@ -113,17 +113,42 @@ describe("tensile", () => {
         { id: GALLERY_REPORT, moduleKey: "tensile", kind: "lab_report" },
         { id: LAB_REPORT_ID, moduleKey: "force_at_break", kind: "lab_report" },
       ] as const;
-      const gallery = calcTensile(input(exampleSizes, { at: makeTestContext({ ...exampleContext, files }), labReport: null }));
+      const gallery = calcTensile(input(exampleSizes, { at: makeTestContext({ ...exampleContext, files }), labReports: [] }));
       expect(gallery.result.status).toBe("pass");
       expect(gallery.computed.labReportAttached).toBe(true);
       expect(gallery.issues).toEqual([]);
       // Another module's lab report attaches nothing here.
       const elsewhere = makeTestContext({ ...exampleContext, files: [files[1]] });
-      expect(calcTensile(input(exampleSizes, { at: elsewhere, labReport: null })).result.status).toBe("not_done");
+      expect(calcTensile(input(exampleSizes, { at: elsewhere, labReports: [] })).result.status).toBe("not_done");
+    });
+
+    it("is done with one of several lab reports attached, one per size, and says which are gone (Kenneth, 26 October 2026)", () => {
+      const ids = ["00000000-0000-4000-8000-000000000421", "00000000-0000-4000-8000-000000000422"];
+      const labReports = [
+        { fileId: ids[1], sizes: ["M", "L"] },
+        { fileId: ids[0], sizes: ["XS", "S"] },
+      ];
+      const files = (kept: readonly string[]) =>
+        makeTestContext({ ...exampleContext, files: kept.map((id) => ({ id, moduleKey: "source_documents", kind: "lab_report" as const })) });
+      const one = calcTensile(input(exampleSizes, { at: files([ids[1]]), labReports }));
+      expect(one.result.status).toBe("pass");
+      expect(one.computed.labReportAttached).toBe(true);
+      expect(one.issues).toEqual([
+        expect.objectContaining({
+          code: "lab_report_missing",
+          message: expect.stringMatching(/^Lab Report for Sizes XS, S: the file linked here is not among this inspection's files\./),
+          path: ["labReport"],
+        }),
+      ]);
+      // Every one gone: not done, as with none.
+      const none = calcTensile(input(exampleSizes, { at: files([]), labReports }));
+      expect(none.result.status).toBe("not_done");
+      expect(none.notDonePath).toEqual(["labReport"]);
+      expect(none.issues.map((issue) => issue.message.split(":")[0])).toEqual(["Lab Report for Sizes XS, S", "Lab Report for Sizes M, L"]);
     });
 
     it("is not done until the lab report is attached: it is required (BUILD_SPEC 6.1)", () => {
-      const output = calcTensile(input(exampleSizes, { at: exampleContext, labReport: null }));
+      const output = calcTensile(input(exampleSizes, { at: exampleContext, labReports: [] }));
       expect(output.result.status).toBe("not_done");
       expect(output.result.summary).toMatch(/≥ 14\.00 MPa \/ ≥ 500%\. Lab Report not attached\.$/);
       // The averages themselves still pass.
@@ -141,7 +166,7 @@ describe("tensile", () => {
     it("passes through the engine, which leaves a size saved but not ordered out with a warning", () => {
       const template = makeTestTemplate(MODULE_REGISTRY, ["tensile"]);
       const data = {
-        modules: { tensile: { sizes: { ...exampleSizes, XL: PASSING }, labReport: LAB_REPORT_ID } },
+        modules: { tensile: { sizes: { ...exampleSizes, XL: PASSING }, labReports: [{ fileId: LAB_REPORT_ID, sizes: ["XS", "S", "M", "L"] }] } },
         custom: {},
       };
       const evaluated = evaluateInspection({ template, data, context: exampleContext }, MODULE_REGISTRY).modules.find(
@@ -180,7 +205,7 @@ describe("tensile", () => {
   });
 
   it("fails with a failing average even before the lab report is attached", () => {
-    const output = calcTensile(input({ S: { tensileStrength: 12.5, elongationAtBreak: 547 } }, { labReport: null }));
+    const output = calcTensile(input({ S: { tensileStrength: 12.5, elongationAtBreak: 547 } }, { labReports: [] }));
     expect(output.result.status).toBe("fail");
     expect(output.result.summary).toBe(
       "Size S: 12.50 MPa (below 14.00 MPa) / 547%. Spec. (ASTM D6319) ≥ 14.00 MPa / ≥ 500%. Lab Report not attached.",
@@ -215,7 +240,7 @@ describe("tensile", () => {
   });
 
   it("names only what is missing when nothing is judged yet", () => {
-    expect(calcTensile(input({}, { at: context(["M"]), labReport: null })).result).toEqual({
+    expect(calcTensile(input({}, { at: context(["M"]), labReports: [] })).result).toEqual({
       status: "not_done",
       summary: "Size M: not entered. Lab Report not attached.",
       perSize: { M: { status: "not_done", summary: "not entered" } },
@@ -252,7 +277,7 @@ describe("tensile", () => {
       standardLabel: "ASTM D3578",
       decimals: { tensileStrength: 1, elongationAtBreak: 0 },
     };
-    expect(calcTensile(input({ M: { tensileStrength: 24.04, elongationAtBreak: 720 } }, { at, labels, config, labReport: null })).result).toEqual({
+    expect(calcTensile(input({ M: { tensileStrength: 24.04, elongationAtBreak: 720 } }, { at, labels, config, labReports: [] })).result).toEqual({
       status: "not_done",
       summary: "Size Medium: 24.0 MPa / 720%. Requirement (ASTM D3578) ≥ 18.0 MPa / ≥ 650%. Laboratory report not attached.",
       perSize: { M: { status: "pass", summary: "24.0 MPa / 720%" } },
@@ -313,18 +338,25 @@ describe("tensile", () => {
     });
 
     it("links the not-done issue to the first average still to enter once the lab report is in", () => {
-      const evaluated = evaluate({ sizes: { M: { tensileStrength: 34.18 } }, labReport: LAB_REPORT_ID });
+      const evaluated = evaluate({ sizes: { M: { tensileStrength: 34.18 } }, labReports: [{ fileId: LAB_REPORT_ID, sizes: ["M"] }] });
       expect(evaluated?.issues).toEqual([
         expect.objectContaining({ code: "module_not_done", path: ["sizes", "M", "elongationAtBreak"] }),
       ]);
     });
 
     it("passes once the averages are in and the lab report is attached", () => {
-      expect(evaluate({ sizes: { M: PASSING }, labReport: LAB_REPORT_ID })?.result).toEqual({
+      expect(evaluate({ sizes: { M: PASSING }, labReports: [{ fileId: LAB_REPORT_ID, sizes: ["M"] }] })?.result).toEqual({
         status: "pass",
         summary: "Size M: 34.18 MPa / 536%. Spec. (ASTM D6319) ≥ 14.00 MPa / ≥ 500%.",
         perSize: { M: { status: "pass", summary: "34.18 MPa / 536%" } },
       });
+    });
+
+    it("reads a lab report saved alone before 26 October 2026 as one report: still attached", () => {
+      const evaluated = evaluate({ sizes: { M: PASSING }, labReport: LAB_REPORT_ID });
+      expect(evaluated?.data).toMatchObject({ labReports: [{ fileId: LAB_REPORT_ID, sizes: [] }] });
+      expect(evaluated?.result.status).toBe("pass");
+      expect(evaluated?.issues).toEqual([]);
     });
   });
 });

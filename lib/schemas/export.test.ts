@@ -178,12 +178,12 @@ describe("ExportSchema", () => {
     expect(parse(doc).success).toBe(true);
   });
 
-  it("references the lab report by its file id in force at break's data, and lists that file with a signed URL", () => {
+  it("references each lab report by its file id and sizes in force at break's data, and lists that file with a signed URL", () => {
     const doc = makeStdEgExport();
     const forceAtBreak = moduleOf(doc, "force_at_break");
-    expect(forceAtBreak.data.labReport).toBe(FIXTURE_IDS.fileLabReport);
+    expect(forceAtBreak.data.labReports).toEqual([{ fileId: FIXTURE_IDS.fileLabReport, sizes: ["M"] }]);
     expect(forceAtBreak.computed.labReportAttached).toBe(true);
-    // The report service matches the module's id to the file it may fetch.
+    // The report service matches each id in the module's list to the file it may fetch.
     expect(doc.files).toEqual([
       {
         id: FIXTURE_IDS.fileLabReport,
@@ -328,7 +328,7 @@ describe("the STD_EG export of the real modules", () => {
 
   it("keeps force at break's readings per size, its lab report, and the median against the spec", () => {
     const forceAtBreak = moduleOf(doc, "force_at_break");
-    expect(Object.keys(forceAtBreak.data).sort()).toEqual(["labReport", "sizes"]);
+    expect(Object.keys(forceAtBreak.data).sort()).toEqual(["labReports", "sizes"]);
     expect(forceAtBreak.data.sizes).toEqual({ M: { values: expect.any(Array) } });
     expect(forceAtBreak.computed).toMatchObject({
       specMin: 6,

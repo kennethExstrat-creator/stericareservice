@@ -35,7 +35,7 @@ function evaluationOf(data: ForceAtBreakData, context: InspectionContext, config
 }
 
 function render(overrides: Partial<Props> = {}): string {
-  const data = overrides.data ?? { sizes: { M: { values: READINGS } }, labReport: null };
+  const data = overrides.data ?? { sizes: { M: { values: READINGS } }, labReports: [] };
   const context = overrides.context ?? CONTEXT;
   const config = overrides.config ?? FORCE_AT_BREAK_DEFAULT_CONFIG;
   return renderToStaticMarkup(
@@ -126,13 +126,13 @@ describe("force_at_break capture", () => {
   it("says whether the lab report is attached: calc's state on the line, the screen's slot in it", () => {
     const line = (html: string) => /<div[^>]*data-slot="attachment-status"[^>]*>/.exec(html)?.[0] ?? "";
     expect(line(render())).toContain('data-state="none"');
-    const attached = render({ data: { sizes: { M: { values: READINGS } }, labReport: LAB_REPORT_ID } });
+    const attached = render({ data: { sizes: { M: { values: READINGS } }, labReports: [{ fileId: LAB_REPORT_ID, sizes: [] }] } });
     expect(attached).toContain('data-attached="true"');
     // Optional: the readings decide the result whether a lab report is linked or not.
-    const unlinked = evaluationOf({ sizes: { M: { values: READINGS } }, labReport: null }, CONTEXT, FORCE_AT_BREAK_DEFAULT_CONFIG);
+    const unlinked = evaluationOf({ sizes: { M: { values: READINGS } }, labReports: [] }, CONTEXT, FORCE_AT_BREAK_DEFAULT_CONFIG);
     expect(unlinked?.result.perSize?.M?.status).toBe("pass");
     const gone = render({
-      data: { sizes: { M: { values: READINGS } }, labReport: LAB_REPORT_ID },
+      data: { sizes: { M: { values: READINGS } }, labReports: [{ fileId: LAB_REPORT_ID, sizes: [] }] },
       context: makeTestContext({ ...CONTEXT, files: [] }),
     });
     expect(gone).toContain('data-state="missing"');
@@ -148,7 +148,7 @@ describe("force_at_break capture", () => {
 
   it("puts the screen's file slot for lab reports in the lab report's line, with the kept file and calc's state", () => {
     const requests: FileSlotRequest[] = [];
-    const data: ForceAtBreakData = { sizes: { M: { values: READINGS } }, labReport: null };
+    const data: ForceAtBreakData = { sizes: { M: { values: READINGS } }, labReports: [] };
     const html = renderToStaticMarkup(
       <FileSlotProvider
         render={(request) => {
@@ -186,6 +186,99 @@ describe("force_at_break capture", () => {
     ]);
   });
 
+  describe("several lab reports (Kenneth, 26 October 2026: one per size)", () => {
+    const REPORTS = {
+      S: "00000000-0000-4000-8000-000000000411",
+      M: "00000000-0000-4000-8000-000000000412",
+      L: "00000000-0000-4000-8000-000000000413",
+      XL: "00000000-0000-4000-8000-000000000414",
+    };
+    const files = (ids: readonly string[]) => ids.map((id) => ({ id, moduleKey: "source_documents", kind: "lab_report" as const }));
+
+    /** The body inside a screen's file slot: its markup and the slot's requests. */
+    function inSlot(data: ForceAtBreakData, context: InspectionContext = CONTEXT) {
+      const requests: FileSlotRequest[] = [];
+      const html = renderToStaticMarkup(
+        <FileSlotProvider
+          render={(request) => {
+            requests.push(request);
+            return <span data-test="screen-slot">{request.fileId}</span>;
+          }}
+        >
+          <Capture
+            data={data}
+            config={FORCE_AT_BREAK_DEFAULT_CONFIG}
+            title={FORCE_AT_BREAK_TITLE}
+            labels={FORCE_AT_BREAK_LABELS}
+            context={context}
+            evaluation={evaluationOf(data, context, FORCE_AT_BREAK_DEFAULT_CONFIG)}
+            focusPath={null}
+            readOnly={false}
+            onChange={() => {}}
+          />
+        </FileSlotProvider>,
+      );
+      return { html, requests };
+    }
+
+    it("lists every report in size order, each by its sizes with a slot of its own, under 'Lab Reports'", () => {
+      // Linked as the readings finished: in no particular order.
+      const data: ForceAtBreakData = {
+        sizes: { M: { values: READINGS } },
+        labReports: [
+          { fileId: REPORTS.L, sizes: ["L"] },
+          { fileId: REPORTS.S, sizes: ["S"] },
+          { fileId: REPORTS.XL, sizes: ["XL"] },
+          { fileId: REPORTS.M, sizes: ["M"] },
+        ],
+      };
+      const context = makeTestContext({ ...CONTEXT, files: files(Object.values(REPORTS)) });
+      const { html, requests } = inSlot(data, context);
+      expect(requests.map((request) => [request.caption, request.fileId])).toEqual([
+        ["Size S", REPORTS.S],
+        ["Size M", REPORTS.M],
+        ["Size L", REPORTS.L],
+        ["Size XL", REPORTS.XL],
+      ]);
+      // Each its own file: attached, unlinked on its own, and never a step's file counted in its place.
+      for (const request of requests) expect(request).toMatchObject({ state: "attached", countsModuleFiles: false, readOnly: false });
+      expect(html).toContain('<section data-slot="lab-report" aria-label="Lab Reports"');
+      expect(html).toContain(">Lab Reports</span>");
+      expect(html.match(/data-slot="lab-report-entry"/g)).toHaveLength(4);
+      expect(html).toContain('data-attached="true"');
+      expect(html).not.toContain("No lab report detected");
+    });
+
+    it("names a report whose sizes are not known by its file alone, last, and keeps 'Lab Report' for one", () => {
+      const legacy: ForceAtBreakData = { sizes: {}, labReports: [{ fileId: LAB_REPORT_ID, sizes: [] }] };
+      const one = inSlot(legacy);
+      expect(one.requests).toEqual([expect.objectContaining({ fileId: LAB_REPORT_ID, countsModuleFiles: false })]);
+      expect(one.requests[0]).not.toHaveProperty("caption");
+      expect(one.html).toContain(">Lab Report</span>");
+      const both = inSlot({ sizes: {}, labReports: [...legacy.labReports, { fileId: REPORTS.M, sizes: ["M"] }] });
+      expect(both.requests.map((request) => request.fileId)).toEqual([REPORTS.M, LAB_REPORT_ID]);
+      expect(both.html).toContain(">Lab Reports</span>");
+    });
+
+    it("warns for each kept report that is gone, by its sizes, and keeps the others attached", () => {
+      const data: ForceAtBreakData = {
+        sizes: {},
+        labReports: [
+          { fileId: REPORTS.S, sizes: ["S"] },
+          { fileId: REPORTS.XL, sizes: ["XL"] },
+        ],
+      };
+      const { html, requests } = inSlot(data, makeTestContext({ ...CONTEXT, files: files([REPORTS.S]) }));
+      expect(requests.map((request) => [request.fileId, request.state])).toEqual([
+        [REPORTS.S, "attached"],
+        [REPORTS.XL, "missing"],
+      ]);
+      expect(html).toContain('data-state="attached"');
+      expect(html).toContain("Lab Report for Size XL: the file linked here is not among this inspection&#x27;s files.");
+      expect(html).not.toContain("Lab Report for Size S:");
+    });
+  });
+
   it("keeps the readings focusable on grey when read-only, with calc's footer", () => {
     const html = render({ readOnly: true });
     const cells = tags(html, 'data-slot="numeric-cell"');
@@ -203,7 +296,7 @@ describe("force_at_break capture", () => {
 
   it("takes the footer's median and verdict from calc: a size calc says is not done shows neither", () => {
     // 13 readings, one of them 0 N (saved another way): calc counts 12 and the size is not done.
-    const data = { sizes: { M: { values: [...READINGS.slice(0, 12), 0] } }, labReport: null };
+    const data = { sizes: { M: { values: [...READINGS.slice(0, 12), 0] } }, labReports: [] };
     const html = render({ data });
     const pills = tags(html, 'data-slot="status-pill"').map((pill) => /data-status="([a-z_]+)"/.exec(pill)?.[1]);
     // The median cell and the verdict cell both read Not Done.
@@ -212,7 +305,7 @@ describe("force_at_break capture", () => {
   });
 
   it("lists readings past the gloves tested, with calc's message and a way to clear them", () => {
-    const data = { sizes: { M: { values: [...READINGS, null, 6.1, 6.3] } }, labReport: null };
+    const data = { sizes: { M: { values: [...READINGS, null, 6.1, 6.3] } }, labReports: [] };
     const html = render({ data });
     expect(html).toContain("Size M: 2 readings are entered beyond the 13 gloves tested. Clear them or correct the sampling plan.");
     expect(html).toContain("No. 15: 6.1 N, No. 16: 6.3 N");
@@ -221,7 +314,7 @@ describe("force_at_break capture", () => {
   });
 
   it("sends the issue link to the notice's message, never to the button that clears readings", () => {
-    const data = { sizes: { M: { values: [...READINGS, 6.1] } }, labReport: null };
+    const data = { sizes: { M: { values: [...READINGS, 6.1] } }, labReports: [] };
     const html = render({ data });
     // The message takes the focus itself (tabIndex -1); the box with the button carries no path.
     const [notice, ...others] = tags(html, 'data-slot="size-notice"');
@@ -249,14 +342,14 @@ describe("force_at_break capture", () => {
 
   it("explains a size the sampling plan gives no gloves to test", () => {
     const context = makeTestContext({ sizes: ["M"], sampling: { M: makeSampling({ physical: 0 }) } });
-    const html = render({ context, data: { sizes: {}, labReport: null } });
+    const html = render({ context, data: { sizes: {}, labReports: [] } });
     expect(html).toContain("No gloves to test in the sampling plan for size M.");
     expect(html).not.toContain("<input");
   });
 
   it("still shows readings saved for a size the plan now gives no gloves, with calc's error and a way to clear them", () => {
     const context = makeTestContext({ sizes: ["M"], sampling: { M: makeSampling({ physical: 0 }) } });
-    const html = render({ context, data: { sizes: { M: { values: [6.5, 6.6] } }, labReport: null } });
+    const html = render({ context, data: { sizes: { M: { values: [6.5, 6.6] } }, labReports: [] } });
     expect(html).toContain("No gloves to test in the sampling plan for size M.");
     expect(html).toContain(
       "Size M: 2 readings are entered, but the sampling plan gives no gloves to test. Clear them or correct the sampling plan.",
@@ -267,7 +360,7 @@ describe("force_at_break capture", () => {
   });
 
   it("says no sizes are ordered yet instead of showing a grid", () => {
-    const html = render({ context: makeTestContext({ sizes: [] }), data: { sizes: {}, labReport: null } });
+    const html = render({ context: makeTestContext({ sizes: [] }), data: { sizes: {}, labReports: [] } });
     expect(html).toContain("No sizes ordered yet.");
     expect(html).not.toContain('role="tab"');
   });
@@ -284,7 +377,7 @@ describe("force_at_break capture", () => {
   });
 
   it("flows the readings across the module's width in groups, as weight's grid does, the notes under them", () => {
-    const data = { sizes: { M: { values: [...READINGS, 6.1, 6.3] } }, labReport: null };
+    const data = { sizes: { M: { values: [...READINGS, 6.1, 6.3] } }, labReports: [] };
     const html = render({ data });
     // One column of 13 readings: 1 to 5, 6 to 10 and 11 to 13 side by side, in order.
     expect(tags(html, 'data-slot="measurement-grid"')[0]).toContain('data-flow=""');

@@ -378,7 +378,7 @@ test("the export downloads from the panel and validates, with working 24-hour li
   expect(forceAtBreak?.computed).toMatchObject({ labReportAttached: true, sizes: { M: { median: 6.537, result: "pass" } } });
   expect(forceAtBreak?.config).toMatchObject({ specMin: 6 });
   // The lab report a module keeps by id is in the files, with a link the report service can fetch.
-  expect(forceAtBreak?.data.labReport).toBe(fixture.fileId);
+  expect(forceAtBreak?.data.labReports).toEqual([{ fileId: fixture.fileId, sizes: ["M"] }]);
   expect(doc.files).toEqual([
     expect.objectContaining({ id: fixture.fileId, kind: "lab_report", moduleKey: "force_at_break", name: "Force at break lab report.pdf" }),
   ]);

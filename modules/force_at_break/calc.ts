@@ -4,27 +4,29 @@
 // ordered size has all its readings (6.2 rule 5). A reading of 0 N or less,
 // or one past the gloves tested, is wrong data: an error with its path. So
 // is a sampling plan that asks for more readings than a size can take. The
-// lab report is optional here ('where applicable'): the module keeps the id
-// of the file attached through its file slot (the framework's file
-// channel); once the inspection's files are known, a lab report of the
-// module added elsewhere (the gallery) counts too, and a kept file they do
-// not hold is reported.
+// lab reports are optional here ('where applicable'): the module keeps the
+// id of each file Steri-AI linked, with its sizes (the framework's file
+// channel, labReportsState); once the inspection's files are known, a lab
+// report of the module added elsewhere (the gallery) counts too, and each
+// kept file they do not hold is reported.
 import type { PerSizeResult } from "@/lib/schemas/module-result";
 import { checkSpec, formatDecimal, median, roundTo, type Spec } from "@/lib/stats";
 import {
   errorIssue,
   labelFor,
+  labReportSizesText,
+  labReportsState,
   missingFileMessage,
-  moduleFileState,
   perSizeResults,
   resultFromSizes,
   samplingFor,
   sizeLabel,
+  sortLabReports,
   warningIssue,
   type CalcInput,
   type CalcIssue,
   type CalcOutput,
-  type HeldFileState,
+  type HeldLabReport,
   type InspectionContext,
   type Labels,
 } from "@/modules/_framework";
@@ -93,12 +95,8 @@ export function calcForceAtBreak({
     return { status: result, summary: medianText(shown, result, config, labels) };
   });
 
-  const report = labReportState(context, data.labReport);
-  if (report === "missing") {
-    issues.push(
-      warningIssue("lab_report_missing", missingFileMessage(labelFor(labels, "labReport")), { path: ["labReport"] }),
-    );
-  }
+  const reports = labReportsState(context, "force_at_break", data.labReports);
+  issues.push(...labReportsMissing(context, reports.reports, labels));
 
   return {
     result: resultFromSizes(perSize, summarise(context, perSize, sizes, config, labels)),
@@ -106,16 +104,25 @@ export function calcForceAtBreak({
       specMin: config.specMin,
       standardLabel: config.standardLabel,
       decimals: config.decimals,
-      labReportAttached: report === "attached",
+      labReportAttached: reports.state === "attached",
       sizes,
     },
     issues,
   };
 }
 
-/** The lab report: the one kept, or any of the module's lab reports once the inspection's files are known. */
-export function labReportState(context: InspectionContext, fileId: string | null): HeldFileState {
-  return moduleFileState(context, { moduleKey: "force_at_break", kind: "lab_report", fileId });
+/**
+ * A warning for each kept lab report the inspection's files do not hold
+ * (deleted since, or still uploading elsewhere), in size order, named by its
+ * sizes: "Lab Report for Size L: …".
+ */
+export function labReportsMissing(context: InspectionContext, reports: readonly HeldLabReport[], labels: Labels): CalcIssue[] {
+  const label = labelFor(labels, "labReport");
+  const missing = reports.filter((report) => report.state === "missing");
+  return sortLabReports(missing, context.templateSizes.map((size) => size.value)).map((report) => {
+    const sizes = labReportSizesText(report.sizes, (size) => sizeLabel(context, size));
+    return warningIssue("lab_report_missing", missingFileMessage(sizes ? `${label} for ${sizes}` : label), { path: ["labReport"] });
+  });
 }
 
 /** Readings a size needs: the sampling plan's gloves for the physical test when entered, else config n. */

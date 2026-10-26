@@ -61,7 +61,7 @@ export type StdEgDataOptions = {
    * an error.
    */
   corrected?: boolean;
-  /** inspection_files id of the force-at-break lab report, kept in the module's data. Null: none attached. */
+  /** inspection_files id of the force-at-break lab report, in the module's lab reports with its sizes. Null: none attached. */
   labReportFileId?: string | null;
   /** Inspector comments, by module key (the framework's reserved `comment`). */
   comments?: Readonly<Record<string, string>>;
@@ -246,15 +246,14 @@ export function readingsWithMedian(median: number, n = 13): number[] {
 }
 
 function forceAtBreakData(labReport: string | null): ForceAtBreakData {
-  return {
-    sizes: Object.fromEntries(
-      Object.entries(EXAMPLE.forceAtBreak).map(([size, entry]) => [
-        size,
-        { values: entry.readingsN ? [...entry.readingsN] : readingsWithMedian(entry.medianN) },
-      ]),
-    ),
-    labReport,
-  };
+  const sizes = Object.fromEntries(
+    Object.entries(EXAMPLE.forceAtBreak).map(([size, entry]) => [
+      size,
+      { values: entry.readingsN ? [...entry.readingsN] : readingsWithMedian(entry.medianN) },
+    ]),
+  );
+  // The one lab report, for the sizes it gives readings for.
+  return { sizes, labReports: labReport === null ? [] : [{ fileId: labReport, sizes: Object.keys(sizes) }] };
 }
 
 /** One value per size, the average the report prints, as the weight step records it (STD_EG weighed 13 gloves). */
