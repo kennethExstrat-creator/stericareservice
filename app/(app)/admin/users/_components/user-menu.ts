@@ -38,7 +38,8 @@ export type MenuAction =
   | "cancel-invite"
   | "deactivate"
   | "reactivate"
-  | "activate";
+  | "activate"
+  | "delete";
 
 /** Each item as the menu says it: labels, so in Title Case (Kenneth, 8 October 2026). Messages that name an item quote these. */
 export const MENU_LABEL: Readonly<Record<MenuAction, string>> = {
@@ -53,10 +54,11 @@ export const MENU_LABEL: Readonly<Record<MenuAction, string>> = {
   deactivate: "Deactivate",
   reactivate: "Reactivate",
   activate: "Activate",
+  delete: "Delete Permanently",
 };
 
 /** The items that take something away, in the menu's destructive red. */
-export const DESTRUCTIVE: ReadonlySet<MenuAction> = new Set(["cancel-invite", "deactivate"]);
+export const DESTRUCTIVE: ReadonlySet<MenuAction> = new Set(["cancel-invite", "deactivate", "delete"]);
 
 /**
  * The title of the dialog each item opens, naming the person: titles are
@@ -80,6 +82,7 @@ export const DIALOG_TITLE: Readonly<Record<MenuAction | "leads-team" | "invite-l
   "leads-team": (name) => `${name} Still Leads a Team`,
   reactivate: (name) => `Reactivate ${name}?`,
   activate: (name) => `Activate ${name}?`,
+  delete: (name) => `Delete ${name} Permanently?`,
 };
 
 /**
@@ -98,6 +101,12 @@ export const DIALOG_TITLE: Readonly<Record<MenuAction | "leads-team" | "invite-l
  * link copied to send by hand, or the invite cancelled, which removes the
  * account. Those three need the secret key (`invites`); while a ban blocks
  * the account the links would not let them in, so it is lifted first.
+ *
+ * An account that is not active (deactivated, or pending: never let in) can
+ * be deleted for good (Kenneth, 27 October 2026), in a group of its own at
+ * the end: Delete Permanently, which needs the secret key too, and whose
+ * dialog says first whether QC records keep them. Never an active or invited
+ * account (Deactivate, or Cancel Invite, is for those), never yourself.
  */
 export function menuGroups(
   user: UserActionsTarget,
@@ -106,6 +115,7 @@ export function menuGroups(
   const access: MenuAction = user.signInBlocked ? "unblock" : "send-link";
   if (user.isSelf) return user.status === "active" ? [["edit-details", access]] : [];
   const team: MenuAction[] = teams && needsLead(user.role.access) ? ["change-lead"] : [];
+  const forGood: MenuAction[][] = invites ? [["delete"]] : [];
   switch (user.status) {
     case "active":
       return [["edit-details", "change-role", ...team, access], ["deactivate"]];
@@ -117,9 +127,9 @@ export function menuGroups(
       return groups.filter((group) => group.length > 0);
     }
     case "pending":
-      return [["activate"]];
+      return [["activate"], ...forGood];
     case "deactivated":
-      return [["reactivate", "edit-details", "change-role", ...team]];
+      return [["reactivate", "edit-details", "change-role", ...team], ...forGood];
   }
 }
 

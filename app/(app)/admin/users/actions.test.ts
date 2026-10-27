@@ -14,8 +14,10 @@ import {
   assignLead,
   cancelInvite,
   changeRole,
+  checkUserDeletion,
   createInviteLink,
   deactivateUser,
+  deleteUserPermanently,
   editUserDetails,
   inviteUser,
   reactivateUser,
@@ -52,7 +54,8 @@ const GONE_ROLE = "77777777-7777-4777-8777-777777777777";
  * A fake Supabase: one profiles table and the roles, which the admin's
  * client and the secret-key client both read and write, with every query
  * recorded. Like the profiles guard, writing a role_id gives role and
- * is_lead the role's access.
+ * is_lead the role's access. The QC records that point at profiles are
+ * counted only (Delete Permanently).
  * ------------------------------------------------------------------ */
 
 type Access = "own" | "team" | "all";
@@ -80,7 +83,13 @@ type Row = {
   updated_at: string;
   joined_at: string | null;
   role_id: string;
+  /** Their UID (SC-0003); left out where a test does not need one. */
+  uid?: string;
 };
+
+/** The tables whose rows point at profiles and keep them (on delete restrict). */
+const RECORD_TABLES = ["inspections", "inspection_photos", "inspection_files", "ai_review_actions", "audit_log", "templates"] as const;
+type RecordTable = (typeof RECORD_TABLES)[number];
 
 type Query = { client: "user" | "admin"; table: string; calls: Array<[string, unknown[]]> };
 type Failure = { code?: string; message: string };
@@ -113,8 +122,12 @@ let teams: boolean;
 let accounts: boolean;
 /** False: a project that has not run migration 20261027150000 (roles). */
 let roles: boolean;
-/** Makes the matching operations fail: updates, reads, only the count of lead inspectors, or the roles. */
-let failures: { update?: Failure; read?: Failure; leads?: Failure; roles?: Failure };
+/** False: a project that has not run migration 20261008140000 (UIDs). */
+let uids: boolean;
+/** The QC records, by table: each row's columns that point at profiles. */
+let records: Record<RecordTable, Array<Record<string, string | null>>>;
+/** Makes the matching operations fail: updates, reads, only the count of lead inspectors, the roles, or the QC records' counts. */
+let failures: { update?: Failure; read?: Failure; leads?: Failure; roles?: Failure; records?: Failure };
 /** What is_full_admin() answers. */
 let fullAdmin: { data: boolean | null; error: Failure | null };
 
@@ -125,6 +138,7 @@ const MISSING_ACCOUNT_WRITE = { code: "PGRST204", message: "Could not find the '
 const MISSING_ROLE_READ = { code: "42703", message: "column profiles.role_id does not exist" };
 const MISSING_ROLE_WRITE = { code: "PGRST204", message: "Could not find the 'role_id' column of 'profiles' in the schema cache" };
 const NO_ROLES_TABLE = { code: "PGRST205", message: "Could not find the table 'public.roles' in the schema cache" };
+const MISSING_UID_READ = { code: "42703", message: "column profiles.uid does not exist" };
 
 function project<T extends object>(source: T | undefined, columns: string): Record<string, unknown> | null {
   if (!source) return null;
@@ -133,11 +147,25 @@ function project<T extends object>(source: T | undefined, columns: string): Reco
 
 function fakeClient(kind: "user" | "admin") {
   const from = vi.fn((table: string) => {
-    expect(["profiles", "roles"]).toContain(table);
+    expect(["profiles", "roles", ...RECORD_TABLES]).toContain(table);
     const query: Query = { client: kind, table, calls: [] };
     queries.push(query);
     const arg = (method: string) => query.calls.find(([name]) => name === method)?.[1];
     const eqs = () => query.calls.filter(([name]) => name === "eq").map(([, args]) => args as [string, unknown]);
+
+    /** A QC record table: counted only, by its eq() and or() filters ("inspector_id.eq.<id>,approved_by.eq.<id>"). */
+    function countRecords(): { data: unknown; count: number | null; error: unknown } {
+      if (failures.records) return { data: null, count: null, error: failures.records };
+      const or = String(arg("or")?.[0] ?? "");
+      const anyOf = or ? or.split(",").map((filter) => filter.split(".eq.") as [string, string]) : [];
+      const found = records[table as RecordTable].filter(
+        (record) =>
+          eqs().every(([column, value]) => record[column] === value) &&
+          (anyOf.length === 0 || anyOf.some(([column, value]) => record[column] === value)),
+      );
+      const options = arg("select")?.[1] as { count?: string; head?: boolean } | undefined;
+      return { data: options?.head ? null : found, count: options?.count ? found.length : null, error: null };
+    }
 
     /** public.roles: read only, by id or by kind. */
     function readRoles(single: boolean): { data: unknown; error: unknown } {
@@ -150,7 +178,9 @@ function fakeClient(kind: "user" | "admin") {
 
     function run(single: boolean): { data: unknown; error: unknown } {
       if (table === "roles") return readRoles(single);
+      if (table !== "profiles") return countRecords();
       const columns = String(arg("select")?.[0] ?? "");
+      if (!uids && /\buid\b/.test(columns)) return { data: null, error: MISSING_UID_READ };
       const update = arg("update")?.[0] as Partial<Row> | undefined;
       const touchesTeams =
         /is_lead|lead_id/.test(columns) ||
@@ -196,7 +226,7 @@ function fakeClient(kind: "user" | "admin") {
     }
 
     const builder: Record<string, unknown> = {};
-    for (const method of ["select", "update", "eq", "ilike", "limit"]) {
+    for (const method of ["select", "update", "eq", "ilike", "limit", "or"]) {
       builder[method] = (...args: unknown[]) => {
         query.calls.push([method, args]);
         return builder;
@@ -293,6 +323,8 @@ beforeEach(() => {
   teams = true;
   accounts = true;
   roles = true;
+  uids = true;
+  records = Object.fromEntries(RECORD_TABLES.map((table) => [table, []])) as unknown as typeof records;
   failures = {};
   fullAdmin = { data: true, error: null };
   queries = [];
@@ -332,6 +364,8 @@ describe("every action", () => {
     ["resendInvite", () => resendInvite(IDLE, form({ userId: INVITED }))],
     ["createInviteLink", () => createInviteLink(IDLE, form({ userId: INVITED }))],
     ["cancelInvite", () => cancelInvite(IDLE, form({ userId: INVITED }))],
+    ["checkUserDeletion", () => checkUserDeletion(OTHER)],
+    ["deleteUserPermanently", () => deleteUserPermanently(IDLE, form({ userId: OTHER, confirm: "olga@test.local" }))],
   ];
 
   it.each(calls)("%s asks for the users permission, and refuses anyone without it before anything else", async (_name, run) => {
@@ -403,8 +437,11 @@ describe("every action", () => {
       resendInvite,
       createInviteLink,
       cancelInvite,
+      deleteUserPermanently,
+      // Called with the id alone, as its dialog calls it.
+      checkUserDeletion: (_previous: unknown, formData: FormData) => checkUserDeletion(String(formData.get("userId"))),
     }[name]!;
-    const result = await action(IDLE, form({ userId: "1 or 1=1", fullName: "Olga", role: "admin", leadId: LEAD }));
+    const result = await action(IDLE, form({ userId: "1 or 1=1", fullName: "Olga", role: "admin", leadId: LEAD, confirm: "x" }));
     expect(result).toMatchObject({ status: "error", message: expect.stringContaining("could not be found") });
     expect(createClient).not.toHaveBeenCalled();
   });
@@ -1942,6 +1979,341 @@ describe("invitations not yet answered", () => {
       vi.mocked(isAdminClientConfigured).mockReturnValue(false);
       expect(await cancel()).toEqual({ status: "error", message: MESSAGES.missingSecretKey });
       expect(adminClient.auth.admin.deleteUser).not.toHaveBeenCalled();
+    });
+  });
+});
+
+describe("Delete Permanently", () => {
+  /** Olga, deactivated, with her UID: no QC record names her until a test adds one. */
+  beforeEach(() => {
+    Object.assign(rows.get(OTHER)!, { active: false, uid: "SC-0003" });
+    vi.spyOn(console, "info").mockImplementation(() => {});
+  });
+
+  const check = (userId: string = OTHER) => checkUserDeletion(userId);
+  const remove = (confirm = "SC-0003", userId: string = OTHER) => deleteUserPermanently(IDLE, form({ userId, confirm }));
+  /** A QC record that points at someone. */
+  const add = (table: RecordTable, record: Record<string, string | null>) => records[table].push(record);
+  /** The counts of the QC records, with the client that ran each. */
+  const counts = () =>
+    queries.filter((query) => (RECORD_TABLES as readonly string[]).includes(query.table)).map(({ client, table }) => [client, table]);
+  const KEPT_END = "which QC records keep. They stay deactivated and cannot sign in.";
+
+  describe("checkUserDeletion", () => {
+    it("finds nothing that keeps a deactivated account, counting every kind with the secret key, and changes nothing", async () => {
+      expect(await check()).toEqual({ status: "deletable" });
+      // The admin's own client may not see every row: the secret key counts them, and their team.
+      expect(counts()).toEqual(RECORD_TABLES.map((table) => ["admin", table]));
+      expect(queries).toContainEqual({
+        client: "admin",
+        table: "profiles",
+        calls: [
+          ["select", ["id, full_name, email, active"]],
+          ["eq", ["lead_id", OTHER]],
+        ],
+      });
+      expect(adminClient.auth.admin.deleteUser).not.toHaveBeenCalled();
+      expect(updates()).toEqual([]);
+      expect(refresh).not.toHaveBeenCalled();
+    });
+
+    it("counts each table by the column that points at the profile, reading no row: inspections by who did or approved them", async () => {
+      await check();
+      const asked = Object.fromEntries(
+        queries
+          .filter((query) => (RECORD_TABLES as readonly string[]).includes(query.table))
+          .map((query) => [query.table, query.calls]),
+      );
+      const counted = ["select", ["id", { count: "exact", head: true }]];
+      expect(asked).toEqual({
+        inspections: [counted, ["or", [`inspector_id.eq.${OTHER},approved_by.eq.${OTHER}`]]],
+        inspection_photos: [counted, ["eq", ["created_by", OTHER]]],
+        inspection_files: [counted, ["eq", ["created_by", OTHER]]],
+        ai_review_actions: [counted, ["eq", ["actor_id", OTHER]]],
+        audit_log: [counted, ["eq", ["actor_id", OTHER]]],
+        templates: [counted, ["eq", ["coverage_confirmed_by", OTHER]]],
+      });
+    });
+
+    it.each([
+      ["an inspection they did", "inspections", { inspector_id: OTHER, approved_by: null }, "1 inspection"],
+      ["an inspection they approved", "inspections", { inspector_id: MEMBER, approved_by: OTHER }, "1 inspection"],
+      ["a photo they uploaded", "inspection_photos", { created_by: OTHER }, "1 photo"],
+      ["a file they uploaded", "inspection_files", { created_by: OTHER }, "1 file"],
+      ["their decision on a Steri-AI finding", "ai_review_actions", { actor_id: OTHER }, "1 Steri-AI decision"],
+      ["a history entry", "audit_log", { actor_id: OTHER }, "1 history entry"],
+      ["a template's coverage they confirmed", "templates", { coverage_confirmed_by: OTHER }, "1 template coverage confirmation"],
+    ] as const)("refuses, before the admin confirms anything, when %s keeps them", async (_case, table, record, words) => {
+      add(table, record);
+      expect(await check()).toEqual({ status: "refused", message: `SC-0003 cannot be deleted: their name is on ${words}, ${KEPT_END}` });
+      expect(adminClient.auth.admin.deleteUser).not.toHaveBeenCalled();
+    });
+
+    it("counts each kind, in Kenneth's words", async () => {
+      for (let i = 0; i < 4; i++) add("inspections", { inspector_id: OTHER, approved_by: null });
+      for (let i = 0; i < 21; i++) add("audit_log", { actor_id: OTHER });
+      expect(await check()).toEqual({
+        status: "refused",
+        message:
+          "SC-0003 cannot be deleted: their name is on 4 inspections and 21 history entries, which QC records keep. They stay deactivated and cannot sign in.",
+      });
+    });
+
+    it("names every kind that applies, in order", async () => {
+      for (let i = 0; i < 2; i++) add("inspections", { inspector_id: OTHER, approved_by: null });
+      for (let i = 0; i < 3; i++) add("inspection_photos", { created_by: OTHER });
+      add("inspection_files", { created_by: OTHER });
+      for (let i = 0; i < 2; i++) add("ai_review_actions", { actor_id: OTHER });
+      add("audit_log", { actor_id: OTHER });
+      for (let i = 0; i < 2; i++) add("templates", { coverage_confirmed_by: OTHER });
+      expect(await check()).toEqual({
+        status: "refused",
+        message: `SC-0003 cannot be deleted: their name is on 2 inspections, 3 photos, 1 file, 2 Steri-AI decisions, 1 history entry and 2 template coverage confirmations, ${KEPT_END}`,
+      });
+    });
+
+    it("counts an inspection they did and approved once, and nobody else's records", async () => {
+      add("inspections", { inspector_id: OTHER, approved_by: OTHER });
+      add("inspections", { inspector_id: MEMBER, approved_by: LEAD });
+      add("inspection_photos", { created_by: MEMBER });
+      add("audit_log", { actor_id: SELF });
+      expect(await check()).toEqual({ status: "refused", message: `SC-0003 cannot be deleted: their name is on 1 inspection, ${KEPT_END}` });
+    });
+
+    it("names who still has them as lead inspector: moved first when that is all that keeps them", async () => {
+      // A lead inspector deactivated with their team (the app refuses that, an older script may not have).
+      Object.assign(rows.get(OTHER)!, { is_lead: true, lead_id: null });
+      rows.get(MEMBER)!.lead_id = OTHER;
+      expect(await check()).toEqual({
+        status: "refused",
+        message:
+          "SC-0003 cannot be deleted yet: Ivan Inspector still has them as lead inspector. Choose another lead inspector for them first (Change Lead Inspector, next to their name).",
+      });
+      add("audit_log", { actor_id: OTHER });
+      expect(await check()).toEqual({
+        status: "refused",
+        message:
+          "SC-0003 cannot be deleted: their name is on 1 history entry, which QC records keep, and Ivan Inspector still has them as lead inspector. They stay deactivated and cannot sign in.",
+      });
+    });
+
+    it("checks a pending account, never let in, which stays inactive when kept", async () => {
+      rows.get(OTHER)!.updated_at = CREATED;
+      expect(await check()).toEqual({ status: "deletable" });
+      add("audit_log", { actor_id: OTHER });
+      expect(await check()).toEqual({
+        status: "refused",
+        message: "SC-0003 cannot be deleted: their name is on 1 history entry, which QC records keep. They stay inactive and cannot sign in.",
+      });
+    });
+
+    it.each([
+      ["as the page sends it", SELF],
+      ["in upper case", SELF.toUpperCase()],
+    ])("refuses your own account (your id %s), before reading anything", async (_case, userId) => {
+      expect(await check(userId)).toEqual({ status: "refused", message: MESSAGES.selfDelete });
+      expect(createClient).not.toHaveBeenCalled();
+      expect(createAdminClient).not.toHaveBeenCalled();
+    });
+
+    it("refuses an active or invited account before counting anything: it is deactivated first", async () => {
+      expect(await check(MEMBER)).toEqual({
+        status: "refused",
+        message: "Ivan Inspector's account is active, so it cannot be deleted: deactivate it first.",
+      });
+      expect(await check(INVITED)).toEqual({
+        status: "refused",
+        message: "zed@example.com's account is active, so it cannot be deleted: deactivate it first.",
+      });
+      expect(counts()).toEqual([]);
+    });
+
+    it("is switched off without the secret key, before reading anything", async () => {
+      vi.mocked(isAdminClientConfigured).mockReturnValue(false);
+      expect(await check()).toEqual({ status: "error", message: MESSAGES.deleteNeedsKey });
+      expect(MESSAGES.deleteNeedsKey).toMatch(/^Deleting users is switched off: the server needs SUPABASE_SECRET_KEY\./);
+      expect(createClient).not.toHaveBeenCalled();
+      expect(createAdminClient).not.toHaveBeenCalled();
+    });
+
+    it("says when the user no longer exists, or the records cannot be counted", async () => {
+      expect(await check(NEW)).toEqual({ status: "error", message: MESSAGES.userNotFound });
+      failures.records = { code: "57014", message: "statement timeout" };
+      expect(await check()).toEqual({
+        status: "error",
+        message: "Could not check what still names SC-0003 just now: statement timeout. Try again.",
+      });
+      expect(console.error).toHaveBeenCalled();
+    });
+
+    it("turns an unexpected failure into a message instead of an error page", async () => {
+      vi.mocked(createClient).mockRejectedValue(new Error("fetch failed"));
+      expect(await check()).toEqual({ status: "error", message: MESSAGES.unexpected });
+    });
+
+    it("names them by their name on a project without UIDs, and counts no team on one without lead inspectors", async () => {
+      uids = false;
+      add("audit_log", { actor_id: OTHER });
+      expect(await check()).toEqual({ status: "refused", message: `Olga Other cannot be deleted: their name is on 1 history entry, ${KEPT_END}` });
+
+      // The migrations run in order: no lead inspectors, no roles either.
+      records.audit_log = [];
+      teams = false;
+      roles = false;
+      expect(await check()).toEqual({ status: "deletable" });
+    });
+  });
+
+  describe("deleteUserPermanently", () => {
+    it("deletes the auth user with the secret key, which takes the profile with it, once their UID is typed", async () => {
+      expect(await remove()).toEqual({
+        status: "success",
+        message: "Olga Other (SC-0003) is deleted for good: their login and profile are gone.",
+      });
+      expect(adminClient.auth.admin.deleteUser).toHaveBeenCalledExactlyOnceWith(OTHER);
+      expect(rows.has(OTHER)).toBe(false);
+      // Counted again first, with the secret key: the check in the dialog may be minutes old.
+      expect(counts()).toEqual(RECORD_TABLES.map((table) => ["admin", table]));
+      expect(updates()).toEqual([]);
+      expect(refresh).toHaveBeenCalledOnce();
+    });
+
+    it("logs which UID went and which admin deleted it, never a name or an email", async () => {
+      await remove();
+      expect(console.info).toHaveBeenCalledExactlyOnceWith("[admin/users] account deleted for good", "SC-0003", "by", SELF);
+      const logged = JSON.stringify([vi.mocked(console.info).mock.calls, vi.mocked(console.error).mock.calls]);
+      expect(logged).not.toMatch(/Olga|olga@test\.local/);
+    });
+
+    it("takes the UID typed in any case, with spaces around it, and the id in the form Supabase stores it", async () => {
+      expect(await remove(" sc-0003 ", OTHER.toUpperCase())).toMatchObject({ status: "success" });
+      expect(adminClient.auth.admin.deleteUser).toHaveBeenCalledExactlyOnceWith(OTHER);
+    });
+
+    it.each([
+      ["nothing typed", ""],
+      ["another UID", "SC-0004"],
+      ["their name", "Olga Other"],
+      ["their email, when they have a UID", "olga@test.local"],
+    ])("refuses %s, and deletes nothing", async (_case, confirm) => {
+      expect(await remove(confirm)).toEqual({ status: "error", message: "Type SC-0003 in the box to confirm." });
+      expect(adminClient.auth.admin.deleteUser).not.toHaveBeenCalled();
+      expect(rows.has(OTHER)).toBe(true);
+      expect(refresh).not.toHaveBeenCalled();
+    });
+
+    it("refuses a form without the box, and deletes nothing", async () => {
+      expect(await deleteUserPermanently(IDLE, form({ userId: OTHER }))).toEqual({
+        status: "error",
+        message: "Type SC-0003 in the box to confirm.",
+      });
+      expect(adminClient.auth.admin.deleteUser).not.toHaveBeenCalled();
+    });
+
+    it("asks for their email on a project without UIDs, and logs their id", async () => {
+      uids = false;
+      expect(await remove("SC-0003")).toEqual({ status: "error", message: "Type olga@test.local in the box to confirm." });
+      expect(await remove("Olga@Test.local")).toEqual({
+        status: "success",
+        message: "Olga Other is deleted for good: their login and profile are gone.",
+      });
+      expect(console.info).toHaveBeenCalledExactlyOnceWith("[admin/users] account deleted for good", OTHER, "by", SELF);
+    });
+
+    it("deletes a pending account, never let in, too", async () => {
+      rows.get(OTHER)!.updated_at = CREATED;
+      expect(await remove()).toMatchObject({ status: "success" });
+      expect(rows.has(OTHER)).toBe(false);
+    });
+
+    it("refuses what keeps them, as the check does, and deletes nothing", async () => {
+      add("inspections", { inspector_id: OTHER, approved_by: null });
+      expect(await remove()).toEqual({ status: "refused", message: `SC-0003 cannot be deleted: their name is on 1 inspection, ${KEPT_END}` });
+      expect(adminClient.auth.admin.deleteUser).not.toHaveBeenCalled();
+      expect(refresh).not.toHaveBeenCalled();
+      expect(console.info).not.toHaveBeenCalled();
+    });
+
+    it.each([
+      ["as the page sends it", SELF],
+      ["in upper case", SELF.toUpperCase()],
+    ])("refuses your own account (your id %s), before reading anything", async (_case, userId) => {
+      expect(await remove("admin@test.local", userId)).toEqual({ status: "refused", message: MESSAGES.selfDelete });
+      expect(createClient).not.toHaveBeenCalled();
+      expect(createAdminClient).not.toHaveBeenCalled();
+    });
+
+    it("refuses an active or invited account, whatever was typed", async () => {
+      expect(await remove("ivan@test.local", MEMBER)).toEqual({
+        status: "refused",
+        message: "Ivan Inspector's account is active, so it cannot be deleted: deactivate it first.",
+      });
+      expect(await remove("zed@example.com", INVITED)).toMatchObject({ status: "refused" });
+      expect(adminClient.auth.admin.deleteUser).not.toHaveBeenCalled();
+      expect(rows.has(MEMBER) && rows.has(INVITED)).toBe(true);
+    });
+
+    it("is switched off without the secret key, and says when the user no longer exists", async () => {
+      expect(await remove("SC-0009", NEW)).toEqual({ status: "error", message: MESSAGES.userNotFound });
+      vi.mocked(isAdminClientConfigured).mockReturnValue(false);
+      expect(await remove()).toEqual({ status: "error", message: MESSAGES.deleteNeedsKey });
+      expect(adminClient.auth.admin.deleteUser).not.toHaveBeenCalled();
+    });
+
+    describe("when the database still keeps them", () => {
+      /** A QC record names them between the count and the deletion: the database refuses, as Supabase Auth says it. */
+      function namedMeanwhile(error: { status?: number; code?: string; message: string }) {
+        adminClient.auth.admin.deleteUser.mockImplementation(async () => {
+          add("audit_log", { actor_id: OTHER });
+          return { data: { user: null }, error } as never;
+        });
+      }
+
+      it.each([
+        ["as Supabase Auth answers it", { status: 500, code: "unexpected_failure", message: "Database error deleting user" }],
+        [
+          "as a foreign key (23503)",
+          { code: "23503", message: 'update or delete on table "profiles" violates foreign key constraint "audit_log_actor_id_fkey" on table "audit_log"' },
+        ],
+      ])("says what keeps them, %s, counted again", async (_case, error) => {
+        namedMeanwhile(error);
+        expect(await remove()).toEqual({ status: "refused", message: `SC-0003 cannot be deleted: their name is on 1 history entry, ${KEPT_END}` });
+        expect(rows.has(OTHER)).toBe(true);
+        expect(refresh).not.toHaveBeenCalled();
+        expect(console.info).not.toHaveBeenCalled();
+      });
+
+      it("says the database keeps them when the count finds nothing again", async () => {
+        adminClient.auth.admin.deleteUser.mockResolvedValue({
+          data: { user: null },
+          error: { status: 500, code: "unexpected_failure", message: "Database error deleting user" },
+        } as never);
+        expect(await remove()).toEqual({
+          status: "refused",
+          message:
+            "SC-0003 cannot be deleted: records in the app still point at their account, so the database keeps it. They stay deactivated and cannot sign in.",
+        });
+      });
+    });
+
+    it("counts an account already gone as deleted: another admin did it a moment ago", async () => {
+      adminClient.auth.admin.deleteUser.mockResolvedValue({
+        data: { user: null },
+        error: { status: 404, code: "user_not_found", message: "User not found" },
+      } as never);
+      expect(await remove()).toMatchObject({ status: "success" });
+      expect(refresh).toHaveBeenCalledOnce();
+    });
+
+    it("says why in plain words when Supabase Auth refuses for another reason", async () => {
+      adminClient.auth.admin.deleteUser.mockResolvedValue({ data: { user: null }, error: { status: 401, message: "Invalid API key" } } as never);
+      expect(await remove()).toEqual({
+        status: "error",
+        message: "SC-0003 was not deleted: Supabase refused the server's key. Check that SUPABASE_SECRET_KEY is the secret key of this project.",
+      });
+      adminClient.auth.admin.deleteUser.mockResolvedValue({ data: { user: null }, error: { status: 503, message: "Service unavailable" } } as never);
+      expect(await remove()).toEqual({ status: "error", message: "SC-0003 was not deleted: Service unavailable." });
+      expect(refresh).not.toHaveBeenCalled();
     });
   });
 });

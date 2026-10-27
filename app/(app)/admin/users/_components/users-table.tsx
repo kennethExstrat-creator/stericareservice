@@ -99,7 +99,7 @@ export function UsersTable({
   leads?: readonly LeadOption[];
   /** The roles to choose from, for the row dialogs' role pickers. */
   roles?: readonly RoleOption[];
-  /** False without the secret key: the row menus offer no invite actions. */
+  /** False without the secret key: the row menus offer no invite actions and no Delete Permanently. */
   invites?: boolean;
   /** Shown when a filter leaves nobody. */
   emptyMessage?: string;

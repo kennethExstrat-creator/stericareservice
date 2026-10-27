@@ -58,17 +58,55 @@ describe("menuGroups", () => {
     expect(self).toEqual(["edit-details", "send-link"]);
   });
 
-  it("only activates an account that was never active: no links, no new details or role yet", () => {
+  it("only activates an account that was never active, or deletes it: no links, no new details or role yet", () => {
     // Any change to its profile, new details included, would make it look deactivated.
-    expect(menuGroups(person({ status: "pending", lead: null }))).toEqual([["activate"]]);
-    expect(menuGroups(person({ status: "pending", role: ADMIN, lead: null }))).toEqual([["activate"]]);
+    expect(menuGroups(person({ status: "pending", lead: null }))).toEqual([["activate"], ["delete"]]);
+    expect(menuGroups(person({ status: "pending", role: ADMIN, lead: null }))).toEqual([["activate"], ["delete"]]);
   });
 
-  it("reactivates a deactivated account, sends it no links, and can still edit its details and move it", () => {
+  it("reactivates a deactivated account, sends it no links, can still edit its details and move it, or delete it", () => {
     expect(menuGroups(person({ status: "deactivated", role: ADMIN, lead: null }))).toEqual([
       ["reactivate", "edit-details", "change-role"],
+      ["delete"],
     ]);
-    expect(menuGroups(person({ status: "deactivated" }))).toEqual([["reactivate", "edit-details", "change-role", "change-lead"]]);
+    expect(menuGroups(person({ status: "deactivated" }))).toEqual([
+      ["reactivate", "edit-details", "change-role", "change-lead"],
+      ["delete"],
+    ]);
+  });
+
+  describe("Delete Permanently", () => {
+    const offers = (user: UserActionsTarget, options?: { invites?: boolean }) => menuGroups(user, options).flat().includes("delete");
+
+    it("is offered for a Deactivated or Pending Activation account alone, last, in a group of its own", () => {
+      expect(offers(person({ status: "deactivated" }))).toBe(true);
+      expect(offers(person({ status: "pending", lead: null }))).toBe(true);
+      // Someone who never created their account and was deactivated: the same.
+      expect(offers(person({ status: "deactivated", joined: false, fullName: null, name: "zed@example.com" }))).toBe(true);
+      for (const status of ["deactivated", "pending"] as const) {
+        expect(menuGroups(person({ status })).at(-1)).toEqual(["delete"]);
+      }
+    });
+
+    it("is never offered for an Active or Invited account: Deactivate, or Cancel Invite, is for those", () => {
+      expect(offers(person())).toBe(false);
+      expect(offers(person({ signInBlocked: true }))).toBe(false);
+      expect(offers(person({ status: "invited", joined: false }))).toBe(false);
+      expect(offers(person({ status: "invited", joined: false, signInBlocked: true }))).toBe(false);
+    });
+
+    it("is never offered for yourself, whatever the status", () => {
+      for (const status of ["active", "invited", "pending", "deactivated"] as const) {
+        expect(offers(person({ status, isSelf: true, role: ADMIN, lead: null })), status).toBe(false);
+      }
+    });
+
+    it("needs the secret key, as the invite actions do", () => {
+      expect(menuGroups(person({ status: "deactivated" }), { invites: false })).toEqual([
+        ["reactivate", "edit-details", "change-role", "change-lead"],
+      ]);
+      expect(menuGroups(person({ status: "pending", lead: null }), { invites: false })).toEqual([["activate"]]);
+    });
   });
 
   it("offers someone invited their invite again, a link to copy, new details, a role, a team, and Cancel Invite", () => {
@@ -126,11 +164,12 @@ describe("MENU_LABEL", () => {
       deactivate: "Deactivate",
       reactivate: "Reactivate",
       activate: "Activate",
+      delete: "Delete Permanently",
     });
   });
 
-  it("marks what takes something away in red: Cancel Invite and Deactivate", () => {
-    expect([...DESTRUCTIVE].sort()).toEqual(["cancel-invite", "deactivate"]);
+  it("marks what takes something away in red: Cancel Invite, Deactivate and Delete Permanently", () => {
+    expect([...DESTRUCTIVE].sort()).toEqual(["cancel-invite", "deactivate", "delete"]);
   });
 });
 
@@ -152,6 +191,7 @@ describe("DIALOG_TITLE", () => {
       "leads-team": "Olga Other Still Leads a Team",
       reactivate: "Reactivate Olga Other?",
       activate: "Activate Olga Other?",
+      delete: "Delete Olga Other Permanently?",
     });
   });
 

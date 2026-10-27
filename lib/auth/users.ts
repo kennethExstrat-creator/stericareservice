@@ -5,15 +5,16 @@ import { createAdminClient, isAdminClientConfigured } from "@/lib/supabase/admin
 import type { Database } from "@/lib/supabase/database.types";
 import { createClient } from "@/lib/supabase/server";
 import { fullNameSchema, OptionalPhoneSchema } from "./fields";
-import { TEAM_MESSAGES, canLead, roleChoiceOf, sortRoles, standInRole, type RoleOption } from "./org";
+import { TEAM_MESSAGES, canLead, listNames, roleChoiceOf, sortRoles, standInRole, type RoleOption } from "./org";
 import { BUILT_IN_ROLES, isBuiltInRole, isRoleAccess } from "./permissions";
-import { isMissingRoleColumn, isMissingTeamColumn } from "./team";
+import { isMissingRoleColumn, isMissingTeamColumn, teamOf } from "./team";
 
 /**
  * User management for /admin/users (BUILD_SPEC 3 and 10): input schemas, the
- * user directory an admin sees, and plain-words versions of the errors
- * Supabase Auth and the database return. Server only: the directory reads
- * sign-in details with the secret key.
+ * user directory an admin sees, what keeps someone from being deleted for
+ * good, and plain-words versions of the errors Supabase Auth and the
+ * database return. Server only: the directory reads sign-in details, and
+ * the count of what keeps someone reads every row, with the secret key.
  *
  * Joining by invitation (Kenneth, 27 October 2026): an admin invites an email
  * address in a role, by email or with a link to send by hand; the person
@@ -132,6 +133,14 @@ export const ActivateSchema = z.object({
   leadId: LeadChoiceSchema,
 });
 export const UserTargetSchema = z.object({ userId: UserIdSchema });
+
+/**
+ * Delete Permanently: the person, and what the admin typed to confirm it,
+ * which the action compares with their UID (their email on a project
+ * without UIDs) as it reads them again. Anything but text counts as nothing
+ * typed.
+ */
+export const DeleteUserSchema = z.object({ userId: UserIdSchema, confirm: z.string().max(320).catch("") });
 
 /** Reads a form's fields by name; missing fields arrive as null and fail validation. */
 export function formFields<K extends string>(formData: FormData, keys: readonly K[]): Record<K, FormDataEntryValue | null> {
@@ -656,6 +665,129 @@ export async function findProfileByEmail(supabase: ServerClient, email: string):
 }
 
 /* ------------------------------------------------------------------ *
+ * Deleting someone for good
+ * ------------------------------------------------------------------ */
+
+type AdminClient = ReturnType<typeof createAdminClient>;
+
+/**
+ * What keeps an account from Delete Permanently: the rows of the app that
+ * point at the person's profile, which the database will not let go (on
+ * delete restrict, migration 20261006000200 and after), so QC records keep
+ * the names on them. Counted by kind, as the refusal names them. The people
+ * who still have them as lead inspector point at them too (profiles.lead_id),
+ * but they can move to another lead, so they are named. AI usage and the AI
+ * settings let go of someone deleted (on delete set null): they keep nobody.
+ */
+export type KeptRecords = {
+  /** Inspections they did or approved, each once (inspections.inspector_id, approved_by). */
+  inspections: number;
+  /** Photos they uploaded (inspection_photos.created_by). */
+  photos: number;
+  /** Files they uploaded (inspection_files.created_by). */
+  files: number;
+  /** Their Agree, Disagree or Fixed on Steri-AI's findings (ai_review_actions.actor_id). */
+  aiDecisions: number;
+  /** Entries in the inspections' history (audit_log.actor_id). */
+  history: number;
+  /** Templates whose coverage they confirmed (templates.coverage_confirmed_by). */
+  coverage: number;
+  /** The people who still have them as lead inspector, by name. */
+  team: string[];
+};
+
+export type KeptRead = { kept: KeptRecords; error: null } | { kept: null; error: ErrorLike };
+
+const COUNT_ONLY = { count: "exact", head: true } as const;
+
+/**
+ * Everything that keeps someone (KeptRecords), counted with the secret key:
+ * an admin's own client may not see every row (row level security), and the
+ * database refuses for any row, seen or not. Counts only: no row is read. A
+ * project without lead inspectors (migration 20261007170000) has no team to
+ * count.
+ */
+export async function findKeptRecords(admin: AdminClient, userId: string): Promise<KeptRead> {
+  // The id goes into a PostgREST filter below: a uuid, and nothing else.
+  const id = UserIdSchema.parse(userId);
+  const [inspections, photos, files, aiDecisions, history, coverage, team] = await Promise.all([
+    // Did or approved, each inspection once: one they did and approved too.
+    admin.from("inspections").select("id", COUNT_ONLY).or(`inspector_id.eq.${id},approved_by.eq.${id}`),
+    admin.from("inspection_photos").select("id", COUNT_ONLY).eq("created_by", id),
+    admin.from("inspection_files").select("id", COUNT_ONLY).eq("created_by", id),
+    admin.from("ai_review_actions").select("id", COUNT_ONLY).eq("actor_id", id),
+    admin.from("audit_log").select("id", COUNT_ONLY).eq("actor_id", id),
+    admin.from("templates").select("id", COUNT_ONLY).eq("coverage_confirmed_by", id),
+    teamOf(admin, id),
+  ]);
+  const failed =
+    [inspections, photos, files, aiDecisions, history, coverage].find((answer) => answer.error)?.error ??
+    (isMissingTeamColumn(team.error) ? null : team.error);
+  if (failed) return { kept: null, error: failed };
+  return {
+    kept: {
+      inspections: inspections.count ?? 0,
+      photos: photos.count ?? 0,
+      files: files.count ?? 0,
+      aiDecisions: aiDecisions.count ?? 0,
+      history: history.count ?? 0,
+      coverage: coverage.count ?? 0,
+      team: team.members.map((member) => member.name),
+    },
+    error: null,
+  };
+}
+
+/** Each kind of QC record as the refusal says it, in its order: the kind, one, more than one. */
+const KEPT_WORDS: readonly (readonly [Exclude<keyof KeptRecords, "team">, string, string])[] = [
+  ["inspections", "inspection", "inspections"],
+  ["photos", "photo", "photos"],
+  ["files", "file", "files"],
+  ["aiDecisions", "Steri-AI decision", "Steri-AI decisions"],
+  ["history", "history entry", "history entries"],
+  ["coverage", "template coverage confirmation", "template coverage confirmations"],
+];
+
+/** True when anything keeps them: a QC record, or someone in their team. */
+export function isKept(kept: KeptRecords): boolean {
+  return kept.team.length > 0 || KEPT_WORDS.some(([kind]) => kept[kind] > 0);
+}
+
+/** How someone Delete Permanently keeps stays: deactivated, or inactive when never let in (pending). */
+export type KeptState = "deactivated" | "inactive";
+
+/**
+ * The database kept them, though the count found nothing that would: a
+ * record that came and went in between, or one outside the tables counted.
+ */
+export function keptByDatabaseMessage(who: string, state: KeptState = "deactivated"): string {
+  return `${who} cannot be deleted: records in the app still point at their account, so the database keeps it. They stay ${state} and cannot sign in.`;
+}
+
+/**
+ * Why Delete Permanently keeps someone, each kind of record that points at
+ * them counted (Kenneth, 27 October 2026): "SC-0003 cannot be deleted: their
+ * name is on 4 inspections and 21 history entries, which QC records keep.
+ * They stay deactivated and cannot sign in." `who` is their UID, else their
+ * name. When the people in their team are all that keeps them, moving them
+ * is the way on, as Deactivate says.
+ */
+export function keptMessage(who: string, kept: KeptRecords, state: KeptState = "deactivated"): string {
+  const records = KEPT_WORDS.filter(([kind]) => kept[kind] > 0).map(([kind, one, many]) =>
+    kept[kind] === 1 ? `1 ${one}` : `${kept[kind]} ${many}`,
+  );
+  const leads = `${listNames(kept.team)} still ${kept.team.length === 1 ? "has" : "have"} them as lead inspector`;
+  if (records.length === 0) {
+    if (kept.team.length === 0) return keptByDatabaseMessage(who, state);
+    return `${who} cannot be deleted yet: ${leads}. Choose another lead inspector for ${
+      kept.team.length === 1 ? "them" : "each of them"
+    } first (Change Lead Inspector, next to their name).`;
+  }
+  const named = `their name is on ${listNames(records)}, which QC records keep`;
+  return `${who} cannot be deleted: ${kept.team.length > 0 ? `${named}, and ${leads}` : named}. They stay ${state} and cannot sign in.`;
+}
+
+/* ------------------------------------------------------------------ *
  * Errors in plain words
  * ------------------------------------------------------------------ */
 
@@ -669,6 +801,9 @@ export const MESSAGES = {
   selfDeactivate: "You cannot deactivate your own account. Ask another admin to do it.",
   selfDemote: "You cannot remove your own Admin role. Ask another admin to do it.",
   selfCancel: "You cannot cancel your own account.",
+  selfDelete: "You cannot delete your own account.",
+  deleteNeedsKey:
+    "Deleting users is switched off: the server needs SUPABASE_SECRET_KEY. Add it to the environment (.env.local, or the Vercel project settings) and restart the app.",
   lastAdmin: "This would leave nobody active with the Admin role. Give someone else the Admin role first.",
   notAllowed: "You do not have permission to do that.",
   accountsMissing:
@@ -791,6 +926,22 @@ export function describeCancelError(error: ErrorLike, name: string): string {
   if (/database error deleting user/i.test(error.message ?? "")) {
     return `${subject}: records in the app point at their account, so the database keeps it. To stop them signing in, choose Deactivate instead.`;
   }
+  return `${subject}: ${error.message || "Supabase did not say why"}.`;
+}
+
+/**
+ * The database kept an account Delete Permanently asked Supabase Auth to
+ * delete: a row of the app points at it (23503, a foreign key that
+ * restricts). Supabase Auth answers that as "Database error deleting user".
+ */
+export function isKeptByRecords(error: ErrorLike): boolean {
+  return error.code === "23503" || /database error deleting user/i.test(error.message ?? "");
+}
+
+/** Any other Auth error from Delete Permanently, in plain words; `who` is their UID, else their name. */
+export function describeDeleteError(error: ErrorLike, who: string): string {
+  const subject = `${who} was not deleted`;
+  if (isKeyRefused(error)) return `${subject}: Supabase refused the server's key. ${KEY_HELP}`;
   return `${subject}: ${error.message || "Supabase did not say why"}.`;
 }
 

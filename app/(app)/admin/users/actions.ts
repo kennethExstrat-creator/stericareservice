@@ -31,16 +31,20 @@ import {
   AssignLeadSchema,
   BAN_DURATION,
   ChangeRoleSchema,
+  DeleteUserSchema,
   InviteUserSchema,
   MESSAGES,
   UNBAN,
   UserDetailsSchema,
+  UserIdSchema,
   UserTargetSchema,
   authConfirmUrl,
   describeCancelError,
+  describeDeleteError,
   describeEmailError,
   describeLinkError,
   describeProfileError,
+  findKeptRecords,
   findProfileByEmail,
   findRole,
   firstFieldErrors,
@@ -50,17 +54,24 @@ import {
   isBanned,
   isEmailRejected,
   isEmailTaken,
+  isKept,
+  isKeptByRecords,
   isMissingAccountColumn,
+  isMissingUidColumn,
   isPhoneRefused,
   isUntouched,
   isUserGone,
+  keptByDatabaseMessage,
+  keptMessage,
   linkWouldHelp,
   type InviteDelivery,
+  type KeptState,
   type UserField,
 } from "@/lib/auth/users";
 import { createAdminClient, isAdminClientConfigured } from "@/lib/supabase/admin";
 import type { TablesUpdate } from "@/lib/supabase/database.types";
 import { createClient } from "@/lib/supabase/server";
+import { confirmsDeletion, deletionWord } from "./_lib/delete-user";
 
 /*
  * User management actions for /admin/users. Server Actions are public HTTP
@@ -72,7 +83,9 @@ import { createClient } from "@/lib/supabase/server";
  * admin's own client, so RLS and the profiles guards (which keep one active
  * person with the Admin role and the lead inspector rules) check them
  * again. Only Auth work (invites, invite links, bans, deleting an unanswered
- * invite, sign-in details, the name Auth keeps) uses the secret key.
+ * invite or an account for good, sign-in details, the name Auth keeps) uses
+ * the secret key, and so does counting what keeps an account from being
+ * deleted, which must see every row.
  *
  * Joining by invitation (Kenneth, 27 October 2026): an invite names the
  * address and the role; the person gives their name, phone and password on
@@ -140,19 +153,22 @@ export type ActionResult =
  */
 export type InviteLinkResult = ActionResult | { status: "link"; link: string; message: string };
 
+/** An error said on the form: every action's answers have one (Delete Permanently's check too). */
+type Failure = { status: "error"; message: string; fieldErrors?: FieldErrors };
+
 const ok = (message: string): ActionResult => ({ status: "success", message });
 const warn = (message: string): ActionResult => ({ status: "warning", message });
-const fail = (message: string, fieldErrors?: FieldErrors): ActionResult => ({
+const fail = (message: string, fieldErrors?: FieldErrors): Failure => ({
   status: "error",
   message,
   ...(fieldErrors ? { fieldErrors } : {}),
 });
 
 /** Unexpected failures become a message on the form instead of an error page. */
-async function guarded<Result extends ActionResult | InviteLinkResult = ActionResult>(
+async function guarded<Result extends { status: string } = ActionResult>(
   name: string,
   run: () => Promise<Result>,
-): Promise<Result | ActionResult> {
+): Promise<Result | Failure> {
   try {
     return await run();
   } catch (error) {
@@ -1008,5 +1024,167 @@ export async function cancelInvite(_previous: ActionResult, formData: FormData):
     }
     refresh();
     return ok(`The invite to ${invitee.email} is cancelled: its link no longer works, and the address can be invited again.`);
+  });
+}
+
+/* ------------------------------------------------------------------ *
+ * Deleting someone for good
+ * ------------------------------------------------------------------ */
+
+/**
+ * What Delete Permanently's dialog shows as it opens, before the admin is
+ * asked anything: they can be deleted; they stay, and why (QC records keep
+ * them, or it is the admin's own account or an active one); or the check
+ * could not be made.
+ */
+export type DeletionCheck =
+  | { status: "deletable" }
+  | { status: "refused"; message: string }
+  | { status: "error"; message: string };
+
+/** Delete Permanently's answer. Refused: they stay after all, and the dialog turns to why, with Close alone. */
+export type DeleteUserResult = ActionResult | { status: "refused"; message: string };
+
+const refused = (message: string) => ({ status: "refused", message }) as const;
+
+/** Someone Delete Permanently is for, as their profile says now. */
+type DeleteTarget = {
+  id: string;
+  uid: string | null;
+  email: string | null;
+  name: string;
+  /** How its messages name them: their UID, else their name. */
+  who: string;
+  /** How they stay if something keeps them. */
+  state: KeptState;
+};
+
+type DeleteRefusal = { ok: false; status: "refused" | "error"; message: string };
+
+/** The profile columns the target is read with; uid where the project has UIDs (migration 20261008140000). */
+type DeleteTargetRow = {
+  id: string;
+  uid?: string | null;
+  email: string | null;
+  full_name: string | null;
+  active: boolean;
+  created_at: string;
+  updated_at: string;
+};
+
+/** Active or Invited: such an account is deactivated first. */
+const activeForDelete = (name: string) => `${name}'s account is active, so it cannot be deleted: deactivate it first.`;
+
+/**
+ * The person Delete Permanently is for, re-read through the admin's own
+ * client (RLS lets admins read every profile): never the caller, never an
+ * account that is active (Active or Invited), and only with the secret key,
+ * which deleting needs. A project without UIDs reads them without one.
+ */
+async function readDeleteTarget(callerId: string, userId: string): Promise<{ ok: true; target: DeleteTarget } | DeleteRefusal> {
+  if (userId === callerId) return { ok: false, status: "refused", message: MESSAGES.selfDelete };
+  if (!isAdminClientConfigured()) return { ok: false, status: "error", message: MESSAGES.deleteNeedsKey };
+
+  const supabase = await createClient();
+  let found: { data: DeleteTargetRow | null; error: ErrorLike | null } = await supabase
+    .from("profiles")
+    .select("id, uid, email, full_name, active, created_at, updated_at")
+    .eq("id", userId)
+    .maybeSingle();
+  if (isMissingUidColumn(found.error)) {
+    found = await supabase
+      .from("profiles")
+      .select("id, email, full_name, active, created_at, updated_at")
+      .eq("id", userId)
+      .maybeSingle();
+  }
+  if (found.error) return { ok: false, status: "error", message: describeProfileError(found.error) };
+  const profile = found.data;
+  if (!profile) return { ok: false, status: "error", message: MESSAGES.userNotFound };
+  const name = personName(profile);
+  if (profile.active) return { ok: false, status: "refused", message: activeForDelete(name) };
+
+  const uid = profile.uid ?? null;
+  // An inactive account nobody has changed since sign-up was never let in: pending, not deactivated.
+  const state = isUntouched(profile) ? "inactive" : "deactivated";
+  return { ok: true, target: { id: profile.id, uid, email: profile.email, name, who: uid ?? name, state } };
+}
+
+/** Whether anything keeps them (findKeptRecords, with the secret key), and the words when something does. */
+async function keptBy(admin: AdminClient, target: DeleteTarget): Promise<{ ok: true } | DeleteRefusal> {
+  const counted = await findKeptRecords(admin, target.id);
+  if (counted.kept === null) {
+    console.error("[admin/users] what keeps an account could not be counted", counted.error.code, counted.error.message);
+    const why = counted.error.message || "the database did not say why";
+    return { ok: false, status: "error", message: `Could not check what still names ${target.who} just now: ${why}. Try again.` };
+  }
+  if (isKept(counted.kept)) return { ok: false, status: "refused", message: keptMessage(target.who, counted.kept, target.state) };
+  return { ok: true };
+}
+
+/**
+ * Delete Permanently's check, as its dialog opens: whether this person may
+ * go for good, or what keeps them, before the admin confirms anything. It
+ * only reads.
+ */
+export async function checkUserDeletion(userId: string): Promise<DeletionCheck> {
+  return guarded<DeletionCheck>("checkUserDeletion", async () => {
+    const auth = await authorize();
+    if (!auth.ok) return fail(auth.error);
+
+    const parsed = UserIdSchema.safeParse(userId);
+    if (!parsed.success) return fail(firstIssue(parsed.error));
+
+    const found = await readDeleteTarget(auth.user.id, parsed.data);
+    if (!found.ok) return { status: found.status, message: found.message };
+    const kept = await keptBy(createAdminClient(), found.target);
+    if (!kept.ok) return { status: kept.status, message: kept.message };
+    return { status: "deletable" };
+  });
+}
+
+/**
+ * Delete Permanently (Kenneth, 27 October 2026: "admin should be able to
+ * permanently delete deactivated users"): removes for good an account that
+ * is not active and that nothing keeps, once the admin has typed their UID
+ * (their email on a project without UIDs). Deleting the Supabase Auth user
+ * takes the profile with it (on delete cascade); the UID is never given
+ * again (profile_uid_seq). Everything the check said is checked again, the
+ * typed UID too, and the database has the last word: should a QC record
+ * name them since the count, it keeps them, and that is said in the same
+ * words. Users have no audit table, so the server log notes which UID went
+ * and which admin deleted it, never a name or an email.
+ */
+export async function deleteUserPermanently(_previous: DeleteUserResult, formData: FormData): Promise<DeleteUserResult> {
+  return guarded<DeleteUserResult>("deleteUserPermanently", async () => {
+    const auth = await authorize();
+    if (!auth.ok) return fail(auth.error);
+
+    const parsed = DeleteUserSchema.safeParse(formFields(formData, ["userId", "confirm"]));
+    if (!parsed.success) return fail(firstIssue(parsed.error));
+    const { userId, confirm } = parsed.data;
+
+    const found = await readDeleteTarget(auth.user.id, userId);
+    if (!found.ok) return found.status === "refused" ? refused(found.message) : fail(found.message);
+    const { target } = found;
+    const word = deletionWord(target);
+    if (!confirmsDeletion(confirm, word)) return fail(`Type ${word} in the box to confirm.`);
+
+    const admin = createAdminClient();
+    const kept = await keptBy(admin, target);
+    if (!kept.ok) return kept.status === "refused" ? refused(kept.message) : fail(kept.message);
+
+    const { error } = await admin.auth.admin.deleteUser(target.id);
+    // Gone already: another admin deleted them a moment ago, which is what was asked.
+    if (error && !isUserGone(error)) {
+      console.error("[admin/users] account not deleted", error.code, error.message);
+      if (!isKeptByRecords(error)) return fail(describeDeleteError(error, target.who));
+      // Something names them since the count: counted again, to say what.
+      const again = await keptBy(admin, target);
+      return refused(!again.ok && again.status === "refused" ? again.message : keptByDatabaseMessage(target.who, target.state));
+    }
+    console.info("[admin/users] account deleted for good", target.uid ?? target.id, "by", auth.user.id);
+    refresh();
+    return ok(`${target.name}${target.uid ? ` (${target.uid})` : ""} is deleted for good: their login and profile are gone.`);
   });
 }

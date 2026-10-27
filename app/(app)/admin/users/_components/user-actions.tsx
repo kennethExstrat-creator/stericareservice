@@ -11,6 +11,7 @@ import {
   MailXIcon,
   OctagonXIcon,
   SendIcon,
+  Trash2Icon,
   TriangleAlertIcon,
   UserCheckIcon,
   UserCogIcon,
@@ -64,6 +65,7 @@ import {
 } from "../actions";
 import { teamHref } from "../_lib/team-filter";
 import { cn } from "@/lib/utils";
+import { DeleteUserDialog } from "./delete-user-dialog";
 import { DetailsDialog } from "./details-dialog";
 import { InviteLinkDialog } from "./invite-link-dialog";
 import { focusRole, LeadField, RoleField, SCROLLING_DIALOG } from "./role-fields";
@@ -95,6 +97,7 @@ const MENU_ICON: Record<Kind, LucideIcon> = {
   deactivate: BanIcon,
   reactivate: UserCheckIcon,
   activate: UserCheckIcon,
+  delete: Trash2Icon,
 };
 
 export type Confirmation = {
@@ -235,7 +238,7 @@ export function UserActions({
   leads?: readonly LeadOption[];
   /** The roles to choose from (UserDirectory.roles), for Change Role and an activation that places someone. */
   roles?: readonly RoleOption[];
-  /** False without the secret key: no invite can be resent, copied or cancelled. */
+  /** False without the secret key: no invite can be resent, copied or cancelled, and nobody deleted. */
   invites?: boolean;
 }) {
   const [kind, setKind] = useState<Kind | null>(null);
@@ -257,6 +260,9 @@ export function UserActions({
         return <DetailsDialog key={item} user={user} onClose={close} returnFocusTo={triggerRef} />;
       case "copy-invite-link":
         return <InviteLinkDialog key={item} user={user} onClose={close} returnFocusTo={triggerRef} />;
+      case "delete":
+        // Asks the server what keeps them as it opens, before anything is confirmed.
+        return <DeleteUserDialog key={item} user={user} onClose={close} returnFocusTo={triggerRef} />;
       case "change-role":
         return (
           <PlacementDialog

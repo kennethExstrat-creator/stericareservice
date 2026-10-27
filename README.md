@@ -182,6 +182,12 @@ Set up on `/admin/users`:
   earlier answers). Supabase Auth's copy (`user_metadata.full_name`,
   which the Supabase dashboard shows) follows when the server has the secret key. An account
   waiting for activation is activated first: any change to it would make it look deactivated.
+- **Delete Permanently**, last in the row menu of a Deactivated or Pending Activation account
+  (never an active or invited one, never your own; it needs the secret key): removes their login
+  and profile for good once you type their UID. QC records keep the names on them, so someone an
+  inspection, a photo or file, a Steri-AI decision, a history entry or a template's coverage
+  names stays deactivated: the dialog says what keeps them before it asks anything. People who
+  still have them as lead inspector move to another lead first.
 - **UIDs.** Every account has a UID, `SC-` and a number: `SC-0001`, `SC-0002` … `SC-9999`, then
   `SC-10000`. The database gives it when the account is created, in order (the accounts from
   before UIDs were numbered oldest first). It never changes, not even for an admin or the secret

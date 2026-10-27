@@ -18,11 +18,13 @@ export async function generateMetadata(): Promise<Metadata> {
 /**
  * /admin/users (BUILD_SPEC 3 and 10): everyone with an account, their UID,
  * name, email and phone, invites and the invitations not yet answered,
- * roles, lead inspectors and their teams, and deactivation. Managing users
- * is the built-in Admin role's alone (migration 20261027150000): everyone
- * else gets a 404 from requirePermission("users"), a custom role that sees
- * every inspection too, although the admin layout above lets it in. The
- * layout is no security boundary anyway, so this page checks for itself.
+ * roles, lead inspectors and their teams, deactivation, and deleting for
+ * good an account that is not active and that no QC record names. Managing
+ * users is the built-in Admin role's alone (migration 20261027150000):
+ * everyone else gets a 404 from requirePermission("users"), a custom role
+ * that sees every inspection too, although the admin layout above lets it
+ * in. The layout is no security boundary anyway, so this page checks for
+ * itself.
  * ?team= shows one lead inspector's team, or the inspectors in no team
  * (_lib/team-filter.ts); ?q= finds people in it by name, email, phone number
  * or UID (_lib/user-search.ts).

@@ -1,8 +1,9 @@
 // The row menu's dialogs, drawn on the server: each names the person in its
 // title, with their UID beside the title, never inside it, so every dialog
 // keeps its name. Edit Details is in details-dialog.test.tsx, Copy Invite
-// Link in invite-link-dialog.test.tsx. The dialogs are drawn in place here (a
-// portal draws nothing on the server).
+// Link in invite-link-dialog.test.tsx, Delete Permanently in
+// delete-user-dialog.test.tsx. The dialogs are drawn in place here (a portal
+// draws nothing on the server).
 import type { ReactNode } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
@@ -11,8 +12,10 @@ vi.mock("../actions", () => ({
   assignLead: vi.fn(),
   cancelInvite: vi.fn(),
   changeRole: vi.fn(),
+  checkUserDeletion: vi.fn(),
   createInviteLink: vi.fn(),
   deactivateUser: vi.fn(),
+  deleteUserPermanently: vi.fn(),
   editUserDetails: vi.fn(),
   reactivateUser: vi.fn(),
   resendInvite: vi.fn(),

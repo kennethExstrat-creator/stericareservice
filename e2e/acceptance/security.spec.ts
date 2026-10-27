@@ -386,6 +386,9 @@ function actionCases(): ActionCase[] {
     { name: "resendInvite", kind: "admin", path: "/admin/users", args: [{ status: "idle" }, form({ userId: R })] },
     { name: "createInviteLink", kind: "admin", path: "/admin/users", args: [{ status: "idle" }, form({ userId: R })] },
     { name: "cancelInvite", kind: "admin", path: "/admin/users", args: [{ status: "idle" }, form({ userId: R })] },
+    // Delete Permanently: its check, called with the id alone, and the deletion, both at an id nobody has.
+    { name: "checkUserDeletion", kind: "admin", path: "/admin/users", args: [R] },
+    { name: "deleteUserPermanently", kind: "admin", path: "/admin/users", args: [{ status: "idle" }, form({ userId: R, confirm: R })] },
     // Admin: roles (the built-in Admin role only). A blank name is refused before anything is written.
     { name: "createRole", kind: "admin", path: "/admin/roles", args: [{ status: "idle" }, form({ name: "", description: "", access: "own" })] },
     { name: "updateRole", kind: "admin", path: "/admin/roles", args: [{ status: "idle" }, form({ id: R, version: "2000-01-01T00:00:00+00:00", name: "", description: "", access: "own" })] },

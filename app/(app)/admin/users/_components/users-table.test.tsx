@@ -16,6 +16,8 @@ vi.mock("../actions", () => ({
   resendInvite: vi.fn(),
   createInviteLink: vi.fn(),
   cancelInvite: vi.fn(),
+  checkUserDeletion: vi.fn(),
+  deleteUserPermanently: vi.fn(),
 }));
 
 import { EmailText, UsersTable } from "./users-table";

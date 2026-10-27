@@ -10,6 +10,7 @@ import {
   AssignLeadSchema,
   BAN_DURATION,
   ChangeRoleSchema,
+  DeleteUserSchema,
   InviteUserSchema,
   MESSAGES,
   NAME_MAX_LENGTH,
@@ -18,10 +19,12 @@ import {
   accountStatus,
   authConfirmUrl,
   describeCancelError,
+  describeDeleteError,
   describeEmailError,
   describeLinkError,
   describeProfileError,
   displayName,
+  findKeptRecords,
   findProfileByEmail,
   findRole,
   firstFieldErrors,
@@ -30,12 +33,17 @@ import {
   isBanned,
   isEmailRejected,
   isEmailTaken,
+  isKept,
+  isKeptByRecords,
   isMissingAccountColumn,
   isMissingRolesTable,
   isMissingUidColumn,
   isPhoneRefused,
   isUntouched,
+  keptByDatabaseMessage,
+  keptMessage,
   linkWouldHelp,
+  type KeptRecords,
 } from "./users";
 
 const VIEWER = "7c2d4e1a-0b3f-4a5c-9d8e-1f2a3b4c5d6e";
@@ -125,6 +133,15 @@ describe("role and target schemas", () => {
       const result = ChangeRoleSchema.safeParse({ userId: OTHER, role });
       expect(firstFieldErrors(result.error!)).toEqual({ role: CHOOSE_ROLE });
     }
+  });
+
+  it("take Delete Permanently's person and what was typed, anything but text as nothing typed", () => {
+    expect(DeleteUserSchema.parse({ userId: OTHER.toUpperCase(), confirm: " SC-0003 " })).toEqual({ userId: OTHER, confirm: " SC-0003 " });
+    // A form without the box sends null: the action asks for the UID.
+    for (const confirm of [null, undefined, 42, "x".repeat(321)]) {
+      expect(DeleteUserSchema.parse({ userId: OTHER, confirm }).confirm).toBe("");
+    }
+    expect(DeleteUserSchema.safeParse({ userId: "not-a-uuid", confirm: "SC-0003" }).success).toBe(false);
   });
 });
 
@@ -459,6 +476,131 @@ describe("invite links and cancelled invites in plain words", () => {
     expect(linkWouldHelp({ code: "email_address_not_authorized", message: "not authorized" })).toBe(true);
     expect(linkWouldHelp({ code: "over_email_send_rate_limit", status: 429, message: "email rate limit exceeded" })).toBe(true);
     expect(linkWouldHelp({ status: 401, message: "Invalid API key" })).toBe(false);
+  });
+});
+
+describe("deleting someone for good", () => {
+  const NOTHING: KeptRecords = { inspections: 0, photos: 0, files: 0, aiDecisions: 0, history: 0, coverage: 0, team: [] };
+  const kept = (counts: Partial<KeptRecords>): KeptRecords => ({ ...NOTHING, ...counts });
+
+  it("keeps someone any QC record or team member points at, and nobody else", () => {
+    expect(isKept(NOTHING)).toBe(false);
+    for (const counts of [{ inspections: 1 }, { photos: 1 }, { files: 1 }, { aiDecisions: 1 }, { history: 1 }, { coverage: 1 }, { team: ["Ivan"] }]) {
+      expect(isKept(kept(counts)), JSON.stringify(counts)).toBe(true);
+    }
+  });
+
+  it("says why in Kenneth's words, naming each kind that applies, counted, in order", () => {
+    expect(keptMessage("SC-0003", kept({ inspections: 4, history: 21 }))).toBe(
+      "SC-0003 cannot be deleted: their name is on 4 inspections and 21 history entries, which QC records keep. They stay deactivated and cannot sign in.",
+    );
+    expect(keptMessage("SC-0003", kept({ inspections: 1, photos: 1, files: 1, aiDecisions: 1, history: 1, coverage: 1 }))).toBe(
+      "SC-0003 cannot be deleted: their name is on 1 inspection, 1 photo, 1 file, 1 Steri-AI decision, 1 history entry and 1 template coverage confirmation, which QC records keep. They stay deactivated and cannot sign in.",
+    );
+    expect(keptMessage("Olga Other", kept({ photos: 12, files: 2, aiDecisions: 3, coverage: 2 }))).toBe(
+      "Olga Other cannot be deleted: their name is on 12 photos, 2 files, 3 Steri-AI decisions and 2 template coverage confirmations, which QC records keep. They stay deactivated and cannot sign in.",
+    );
+  });
+
+  it("says a pending account, never let in, stays inactive", () => {
+    expect(keptMessage("SC-0003", kept({ history: 1 }), "inactive")).toBe(
+      "SC-0003 cannot be deleted: their name is on 1 history entry, which QC records keep. They stay inactive and cannot sign in.",
+    );
+  });
+
+  it("names who still has them as lead inspector, and says to move them when that is all that keeps them", () => {
+    expect(keptMessage("SC-0003", kept({ team: ["Ivan Inspector"] }))).toBe(
+      "SC-0003 cannot be deleted yet: Ivan Inspector still has them as lead inspector. Choose another lead inspector for them first (Change Lead Inspector, next to their name).",
+    );
+    expect(keptMessage("SC-0003", kept({ team: ["Ivan Inspector", "Olga Other"] }))).toBe(
+      "SC-0003 cannot be deleted yet: Ivan Inspector and Olga Other still have them as lead inspector. Choose another lead inspector for each of them first (Change Lead Inspector, next to their name).",
+    );
+    // QC records keep them anyway: moving the team would not help.
+    expect(keptMessage("SC-0003", kept({ inspections: 2, team: ["Ivan Inspector"] }))).toBe(
+      "SC-0003 cannot be deleted: their name is on 2 inspections, which QC records keep, and Ivan Inspector still has them as lead inspector. They stay deactivated and cannot sign in.",
+    );
+  });
+
+  it("says the database keeps them when it refuses though nothing was counted", () => {
+    const words =
+      "SC-0003 cannot be deleted: records in the app still point at their account, so the database keeps it. They stay deactivated and cannot sign in.";
+    expect(keptByDatabaseMessage("SC-0003")).toBe(words);
+    expect(keptMessage("SC-0003", NOTHING)).toBe(words);
+  });
+
+  it("recognises the database keeping an account, as a foreign key or as Supabase Auth says it", () => {
+    expect(isKeptByRecords({ status: 500, code: "unexpected_failure", message: "Database error deleting user" })).toBe(true);
+    expect(
+      isKeptByRecords({ code: "23503", message: 'update or delete on table "profiles" violates foreign key constraint "inspections_inspector_id_fkey"' }),
+    ).toBe(true);
+    expect(isKeptByRecords({ status: 503, message: "Service unavailable" })).toBe(false);
+    expect(isKeptByRecords({ status: 401, message: "Invalid API key" })).toBe(false);
+  });
+
+  it("says why Supabase Auth did not delete someone otherwise", () => {
+    expect(describeDeleteError({ status: 401, message: "Invalid API key" }, "SC-0003")).toBe(
+      "SC-0003 was not deleted: Supabase refused the server's key. Check that SUPABASE_SECRET_KEY is the secret key of this project.",
+    );
+    expect(describeDeleteError({ status: 503, message: "Service unavailable" }, "SC-0003")).toBe("SC-0003 was not deleted: Service unavailable.");
+    expect(describeDeleteError({ message: "" }, "Olga Other")).toBe("Olga Other was not deleted: Supabase did not say why.");
+  });
+
+  describe("findKeptRecords", () => {
+    type Answer = { count?: number; data?: unknown; error?: { code?: string; message: string } | null };
+
+    /** The secret-key client: each table answers `answers[table]`, every call recorded. */
+    function admin(answers: Record<string, Answer>, calls: Array<[string, string, unknown[]]> = []) {
+      return {
+        from: vi.fn((table: string) => {
+          const builder: Record<string, unknown> = {};
+          for (const method of ["select", "eq", "or"]) {
+            builder[method] = (...args: unknown[]) => {
+              calls.push([table, method, args]);
+              return builder;
+            };
+          }
+          const { count = 0, data = [], error = null } = answers[table] ?? {};
+          builder.then = (resolve: (value: unknown) => unknown) => Promise.resolve({ count, data, error }).then(resolve);
+          return builder;
+        }),
+      } as never;
+    }
+
+    it("counts each kind with the secret-key client and names the team, by name", async () => {
+      const calls: Array<[string, string, unknown[]]> = [];
+      const client = admin(
+        {
+          inspections: { count: 4 },
+          inspection_photos: { count: 12 },
+          audit_log: { count: 21 },
+          profiles: { data: [{ id: NEW, full_name: "Olga Other", email: "olga@test.local", active: true }, { id: VIEWER, full_name: null, email: "ivan@test.local", active: false }] },
+        },
+        calls,
+      );
+      expect(await findKeptRecords(client, OTHER.toUpperCase())).toEqual({
+        kept: { inspections: 4, photos: 12, files: 0, aiDecisions: 0, history: 21, coverage: 0, team: ["ivan@test.local", "Olga Other"] },
+        error: null,
+      });
+      // Inspections they did or approved, in one count, so one they did and approved counts once.
+      expect(calls).toContainEqual(["inspections", "or", [`inspector_id.eq.${OTHER},approved_by.eq.${OTHER}`]]);
+      expect(calls).toContainEqual(["profiles", "eq", ["lead_id", OTHER]]);
+    });
+
+    it("refuses anything but a user id before asking anything: the id goes into a filter", async () => {
+      const client = admin({});
+      await expect(findKeptRecords(client, `${OTHER}),approved_by.not.is.null`)).rejects.toThrow();
+      expect((client as { from: ReturnType<typeof vi.fn> }).from).not.toHaveBeenCalled();
+    });
+
+    it("hands back the database's error, but counts no team on a project without lead inspectors", async () => {
+      const timeout = { code: "57014", message: "statement timeout" };
+      expect(await findKeptRecords(admin({ audit_log: { error: timeout } }), OTHER)).toEqual({ kept: null, error: timeout });
+      const noTeams = { code: "42703", message: "column profiles.lead_id does not exist" };
+      expect(await findKeptRecords(admin({ profiles: { error: noTeams } }), OTHER)).toEqual({
+        kept: { inspections: 0, photos: 0, files: 0, aiDecisions: 0, history: 0, coverage: 0, team: [] },
+        error: null,
+      });
+    });
   });
 });
 

@@ -21,6 +21,8 @@ vi.mock("./actions", () => ({
   resendInvite: vi.fn(),
   createInviteLink: vi.fn(),
   cancelInvite: vi.fn(),
+  checkUserDeletion: vi.fn(),
+  deleteUserPermanently: vi.fn(),
 }));
 vi.mock("next/navigation", async (importOriginal) => ({
   ...(await importOriginal<typeof import("next/navigation")>()),
