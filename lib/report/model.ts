@@ -577,8 +577,20 @@ export type PhotoBlock = {
   photos: PhotoTile[];
 };
 
-/** A photo as its record prints it: the caption bold where it names a defect. */
-export type PhotoTile = { id: string; url: string; caption: string | null; strong: boolean; alt: string };
+/**
+ * A photo as its record prints it: the caption bold where the photo shows a
+ * defect, and the rings drawn on it with the image's natural pixels to place
+ * them (lib/report/markers.ts).
+ */
+export type PhotoTile = {
+  id: string;
+  url: string;
+  caption: string | null;
+  strong: boolean;
+  alt: string;
+  markers: import("./markers").PhotoMarker[];
+  size: import("./markers").PhotoSize | null;
+};
 
 /** One slot per section after the Summary, by the report options' section keys and "photos". */
 export type ReportSections = {

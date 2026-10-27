@@ -10,7 +10,7 @@ import { describe, expect, it } from "vitest";
 import { ReportDocument, ReportTable, TrackBar } from "@/components/report";
 import { makeSafedonExport, makeStdEgExport, withReportOptions } from "@/lib/report/__fixtures__/exports";
 import { buildReportModel } from "@/lib/report/model";
-import { fourSizeExport } from "@/lib/report/sections/__fixtures__/holes-visual";
+import { fourSizeExport, fourSizeProductDefectsExport, placeholderPhoto } from "@/lib/report/sections/__fixtures__/holes-visual";
 import type { InspectionExport } from "@/lib/schemas/export";
 
 /** The text of some markup, tags dropped and spaces collapsed. */
@@ -172,6 +172,38 @@ describe("four sizes, S to XL: the Minor class under the critical defects", () =
     const major = text(part(right, 'data-table="visual"'));
     expect(major).toMatch(/^Visual: Major & Minor Defects Visual: Major & Minor Defects Defect S M L XL Samples Inspected 200 315 200 125 /);
     expect(major).toMatch(/ Ring mark Defect Not in the List 0 1 0 0 Total Major 3 5 1 1 Accept \/ Reject 10 \/ 11 14 \/ 15 10 \/ 11 7 \/ 8$/);
+  });
+});
+
+describe("the defect photos: never a page of their own, captioned as the design captions them", () => {
+  it("leave INS-2026-2442's four Product Defects photos to the photo records: one page, no 'Section 06 · Continued' of photos", () => {
+    for (const described of [false, true]) {
+      const doc = fourSizeProductDefectsExport({ described });
+      const pages = sectionPages(doc);
+      expect(pages).toHaveLength(1);
+      expect(pages[0]).not.toContain("report-defect-photos");
+      expect(pages[0]).not.toContain("Product Defects");
+    }
+  });
+
+  it("print a photo Steri-AI describes under the critical defects, its caption plain as TG35 page 6 sets it, the ring drawn on it", () => {
+    const doc = makeStdEgExport();
+    doc.photos = [
+      placeholderPhoto(1, {
+        moduleKey: "media_defects",
+        markers: [{ x: 0.62, y: 0.4, r: 0.06 }],
+        description: { text: "Pinhole, palm area", kind: "defect", defect: "hole_palm", location: "hole_palm", clarity: 0.9 },
+      }),
+      placeholderPhoto(2, { moduleKey: "media_defects", description: { text: "Test rig", kind: "context", defect: null, location: null, clarity: 0.9 } }),
+    ];
+    const [page] = sectionPages(doc);
+    const left = part(part(page, 'data-slot="report-holes-visual-columns"'), 'data-column="1"');
+    const photos = part(left, 'data-slot="report-defect-photos"');
+    // Under the tables, so no heading of its own; the rig, the setting, never comes.
+    expect(text(photos)).toBe("Pinhole, palm area");
+    expect(photos).toMatch(/<p class="text-slate-600[^"]*">Pinhole, palm area<\/p>/);
+    expect(photos).not.toMatch(/font-semibold[^"]*">Pinhole, palm area/);
+    expect(photos).toMatch(/<svg aria-hidden="true" data-slot="report-photo-rings"[^>]*viewBox="0 0 133.33 100"[^>]*><circle cx="82.67" cy="40" r="6"/);
   });
 });
 

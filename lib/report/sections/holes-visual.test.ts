@@ -4,13 +4,17 @@
 // builds it, and from those exports changed the way an inspection can be: a
 // size over its limit, a critical defect, a hand split, a defect not in the
 // list, nothing entered yet, five sizes, the blocks switched off, lists long
-// enough to fill a column.
+// enough to fill a column. The defect photos: which (described by Steri-AI,
+// rings drawn, tagged or named; never the setting), in what order (the
+// clearest first, one per defect), captioned how, and where (only the room
+// the tables leave, never a page of their own: INS-2026-2442's four Product
+// Defects photos).
 import { describe, expect, it } from "vitest";
 import { buildReportModel, type ReportSectionPlanEntry } from "../model";
 import { makeSafedonExport, makeStdEgExport, withReportOptions } from "../__fixtures__/exports";
 import type { InspectionExport } from "@/lib/schemas/export";
-import { FOUR_SIZE_ONE_OFF, fourSizeExport } from "./__fixtures__/holes-visual";
-import { DEFECT_PHOTOS_MAX, lineCount, type DefectRow, type DefectTable, type HolesVisualContent, type HolesVisualSlot } from "./holes-visual";
+import { FOUR_SIZE_ONE_OFF, fourSizeExport, fourSizeProductDefectsExport, PHOTO_SIZE, placeholderPhoto } from "./__fixtures__/holes-visual";
+import { DEFECT_PHOTOS_MAX, defectPhotosOf, lineCount, type DefectRow, type DefectTable, type HolesVisualContent, type HolesVisualSlot } from "./holes-visual";
 
 function sectionOf(doc: InspectionExport): HolesVisualContent & { pageCount: number } {
   const content = buildReportModel(doc).sections.holesVisual;
@@ -378,16 +382,16 @@ describe("the options and the template", () => {
 
   it("plan with the paper and the footer note: a shorter page holds less", () => {
     // Three defects not in the list make STD_EG's visual table about 162 mm: an A4 page holds it whole, Letter with a footer
-    // note does not, so its Minor class moves under the critical defects, and the photos, after the tables, go on.
+    // note does not, so its Minor class moves under the critical defects, and the photos, with no room left, print in the
+    // photo records alone: never a page of their own.
     const doc = makeStdEgExport();
     const visual = moduleJson(doc, "visual");
     visual.computed.sizes.M.major.unmapped = ["Torn cuff edge", "Black speck", "Sticky fingertip"].map((label) => ({ label, count: 1, hand: null }));
     expect(sectionOf(doc).pageCount).toBe(1);
+    expect(sectionOf(doc).photos).toHaveLength(2);
     const letter = sectionOf(withReportOptions(doc, { pageSize: "letter", footerNote: "F".repeat(250) }));
-    expect(letter.pages.map((page) => page.columns.map(slotsOf))).toEqual([
-      [["pinholes", "critical", "visual (continued)"], ["visual"]],
-      [["photos 2"], []],
-    ]);
+    expect(letter.pages.map((page) => page.columns.map(slotsOf))).toEqual([[["pinholes", "critical", "visual (continued)"], ["visual"]]]);
+    expect(letter.photos).toEqual([]);
   });
 });
 
@@ -412,14 +416,13 @@ describe("the first page's columns, filled before the section goes on", () => {
     expect(minor.table.rows[0].continued).toBeUndefined();
   });
 
-  it("place the tables before the photos: a long major list on one size, the Minor class under the critical defects and the photos after", () => {
+  it("place the tables before the photos: a long major list on one size, the Minor class under the critical defects, no page for the photos", () => {
     const doc = makeStdEgExport();
     moduleJson(doc, "visual").computed.sizes.M.major.unmapped = fiveMajor;
-    expect(sectionOf(doc).pages.map((page) => page.columns.map(slotsOf))).toEqual([
-      [["pinholes", "critical", "visual (continued)"], ["visual"]],
-      [["photos 2"], []],
-    ]);
-    expect(sectionOf(doc).pages[1].columns[0][0]).toMatchObject({ kind: "photos", title: "Defect Photos" });
+    // The tables fill both columns: the photos (offered still) find no room, and print in the photo records alone.
+    expect(sectionOf(doc).pages.map((page) => page.columns.map(slotsOf))).toEqual([[["pinholes", "critical", "visual (continued)"], ["visual"]]]);
+    expect(defectPhotosOf(doc)).toHaveLength(2);
+    expect(sectionOf(doc).photos).toEqual([]);
     doc.photos = [];
     expect(sectionOf(doc).pages.map((page) => page.columns.map(slotsOf))).toEqual([[["pinholes", "critical", "visual (continued)"], ["visual"]]]);
   });
@@ -448,7 +451,7 @@ describe("the first page's columns, filled before the section goes on", () => {
 });
 
 describe("the defect photos", () => {
-  const photo = (id: number, moduleKey: string, target: string | null, extra: Partial<InspectionExport["photos"][number]> = {}) => ({
+  const photo = (id: number, moduleKey: string, target: string | null, extra: Partial<InspectionExport["photos"][number]> = {}): InspectionExport["photos"][number] => ({
     id: `00000000-0000-4000-8000-0000000009${String(id).padStart(2, "0")}`,
     url: `https://storage.example.com/defect-${id}.jpg`,
     moduleKey,
@@ -457,6 +460,9 @@ describe("the defect photos", () => {
     takenAt: `2025-02-19T0${id % 10}:00:00.000Z`,
     includeInReport: false,
     flagged: false,
+    description: null,
+    markers: [],
+    size: { ...PHOTO_SIZE },
     ...extra,
   });
 
@@ -472,19 +478,24 @@ describe("the defect photos", () => {
       photo(7, "visual", "defect:Torn cuff edge"),
       photo(8, "weight", "size:M"),
     ];
-    const section = sectionOf(doc);
-    expect(section.photos.map((entry) => entry.caption)).toEqual([
-      "Holes: Palm · Size M · Right Hand",
-      "Thin Spot · Size L",
-      "Ringed mark, thin area",
-      "Holes: Glove Burst",
+    const offered = defectPhotosOf(doc);
+    expect(offered.map((entry) => [entry.caption, entry.strong])).toEqual([
+      // Plain on Section 06's page, as TG35 page 6 sets them.
+      ["Holes: Palm · Size M · Right Hand", false],
+      ["Thin Spot · Size L", false],
+      ["Ringed mark, thin area", false],
+      ["Holes: Glove Burst", false],
     ]);
-    expect(section.photos).toHaveLength(DEFECT_PHOTOS_MAX);
+    expect(offered).toHaveLength(DEFECT_PHOTOS_MAX);
     // A watertight photo with no defect tagged, and a weight photo, are no defect photos.
-    expect(section.photos.map((entry) => entry.url)).not.toContain("https://storage.example.com/defect-2.jpg");
+    expect(offered.map((entry) => entry.url)).not.toContain("https://storage.example.com/defect-2.jpg");
+    // The page prints the first that fit under the critical defects: a row of two beside SAFEDON_EG's visual table.
+    const section = sectionOf(doc);
+    expect(section.photos).toEqual(offered.slice(0, 2));
+    expect(section.pages.map((page) => page.columns.map(slotsOf))).toEqual([[["pinholes", "critical", "photos 2"], ["visual"]]]);
   });
 
-  it("keep to the photos marked In Report once there are some, never a flagged original, and Product Defects' own name where nothing else says", () => {
+  it("keep to the photos marked In Report once there are some, never a flagged original, nor a Product Defects photo that says nothing", () => {
     const doc = makeSafedonExport();
     doc.photos = [
       photo(1, "visual", "defect:thin_spot", { includeInReport: true }),
@@ -492,7 +503,8 @@ describe("the defect photos", () => {
       photo(3, "media_defects", null, { includeInReport: true }),
       photo(4, "watertight", "defect:hole_finger", { includeInReport: true, flagged: true }),
     ];
-    expect(sectionOf(doc).photos.map((entry) => entry.caption)).toEqual(["Thin Spot", "Product Defects"]);
+    // The Product Defects photo names no defect: no caption saying "Product Defects" in Section 06, only the photo records.
+    expect(defectPhotosOf(doc).map((entry) => entry.caption)).toEqual(["Thin Spot"]);
   });
 
   it("name a Product Defects photo's tagged defect by the template's list", () => {
@@ -505,6 +517,190 @@ describe("the defect photos", () => {
     const section = sectionOf(makeSafedonExport());
     expect(section.photos).toEqual([]);
     expect(section.pages.flatMap((page) => page.columns.flat()).some((slot) => slot.kind === "photos")).toBe(false);
+  });
+});
+
+/* ------------------------------------------------------------------ *
+ * Which defect photos, in what order, captioned how (Kenneth, 27 October
+ * 2026: "loop in AI to identify properly rather than squeezing in all
+ * photos without analyzing")
+ * ------------------------------------------------------------------ */
+
+describe("the defect photos Steri-AI describes, rings drawn, and the inspector's words", () => {
+  type Photo = InspectionExport["photos"][number];
+  let next = 0;
+  const photo = (moduleKey: string, target: string | null, extra: Partial<Photo> = {}): Photo => {
+    next += 1;
+    return {
+      id: `00000000-0000-4000-8000-${String(950000 + next).padStart(12, "0")}`,
+      url: `https://storage.example.com/described-${next}.jpg`,
+      moduleKey,
+      target,
+      caption: null,
+      takenAt: `2025-04-11T04:${String(next % 60).padStart(2, "0")}:00.000Z`,
+      includeInReport: false,
+      flagged: false,
+      description: null,
+      markers: [],
+      size: { ...PHOTO_SIZE },
+      ...extra,
+    };
+  };
+  const defect = (text: string, code: string | null, location: string | null, clarity: number): Photo["description"] => ({ text, kind: "defect", defect: code, location, clarity });
+  const setting = (text: string): Photo["description"] => ({ text, kind: "context", defect: null, location: null, clarity: 0.95 });
+  const ring = { x: 0.5, y: 0.5, r: 0.05 };
+  const captions = (doc: InspectionExport) => defectPhotosOf(doc).map((entry) => entry.caption);
+  const withPhotos = (doc: InspectionExport, ...list: Photo[]) => Object.assign(doc, { photos: list });
+
+  it("offer those Steri-AI describes first, the clearest first, one per defect, never the setting", () => {
+    const tagged = photo("watertight", "size:M/defect:hole_palm");
+    const doc = withPhotos(
+      makeStdEgExport(),
+      tagged,
+      photo("media_defects", null, { description: defect("Pinhole, palm area", "hole_palm", "hole_palm", 0.62) }),
+      photo("media_defects", null, { description: defect("Pinhole at palm", "hole_palm", "hole_palm", 0.91) }),
+      photo("media_defects", null, { description: setting("Test rig") }),
+      photo("visual", "size:M/defect:thin_spot", { description: defect("Thin spot", "thin_spot", null, 0.8) }),
+    );
+    // The clearer of the two palm pinholes; the tagged palm pinhole is the same defect; the rig is the setting.
+    expect(captions(doc)).toEqual(["Pinhole at palm", "Thin spot"]);
+    expect(defectPhotosOf(doc).map((entry) => entry.id)).not.toContain(tagged.id);
+  });
+
+  it("let Steri-AI's setting overrule a defect tagged as the photo was taken, but never a ring the inspector drew", () => {
+    const doc = withPhotos(
+      makeStdEgExport(),
+      photo("watertight", "size:M/defect:hole_finger", { description: setting("Test rig") }),
+      photo("visual", "size:M/defect:thin_spot", { description: setting("Inspection bench"), markers: [ring] }),
+    );
+    expect(captions(doc)).toEqual(["Inspection bench"]);
+  });
+
+  it("offer undescribed photos that still name a defect after the described: rings drawn first, each in its own place, then the rest in turn", () => {
+    const tagged = photo("visual", "size:M/defect:thin_spot");
+    const firstRing = photo("media_defects", null, { markers: [ring] });
+    const secondRing = photo("media_defects", null, { markers: [ring, { x: 0.2, y: 0.3, r: 0.04 }] });
+    const described = photo("media_defects", null, { description: defect("Ringed mark, thin area", "thin_crotch_ring", null, 0.55) });
+    const silent = photo("media_defects", null);
+    const doc = withPhotos(makeStdEgExport(), tagged, firstRing, secondRing, described, silent);
+    expect(defectPhotosOf(doc).map((entry) => entry.id)).toEqual([described.id, firstRing.id, secondRing.id, tagged.id]);
+    // A ringed photo with nothing to say has no caption; the tagged one is named by the template's list, plain on this page.
+    expect(defectPhotosOf(doc).map((entry) => [entry.caption, entry.strong])).toEqual([
+      ["Ringed mark, thin area", false],
+      [null, false],
+      [null, false],
+      ["Thin Spot on Glove Body · Size M", false],
+    ]);
+    // The rings travel with the photo, its natural pixels to place them.
+    expect(defectPhotosOf(doc)[2]).toMatchObject({ markers: secondRing.markers, size: PHOTO_SIZE });
+  });
+
+  it("caption a photo by the inspector's own words first, then Steri-AI's, then its tags or its size; never by Media's category", () => {
+    const doc = withPhotos(
+      makeSafedonExport(),
+      photo("media_defects", null, { caption: "Hole near the thumb", description: defect("Pinhole, side finger", "hole_finger", "hole_finger", 0.9) }),
+      photo("media_defects", null, { description: defect("Pinhole, between fingers", "hole_crotch", "hole_crotch", 0.8) }),
+      photo("watertight", "size:S/hand:L/defect:hole_cuff"),
+      photo("media_defects", "size:XS", { markers: [ring] }),
+    );
+    expect(defectPhotosOf(doc).map((entry) => [entry.caption, entry.strong])).toEqual([
+      ["Hole near the thumb", false],
+      ["Pinhole, between fingers", false],
+      ["Size XS", false],
+      ["Holes: Cuff · Size S · Left Hand", false],
+    ]);
+    expect(JSON.stringify(sectionOf(doc))).not.toContain("Product Defects");
+  });
+
+  it("take a Media photo of another category only where Steri-AI places its defect in either check", () => {
+    const doc = withPhotos(
+      makeStdEgExport(),
+      photo("media_samples", null, { description: defect("Thin spot", "thin_spot", null, 0.7) }),
+      photo("media_samples", null, { description: defect("Torn carton corner", null, null, 0.9) }),
+      photo("media_warehouse", null, { markers: [ring] }),
+    );
+    expect(captions(doc)).toEqual(["Thin spot"]);
+  });
+});
+
+/* ------------------------------------------------------------------ *
+ * Where the photos go: only where the tables leave room
+ * ------------------------------------------------------------------ */
+
+describe("the defect photos' place on the section's own pages", () => {
+  /** No page the section prints holds photos alone while it has tables to print. */
+  const noPhotoPage = (section: HolesVisualContent) => section.pages.every((page) => page.columns.flat().some((slot) => slot.kind === "table"));
+
+  it("never make a page of their own: INS-2026-2442's four Product Defects photos, undescribed, print in the photo records alone", () => {
+    const doc = fourSizeProductDefectsExport();
+    const section = sectionOf(doc);
+    expect(section.pageCount).toBe(1);
+    expect(defectPhotosOf(doc)).toEqual([]);
+    expect(section.photos).toEqual([]);
+    expect(noPhotoPage(section)).toBe(true);
+  });
+
+  it("offer INS-2026-2442's photos once described: the two pinholes and the ringed mark, the clearest first, the test rig never; no room, so the records", () => {
+    const doc = fourSizeProductDefectsExport({ described: true });
+    expect(defectPhotosOf(doc).map((entry) => entry.caption)).toEqual(["Pinhole, between fingers", "Pinhole, palm area", "Ringed mark, thin area"]);
+    // The four sizes fill both columns: a row of two would need 43 mm under the major defects, which have 41 mm left.
+    const section = sectionOf(doc);
+    expect(section.pageCount).toBe(1);
+    expect(section.photos).toEqual([]);
+  });
+
+  it("keep the four sizes on one page with four defect photos added: they wait in the photo records", () => {
+    const doc = fourSizeExport();
+    doc.photos = [
+      placeholderPhoto(11, { moduleKey: "watertight", target: "size:M/defect:hole_palm" }),
+      placeholderPhoto(12, { moduleKey: "watertight", target: "size:S/defect:hole_finger" }),
+      placeholderPhoto(13, { moduleKey: "visual", target: "size:M/defect:thin_spot" }),
+      placeholderPhoto(14, { moduleKey: "visual", target: "size:XL/defect:stain" }),
+    ];
+    const section = sectionOf(doc);
+    expect(defectPhotosOf(doc)).toHaveLength(4);
+    expect(section.pageCount).toBe(1);
+    expect(section.photos).toEqual([]);
+    expect(section.pages[0].columns.map(slotsOf)).toEqual([["pinholes", "critical", "visual (continued)"], ["visual"]]);
+  });
+
+  it("sit under the tables on a continued page that exists anyway, in the column the tables leave empty, headed", () => {
+    const doc = withReportOptions(makeSafedonExport(), { pageSize: "letter" });
+    doc.photos = makeStdEgExport().photos;
+    const section = sectionOf(doc);
+    expect(section.pages.map((page) => page.columns.map(slotsOf))).toEqual([
+      [["pinholes", "critical"], ["visual"]],
+      [["visual (continued)"], ["photos 2"]],
+    ]);
+    expect(section.pages[1].columns[1][0]).toMatchObject({ kind: "photos", title: "Defect Photos" });
+  });
+
+  it("sit four across under the tables on a stacked page, the last table's", () => {
+    const doc = makeSafedonExport();
+    doc.photos = makeStdEgExport().photos;
+    moduleJson(doc, "order_lots").data.sizes.XL = { qtyCases: 120, lotNumbers: [], packingSite: null };
+    for (const key of ["watertight", "visual"]) {
+      const json = moduleJson(doc, key);
+      json.computed.sizes.XL = structuredClone(json.computed.sizes.L);
+    }
+    const section = sectionOf(doc);
+    expect(section.pages.map((page) => page.columns.map(slotsOf))).toEqual([[["pinholes", "critical"]], [["visual", "photos 2"]]]);
+    expect(section.pages[1].columns[0][1]).toMatchObject({ kind: "photos", columns: 4, title: null });
+  });
+
+  it("never come before a table that goes on: a column whose table continues on the next page takes none", () => {
+    // Long critical defects move to page 2 whole: page 1's left column, room under the holes and all, takes no photo; on
+    // page 2 both columns have room for the row, and the one with more left takes it.
+    const doc = makeStdEgExport();
+    const visual = moduleJson(doc, "visual");
+    visual.computed.sizes.M.major.unmapped = ["Torn cuff edge", "Black speck", "Sticky fingertip", "Uneven rim", "Faint streak"].map((label) => ({ label, count: 1, hand: null }));
+    visual.computed.sizes.M.critical.unmapped = Array.from({ length: 14 }, (_, index) => ({ label: `Foreign body ${index + 1}`, count: 1, hand: null }));
+    const section = sectionOf(doc);
+    expect(section.pages.map((page) => page.columns.map(slotsOf))).toEqual([
+      [["pinholes"], ["visual"]],
+      [["critical"], ["visual (continued)", "photos 2"]],
+    ]);
+    expect(noPhotoPage(section)).toBe(true);
   });
 });
 

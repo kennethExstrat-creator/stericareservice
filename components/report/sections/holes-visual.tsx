@@ -179,12 +179,13 @@ function PageColumns({ page, sizes }: { page: HolesVisualPage; sizes: Sizes }) {
   );
 }
 
+/** The defect photos where the tables left room: headed where they open a column, each caption bold where it names the defect, the rings drawn on them. */
 function Slot({ slot, sizes }: { slot: HolesVisualSlot; sizes: Sizes }) {
   if (slot.kind === "photos") {
     return (
       <section data-slot="report-defect-photos" aria-label={slot.title ?? "Defect photos"} className="flex flex-col gap-[1mm]">
         {slot.title && <BlockHeading title={slot.title} />}
-        <PhotoGrid columns={slot.columns} photos={slot.photos.map(({ id, url, caption }) => ({ id, url, caption }))} />
+        <PhotoGrid columns={slot.columns} photos={slot.photos} />
       </section>
     );
   }

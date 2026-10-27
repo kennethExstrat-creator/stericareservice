@@ -13,7 +13,7 @@ import { assembleExport } from "@/lib/export/assemble";
 import { evaluateRecord } from "@/lib/export/evaluate";
 import { stdEgInspectionData, stdEgRecord } from "@/lib/export/__fixtures__/std-eg";
 import type { ResolvedTemplate } from "@/lib/schemas/template";
-import { ExportSchema, type InspectionExport } from "@/lib/schemas/export";
+import { ExportSchema, type ExportPhoto, type InspectionExport } from "@/lib/schemas/export";
 
 const SIZES = ["S", "M", "L", "XL"] as const;
 type Size = (typeof SIZES)[number];
@@ -133,4 +133,58 @@ function withoutRingMark(template: ResolvedTemplate): ResolvedTemplate {
   if (!major?.defects?.some((defect) => defect.code === RING_MARK)) throw new Error("STD_EG's majors no longer end with Ring Mark.");
   major.defects = major.defects.filter((defect) => defect.code !== RING_MARK);
   return resolved;
+}
+
+/* ------------------------------------------------------------------ *
+ * Product Defects photos (INS-2026-2442's shape, placeholder data)
+ *
+ * Four photos in Source Documents' Media under Product Defects, untagged
+ * and uncaptioned, as the inspection had them; then as Steri-AI describes
+ * them: two pinholes (palm, between fingers), a ringed mark and the test
+ * rig. Every photo carries its natural pixels, as real exports do.
+ * ------------------------------------------------------------------ */
+
+/** A phone photo's natural pixels, landscape. */
+export const PHOTO_SIZE = { width: 4032, height: 3024 } as const;
+
+type Description = NonNullable<ExportPhoto["description"]>;
+
+/** What Steri-AI says each of the four shows, in the order taken; STD_EG version 6 lists the ringed mark as Ring-Shaped Thin Area (Crotch). */
+export const PRODUCT_DEFECT_DESCRIPTIONS: readonly Description[] = [
+  { text: "Pinhole, palm area", kind: "defect", defect: "hole_palm", location: "hole_palm", clarity: 0.86 },
+  { text: "Test rig", kind: "context", defect: null, location: null, clarity: 0.9 },
+  { text: "Ringed mark, thin area", kind: "defect", defect: "thin_crotch_ring", location: null, clarity: 0.74 },
+  { text: "Pinhole, between fingers", kind: "defect", defect: "hole_crotch", location: "hole_crotch", clarity: 0.92 },
+];
+
+/** A placeholder photo in the export's shape: untagged, uncaptioned, not marked In Report, its natural pixels known. */
+export function placeholderPhoto(id: number, patch: Partial<ExportPhoto> = {}): ExportPhoto {
+  return {
+    id: `00000000-0000-4000-8000-${String(700000 + id).padStart(12, "0")}`,
+    url: `https://storage.example.com/inspection-photos/placeholder-${id}.jpg?token=placeholder`,
+    moduleKey: null,
+    target: null,
+    caption: null,
+    takenAt: `2025-04-11T03:${String(id).padStart(2, "0")}:00.000Z`,
+    includeInReport: false,
+    flagged: false,
+    description: null,
+    markers: [],
+    size: { ...PHOTO_SIZE },
+    ...patch,
+  };
+}
+
+/** The four Product Defects photos; `described`, with Steri-AI's descriptions. */
+export function productDefectPhotos({ described = false }: { described?: boolean } = {}): ExportPhoto[] {
+  return PRODUCT_DEFECT_DESCRIPTIONS.map((description, index) =>
+    placeholderPhoto(index + 1, { moduleKey: "media_defects", description: described ? { ...description } : null }),
+  );
+}
+
+/** The four-size inspection with only the four Product Defects photos (INS-2026-2442's case). */
+export function fourSizeProductDefectsExport({ described = false }: { described?: boolean } = {}): InspectionExport {
+  const doc = fourSizeExport();
+  doc.photos = productDefectPhotos({ described });
+  return doc;
 }

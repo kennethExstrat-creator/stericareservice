@@ -209,6 +209,9 @@ describe("buildInspectionExport", () => {
       takenAt: "2026-10-05T04:10:00+00:00",
       includeInReport: true,
       flagged: false,
+      description: null,
+      markers: [],
+      size: null,
     });
     // Blank tags and captions read as none; a HEIC original keeps its flag.
     expect(photos[2]).toMatchObject({ moduleKey: null, caption: null });

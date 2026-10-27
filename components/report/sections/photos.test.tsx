@@ -34,6 +34,9 @@ function photo(moduleKey: string, target: string | null = null, caption: string 
     takenAt: null,
     includeInReport: false,
     flagged: false,
+    description: null,
+    markers: [],
+    size: { width: 4032, height: 3024 },
   };
 }
 
@@ -76,6 +79,61 @@ describe("the photo records' pages", () => {
     // The rig as captioned, plain; the pinhole by its place, in bold.
     expect(watertight).toMatch(/<p class="text-slate-600[^"]*">Test rig<\/p>/);
     expect(watertight).toMatch(/<p class="text-slate-900 font-semibold[^"]*">Pin Hole, Palm<\/p>/);
+  });
+});
+
+describe("the rings drawn on a photo", () => {
+  const ring = (markup: string) => [...markup.matchAll(/<circle cx="([\d.-]+)" cy="([\d.-]+)" r="([\d.-]+)"([^>]*)>/g)].map((match) => [Number(match[1]), Number(match[2]), Number(match[3]), match[4]]);
+  const grid = (props: Parameters<typeof PhotoGrid>[0]) => renderToStaticMarkup(<PhotoGrid {...props} />);
+
+  it("sit over a wide photo's square tile where the crop puts them, in the fail red, half a millimetre wide, clipped to the tile", () => {
+    const html = grid({ aspect: "1/1", photos: [{ id: "1", url: "https://storage.example.com/1.jpg", markers: [{ x: 0.25, y: 0.4, r: 0.05 }], size: { width: 4000, height: 3000 } }] });
+    // The SVG lies over the image in the tile's own box (100 tall), which clips it: the tile keeps its height.
+    expect(html).toMatch(
+      /<div class="relative overflow-hidden rounded-\[2mm\] bg-slate-100 aspect-square"><img [^>]+><svg aria-hidden="true" data-slot="report-photo-rings" class="pointer-events-none absolute inset-0 size-full text-fail" viewBox="0 0 100 100" preserveAspectRatio="none">/,
+    );
+    expect(ring(html)).toEqual([[16.67, 40, 5, ' fill="none" stroke="currentColor" stroke-width="0.5mm" vector-effect="non-scaling-stroke"']]);
+  });
+
+  it("sit over a tall photo's 3/2 tile as its crop moves them, and leave out a ring cropped away whole", () => {
+    const html = grid({
+      aspect: "3/2",
+      photos: [
+        {
+          id: "1",
+          url: "https://storage.example.com/1.jpg",
+          markers: [
+            { x: 0.5, y: 0.5, r: 0.1 },
+            { x: 0.5, y: 0.1, r: 0.05 },
+          ],
+          size: { width: 3000, height: 4000 },
+        },
+      ],
+    });
+    expect(html).toContain('viewBox="0 0 150 100"');
+    expect(ring(html).map((entry) => entry.slice(0, 3))).toEqual([[75, 50, 15]]);
+  });
+
+  it("are drawn in the image's own pixels on the large photo, whose box takes its rows' height, cropped as the image is", () => {
+    const tile = (id: string) => ({ id, url: `https://storage.example.com/${id}.jpg` });
+    const html = grid({ lead: true, aspect: "3/2", photos: [{ ...tile("lead"), markers: [{ x: 0.5, y: 0.25, r: 0.1 }], size: { width: 4000, height: 3000 } }, tile("2"), tile("3")] });
+    expect(html).toContain('viewBox="0 0 4000 3000" preserveAspectRatio="xMidYMid slice"');
+    expect(ring(html).map((entry) => entry.slice(0, 3))).toEqual([[2000, 750, 300]]);
+  });
+
+  it("are not drawn without the image's size, nor without rings", () => {
+    const photo = { id: "1", url: "https://storage.example.com/1.jpg" };
+    expect(grid({ photos: [{ ...photo, markers: [{ x: 0.5, y: 0.5, r: 0.1 }], size: null }] })).not.toContain("<svg");
+    expect(grid({ photos: [{ ...photo, markers: [], size: { width: 4000, height: 3000 } }] })).not.toContain("<svg");
+  });
+
+  it("print on a photo record's tile, the group's note saying so", () => {
+    const doc = makeStdEgExport();
+    doc.photos = [{ ...photo("visual", "size:M/defect:thin_spot", "Thin spot"), markers: [{ x: 0.5, y: 0.5, r: 0.05 }] }];
+    const [visual] = recordPages(doc);
+    expect(text(visual)).toContain("Glove Visual Inspection Defects circled in red Thin spot");
+    expect(visual).toMatch(/data-slot="report-photo-rings"[^>]*viewBox="0 0 100 100"/);
+    expect(visual).toContain('<span class="whitespace-nowrap">Defects circled in red</span>');
   });
 });
 

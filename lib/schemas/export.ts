@@ -149,6 +149,15 @@ export const ExportPhotoSchema = z.object({
   includeInReport: z.boolean(),
   /** The browser could not convert the file (for example some HEIC), so it is the original upload. */
   flagged: z.boolean(),
+  description: z.object({
+    text: z.string().min(1).max(80),     // caption in the report's style, sentence case, no full stop: "Pinhole, palm area", "Ringed mark, thin area", "Test rig"
+    kind: z.enum(["defect", "context"]),  // a defect close-up, or the setting (rig, tester, cartons, labels)
+    defect: z.string().nullable(),        // the template's defect code (watertight hole code or a visual class's defect code); null when not a defect or unsure
+    location: z.string().nullable(),      // the template's hole location code (watertight config locations), else null
+    clarity: z.number().min(0).max(1),    // how clearly it shows; the report picks the clearest
+  }).nullable().default(null),
+  markers: z.array(z.object({ x: z.number().min(0).max(1), y: z.number().min(0).max(1), r: z.number().min(0).max(1) })).max(20).default([]),
+  size: z.object({ width: z.number().int().positive(), height: z.number().int().positive() }).nullable().default(null),
 });
 export type ExportPhoto = z.infer<typeof ExportPhotoSchema>;
 

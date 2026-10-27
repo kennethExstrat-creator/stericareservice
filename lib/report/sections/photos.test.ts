@@ -5,11 +5,13 @@
 // notes, Photos per Group, the numbering and the pages.
 import { describe, expect, it } from "vitest";
 import { counted } from "@/lib/report/format";
+import { textWidth } from "@/lib/report/measure";
 import { at, num } from "@/lib/report/read";
 import type { ExportPhoto, InspectionExport } from "@/lib/schemas/export";
 import { REPORT_PHOTO_GROUPS, type ReportPhotoGroupKey } from "@/lib/schemas/report-options";
 import { makeSafedonExport, makeStdEgExport, withReportOptions } from "../__fixtures__/exports";
 import { buildReportModel, type PhotoBlock } from "../model";
+import { fourSizeProductDefectsExport } from "./__fixtures__/holes-visual";
 import {
   buildPhotos,
   MEDIA_PHOTO_BLOCK,
@@ -37,6 +39,9 @@ function photo(moduleKey: string | null, target: string | null = null, caption: 
     takenAt: null,
     includeInReport: false,
     flagged: false,
+    description: null,
+    markers: [],
+    size: { width: 4032, height: 3024 },
     ...extra,
   };
 }
@@ -242,7 +247,7 @@ describe("the pages", () => {
       columns: 4,
       aspect: "3/2",
       lead: true,
-      photos: Array.from({ length: 6 }, (_, index) => ({ id: String(index), url: "https://storage.example.com/p.jpg", caption: null, strong: false, alt: "Photo" })),
+      photos: Array.from({ length: 6 }, (_, index) => ({ id: String(index), url: "https://storage.example.com/p.jpg", caption: null, strong: false, alt: "Photo", markers: [], size: null })),
     };
     const tile = (184 - 3 * PHOTO_ROOM.columnGap) / 4 / 1.5;
     // The large photo and four beside it fill two rows; the sixth starts a third.
@@ -295,5 +300,155 @@ describe("an inspection whose photos are all in Source Documents' Media", () => 
     const entry = buildReportModel(doc).plan.find((candidate) => candidate.kind === "photos");
     expect(entry).toMatchObject({ key: "photos", built: true });
     expect(entry?.pageCount).toBeGreaterThanOrEqual(1);
+  });
+});
+
+/* ------------------------------------------------------------------ *
+ * Steri-AI's descriptions, the rings drawn, and the design's captions
+ * ------------------------------------------------------------------ */
+
+type Description = NonNullable<ExportPhoto["description"]>;
+const described = (text: string, defect: string | null, location: string | null = null, clarity = 0.8): { description: Description } => ({
+  description: { text, kind: "defect", defect, location, clarity },
+});
+const setting = (text: string): { description: Description } => ({ description: { text, kind: "context", defect: null, location: null, clarity: 0.9 } });
+const tilesOf = (doc: InspectionExport) => photoRecordsOf(doc).flatMap((record) => record.blocks.flatMap((block) => block.photos));
+const captionsIn = (doc: InspectionExport, key: string) => blockIn(doc, key).photos.map((tile) => [tile.caption, tile.strong]);
+
+describe("a Media photo Steri-AI describes", () => {
+  it("goes with the watertight photos for a hole, the visual inspection's for a visual defect; the setting stays in its category's group", () => {
+    const pinhole = photo("media_defects", null, null, described("Pinhole, palm area", "hole_palm", "hole_palm"));
+    const holeByPlace = photo("media_proof", null, null, described("Pinhole, side finger", null, "hole_finger"));
+    const thinSpot = photo("media_samples", null, null, described("Thin spot", "thin_spot"));
+    const rig = photo("media_defects", null, null, setting("Test rig"));
+    const carton = photo("media_defects", null, null, described("Torn carton corner", null));
+    const undescribed = photo("media_defects");
+    const doc = withPhotos([pinhole, holeByPlace, thinSpot, rig, carton, undescribed]);
+    expect(layoutOf(doc)).toEqual({
+      packingVisualAgeing: { visual: [thinSpot.id, rig.id, carton.id, undescribed.id] },
+      watertightLaboratory: { watertight: [pinhole.id, holeByPlace.id] },
+    });
+  });
+
+  it("stays in its category's group while the record its defect belongs to is switched off", () => {
+    const pinhole = photo("media_defects", null, null, described("Pinhole, palm area", "hole_palm", "hole_palm"));
+    expect(layoutOf(withPhotos([pinhole], 12, { watertightLaboratory: false }))).toEqual({ packingVisualAgeing: { visual: [pinhole.id] } });
+  });
+
+  it("keeps a module's photo with its module whatever Steri-AI says", () => {
+    const shot = photo("visual", "size:M", null, described("Pinhole, palm", "hole_palm", "hole_palm"));
+    expect(layoutOf(withPhotos([shot]))).toEqual({ packingVisualAgeing: { visual: [shot.id] } });
+  });
+});
+
+describe("the captions, the design's way (TG35 pages 10 and 11)", () => {
+  it("are the inspector's words first, then Steri-AI's, then the defect tagged; a defect in bold, the setting plain", () => {
+    const own = photo("watertight", "size:M/defect:hole_palm", "Hole near the thumb", described("Pinhole, side finger", "hole_finger", "hole_finger"));
+    const ai = photo("watertight", "size:M/defect:hole_palm", null, described("Pinhole, palm area", "hole_palm", "hole_palm"));
+    const rig = photo("watertight", "size:M/defect:hole_palm", null, setting("Test rig"));
+    const tagged = photo("watertight", "size:M/defect:hole_crotch");
+    const doc = withPhotos([own, ai, rig, tagged]);
+    expect(captionsIn(doc, "watertight")).toEqual([
+      ["Hole near the thumb", true],
+      ["Pinhole, palm area", true],
+      // Tagged with the hole in focus as it was taken, the rig is the setting by Steri-AI's word: plain.
+      ["Test rig", false],
+      ["Pin Hole, Between Fingers (Crotch)", true],
+    ]);
+  });
+
+  it("are never Media's category on every tile: INS-2026-2442's four Product Defects photos, undescribed, print uncaptioned", () => {
+    const doc = fourSizeProductDefectsExport();
+    const section = buildPhotos(doc);
+    expect(section?.pages.map((page) => [page.title, page.blocks.map((block) => [block.title, block.note, block.photos.map((tile) => tile.caption)])])).toEqual([
+      ["Packing, Visual & Ageing", [["Glove Visual Inspection", null, [null, null, null, null]]]],
+    ]);
+    expect(JSON.stringify(section)).not.toContain("Product Defects");
+  });
+
+  it("place and caption INS-2026-2442's photos once described: the pinholes with the watertight photos, the ringed mark in bold, the rig plain", () => {
+    const doc = fourSizeProductDefectsExport({ described: true });
+    expect(buildPhotos(doc)?.pages.map((page) => [page.title, page.blocks.map((block) => [block.title, block.photos.map((tile) => [tile.caption, tile.strong])])])).toEqual([
+      ["Packing, Visual & Ageing", [["Glove Visual Inspection", [["Test rig", false], ["Ringed mark, thin area", true]]]]],
+      ["Watertight & Laboratory Testing", [["Watertight Testing for Pinholes", [["Pinhole, palm area", true], ["Pinhole, between fingers", true]]]]],
+    ]);
+  });
+
+  it("make bold an inspector's caption that names a defect, anywhere; keep a caption naming the setting plain", () => {
+    const named = photo("dispensing_packing", "size:M/box:13", "Torn glove in box 13");
+    const plain = photo("dispensing_packing", "size:M/box:14", "Box 14 opened");
+    const bench = photo("visual", "size:M", "Inspection bench");
+    const doc = withPhotos([named, plain, bench]);
+    expect(captionsIn(doc, "layering")).toEqual([
+      ["Torn glove in box 13", true],
+      ["Box 14 opened", false],
+    ]);
+    expect(captionsIn(doc, "visual")).toEqual([["Inspection bench", false]]);
+  });
+
+  it("carry the rings drawn and the image's natural pixels to the tile", () => {
+    const ringed = photo("media_defects", null, null, { markers: [{ x: 0.4, y: 0.6, r: 0.05 }], size: { width: 3024, height: 4032 } });
+    expect(tilesOf(withPhotos([ringed]))[0]).toMatchObject({ markers: [{ x: 0.4, y: 0.6, r: 0.05 }], size: { width: 3024, height: 4032 } });
+  });
+});
+
+describe("Photos per Group and the defect photos", () => {
+  it("keeps a group's defect photos first, so one Section 06 had no room for still prints; the group keeps its own order", () => {
+    const rigs = Array.from({ length: 4 }, () => photo("watertight", "size:M", null, setting("Test rig")));
+    const pinhole = photo("media_defects", null, null, described("Pinhole, palm area", "hole_palm", "hole_palm"));
+    const tensile = photo("force_at_break", "size:M");
+    const kept = layoutOf(withPhotos([...rigs, pinhole, tensile], 4)).watertightLaboratory;
+    expect(kept).toEqual({ watertight: [rigs[0].id, rigs[1].id, pinhole.id], forceAtBreak: [tensile.id] });
+  });
+});
+
+describe("the notes beside each group's heading, one line each", () => {
+  /** The room a note has beside its title (BlockHeading: the title at 12 pt, 6 mm, the note at 8.5 pt). */
+  const fits = (block: PhotoBlock, width = 184) => textWidth(block.title, 12, "bold") + PHOTO_ROOM.noteGap + textWidth(block.note ?? "", 8.5) <= width;
+
+  it("shorten a long place and day rather than wrap: the place and day, else the maker and day, else the place", () => {
+    const doc = withPhotos([photo("media_warehouse")]);
+    const header = doc.modules.find((module) => module.key === "header");
+    if (!header) throw new Error("No header.");
+    header.computed.manufacturer = "Manufacturer A Glove Products International Holdings · Factory A1 Extension Block";
+    const block = blockIn(doc, "finishedGoods");
+    expect(block.note).toBe("11 April 2025");
+    expect(fits(block)).toBe(true);
+    header.computed.manufacturer = "Manufacturer A · Factory A1";
+    expect(blockIn(doc, "finishedGoods").note).toBe("Manufacturer A · Factory A1 warehouse, 11 April 2025");
+  });
+
+  it("name the labels' checks, or the first of them and how many more, never on two lines", () => {
+    const doc = withPhotos([photo("labeling", "size:M/level:carton")]);
+    expect(blockIn(doc, "cartonLabels").note).toBe("Lot number, manufacturing date, artwork and box/carton number");
+    const labeling = doc.modules.find((module) => module.key === "labeling");
+    const checks = at(labeling?.config, "levels", "carton", "checks") as { code: string; label: string }[];
+    checks.push(...["Shipping Mark and Consignee Address", "Country of Origin", "Net and Gross Weight", "Handling Symbols"].map((label, index) => ({ code: `extra_${index}`, label })));
+    const block = blockIn(doc, "cartonLabels");
+    expect(block.note).toBe("Lot number, manufacturing date, artwork, box/carton number and 4 more");
+    expect(fits(block)).toBe(true);
+  });
+
+  it("drop the aged sizes' list before the note would wrap", () => {
+    const doc = withPhotos([photo("dispensing_packing", null, "Aged sample")]);
+    const packing = doc.modules.find((module) => module.key === "dispensing_packing");
+    const sizes = at(packing?.computed, "sizes") as Record<string, Record<string, unknown>>;
+    sizes.M.agedSample = { layeringResult: "pass", dispensingResult: "pass", stickinessResult: "pass", result: "pass" };
+    expect(blockIn(doc, "aged").note).toBe("Aged at 70 °C for 7 days, one box, size M");
+    // A size the template shows in long words: the size gives way, the ageing stays.
+    doc.template.sizes = doc.template.sizes?.map((size) => ({ ...size, label: `${size.value}, Medium Long Cuff Extended Grip Textured Fingertips` }));
+    const block = blockIn(doc, "aged");
+    expect(block.note).toBe("Aged at 70 °C for 7 days");
+    expect(fits(block)).toBe(true);
+  });
+
+  it("say defects are circled where a photo has rings the tile can place, beside the pinholes' count where both fit", () => {
+    const ringed = { markers: [{ x: 0.5, y: 0.5, r: 0.05 }] };
+    const doc = withPhotos([photo("visual", "size:M/defect:thin_spot", null, ringed), photo("watertight", "size:M/defect:hole_finger", null, ringed)]);
+    expect(blockIn(doc, "visual").note).toBe("Defects circled in red");
+    expect(blockIn(doc, "watertight").note).toBe("1 pinhole in 500 gloves; leaks circled in red");
+    // Rings with no image size are drawn nowhere, and said nowhere.
+    const unplaced = withPhotos([photo("visual", "size:M/defect:thin_spot", null, { ...ringed, size: null })]);
+    expect(blockIn(unplaced, "visual").note).toBeNull();
   });
 });
