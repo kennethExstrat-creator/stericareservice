@@ -8,7 +8,7 @@ import { expect, open, shot, test } from "./support";
 
 test.skip(!process.env.SIGNIN_UNCONFIGURED, "needs a dev server without Supabase (see the comment above)");
 
-for (const path of ["/login", "/forgot-password", "/reset-password"]) {
+for (const path of ["/login", "/forgot-password", "/reset-password", "/create-account"]) {
   test(`${path} explains what to set up`, async ({ page }, testInfo) => {
     await open(page, path);
     await expect(page.getByRole("heading", { level: 1, name: "Connect Supabase" })).toBeVisible();

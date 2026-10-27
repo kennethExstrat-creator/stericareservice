@@ -1,9 +1,11 @@
 import { z } from "zod";
+import { fullNameSchema, phoneSchema } from "./fields";
 
 /**
- * The sign-in screens' contract (BUILD_SPEC 3, 10): zod schemas for the three
- * forms, the state their Server Actions return, and every message they show.
- * Client-safe: the forms import the same rules the actions enforce.
+ * The sign-in screens' contract (BUILD_SPEC 3, 10): zod schemas for their
+ * forms (sign in, forgot password, reset password, create account), the state
+ * their Server Actions return, and every message they show. Client-safe: the
+ * forms import the same rules the actions enforce.
  */
 
 // ---- Password policy -------------------------------------------------------
@@ -65,6 +67,15 @@ export const MESSAGES = {
   weakPassword: "Choose a stronger password: make it longer and mix letters, digits and symbols.",
   updateRateLimited: "Too many attempts. Wait a few minutes, then try again.",
   updateFailed: "Your password was not saved. Try again.",
+
+  nameRequired: "Enter your full name.",
+  phoneRequired: "Enter your phone number.",
+  phoneRefused: "That phone number was not accepted. Check it, then try again.",
+  invitationExpired:
+    "Invitation links work once and expire after a short time. Ask your SteriCare administrator to send you a new invitation.",
+  invitationLinkRequired:
+    "Accounts are created within an hour of opening the invitation link. Ask your SteriCare administrator to send your invitation again.",
+  createFailed: "Your account was not created. Try again.",
 } as const;
 
 // ---- Schemas ---------------------------------------------------------------
@@ -107,15 +118,31 @@ export const ForgotPasswordSchema = z.object({
   email: EmailSchema,
 });
 
+/** The new password typed a second time; the forms below check it against the first. */
+const ConfirmPasswordSchema = z.string({ error: MESSAGES.confirmRequired }).min(1, { error: MESSAGES.confirmRequired });
+
+/** Both fields hold the same password; a mismatch shows on the second. */
+const passwordsMatch = (value: { password: string; confirm: string }) => value.password === value.confirm;
+const MISMATCH = { path: ["confirm"], error: MESSAGES.confirmMismatch };
+
 export const ResetPasswordSchema = z
+  .object({ password: NewPasswordSchema, confirm: ConfirmPasswordSchema })
+  .refine(passwordsMatch, MISMATCH);
+
+/**
+ * Account Creation (/create-account): the invitee's name and phone, held to
+ * the rules of the admin's dialogs (./fields.ts), and their first password,
+ * held to the reset form's. No email: the invitation's address is the
+ * account's, and the session says whose account it is.
+ */
+export const CreateAccountSchema = z
   .object({
+    fullName: fullNameSchema(MESSAGES.nameRequired),
+    phone: phoneSchema(MESSAGES.phoneRequired),
     password: NewPasswordSchema,
-    confirm: z.string({ error: MESSAGES.confirmRequired }).min(1, { error: MESSAGES.confirmRequired }),
+    confirm: ConfirmPasswordSchema,
   })
-  .refine((value) => value.password === value.confirm, {
-    path: ["confirm"],
-    error: MESSAGES.confirmMismatch,
-  });
+  .refine(passwordsMatch, MISMATCH);
 
 /** The first message for each field, keyed by field name. */
 export function fieldErrors<Field extends string>(error: z.ZodError): Partial<Record<Field, string>> {
@@ -156,9 +183,23 @@ export type ResetPasswordState = FormState<ResetPasswordField> & {
   expired?: boolean;
 };
 
+export type CreateAccountField = "fullName" | "phone" | "password" | "confirm";
+export type CreateAccountState = FormState<CreateAccountField> & {
+  status: "idle" | "error";
+  /**
+   * The name and phone as typed, so they survive a failed attempt (React
+   * resets the form after every submit). Never the passwords.
+   */
+  fullName?: string;
+  phone?: string;
+  /** The session behind the invitation link is gone: the person needs a new invitation. */
+  expired?: boolean;
+};
+
 export const INITIAL_SIGN_IN_STATE: SignInState = { status: "idle", attempt: 0 };
 export const INITIAL_FORGOT_PASSWORD_STATE: ForgotPasswordState = { status: "idle", attempt: 0 };
 export const INITIAL_RESET_PASSWORD_STATE: ResetPasswordState = { status: "idle", attempt: 0 };
+export const INITIAL_CREATE_ACCOUNT_STATE: CreateAccountState = { status: "idle", attempt: 0 };
 
 // ---- Banners on /login (?error=<code>) -------------------------------------
 
@@ -203,13 +244,4 @@ const LoginNoticeCodeSchema = z.enum(Object.keys(LOGIN_NOTICES) as [LoginNoticeC
 export function loginNotice(raw: string | string[] | undefined): LoginNotice | null {
   const code = LoginNoticeCodeSchema.safeParse(Array.isArray(raw) ? raw[0] : raw);
   return code.success ? LOGIN_NOTICES[code.data] : null;
-}
-
-// ---- /reset-password?flow= -------------------------------------------------
-
-/** /auth/confirm sends invites and resets to the same screen; flow picks its words. */
-export type PasswordFlow = "invite" | "recovery";
-
-export function passwordFlow(raw: string | string[] | undefined): PasswordFlow {
-  return (Array.isArray(raw) ? raw[0] : raw) === "invite" ? "invite" : "recovery";
 }

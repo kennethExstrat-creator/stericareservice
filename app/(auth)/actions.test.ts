@@ -1,6 +1,7 @@
 import { AuthApiError, AuthRetryableFetchError, AuthSessionMissingError, AuthWeakPasswordError } from "@supabase/supabase-js";
 import { afterEach, beforeEach, describe, expect, it, vi, type MockInstance } from "vitest";
 import {
+  INITIAL_CREATE_ACCOUNT_STATE,
   INITIAL_FORGOT_PASSWORD_STATE,
   INITIAL_RESET_PASSWORD_STATE,
   INITIAL_SIGN_IN_STATE,
@@ -31,7 +32,8 @@ const { Redirect, mocks } = vi.hoisted(() => {
 });
 
 vi.mock("@/lib/supabase/server", () => ({ createClient: mocks.createClient, createAuthClient: mocks.createAuthClient }));
-vi.mock("@/lib/auth/session", () => ({
+vi.mock("@/lib/auth/session", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/auth/session")>()),
   authorizeAction: mocks.authorizeAction,
   getSession: mocks.getSession,
 }));
@@ -46,7 +48,7 @@ vi.mock("next/navigation", () => ({
   },
 }));
 
-const { requestPasswordReset, signIn, updatePassword } = await import("./actions");
+const { createAccount, requestPasswordReset, signIn, updatePassword } = await import("./actions");
 
 const PASSWORD = "Glove-check-2026";
 const INSPECTOR = { id: "user-1", email: "inspector@test.local", fullName: "Test Inspector", role: "inspector" as const };
@@ -56,7 +58,11 @@ function claims(method = "otp", ageSeconds = 10) {
   return { data: { claims: { sub: INSPECTOR.id, amr: [{ method, timestamp: Date.now() / 1000 - ageSeconds }] } }, error: null };
 }
 
-/** The user's Supabase server client (createClient), whose calls succeed unless a test says otherwise. */
+/**
+ * The user's Supabase server client (createClient), whose calls succeed unless
+ * a test says otherwise: my_profile_status() finds an active inspector,
+ * complete_account() saves.
+ */
 function fakeSupabase() {
   return {
     auth: {
@@ -64,7 +70,11 @@ function fakeSupabase() {
       updateUser: vi.fn(async () => ({ data: { user: { id: INSPECTOR.id } }, error: null })),
       getClaims: vi.fn(async () => claims()),
     },
-    rpc: vi.fn(async () => ({ data: [{ active: true, role: "inspector" }], error: null })),
+    rpc: vi.fn(async (name: string) =>
+      name === "complete_account"
+        ? { data: null, error: null }
+        : { data: [{ active: true, role: "inspector" }], error: null },
+    ),
   };
 }
 
@@ -456,6 +466,201 @@ describe("updatePassword", () => {
       supabase.auth.getClaims.mockResolvedValueOnce(claims("otp", 59 * 60) as never);
       expect(await redirectOf(updatePassword(INITIAL_RESET_PASSWORD_STATE, form(passwords)))).toBe("/inspections");
     });
+  });
+});
+
+describe("createAccount", () => {
+  // Invited by an admin, signed in by the invitation link a moment ago, not joined yet.
+  const INVITEE = { id: "user-2", email: "nora.new@test.local", fullName: null, role: "inspector" as const, joined: false };
+  const details = { fullName: "  Nora   New ", phone: " +60 12-345 6789 ", password: PASSWORD, confirm: PASSWORD };
+  const typed = { fullName: details.fullName, phone: details.phone };
+  const samePassword = new AuthApiError("New password should be different from the old password.", 422, "same_password");
+
+  /** complete_account's reply when the database refuses it, as PostgREST sends it (a plain object). */
+  function refused(code: string, message: string) {
+    return { data: null, error: { code, message, details: "Failing row contains (Nora New, +60 12-345 6789)", hint: "" } };
+  }
+
+  function saved() {
+    return supabase.rpc.mock.calls.filter(([name]) => name === "complete_account");
+  }
+
+  beforeEach(() => {
+    mocks.authorizeAction.mockResolvedValue({ ok: true, user: INVITEE } satisfies ActionAuth);
+    mocks.getSession.mockResolvedValue({ status: "active", user: INVITEE } satisfies SessionState);
+  });
+
+  it("sets the password, saves the details as the user, then opens the inspections list signed in", async () => {
+    const url = await redirectOf(createAccount(INITIAL_CREATE_ACCOUNT_STATE, form(details)));
+
+    expect(url).toBe("/inspections");
+    expect(mocks.authorizeAction).toHaveBeenCalledWith();
+    expect(supabase.auth.updateUser).toHaveBeenCalledWith({ password: PASSWORD });
+    // On one line each, as the admin's dialogs save them.
+    expect(supabase.rpc).toHaveBeenCalledWith("complete_account", { p_full_name: "Nora New", p_phone: "+60 12-345 6789" });
+    // The password first: should the details fail, the retry finds it set.
+    const [passwordSet] = supabase.auth.updateUser.mock.invocationCallOrder;
+    const [detailsSaved] = supabase.rpc.mock.invocationCallOrder;
+    expect(detailsSaved).toBeGreaterThan(passwordSet);
+    expect(mocks.revalidatePath).toHaveBeenCalledWith("/", "layout");
+    // No sign-in: the session the invitation link started is the user's.
+    expect(mocks.createAuthClient).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["an admin", { role: "admin" as const }, "/admin"],
+    ["a lead inspector", { role: "inspector" as const, isLead: true }, "/inspections"],
+  ])("takes %s to their dashboard", async (_label, placement, dashboard) => {
+    mocks.authorizeAction.mockResolvedValue({ ok: true, user: { ...INVITEE, ...placement } } satisfies ActionAuth);
+    expect(await redirectOf(createAccount(INITIAL_CREATE_ACCOUNT_STATE, form(details)))).toBe(dashboard);
+  });
+
+  it("goes on to the details when a retry finds the password set already (same_password)", async () => {
+    supabase.auth.updateUser.mockResolvedValueOnce({ data: { user: null }, error: samePassword } as never);
+    expect(await redirectOf(createAccount(INITIAL_CREATE_ACCOUNT_STATE, form(details)))).toBe("/inspections");
+    expect(saved()).toHaveLength(1);
+  });
+
+  it("keeps the name and phone when the details are not saved, and the retry goes through", async () => {
+    supabase.rpc.mockResolvedValueOnce(
+      refused("PGRST202", "Could not find the function public.complete_account(p_full_name, p_phone) in the schema cache") as never,
+    );
+
+    const state = await createAccount(INITIAL_CREATE_ACCOUNT_STATE, form(details));
+
+    expect(state).toEqual({ status: "error", attempt: 1, ...typed, message: MESSAGES.createFailed });
+    expect(mocks.revalidatePath).not.toHaveBeenCalled();
+    // The password is set now: Supabase answers same_password, which is no error here.
+    supabase.auth.updateUser.mockResolvedValueOnce({ data: { user: null }, error: samePassword } as never);
+    expect(await redirectOf(createAccount(state, form(details)))).toBe("/inspections");
+    expect(saved()).toHaveLength(2);
+  });
+
+  it("shows a phone number the database refuses at the phone field", async () => {
+    supabase.rpc.mockResolvedValueOnce(
+      refused("23514", 'new row for relation "profiles" violates check constraint "profiles_phone_format"') as never,
+    );
+    const state = await createAccount(INITIAL_CREATE_ACCOUNT_STATE, form(details));
+    expect(state).toEqual({ status: "error", attempt: 1, ...typed, fieldErrors: { phone: MESSAGES.phoneRefused } });
+    expect(consoleError).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["a name", "a name is needed", { fullName: MESSAGES.nameRequired }],
+    ["a phone number", "a phone number is needed", { phone: MESSAGES.phoneRefused }],
+  ])("shows %s the database finds blank at its field", async (_label, message, expected) => {
+    supabase.rpc.mockResolvedValueOnce(refused("23514", message) as never);
+    const state = await createAccount(INITIAL_CREATE_ACCOUNT_STATE, form(details));
+    expect(state.fieldErrors).toEqual(expected);
+  });
+
+  it.each([
+    [
+      "a breached password",
+      new AuthWeakPasswordError("Password is known to be weak", 422, ["pwned"]),
+      { fieldErrors: { password: MESSAGES.pwnedPassword } },
+    ],
+    [
+      "a stricter project policy",
+      new AuthWeakPasswordError("Password should contain…", 422, ["characters"]),
+      { fieldErrors: { password: MESSAGES.weakPassword } },
+    ],
+    [
+      "a rate limit",
+      new AuthApiError("Request rate limit reached", 429, "over_request_rate_limit"),
+      { message: MESSAGES.updateRateLimited },
+    ],
+    ["a lost session", new AuthSessionMissingError(), { message: MESSAGES.linkExpired, expired: true }],
+    ["a server error", new AuthApiError("Database error", 500, "unexpected_failure"), { message: MESSAGES.updateFailed }],
+  ])("explains %s like the reset form, and saves no details", async (_label, error, expected) => {
+    supabase.auth.updateUser.mockResolvedValueOnce({ data: { user: null }, error } as never);
+    const state = await createAccount(INITIAL_CREATE_ACCOUNT_STATE, form(details));
+    expect(state).toEqual({ status: "error", attempt: 1, ...typed, ...expected });
+    expect(saved()).toHaveLength(0);
+    expect(mocks.revalidatePath).not.toHaveBeenCalled();
+  });
+
+  it("checks every field before calling Supabase, keeping the name and phone as typed", async () => {
+    const fields = { fullName: " ", phone: "12345", password: "abcdefghij", confirm: "abcdefghik" };
+    const state = await createAccount(INITIAL_CREATE_ACCOUNT_STATE, form(fields));
+    expect(state).toEqual({
+      status: "error",
+      attempt: 1,
+      fullName: " ",
+      phone: "12345",
+      fieldErrors: {
+        fullName: MESSAGES.nameRequired,
+        phone: expect.stringContaining("Enter a phone number"),
+        password: MESSAGES.passwordNeedsMix,
+        confirm: MESSAGES.confirmMismatch,
+      },
+    });
+    expect(supabase.auth.updateUser).not.toHaveBeenCalled();
+    expect(saved()).toHaveLength(0);
+  });
+
+  it("says the invitation link has expired when the session is gone, before looking at the input", async () => {
+    mocks.authorizeAction.mockResolvedValueOnce({ ok: false, error: "Your session has ended. Sign in again." });
+    mocks.getSession.mockResolvedValueOnce({ status: "signed-out" });
+
+    const state = await createAccount(INITIAL_CREATE_ACCOUNT_STATE, form({ ...details, phone: "x" }));
+
+    expect(state).toEqual({ status: "error", attempt: 1, ...typed, phone: "x", message: MESSAGES.linkExpired, expired: true });
+    expect(mocks.createClient).not.toHaveBeenCalled();
+  });
+
+  it("refuses a deactivated account", async () => {
+    mocks.authorizeAction.mockResolvedValueOnce({ ok: false, error: "This account has been deactivated." });
+    mocks.getSession.mockResolvedValueOnce({ status: "deactivated", userId: INVITEE.id });
+    const state = await createAccount(INITIAL_CREATE_ACCOUNT_STATE, form(details));
+    expect(state).toEqual({ status: "error", attempt: 1, ...typed, message: MESSAGES.deactivated });
+    expect(mocks.createClient).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["an invitation link opened over an hour ago", claims("otp", 60 * 60 + 5)],
+    ["a password sign-in", claims("password", 10)],
+  ])("refuses %s, changes nothing and re-renders the page", async (_label, result) => {
+    supabase.auth.getClaims.mockResolvedValueOnce(result as never);
+
+    const state = await createAccount(INITIAL_CREATE_ACCOUNT_STATE, form(details));
+
+    expect(state).toEqual({ status: "error", attempt: 1, ...typed, message: MESSAGES.invitationLinkRequired });
+    expect(mocks.refresh).toHaveBeenCalled();
+    expect(supabase.auth.updateUser).not.toHaveBeenCalled();
+    expect(saved()).toHaveLength(0);
+  });
+
+  it("sends an account created already to its dashboard, changing nothing", async () => {
+    mocks.authorizeAction.mockResolvedValueOnce({ ok: true, user: { ...INVITEE, role: "admin", joined: true } } satisfies ActionAuth);
+    expect(await redirectOf(createAccount(INITIAL_CREATE_ACCOUNT_STATE, form(details)))).toBe("/admin");
+    expect(supabase.auth.getClaims).not.toHaveBeenCalled();
+    expect(supabase.auth.updateUser).not.toHaveBeenCalled();
+    expect(saved()).toHaveLength(0);
+    expect(mocks.revalidatePath).not.toHaveBeenCalled();
+  });
+
+  it("logs a refused save by its code and never the name, phone or email", async () => {
+    supabase.rpc.mockResolvedValueOnce(refused("42501", "no active account to create") as never);
+    const state = await createAccount(INITIAL_CREATE_ACCOUNT_STATE, form(details));
+    expect(state.message).toBe(MESSAGES.createFailed);
+    expect(logged()).toContain("[auth] account details failed: code 42501, no active account to create");
+    expect(logged()).not.toMatch(/Nora|6789|nora\.new/);
+  });
+
+  it("survives a client that throws while saving the details", async () => {
+    supabase.rpc.mockRejectedValueOnce(new Error("fetch failed"));
+    const state = await createAccount(INITIAL_CREATE_ACCOUNT_STATE, form(details));
+    expect(state).toEqual({ status: "error", attempt: 1, ...typed, message: MESSAGES.createFailed });
+    expect(logged()).toContain("[auth] account details failed: Error: fetch failed");
+  });
+
+  it("survives a client that throws while setting the password", async () => {
+    // The first client checks the link; the second sets the password.
+    mocks.createClient.mockResolvedValueOnce(supabase).mockRejectedValueOnce(new Error("boom"));
+    const state = await createAccount(INITIAL_CREATE_ACCOUNT_STATE, form(details));
+    expect(state.message).toBe(MESSAGES.createFailed);
+    expect(saved()).toHaveLength(0);
   });
 });
 

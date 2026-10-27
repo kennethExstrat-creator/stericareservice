@@ -38,6 +38,7 @@ test("signed out: pages, the redirects to /login, the email-link landing and the
     ["/login", 200],
     ["/forgot-password", 200],
     ["/reset-password", 200],
+    ["/create-account", 200],
     ["/", 307],
     ["/inspections?status=draft", 307],
     ["/admin/users", 307],

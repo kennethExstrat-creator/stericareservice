@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { classifyPath, HOME_PATH, proxyDecision, safeNextPath } from "./routes";
+import { classifyPath, CREATE_ACCOUNT_PATH, HOME_PATH, proxyDecision, safeNextPath } from "./routes";
 
 describe("proxyDecision", () => {
   const request = (overrides: Partial<Parameters<typeof proxyDecision>[0]>) =>
@@ -42,6 +42,11 @@ describe("proxyDecision", () => {
     expect(request({ pathname: "/reset-password", signedIn: true })).toEqual({ action: "pass" });
   });
 
+  it("lets Account Creation through signed in (the invitation's session) and signed out (an expired link)", () => {
+    expect(request({ pathname: CREATE_ACCOUNT_PATH, signedIn: true })).toEqual({ action: "pass" });
+    expect(request({ pathname: CREATE_ACCOUNT_PATH, signedIn: false })).toEqual({ action: "pass" });
+  });
+
   it("passes signed-in page visits and signed-out sign-in screens", () => {
     expect(request({ pathname: "/inspections", signedIn: true })).toEqual({ action: "pass" });
     expect(request({ pathname: "/login" })).toEqual({ action: "pass" });
@@ -53,6 +58,7 @@ describe("classifyPath", () => {
     ["/login", "guest"],
     ["/forgot-password", "guest"],
     ["/reset-password", "open"],
+    ["/create-account", "open"],
     ["/auth/confirm", "open"],
     ["/auth/sign-out", "open"],
     ["/design", "open"],
@@ -71,6 +77,7 @@ describe("classifyPath", () => {
     expect(classifyPath("/designer")).toBe("protected");
     expect(classifyPath("/authority")).toBe("protected");
     expect(classifyPath("/apis")).toBe("protected");
+    expect(classifyPath("/create-accounts")).toBe("protected");
   });
 });
 

@@ -1,12 +1,13 @@
 import type { Page, TestInfo } from "@playwright/test";
-import { createTestAdminClient, throwawayEmail } from "../support/admin";
+import { createTestAdminClient } from "../support/admin";
 import { sessionCookies, signIn, TEST_ACCOUNTS } from "../support/session";
 import { expect, onlyIn, open, press, shot, test } from "./support";
 
 // The password screen with a real session from a real email link. The links
 // come from the admin API (generateLink), which sends no email, and open
 // through /auth/confirm exactly as the emailed ones do. Every account here is a
-// throwaway that the accounts fixture deletes after the test.
+// throwaway that the accounts fixture deletes after the test. Invitation links
+// open Account Creation instead: ./create-account.spec.ts.
 
 /** A reset link as Supabase would email it, without sending anything. */
 async function recoveryLink(email: string): Promise<string> {
@@ -16,20 +17,8 @@ async function recoveryLink(email: string): Promise<string> {
   return tokenHash;
 }
 
-/** An invite link: creates the (inactive) account, sends nothing. */
-async function inviteLink(email: string, fullName: string): Promise<{ userId: string; tokenHash: string }> {
-  const { data, error } = await createTestAdminClient().auth.admin.generateLink({
-    type: "invite",
-    email,
-    options: { data: { full_name: fullName } },
-  });
-  const tokenHash = data.properties?.hashed_token;
-  if (error || !data.user || !tokenHash) throw new Error(`generateLink (invite) failed: ${error?.message}`);
-  return { userId: data.user.id, tokenHash };
-}
-
-async function openEmailLink(page: Page, type: "recovery" | "invite", tokenHash: string) {
-  await open(page, `/auth/confirm?token_hash=${encodeURIComponent(tokenHash)}&type=${type}`);
+async function openEmailLink(page: Page, tokenHash: string) {
+  await open(page, `/auth/confirm?token_hash=${encodeURIComponent(tokenHash)}&type=recovery`);
 }
 
 function fields(page: Page) {
@@ -47,9 +36,9 @@ async function submit(page: Page, testInfo: TestInfo, name: string) {
 test("a reset link: rules up front, checked on the server, then saved", async ({ page, accounts }, testInfo) => {
   const newPassword = "Fresh-gloves-2027";
   const { email } = await accounts.create({ active: true });
-  await openEmailLink(page, "recovery", await recoveryLink(email));
+  await openEmailLink(page, await recoveryLink(email));
 
-  await expect(page).toHaveURL(/\/reset-password\?flow=recovery$/);
+  await expect(page).toHaveURL(/\/reset-password$/);
   await expect(page.getByRole("heading", { level: 1, name: "Choose a New Password" })).toBeVisible();
   await expect(page.getByRole("main")).toContainText(email);
   await expect(page).toHaveTitle("Choose a New Password · SteriCare QC");
@@ -104,34 +93,12 @@ test("a reset link: rules up front, checked on the server, then saved", async ({
   }
 });
 
-test("an invite link: welcome, then set a password", async ({ page, accounts }, testInfo) => {
-  const email = throwawayEmail("signin");
-  const { userId, tokenHash } = await inviteLink(email, "E2E Invitee");
-  accounts.track(userId);
-  // New accounts start inactive; the admin's invite action activates the account it creates.
-  await accounts.setActive(userId, true);
-  await openEmailLink(page, "invite", tokenHash);
-
-  await expect(page).toHaveURL(/\/reset-password\?flow=invite$/);
-  await expect(page.getByRole("heading", { level: 1, name: "Set Your Password" })).toBeVisible();
-  await expect(page.getByRole("main")).toContainText("Welcome to SteriCare QC, E2E Invitee.");
-  await expect(page.getByRole("main")).toContainText(email);
-  await expect(page).toHaveTitle("Set Your Password · SteriCare QC");
-  await shot(page, testInfo, "reset-password-invite");
-
-  const { password, confirm } = fields(page);
-  await password.fill("Invited-2026-gloves");
-  await confirm.fill("Invited-2026-gloves");
-  await submit(page, testInfo, "Set Password");
-  await expect(page).toHaveURL(/\/inspections$/);
-});
-
 test("a password sign-in is sent to the email link instead", async ({ page, context, baseURL }, testInfo) => {
   // The app's own screens set passwords only from an email link. This is UI
   // hardening: Supabase Auth would still take a change from this session.
   // A session of its own: the test signs it out, which revokes it for anyone sharing it (E2E_SESSION_CACHE).
   await signIn(context, baseURL!, TEST_ACCOUNTS.inspector, undefined, { fresh: true });
-  await open(page, "/reset-password?flow=recovery");
+  await open(page, "/reset-password");
 
   await expect(page.getByRole("heading", { level: 1, name: "Use Your Email Link" })).toBeVisible();
   await expect(page.getByRole("main")).toContainText(
@@ -152,7 +119,7 @@ test("a password sign-in is sent to the email link instead", async ({ page, cont
 test("a deactivated account that opens a reset link is signed out", async ({ page, context, accounts }, testInfo) => {
   onlyIn(testInfo, "desktop");
   const { email } = await accounts.create({ active: false });
-  await openEmailLink(page, "recovery", await recoveryLink(email));
+  await openEmailLink(page, await recoveryLink(email));
 
   // /reset-password → requireUser → /auth/sign-out → /login?error=deactivated
   await expect(page).toHaveURL(/\/login\?error=deactivated$/);

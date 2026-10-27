@@ -96,7 +96,7 @@ test("an email link opens a session through the auth client, with Secure cookies
       expect(cookie).toMatch(/;\s*SameSite=Lax/i);
     }
 
-    await expect(page).toHaveURL(/\/reset-password\?flow=recovery$/);
+    await expect(page).toHaveURL(/\/reset-password$/);
     await expect(page.getByRole("heading", { level: 1, name: "Choose a New Password" })).toBeVisible();
     await expect(page.getByRole("main")).toContainText(email);
     await shot(page, testInfo, "email-link-landing");

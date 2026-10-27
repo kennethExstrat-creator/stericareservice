@@ -3,7 +3,6 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { signOut } from "@/lib/auth/actions";
-import { passwordFlow } from "@/lib/auth/forms";
 import { HOME_PATH } from "@/lib/auth/routes";
 import { getSession, requireUser } from "@/lib/auth/session";
 import { AuthHeading } from "../_components/auth-heading";
@@ -13,58 +12,49 @@ import { SubmitButton } from "../_components/submit-button";
 import { sessionStartedByRecentLink } from "../link-session";
 import { ResetPasswordForm } from "./reset-password-form";
 
-const TITLES = { invite: "Set Your Password", recovery: "Choose a New Password" } as const;
-
-export async function generateMetadata({ searchParams }: PageProps<"/reset-password">): Promise<Metadata> {
+export async function generateMetadata(): Promise<Metadata> {
   const session = await getSession();
   if (session.status === "signed-out") return { title: "Link Expired" };
   if (session.status === "active" && !(await sessionStartedByRecentLink())) return { title: "Use Your Email Link" };
-  return { title: TITLES[passwordFlow((await searchParams).flow)] };
+  return { title: "Choose a New Password" };
 }
 
 /**
- * /reset-password: where invite and reset emails land, through /auth/confirm,
- * which turns the email's one-time token into a session (BUILD_SPEC 3).
+ * /reset-password: where reset emails land, through /auth/confirm, which turns
+ * the email's one-time token into a session (BUILD_SPEC 3).
  *
  * - No session: the link was used or has expired.
  * - A deactivated account leaves through requireUser's sign-out route.
+ * - Someone invited who has not created their account yet goes on to
+ *   /create-account, also through requireUser: an invitation link from before
+ *   Account Creation (?flow=invite), or a reset link an admin sent for a lost
+ *   invitation, ends there.
  * - A session that no invite or reset link started in the last hour (a normal
  *   password sign-in) is not offered the form. That keeps the app's own
  *   screens to the email-link flow; it is not a security boundary, since
  *   Supabase Auth itself accepts a password change from any session
  *   (../link-session.ts).
- *
- * ?flow=invite|recovery only picks the wording; updatePassword checks it all again.
  */
-export default async function ResetPasswordPage({ searchParams }: PageProps<"/reset-password">) {
+export default async function ResetPasswordPage() {
   const session = await getSession();
   if (session.status === "unconfigured") return <SetupNotice />;
   if (session.status === "signed-out") return <LinkExpired />;
 
   const user = await requireUser();
   if (!(await sessionStartedByRecentLink())) return <UseEmailLink />;
-  const flow = passwordFlow((await searchParams).flow);
 
   return (
     <div className="space-y-6">
       <AuthHeading
-        title={TITLES[flow]}
+        title="Choose a New Password"
         description={
-          flow === "invite" ? (
-            <>
-              Welcome to SteriCare QC{user.fullName ? `, ${user.fullName}` : ""}. Choose a password for{" "}
-              <span className="font-medium break-all text-foreground">{user.email}</span> to finish setting up your
-              account.
-            </>
-          ) : (
-            <>
-              For <span className="font-medium break-all text-foreground">{user.email}</span>. You stay signed in on
-              this device.
-            </>
-          )
+          <>
+            For <span className="font-medium break-all text-foreground">{user.email}</span>. You stay signed in on this
+            device.
+          </>
         }
       />
-      <ResetPasswordForm flow={flow} email={user.email} />
+      <ResetPasswordForm email={user.email} />
     </div>
   );
 }

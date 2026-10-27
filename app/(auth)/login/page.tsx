@@ -10,7 +10,9 @@ export const metadata: Metadata = { title: "Sign In" };
 /**
  * /login (BUILD_SPEC 3, 10). A guest screen: proxy.ts sends signed-in visitors
  * on, and the signIn action checks the account itself, so there is no session
- * to require here. No sign-up: accounts come from an admin's invite.
+ * to require here. No sign-up: accounts come from an admin's invitation, which
+ * the note under the form says (below it, not under the title: Kenneth took
+ * the explanatory lines out from under page titles on 7 October 2026).
  */
 export default async function LoginPage({ searchParams }: PageProps<"/login">) {
   if (!isSupabaseConfigured()) return <SetupNotice />;
@@ -19,11 +21,11 @@ export default async function LoginPage({ searchParams }: PageProps<"/login">) {
 
   return (
     <div className="space-y-6">
-      <AuthHeading
-        size="display"
-        title="Sign In"
-      />
+      <AuthHeading size="display" title="Sign In" />
       <LoginForm next={Array.isArray(next) ? next[0] : next} notice={loginNotice(error)} />
+      <p className="text-center text-sm text-pretty text-muted-foreground">
+        No account yet? Your SteriCare administrator sends you an invitation by email.
+      </p>
     </div>
   );
 }

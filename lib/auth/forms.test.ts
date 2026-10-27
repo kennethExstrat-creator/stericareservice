@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
+import { NAME_MAX_LENGTH } from "./fields";
 import {
+  CreateAccountSchema,
   EmailSchema,
   fieldErrors,
   ForgotPasswordSchema,
@@ -8,7 +10,6 @@ import {
   MESSAGES,
   NewPasswordSchema,
   PASSWORD_RULES,
-  passwordFlow,
   ResetPasswordSchema,
   SignInSchema,
 } from "./forms";
@@ -126,6 +127,62 @@ describe("ResetPasswordSchema", () => {
   });
 });
 
+describe("CreateAccountSchema", () => {
+  const filled = {
+    fullName: "Nur Aisyah",
+    phone: "+60 12-345 6789",
+    password: "Glove-check-2026",
+    confirm: "Glove-check-2026",
+  };
+
+  it("takes a name, a phone and a password typed twice, each on one line", () => {
+    expect(CreateAccountSchema.parse({ ...filled, fullName: "  Nur \n Aisyah ", phone: " 012-345  6789 " })).toEqual({
+      ...filled,
+      fullName: "Nur Aisyah",
+      phone: "012-345 6789",
+    });
+  });
+
+  it("asks for every field, each at its own field", () => {
+    const result = CreateAccountSchema.safeParse({ fullName: " ", phone: "", password: "", confirm: "" });
+    expect(fieldErrors(result.error!)).toEqual({
+      fullName: MESSAGES.nameRequired,
+      phone: MESSAGES.phoneRequired,
+      password: MESSAGES.newPasswordRequired,
+      confirm: MESSAGES.confirmRequired,
+    });
+  });
+
+  it("asks for every field when nothing was sent", () => {
+    const result = CreateAccountSchema.safeParse({ fullName: null, phone: null, password: null, confirm: null });
+    expect(Object.keys(fieldErrors(result.error!)).sort()).toEqual(["confirm", "fullName", "password", "phone"]);
+  });
+
+  it.each(["12345", "call me", "+60 12 345 6789 0000 1", "0123456789-"])("refuses %j as a phone number, as the database does", (phone) => {
+    const result = CreateAccountSchema.safeParse({ ...filled, phone });
+    expect(Object.keys(fieldErrors(result.error!))).toEqual(["phone"]);
+  });
+
+  it("holds the name to the admin dialogs' rules", () => {
+    const tooLong = CreateAccountSchema.safeParse({ ...filled, fullName: "a".repeat(NAME_MAX_LENGTH + 1) });
+    expect(Object.keys(fieldErrors(tooLong.error!))).toEqual(["fullName"]);
+    const hidden = CreateAccountSchema.safeParse({ ...filled, fullName: "Nur\u0000Aisyah" });
+    expect(Object.keys(fieldErrors(hidden.error!))).toEqual(["fullName"]);
+  });
+
+  it("holds the password to the reset form's policy and wording", () => {
+    const weak = CreateAccountSchema.safeParse({ ...filled, password: "abcdefghij", confirm: "abcdefghij" });
+    expect(fieldErrors(weak.error!)).toEqual({ password: MESSAGES.passwordNeedsMix });
+    const mismatch = CreateAccountSchema.safeParse({ ...filled, confirm: "Glove-check-2027" });
+    expect(fieldErrors(mismatch.error!)).toEqual({ confirm: MESSAGES.confirmMismatch });
+  });
+
+  it("reports a bad phone and a mismatch in one go", () => {
+    const result = CreateAccountSchema.safeParse({ ...filled, phone: "12345", confirm: "Glove-check-2027" });
+    expect(Object.keys(fieldErrors(result.error!)).sort()).toEqual(["confirm", "phone"]);
+  });
+});
+
 describe("loginNotice", () => {
   it.each(Object.keys(LOGIN_NOTICES))("shows the banner for ?error=%s", (code) => {
     expect(loginNotice(code)).toBe(LOGIN_NOTICES[code as keyof typeof LOGIN_NOTICES]);
@@ -147,15 +204,5 @@ describe("loginNotice", () => {
 
   it("reads the first value when the code is repeated", () => {
     expect(loginNotice(["link_invalid", "deactivated"])).toBe(LOGIN_NOTICES.link_invalid);
-  });
-});
-
-describe("passwordFlow", () => {
-  it("picks the invite wording only for ?flow=invite", () => {
-    expect(passwordFlow("invite")).toBe("invite");
-    expect(passwordFlow(["invite"])).toBe("invite");
-    expect(passwordFlow("recovery")).toBe("recovery");
-    expect(passwordFlow(undefined)).toBe("recovery");
-    expect(passwordFlow("anything")).toBe("recovery");
   });
 });

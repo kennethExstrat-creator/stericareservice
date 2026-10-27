@@ -5,6 +5,8 @@
 
 export const HOME_PATH = "/inspections";
 export const LOGIN_PATH = "/login";
+/** Account Creation: where an invited person, signed in by the invitation link, finishes their account. */
+export const CREATE_ACCOUNT_PATH = "/create-account";
 
 /**
  * - `guest`: sign-in screens; a signed-in user is sent on to the app.
@@ -15,9 +17,11 @@ export const LOGIN_PATH = "/login";
 export type RouteKind = "guest" | "open" | "api" | "protected";
 
 const GUEST = ["/login", "/forgot-password"];
-// /reset-password needs the session an email link creates, but a visitor
-// without one must still reach it to see "this link has expired".
-const OPEN = ["/reset-password", "/auth", "/design"];
+// /reset-password and /create-account need the session an email link creates,
+// but a visitor without one must still reach them to see "this link has
+// expired". Signed in, /create-account is where requireUser() sends an
+// invitation not yet answered, so it must not count as a guest screen.
+const OPEN = ["/reset-password", CREATE_ACCOUNT_PATH, "/auth", "/design"];
 
 function matches(pathname: string, base: string): boolean {
   return pathname === base || pathname.startsWith(`${base}/`);

@@ -1,7 +1,7 @@
 import type { EmailOtpType } from "@supabase/supabase-js";
 import { redirect } from "next/navigation";
 import type { NextRequest } from "next/server";
-import { LOGIN_PATH, safeNextPath } from "@/lib/auth/routes";
+import { CREATE_ACCOUNT_PATH, LOGIN_PATH, safeNextPath } from "@/lib/auth/routes";
 import { isSupabaseConfigured } from "@/lib/env";
 import { createAuthClient } from "@/lib/supabase/server";
 
@@ -13,10 +13,13 @@ import { createAuthClient } from "@/lib/supabase/server";
  * counts against the visitor's own limit for link checks (createAuthClient).
  */
 
-// Invite and recovery both end on the password screen; flow picks its wording.
+// An invitation opens Account Creation, a reset the password screen, whatever
+// ?next= the email carries (older invitations said next=/reset-password). A
+// reset link opened by someone who has not created their account yet (an
+// admin's link for a lost invitation) goes on to Account Creation from there.
 const DESTINATIONS: Partial<Record<EmailOtpType, string>> = {
-  invite: "/reset-password?flow=invite",
-  recovery: "/reset-password?flow=recovery",
+  invite: CREATE_ACCOUNT_PATH,
+  recovery: "/reset-password",
 };
 const ACCEPTED: ReadonlySet<string> = new Set<EmailOtpType>(["invite", "recovery", "email", "email_change"]);
 

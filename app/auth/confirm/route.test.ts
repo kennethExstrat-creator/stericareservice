@@ -48,14 +48,20 @@ beforeEach(() => {
 
 describe("GET /auth/confirm", () => {
   it("checks a reset link through the auth client and opens the password screen", async () => {
-    expect(await open("token_hash=abc123&type=recovery")).toBe("/reset-password?flow=recovery");
+    expect(await open("token_hash=abc123&type=recovery")).toBe("/reset-password");
     expect(mocks.verifyOtp).toHaveBeenCalledWith({ type: "recovery", token_hash: "abc123" });
     // The secret-key auth client checks the link; the user's data client is not needed here.
     expect(mocks.createClient).not.toHaveBeenCalled();
   });
 
-  it("sends an invite to the first-password screen", async () => {
-    expect(await open("token_hash=abc123&type=invite")).toBe("/reset-password?flow=invite");
+  it("sends an invitation to Account Creation", async () => {
+    expect(await open("token_hash=abc123&type=invite")).toBe("/create-account");
+    expect(mocks.verifyOtp).toHaveBeenCalledWith({ type: "invite", token_hash: "abc123" });
+  });
+
+  it("sends an invitation emailed before Account Creation (next=/reset-password) there too", async () => {
+    expect(await open("token_hash=abc123&type=invite&next=/reset-password")).toBe("/create-account");
+    expect(await open("token_hash=abc123&type=recovery&next=/inspections")).toBe("/reset-password");
   });
 
   it("follows a safe ?next= for other link types, and only a safe one", async () => {

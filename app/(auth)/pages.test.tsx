@@ -3,7 +3,10 @@
 import type { ReactElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { SessionState } from "@/lib/auth/session";
+import { PHONE_HINT } from "@/lib/auth/fields";
+import { MESSAGES } from "@/lib/auth/forms";
+import type { SessionState, SessionUser } from "@/lib/auth/session";
+import { lowerCaseWords } from "@/lib/design/capitalisation";
 
 const { Redirect, mocks } = vi.hoisted(() => {
   class Redirect extends Error {
@@ -18,11 +21,13 @@ const { Redirect, mocks } = vi.hoisted(() => {
       requireUser: vi.fn(),
       isSupabaseConfigured: vi.fn(),
       getClaims: vi.fn(),
+      rpc: vi.fn(),
     },
   };
 });
 
-vi.mock("@/lib/auth/session", () => ({
+vi.mock("@/lib/auth/session", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/auth/session")>()),
   getSession: mocks.getSession,
   requireUser: mocks.requireUser,
   authorizeAction: vi.fn(),
@@ -31,7 +36,9 @@ vi.mock("@/lib/env", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/env")>()),
   isSupabaseConfigured: mocks.isSupabaseConfigured,
 }));
-vi.mock("@/lib/supabase/server", () => ({ createClient: async () => ({ auth: { getClaims: mocks.getClaims } }) }));
+vi.mock("@/lib/supabase/server", () => ({
+  createClient: async () => ({ auth: { getClaims: mocks.getClaims }, rpc: mocks.rpc }),
+}));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn(), refresh: vi.fn() }));
 vi.mock("next/navigation", () => ({
   redirect: (url: string) => {
@@ -43,6 +50,7 @@ const { default: AuthError } = await import("./error");
 const { default: LoginPage } = await import("./login/page");
 const { default: ForgotPasswordPage } = await import("./forgot-password/page");
 const { default: ResetPasswordPage, generateMetadata: resetMetadata } = await import("./reset-password/page");
+const { default: CreateAccountPage, generateMetadata: createMetadata } = await import("./create-account/page");
 
 const INSPECTOR = { id: "user-1", email: "new.inspector@test.local", fullName: "Nur Aisyah", role: "inspector" as const };
 
@@ -54,6 +62,18 @@ async function html(page: Promise<ReactElement> | ReactElement) {
   return renderToStaticMarkup(await page);
 }
 
+/** The words of the markup, as a reader sees them. */
+function words(markup: string) {
+  return markup.replace(/<[^>]+>/g, "");
+}
+
+/** The opening tag of the element with this id. */
+function tag(markup: string, id: string) {
+  const match = new RegExp(`<[a-z]+ [^>]*id="${id}"[^>]*>`).exec(markup);
+  if (!match) throw new Error(`no element #${id}`);
+  return match[0];
+}
+
 beforeEach(() => {
   vi.clearAllMocks();
   mocks.isSupabaseConfigured.mockReturnValue(true);
@@ -61,6 +81,8 @@ beforeEach(() => {
   mocks.requireUser.mockResolvedValue(INSPECTOR);
   // By default the session came from an email link a moment ago.
   mocks.getClaims.mockResolvedValue(signedInWith("otp"));
+  // A project without roles (migration 20261027150000): no role by name.
+  mocks.rpc.mockResolvedValue({ data: null, error: { code: "PGRST202", message: "Could not find the function" } });
 });
 
 function signedInWith(method: string) {
@@ -99,7 +121,15 @@ describe("/login", () => {
   it("titles the screen in DESIGN.md's Display style; the other cards keep H1", async () => {
     expect(await html(LoginPage(query()))).toMatch(/<h1[^>]*data-size="display"[^>]*class="text-4xl leading-10 font-extrabold /);
     expect(await html(ForgotPasswordPage())).toMatch(/<h1[^>]*data-size="title"[^>]*class="text-3xl leading-tight font-bold /);
-    expect(await html(ResetPasswordPage(query()))).toMatch(/<h1[^>]*data-size="title"/);
+    expect(await html(ResetPasswordPage())).toMatch(/<h1[^>]*data-size="title"/);
+    mocks.getSession.mockResolvedValue({ status: "active", user: { ...INSPECTOR, joined: false } } satisfies SessionState);
+    expect(await html(CreateAccountPage())).toMatch(/<h1[^>]*data-size="title"/);
+  });
+
+  it("says accounts come from an invitation, under the form, not under the title", async () => {
+    const page = await html(LoginPage(query()));
+    expect(page).toContain("No account yet? Your SteriCare administrator sends you an invitation by email.");
+    expect(page.indexOf("No account yet?")).toBeGreaterThan(page.indexOf("</form>"));
   });
 
   it("carries ?next= into the form for the action to check", async () => {
@@ -144,12 +174,12 @@ describe("/forgot-password", () => {
 describe("/reset-password", () => {
   it("needs the session from the email link", async () => {
     mocks.getSession.mockResolvedValue({ status: "signed-out" } satisfies SessionState);
-    const page = await html(ResetPasswordPage(query({ flow: "recovery" })));
+    const page = await html(ResetPasswordPage());
     expect(page).toContain("This Link Has Expired or Was Already Used");
     expect(page).toContain('href="/forgot-password"');
     expect(page).not.toContain("<form");
     expect(mocks.requireUser).not.toHaveBeenCalled();
-    expect(await resetMetadata(query())).toEqual({ title: "Link Expired" });
+    expect(await resetMetadata()).toEqual({ title: "Link Expired" });
   });
 
   it("sends a deactivated session through requireUser", async () => {
@@ -157,42 +187,167 @@ describe("/reset-password", () => {
     mocks.requireUser.mockImplementation(async () => {
       throw new Redirect("/auth/sign-out?reason=deactivated");
     });
-    await expect(ResetPasswordPage(query())).rejects.toMatchObject({ url: "/auth/sign-out?reason=deactivated" });
+    await expect(ResetPasswordPage()).rejects.toMatchObject({ url: "/auth/sign-out?reason=deactivated" });
   });
 
-  it("welcomes an invited user and shows the policy up front", async () => {
-    const page = await html(ResetPasswordPage(query({ flow: "invite" })));
-    expect(page).toContain("Set Your Password");
-    expect(page).toContain("Welcome to SteriCare QC, Nur Aisyah.");
+  it("sends an invitation not yet answered on to Account Creation, through requireUser", async () => {
+    // An invitation emailed before Account Creation (?flow=invite), or a reset link for a lost invitation.
+    mocks.getSession.mockResolvedValue({ status: "active", user: { ...INSPECTOR, joined: false } } satisfies SessionState);
+    mocks.requireUser.mockImplementation(async () => {
+      throw new Redirect("/create-account");
+    });
+    await expect(ResetPasswordPage()).rejects.toMatchObject({ url: "/create-account" });
+  });
+
+  it("words a reset as choosing a new password, with the policy up front", async () => {
+    const page = await html(ResetPasswordPage());
+    expect(page).toContain("Choose a New Password");
     expect(page).toContain("new.inspector@test.local");
     expect(page).toContain("At least 10 characters");
     expect(page).toContain("Letters and digits");
     expect(page.match(/autocomplete="new-password"/gi)).toHaveLength(2);
-    expect(page).toContain(">Set Password<");
-    expect(await resetMetadata(query({ flow: "invite" }))).toEqual({ title: "Set Your Password" });
-  });
-
-  it("words a reset as choosing a new password", async () => {
-    const page = await html(ResetPasswordPage(query({ flow: "recovery" })));
-    expect(page).toContain("Choose a New Password");
     expect(page).toContain(">Save New Password<");
     expect(page).not.toContain("Welcome");
+    expect(await resetMetadata()).toEqual({ title: "Choose a New Password" });
   });
 
   it("shows the setup notice while Supabase is not configured", async () => {
     mocks.getSession.mockResolvedValue({ status: "unconfigured" } satisfies SessionState);
-    expect(await html(ResetPasswordPage(query()))).toContain("Connect Supabase");
+    expect(await html(ResetPasswordPage())).toContain("Connect Supabase");
   });
 
   it("sends a password session to the email link instead of showing the form", async () => {
     mocks.getClaims.mockResolvedValue(signedInWith("password"));
-    const page = await html(ResetPasswordPage(query({ flow: "recovery" })));
+    const page = await html(ResetPasswordPage());
     expect(page).toContain("Use Your Email Link");
     expect(page).toContain("opened in the last hour");
     expect(page).toContain(">Sign Out<");
     expect(page).toContain('href="/inspections"');
     expect(page).not.toContain('name="password"');
-    expect(await resetMetadata(query())).toEqual({ title: "Use Your Email Link" });
+    expect(await resetMetadata()).toEqual({ title: "Use Your Email Link" });
+  });
+});
+
+describe("/create-account", () => {
+  // Invited with the name the admin typed, signed in by the invitation link a moment ago.
+  const INVITEE: SessionUser = { ...INSPECTOR, joined: false };
+
+  function invited(user: Partial<SessionUser> = {}) {
+    mocks.getSession.mockResolvedValue({ status: "active", user: { ...INVITEE, ...user } } satisfies SessionState);
+  }
+
+  beforeEach(() => invited());
+
+  it("asks for the name, the phone and a password, showing the invitation's email read-only", async () => {
+    const page = await html(CreateAccountPage());
+
+    expect(page).toMatch(/<h1[^>]*>Create Your Account<\/h1>/);
+    const name = tag(page, "create-name");
+    expect(name).toContain('name="fullName"');
+    expect(name).toMatch(/autocomplete="name"/i);
+    expect(name).toContain('value="Nur Aisyah"');
+    // Shown, never sent: no name attribute, and the action reads the account from the session.
+    const email = tag(page, "create-email");
+    expect(email).toContain('value="new.inspector@test.local"');
+    expect(email).toMatch(/readonly=""/i);
+    expect(email).not.toContain("name=");
+    expect(email).toMatch(/autocomplete="username"/i);
+    const phone = tag(page, "create-phone");
+    expect(phone).toContain('name="phone"');
+    expect(phone).toContain('type="tel"');
+    expect(phone).toMatch(/inputmode="tel"/i);
+    expect(phone).toMatch(/autocomplete="tel"/i);
+    expect(phone).toContain('aria-describedby="create-phone-hint"');
+    expect(words(page)).toContain(PHONE_HINT);
+    // Its example number on one line: the card would break it at the hyphen.
+    expect(page).toContain('<span class="whitespace-nowrap">+60 12-345 6789</span>');
+    expect(page.match(/autocomplete="new-password"/gi)).toHaveLength(2);
+    expect(page).toContain("At least 10 characters");
+    expect(page).toMatch(/<button [^>]*type="submit"[^>]*>Create Account<\/button>/);
+    expect(await createMetadata()).toEqual({ title: "Create Your Account" });
+    // It reads the session itself: requireUser would send this account straight back here.
+    expect(mocks.requireUser).not.toHaveBeenCalled();
+  });
+
+  it("writes its labels in Title Case (docs/DESIGN.md, Capitalisation)", async () => {
+    const page = await html(CreateAccountPage());
+    const labels = [...page.matchAll(/<label[^>]*>([^<]*)<\/label>/g)].map(([, label]) => label);
+    expect(labels).toEqual(["Full Name", "Email", "Phone", "Password", "Confirm Password"]);
+    for (const label of [...labels, "Create Your Account", "Create Account", "Ask for a New Invitation"]) {
+      expect(lowerCaseWords(label), label).toEqual([]);
+    }
+  });
+
+  it.each([
+    ["an inspector", {}, "You are joining as an Inspector."],
+    ["a lead inspector", { isLead: true }, "You are joining as a Lead Inspector."],
+    ["an admin", { role: "admin" as const }, "You are joining as an Admin."],
+  ])("names the level the admin chose for %s, read-only, on a project without roles", async (_label, placement, sentence) => {
+    invited(placement);
+    const page = await html(CreateAccountPage());
+    expect(words(page)).toContain(sentence);
+    expect(page).not.toContain('name="role"');
+  });
+
+  it("names a custom role by its own name", async () => {
+    mocks.rpc.mockResolvedValue({
+      data: [{ id: "role-1", name: "QC Supervisor", built_in: null, access: "team", permissions: [] }],
+      error: null,
+    });
+    expect(words(await html(CreateAccountPage()))).toContain("You are joining as a QC Supervisor.");
+    expect(mocks.rpc).toHaveBeenCalledWith("my_role");
+  });
+
+  it("falls back to the level's name when the role cannot be read", async () => {
+    mocks.rpc.mockRejectedValue(new Error("fetch failed"));
+    invited({ isLead: true });
+    expect(words(await html(CreateAccountPage()))).toContain("You are joining as a Lead Inspector.");
+  });
+
+  it("leaves Full Name to fill in when the admin gave no name", async () => {
+    invited({ fullName: null });
+    expect(tag(await html(CreateAccountPage()), "create-name")).toContain('value=""');
+  });
+
+  it("says an expired or used invitation needs a new one, with no form", async () => {
+    mocks.getSession.mockResolvedValue({ status: "signed-out" } satisfies SessionState);
+    const page = await html(CreateAccountPage());
+    expect(page).toContain("This Invitation Has Expired or Was Already Used");
+    expect(page).toContain(MESSAGES.invitationExpired);
+    expect(page).toContain('href="/login"');
+    expect(page).not.toContain("<form");
+    expect(await createMetadata()).toEqual({ title: "Invitation Expired" });
+  });
+
+  it("signs a deactivated account out, as requireUser would", async () => {
+    mocks.getSession.mockResolvedValue({ status: "deactivated", userId: INSPECTOR.id } satisfies SessionState);
+    await expect(CreateAccountPage()).rejects.toMatchObject({ url: "/auth/sign-out?reason=deactivated" });
+  });
+
+  it.each([
+    ["an inspector", "inspector" as const, "/inspections"],
+    ["an admin", "admin" as const, "/admin"],
+  ])("sends %s who created their account already to their dashboard", async (_label, role, dashboard) => {
+    invited({ role, joined: true });
+    await expect(CreateAccountPage()).rejects.toMatchObject({ url: dashboard });
+  });
+
+  it("asks for a new invitation when the link was opened over an hour ago", async () => {
+    mocks.getClaims.mockResolvedValue({
+      data: { claims: { amr: [{ method: "otp", timestamp: Date.now() / 1000 - 60 * 61 }] } },
+      error: null,
+    });
+    const page = await html(CreateAccountPage());
+    expect(page).toContain("Ask for a New Invitation");
+    expect(page).toContain(MESSAGES.invitationLinkRequired);
+    expect(page).toContain(">Sign Out<");
+    expect(page).not.toContain('name="password"');
+    expect(await createMetadata()).toEqual({ title: "Ask for a New Invitation" });
+  });
+
+  it("shows the setup notice while Supabase is not configured", async () => {
+    mocks.getSession.mockResolvedValue({ status: "unconfigured" } satisfies SessionState);
+    expect(await html(CreateAccountPage())).toContain("Connect Supabase");
   });
 });
 

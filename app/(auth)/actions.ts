@@ -6,15 +6,19 @@ import {
   isAuthSessionMissingError,
   isAuthWeakPasswordError,
   type AuthError,
+  type PostgrestError,
 } from "@supabase/supabase-js";
 import { refresh, revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import {
+  CreateAccountSchema,
   fieldErrors,
   ForgotPasswordSchema,
   MESSAGES,
   ResetPasswordSchema,
   SignInSchema,
+  type CreateAccountField,
+  type CreateAccountState,
   type ForgotPasswordState,
   type ResetPasswordField,
   type ResetPasswordState,
@@ -22,9 +26,10 @@ import {
   type SignInState,
 } from "@/lib/auth/forms";
 import { HOME_PATH, safeNextPath } from "@/lib/auth/routes";
-import { authorizeAction, getSession } from "@/lib/auth/session";
+import { authorizeAction, getSession, hasJoined } from "@/lib/auth/session";
 import { getSiteUrl, isSupabaseConfigured } from "@/lib/env";
 import { createAuthClient, createClient } from "@/lib/supabase/server";
+import { dashboardPathFor } from "./dashboard-path";
 import { sessionStartedByRecentLink } from "./link-session";
 
 /**
@@ -36,9 +41,10 @@ import { sessionStartedByRecentLink } from "./link-session";
  * session to authorise; the credentials and the email link are the check.
  * They call Supabase Auth through createAuthClient(), which counts each
  * visitor against their own sign-in limit rather than everyone against the
- * server's. updatePassword calls authorizeAction() first and then also wants a
- * session that an invite or reset link started (./link-session.ts: hardening
- * of this app's screens, not a boundary Supabase Auth enforces).
+ * server's. updatePassword and createAccount call authorizeAction() first and
+ * then also want a session that an invitation or reset link started
+ * (./link-session.ts: hardening of this app's screens, not a boundary
+ * Supabase Auth enforces).
  */
 
 type SupabaseServerClient = Awaited<ReturnType<typeof createClient>>;
@@ -50,14 +56,25 @@ function text(formData: FormData, name: string): string {
 
 /**
  * Server log for failures the user only sees as a generic message: the HTTP
- * status and Supabase's error code, never the email address or a password.
+ * status and Supabase's error code, never the email address, a name, a phone
+ * number or a password.
  */
 function logFailure(step: string, error: unknown): void {
   if (isAuthError(error)) {
     console.error(`[auth] ${step} failed: status ${error.status ?? "none"}, code ${error.code ?? error.name}`);
+  } else if (error instanceof Error) {
+    console.error(`[auth] ${step} failed: ${error.name}: ${error.message}`);
+  } else if (isDatabaseError(error)) {
+    // PostgREST's reply is a plain object. Its code and message, never its
+    // details, which can quote the row.
+    console.error(`[auth] ${step} failed: code ${error.code ?? "none"}, ${error.message}`);
   } else {
-    console.error(`[auth] ${step} failed: ${error instanceof Error ? `${error.name}: ${error.message}` : String(error)}`);
+    console.error(`[auth] ${step} failed: ${String(error)}`);
   }
+}
+
+function isDatabaseError(error: unknown): error is { code?: string; message: string } {
+  return typeof error === "object" && error !== null && typeof (error as { message?: unknown }).message === "string";
 }
 
 // ---- Sign in ---------------------------------------------------------------
@@ -298,4 +315,105 @@ function updateFailure(error: AuthError): Pick<ResetPasswordState, "message" | "
   }
   logFailure("password update", error);
   return { message: MESSAGES.updateFailed };
+}
+
+// ---- Create account (the answer to an invitation) --------------------------
+
+/**
+ * Account Creation (/create-account, Kenneth, 27 October 2026): the invited
+ * person's name, phone and first password. The invitation link has signed
+ * them in already (/auth/confirm), so there is no sign-in step: the session
+ * is the "auto login", and the redirect takes it to their dashboard. The role
+ * is the one the admin chose; nothing here changes it.
+ *
+ * The password goes first, through Supabase Auth; then complete_account()
+ * saves the name and phone and marks the account joined, as the user. Should
+ * that second step fail, the password is set already: the retry gets
+ * same_password for it, which here means done, and goes on to the details.
+ */
+export async function createAccount(previous: CreateAccountState, formData: FormData): Promise<CreateAccountState> {
+  const attempt = previous.attempt + 1;
+  const typed = { fullName: text(formData, "fullName"), phone: text(formData, "phone") };
+  const failed = (reply: Pick<CreateAccountState, "message" | "fieldErrors" | "expired">): CreateAccountState => ({
+    status: "error",
+    attempt,
+    ...typed,
+    ...reply,
+  });
+
+  const auth = await authorizeAction();
+  if (!auth.ok) {
+    // As updatePassword: look again to tell an expired link from a blocked account.
+    const session = await getSession();
+    if (session.status === "signed-out") return failed({ message: MESSAGES.linkExpired, expired: true });
+    return failed({ message: session.status === "deactivated" ? MESSAGES.deactivated : auth.error });
+  }
+
+  // Created already (a second tab, the back button): nothing changes; on to their dashboard.
+  if (hasJoined(auth.user)) redirect(dashboardPathFor(auth.user.role));
+
+  // Only from an invitation (or reset) link opened in the last hour, as
+  // updatePassword. refresh() re-renders the page, which then says to ask for
+  // the invitation again.
+  let fromRecentLink: boolean;
+  try {
+    fromRecentLink = await sessionStartedByRecentLink();
+  } catch (error) {
+    logFailure("link session check", error);
+    return failed({ message: MESSAGES.createFailed });
+  }
+  if (!fromRecentLink) {
+    refresh();
+    return failed({ message: MESSAGES.invitationLinkRequired });
+  }
+
+  const parsed = CreateAccountSchema.safeParse({
+    fullName: formData.get("fullName"),
+    phone: formData.get("phone"),
+    password: formData.get("password"),
+    confirm: formData.get("confirm"),
+  });
+  if (!parsed.success) return failed({ fieldErrors: fieldErrors<CreateAccountField>(parsed.error) });
+  const { fullName, phone, password } = parsed.data;
+
+  let supabase: SupabaseServerClient;
+  try {
+    supabase = await createClient();
+    const { error } = await supabase.auth.updateUser({ password });
+    if (error && error.code !== "same_password") return failed(updateFailure(error));
+  } catch (error) {
+    logFailure("password update", error);
+    return failed({ message: MESSAGES.createFailed });
+  }
+
+  try {
+    const { error } = await supabase.rpc("complete_account", { p_full_name: fullName, p_phone: phone });
+    if (error) return failed(accountDetailsFailure(error));
+  } catch (error) {
+    logFailure("account details", error);
+    return failed({ message: MESSAGES.createFailed });
+  }
+
+  // As after sign-in: a shared iPad may have cached another inspector's pages.
+  revalidatePath("/", "layout");
+  redirect(dashboardPathFor(auth.user.role));
+}
+
+/**
+ * complete_account() checks the name and phone again: 23514 is a blank one,
+ * or a phone number the database refuses (profiles_phone_format), shown at
+ * its field. Anything else (42501: signed out or deactivated meanwhile, the
+ * function missing on the project) is logged and gets a plain message; the
+ * retry then finds the real reason, or succeeds.
+ */
+function accountDetailsFailure(error: PostgrestError): Pick<CreateAccountState, "message" | "fieldErrors"> {
+  if (error.code === "23514") {
+    // complete_account's own wording ("a name is needed", "a phone number is
+    // needed") or the check constraint's name ("profiles_phone_format").
+    return /name/.test(error.message)
+      ? { fieldErrors: { fullName: MESSAGES.nameRequired } }
+      : { fieldErrors: { phone: MESSAGES.phoneRefused } };
+  }
+  logFailure("account details", error);
+  return { message: MESSAGES.createFailed };
 }

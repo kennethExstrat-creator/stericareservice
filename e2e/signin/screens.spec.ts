@@ -16,6 +16,7 @@ test.describe("/login", () => {
     await expect(password).toHaveAttribute("autocomplete", "current-password");
     await expect(page.getByRole("link", { name: "Forgot Password?" })).toHaveAttribute("href", "/forgot-password");
     await expect(page.getByText(/sign up|register|create an account/i)).toHaveCount(0);
+    await expect(page.getByText("No account yet? Your SteriCare administrator sends you an invitation by email.")).toBeVisible();
     await expect(page.getByRole("navigation")).toHaveCount(0);
     await expect(page.getByRole("contentinfo")).toHaveText("SteriCare Sdn. Bhd.");
     await shot(page, testInfo, "login");
@@ -188,16 +189,17 @@ test.describe("/forgot-password", () => {
 });
 
 test.describe("/reset-password", () => {
-  for (const flow of ["recovery", "invite"]) {
-    test(`without a session (?flow=${flow}) the link has expired`, async ({ page }, testInfo) => {
-      await open(page, `/reset-password?flow=${flow}`);
+  // The second: a password screen an invitation opened before Account Creation.
+  for (const path of ["/reset-password", "/reset-password?flow=invite"]) {
+    test(`without a session ${path} says the link has expired`, async ({ page }, testInfo) => {
+      await open(page, path);
       await expect(
         page.getByRole("heading", { level: 1, name: "This Link Has Expired or Was Already Used" }),
       ).toBeVisible();
       await expect(page.getByRole("link", { name: "Get a New Link" })).toHaveAttribute("href", "/forgot-password");
       await expect(page.locator("form")).toHaveCount(0);
       await expect(page).toHaveTitle("Link Expired · SteriCare QC");
-      if (flow === "recovery") await shot(page, testInfo, "reset-password-expired");
+      if (path === "/reset-password") await shot(page, testInfo, "reset-password-expired");
     });
   }
 
@@ -208,5 +210,20 @@ test.describe("/reset-password", () => {
     await expect(page.getByText("That link has expired or was already used.")).toBeVisible();
     await press(page.getByRole("link", { name: "Get a New Reset Link" }), testInfo);
     await expect(page).toHaveURL(/\/forgot-password$/);
+  });
+});
+
+test.describe("/create-account", () => {
+  test("without a session the invitation has expired: ask for a new one", async ({ page }, testInfo) => {
+    await open(page, "/create-account");
+    await expect(
+      page.getByRole("heading", { level: 1, name: "This Invitation Has Expired or Was Already Used" }),
+    ).toBeVisible();
+    await expect(page.getByRole("main")).toContainText("Ask your SteriCare administrator to send you a new invitation.");
+    await expect(page.locator("form")).toHaveCount(0);
+    await expect(page).toHaveTitle("Invitation Expired · SteriCare QC");
+    await shot(page, testInfo, "create-account-expired");
+    await press(page.getByRole("link", { name: "Back to Sign In" }), testInfo);
+    await expect(page).toHaveURL(/\/login$/);
   });
 });

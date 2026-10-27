@@ -4,7 +4,7 @@ import { cache } from "react";
 import { isSupabaseConfigured } from "@/lib/env";
 import { createClient } from "@/lib/supabase/server";
 import type { Database } from "@/lib/supabase/database.types";
-import { LOGIN_PATH } from "./routes";
+import { CREATE_ACCOUNT_PATH, LOGIN_PATH } from "./routes";
 
 /**
  * Data Access Layer for the signed-in user (Next.js authentication guide,
@@ -27,6 +27,12 @@ export type SessionUser = {
   isLead?: boolean;
   /** The lead inspector who manages them; null for admins, lead inspectors and inspectors in no team yet. */
   leadId?: string | null;
+  /**
+   * False for an invitation not yet answered (profiles.joined_at is null):
+   * requireUser() sends them to /create-account to finish their account
+   * first. getSession() always sets it; absent (test doubles) means joined.
+   */
+  joined?: boolean;
 };
 
 export type SessionState =
@@ -43,9 +49,10 @@ export const DEACTIVATED_PATH = "/auth/sign-out?reason=deactivated";
  * getClaims(), then my_profile_status() reports role, active flag, lead
  * inspector flag and lead. That function is security definer, so it still
  * answers for a deactivated user, whose RLS-protected profile row is otherwise
- * invisible. The name and email come from that row, read in parallel; RLS only
- * returns it to active users, the only ones who need it. On a project without
- * migration 20261007170000 the function has no lead columns: nobody is a lead.
+ * invisible. The name, email and joined_at come from that row, read in
+ * parallel; RLS only returns it to active users, the only ones who need it. On
+ * a project without migration 20261007170000 the function has no lead columns:
+ * nobody is a lead.
  */
 export const getSession = cache(async (): Promise<SessionState> => {
   if (!isSupabaseConfigured()) return { status: "unconfigured" };
@@ -55,9 +62,9 @@ export const getSession = cache(async (): Promise<SessionState> => {
   if (authError || !auth) return { status: "signed-out" };
 
   const userId = auth.claims.sub;
-  const [statusResult, profileResult] = await Promise.all([
+  const [statusResult, profile] = await Promise.all([
     supabase.rpc("my_profile_status"),
-    supabase.from("profiles").select("full_name, email").eq("id", userId).maybeSingle(),
+    readOwnProfile(supabase, userId),
   ]);
   if (statusResult.error) {
     throw new Error(`Could not load the profile status for ${userId}: ${statusResult.error.message}`);
@@ -67,7 +74,6 @@ export const getSession = cache(async (): Promise<SessionState> => {
   // No profile row means the account was never set up: block it like a deactivated one.
   if (!status || !status.active) return { status: "deactivated", userId };
 
-  const profile = profileResult.data;
   return {
     status: "active",
     user: {
@@ -77,15 +83,49 @@ export const getSession = cache(async (): Promise<SessionState> => {
       role: status.role,
       isLead: status.role === "inspector" && status.is_lead === true,
       leadId: status.role === "inspector" ? (status.lead_id ?? null) : null,
+      // Only null is an invitation not yet answered. A row that cannot be read
+      // counts as joined: joining only decides where people are sent, it guards
+      // nothing, and must never lock anyone out of the app.
+      joined: profile?.joined_at !== null,
     },
   };
 });
 
-/** For pages: the active user, or a redirect to sign in (or out, if deactivated). */
+type OwnProfile = { full_name: string | null; email: string | null; joined_at?: string | null };
+
+/**
+ * The signed-in user's own profile row, or null when it cannot be read. A
+ * project without migration 20261027140000 answers 42703 for joined_at
+ * ("column profiles.joined_at does not exist"): the row is read again without
+ * it, and everyone has joined, as before.
+ */
+async function readOwnProfile(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  userId: string,
+): Promise<OwnProfile | null> {
+  const own = await supabase.from("profiles").select("full_name, email, joined_at").eq("id", userId).maybeSingle();
+  if (!own.error) return own.data;
+  if (own.error.code !== "42703" || !own.error.message.includes("joined_at")) return null;
+  const legacy = await supabase.from("profiles").select("full_name, email").eq("id", userId).maybeSingle();
+  return legacy.data;
+}
+
+/** False only for an invitation not yet answered; see SessionUser.joined. */
+export function hasJoined(user: Pick<SessionUser, "joined">): boolean {
+  return user.joined !== false;
+}
+
+/**
+ * For pages: the active user, or a redirect to sign in (or out, if
+ * deactivated). Someone invited who has not created their account yet goes to
+ * /create-account first, wherever their link or bookmark pointed; that page
+ * reads getSession() instead, so it never sends them round in a loop.
+ */
 export async function requireUser(): Promise<SessionUser> {
   const session = await getSession();
   switch (session.status) {
     case "active":
+      if (!hasJoined(session.user)) redirect(CREATE_ACCOUNT_PATH);
       return session.user;
     case "deactivated":
       redirect(DEACTIVATED_PATH);

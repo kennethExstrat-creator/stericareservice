@@ -1,18 +1,17 @@
 "use client";
 
-import { CircleCheckIcon, CircleIcon } from "lucide-react";
 import { useActionState, useEffect, useRef, useState, type KeyboardEvent } from "react";
 import { Field, FieldError, FieldLabel } from "@/components/ui/field";
-import { INITIAL_RESET_PASSWORD_STATE, PASSWORD_RULES, type PasswordFlow } from "@/lib/auth/forms";
-import { cn } from "@/lib/utils";
+import { INITIAL_RESET_PASSWORD_STATE } from "@/lib/auth/forms";
 import { updatePassword } from "../actions";
 import { AuthNotice } from "../_components/auth-notice";
 import { PasswordInput } from "../_components/password-input";
+import { PasswordRules } from "../_components/password-rules";
 import { SubmitButton } from "../_components/submit-button";
 
 const POLICY_ID = "reset-password-policy";
 
-export function ResetPasswordForm({ flow, email }: { flow: PasswordFlow; email: string }) {
+export function ResetPasswordForm({ email }: { email: string }) {
   const [state, formAction] = useActionState(updatePassword, INITIAL_RESET_PASSWORD_STATE);
   const [password, setPassword] = useState("");
   const passwordRef = useRef<HTMLInputElement>(null);
@@ -95,35 +94,7 @@ export function ResetPasswordForm({ flow, email }: { flow: PasswordFlow; email: 
         </FieldError>
       </Field>
 
-      <SubmitButton pendingLabel="Saving…">{flow === "invite" ? "Set Password" : "Save New Password"}</SubmitButton>
+      <SubmitButton pendingLabel="Saving…">Save New Password</SubmitButton>
     </form>
-  );
-}
-
-/**
- * The password policy, shown before anything is typed and ticked off live.
- * The server applies the same rules (lib/auth/forms.ts).
- */
-function PasswordRules({ id, value }: { id: string; value: string }) {
-  return (
-    <ul id={id} className="space-y-1.5 text-sm">
-      {PASSWORD_RULES.map((rule) => {
-        const met = rule.test(value);
-        const Icon = met ? CircleCheckIcon : CircleIcon;
-        return (
-          <li
-            key={rule.key}
-            data-met={met}
-            className={cn("flex items-center gap-2", met ? "text-pass" : "text-muted-foreground")}
-          >
-            <Icon aria-hidden className="size-4 shrink-0" />
-            <span>
-              {rule.label}
-              <span className="sr-only">{met ? " (done)" : " (not yet)"}</span>
-            </span>
-          </li>
-        );
-      })}
-    </ul>
   );
 }
