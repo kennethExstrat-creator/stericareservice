@@ -1,12 +1,15 @@
 // Section 06, Freedom From Holes & Visual Inspection, from the placeholder
-// example reports (STD_EG: size M only; SAFEDON_EG: sizes XS to L) as the
-// model builds it, and from those exports changed the way an inspection can
-// be: a size over its limit, a critical defect, a hand split, a defect not in
-// the list, nothing entered yet, five sizes, the blocks switched off.
+// example reports (STD_EG: size M only; SAFEDON_EG: sizes XS to L) and the
+// four-size inspection on STD_EG's template (sizes S to XL) as the model
+// builds it, and from those exports changed the way an inspection can be: a
+// size over its limit, a critical defect, a hand split, a defect not in the
+// list, nothing entered yet, five sizes, the blocks switched off, lists long
+// enough to fill a column.
 import { describe, expect, it } from "vitest";
 import { buildReportModel, type ReportSectionPlanEntry } from "../model";
 import { makeSafedonExport, makeStdEgExport, withReportOptions } from "../__fixtures__/exports";
 import type { InspectionExport } from "@/lib/schemas/export";
+import { FOUR_SIZE_ONE_OFF, fourSizeExport } from "./__fixtures__/holes-visual";
 import { DEFECT_PHOTOS_MAX, lineCount, type DefectRow, type DefectTable, type HolesVisualContent, type HolesVisualSlot } from "./holes-visual";
 
 function sectionOf(doc: InspectionExport): HolesVisualContent & { pageCount: number } {
@@ -161,6 +164,33 @@ describe("SAFEDON_EG: four sizes", () => {
     // The size columns are wide enough for the widest figure, "14 / 15", in either column.
     expect(second.widths.value * 4 + second.widths.label).toBeCloseTo(100, 1);
     expect(second.widths.value).toBeGreaterThan(14);
+  });
+});
+
+describe("four sizes on STD_EG's template: S to XL, 200, 315, 200 and 125 gloves", () => {
+  const section = sectionOf(fourSizeExport());
+
+  it("lists the template's eleven major, six minor and two critical defects, and the defect not in the list", () => {
+    expect(section.limits?.rows.map((entry) => [entry.label, entry.n])).toEqual([
+      ["S", "n = 200"],
+      ["M", "n = 315"],
+      ["L", "n = 200"],
+      ["XL", "n = 125"],
+    ]);
+    const defects = (cls: string) => (section.tables.visual?.rows ?? []).filter((entry) => entry.kind === "defect" && entry.key.startsWith(`${cls}:`));
+    expect(defects("major")).toHaveLength(12);
+    expect(defects("major").at(-1)).toMatchObject({ label: FOUR_SIZE_ONE_OFF, note: "Defect Not in the List" });
+    expect(defects("minor")).toHaveLength(6);
+    expect(rowsOf(section.tables.critical).filter(([kind]) => kind === "defect")).toHaveLength(2);
+  });
+
+  it("keeps the Minor class whole on the next page: it fits in neither column of the first", () => {
+    // Under the critical defects the Minor class takes 66 mm and its gap 5 mm; the left column has 22 mm left by the
+    // estimates (39 mm as Chrome draws it), the right 12 mm under the major defects.
+    expect(section.pages.map((page) => page.columns.map(slotsOf))).toEqual([
+      [["pinholes", "critical"], ["visual"]],
+      [["visual (continued)"], []],
+    ]);
   });
 });
 
@@ -332,6 +362,62 @@ describe("the options and the template", () => {
       [["pinholes", "critical", "photos 2"], ["visual"]],
       [["visual (continued)"], []],
     ]);
+  });
+});
+
+describe("the first page's columns, filled before the section goes on", () => {
+  /** Defects not in the list, one each, as calc keeps them. */
+  const oneOffs = (...labels: string[]) => labels.map((label) => ({ label, count: 1, hand: null }));
+  const fiveMajor = oneOffs("Torn cuff edge", "Black speck", "Sticky fingertip", "Uneven rim", "Faint streak");
+
+  it("move a class the right column cannot hold, whole, under the critical defects where it fits: the section on one page", () => {
+    // The four sizes with Pinholes by Location switched off: the critical defects alone in the left column.
+    const doc = fourSizeExport();
+    const blocks = { ...doc.report.sections.holesVisual.blocks, pinholesByLocation: false };
+    const section = sectionOf(withReportOptions(doc, { sections: { ...doc.report.sections, holesVisual: { include: true, blocks } } }));
+    expect(section.pageCount).toBe(1);
+    expect(section.pages[0].columns.map(slotsOf)).toEqual([["critical", "visual (continued)"], ["visual"]]);
+    const [major, minor] = [section.pages[0].columns[1][0], section.pages[0].columns[0][1]];
+    if (major.kind !== "table" || minor.kind !== "table") throw new Error("Tables expected.");
+    expect(major.table.rows.at(-1)?.key).toBe("major:limits");
+    // The whole class from its own heading, as the visual table has it.
+    const rows = section.tables.visual?.rows ?? [];
+    expect(minor.table.rows.map((entry) => entry.key)).toEqual(rows.slice(rows.findIndex((entry) => entry.key === "minor:group")).map((entry) => entry.key));
+    expect(minor.table.rows[0].continued).toBeUndefined();
+  });
+
+  it("place the tables before the photos: a long major list on one size, the Minor class under the critical defects and the photos after", () => {
+    const doc = makeStdEgExport();
+    moduleJson(doc, "visual").computed.sizes.M.major.unmapped = fiveMajor;
+    expect(sectionOf(doc).pages.map((page) => page.columns.map(slotsOf))).toEqual([
+      [["pinholes", "critical", "visual (continued)"], ["visual"]],
+      [["photos 2"], []],
+    ]);
+    expect(sectionOf(doc).pages[1].columns[0][0]).toMatchObject({ kind: "photos", title: "Defect Photos" });
+    doc.photos = [];
+    expect(sectionOf(doc).pages.map((page) => page.columns.map(slotsOf))).toEqual([[["pinholes", "critical", "visual (continued)"], ["visual"]]]);
+  });
+
+  it("never move a class ahead of a table that goes on: critical defects too long for the left column, the Minor class after them", () => {
+    const doc = makeStdEgExport();
+    doc.photos = [];
+    const visual = moduleJson(doc, "visual");
+    visual.computed.sizes.M.major.unmapped = fiveMajor;
+    visual.computed.sizes.M.critical.unmapped = oneOffs(...Array.from({ length: 11 }, (_, index) => `Foreign body ${index + 1}`));
+    expect(sectionOf(doc).pages.map((page) => page.columns.map(slotsOf))).toEqual([
+      [["pinholes"], ["visual"]],
+      [["critical"], ["visual (continued)"]],
+    ]);
+  });
+
+  it("put the photos under the visual table once it has ended, when the left column cannot hold them", () => {
+    const doc = makeStdEgExport();
+    moduleJson(doc, "watertight").computed.sizes.M.unmapped = oneOffs("Thumb tip", "Wrist band", "Knuckle", "Fingertip seam", "Back of hand");
+    moduleJson(doc, "visual").computed.classes.minor.include = false;
+    const section = sectionOf(doc);
+    expect(section.pages.map((page) => page.columns.map(slotsOf))).toEqual([[["pinholes", "critical"], ["visual", "photos 2"]]]);
+    // Under a table, untitled.
+    expect(section.pages[0].columns[1][1]).toMatchObject({ kind: "photos", title: null });
   });
 });
 

@@ -1,14 +1,15 @@
 // Section 06's pages as server-rendered markup (TG35 page 6): the heading
 // and lead, the grid of defects against each limit (a track per check, a
 // chip for a limit of 0), the defect tables, the photos, a failing size in
-// red, a section continued on a second page; and the primitives' props the
-// section added (TrackBar's words alone and in red, ReportTable's plain look
-// with a group's heading).
+// red, a section continued on a second page, a class moved under the
+// critical defects; and the primitives' props the section added (TrackBar's
+// words alone and in red, ReportTable's plain look with a group's heading).
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { ReportDocument, ReportTable, TrackBar } from "@/components/report";
-import { makeSafedonExport, makeStdEgExport } from "@/lib/report/__fixtures__/exports";
+import { makeSafedonExport, makeStdEgExport, withReportOptions } from "@/lib/report/__fixtures__/exports";
 import { buildReportModel } from "@/lib/report/model";
+import { fourSizeExport } from "@/lib/report/sections/__fixtures__/holes-visual";
 import type { InspectionExport } from "@/lib/schemas/export";
 
 /** The text of some markup, tags dropped and spaces collapsed. */
@@ -147,6 +148,25 @@ describe("SAFEDON_EG's Section 06, continued on a second page", () => {
     expect(continued).toContain('data-continued="true"');
     expect(text(continued)).toMatch(/^Visual: Major & Minor Defects Continued Visual: Major & Minor Defects, continued Defect XS S M L Minor · AQL 4\.0 Small Dirt \/ Stain 0 0 0 0/);
     expect(pages[1]).not.toContain("report-defect-limits");
+  });
+});
+
+describe("four sizes with Pinholes by Location off: the Minor class under the critical defects", () => {
+  const doc = fourSizeExport();
+  const blocks = { ...doc.report.sections.holesVisual.blocks, pinholesByLocation: false };
+  const pages = sectionPages(withReportOptions(doc, { sections: { ...doc.report.sections, holesVisual: { include: true, blocks } } }));
+
+  it("prints one page: the critical defects and the Minor class down the left column, the major defects down the right", () => {
+    expect(pages).toHaveLength(1);
+    expect(pages[0]).toContain("Page 7 of 10</p>");
+    const columns = part(pages[0], 'data-slot="report-holes-visual-columns"');
+    const [left, right] = [part(columns, 'data-column="1"'), part(columns, 'data-column="2"')];
+    expect(left).toContain('data-table="critical"');
+    const minor = part(left, 'data-table="visual"');
+    expect(minor).toContain('data-continued="true"');
+    expect(text(minor)).toMatch(/^Visual: Major & Minor Defects Continued Visual: Major & Minor Defects, continued Defect S M L XL Minor · AQL 4\.0 Small Dirt \/ Stain 2 1 0 0 /);
+    expect(text(minor)).toMatch(/ Accept \/ Reject 14 \/ 15 21 \/ 22 14 \/ 15 10 \/ 11$/);
+    expect(text(part(right, 'data-table="visual"'))).toMatch(/ Total Number of "Major Defects" Found 3 5 1 1 Accept \/ Reject 10 \/ 11 14 \/ 15 10 \/ 11 7 \/ 8$/);
   });
 });
 

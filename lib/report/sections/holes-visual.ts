@@ -14,14 +14,17 @@
 //
 // The first page follows the design: the grid across the page, then two
 // columns, the holes, the critical defects and the photos down the left, the
-// major and minor defects down the right. What it cannot hold (long defect
-// lists, long template labels) follows on the next page, the visual table
-// breaking between its classes where it can and starting again under its
-// class's heading where it cannot; more than four sizes stack the parts
-// across the page instead. The pages are planned here, from the room each
-// part takes (HOLES_VISUAL_ROOM, the sizes
-// components/report/sections/holes-visual.tsx draws at), so the page count
-// is known before anything is drawn.
+// major and minor defects down the right. Its columns take all they can
+// before anything goes on, the tables before the photos: the visual table
+// breaks between its classes where it can (and starts again under its
+// class's heading where it cannot), and a class the right column cannot
+// hold moves, whole, under the critical defects where it fits; photos the
+// left column cannot hold go under the visual table once it has ended. What
+// fits in neither column (long defect lists, long template labels) follows
+// on the next page; more than four sizes stack the parts across the page
+// instead. The pages are planned here, from the room each part takes
+// (HOLES_VISUAL_ROOM, the sizes components/report/sections/holes-visual.tsx
+// draws at), so the page count is known before anything is drawn.
 import { formatCount } from "@/lib/format";
 import { mediaCategory, type MediaCategoryKey } from "@/lib/inspections/source-documents";
 import { parseTarget, type PhotoTarget } from "@/lib/photos/target";
@@ -890,6 +893,9 @@ function smallestPieces(part: TablePart): [TablePart, TablePart] | null {
   return first === -1 || take >= part.rows.length ? null : piecesAt(part, take);
 }
 
+/** The parts a pour placed, what it could not, and how full it left each frame it reached (mm, by the frame's index). */
+type Poured = { placed: Placed[]; rest: Part[]; used: number[] };
+
 /**
  * Pours the parts into frames in order (each a column of a page, from
  * `frameAt`), at most `frames` of them: a part goes under the last while it
@@ -905,24 +911,27 @@ function pour(
   sizes: number,
   photoColumns: 2 | 4,
   frames = Number.POSITIVE_INFINITY,
-): { placed: Placed[]; rest: Part[] } {
+): Poured {
   const placed: Placed[] = [];
   const force = !Number.isFinite(frames);
   let index = 0;
   let used = 0;
+  const fill = [0];
   const height = (part: Part, frame: Frame) => partHeight(part, frame.width, sizes, photoColumns, used === 0);
   const put = (part: Part, frame: Frame) => {
     placed.push({ frame, slot: slotOf(part, frame.width, sizes, photoColumns, used === 0) });
     used += (used > 0 ? ROOM.gap : 0) + height(part, frame);
+    fill[index] = used;
   };
   const advance = () => {
     index += 1;
     used = 0;
+    if (index < frames) fill[index] = 0;
   };
   for (let at = 0; at < parts.length; at += 1) {
     let part: Part | null = parts[at];
     while (part) {
-      if (index >= frames) return { placed, rest: [part, ...parts.slice(at + 1)] };
+      if (index >= frames) return { placed, rest: [part, ...parts.slice(at + 1)], used: fill };
       const frame = frameAt(index);
       const free = frame.room - used - (used > 0 ? ROOM.gap : 0);
       if (height(part, frame) <= free) {
@@ -950,7 +959,27 @@ function pour(
       }
     }
   }
-  return { placed, rest: [] };
+  return { placed, rest: [], used: fill };
+}
+
+/**
+ * The longest run of whole classes from the start of a piece of the visual
+ * table that fits `room` in a column `width` mm wide, and what is left of
+ * the piece; null when the piece starts inside a class (its heading
+ * restarted) or its first class does not fit.
+ */
+function wholeClasses(part: TablePart, room: number, width: number, sizes: number): [TablePart, TablePart | null] | null {
+  const { rows } = part;
+  if (rows[0]?.kind !== "group" || rows[0].continued) return null;
+  let take = 0;
+  for (let end = 1; end <= rows.length; end += 1) {
+    // A class ends where the next one's heading begins, or with the piece.
+    if (end < rows.length && rows[end].kind !== "group") continue;
+    if (tableHeight(part.table, rows.slice(0, end), width, sizes, part.continued) > room) break;
+    take = end;
+  }
+  if (take === 0) return null;
+  return [{ ...part, rows: rows.slice(0, take) }, take < rows.length ? { ...part, rows: rows.slice(take) } : null];
 }
 
 function planPages(doc: InspectionExport, entry: ReportPlanEntryFor<"holesVisual">, content: Omit<HolesVisualContent, "pages">): HolesVisualPage[] {
@@ -965,12 +994,11 @@ function planPages(doc: InspectionExport, entry: ReportPlanEntryFor<"holesVisual
   const { pinholes, critical, visual } = content.tables;
   // Photos that open a column are headed by their block's name on the Report page.
   const photosTitle = entry.blocks.find((block) => block.key === "defectPhotos")?.label ?? "Defect Photos";
-  const left: Part[] = [
-    ...(pinholes ? [tablePart(pinholes)] : []),
-    ...(critical ? [tablePart(critical)] : []),
-    ...(content.photos.length > 0 ? [{ kind: "photos" as const, photos: content.photos, title: photosTitle }] : []),
-  ];
-  const right: Part[] = visual ? [tablePart(visual, false)] : [];
+  const tables: TablePart[] = [...(pinholes ? [tablePart(pinholes)] : []), ...(critical ? [tablePart(critical)] : [])];
+  const photos: PhotosPart | null = content.photos.length > 0 ? { kind: "photos", photos: content.photos, title: photosTitle } : null;
+  const left: Part[] = [...tables, ...(photos ? [photos] : [])];
+  const visualPart = visual ? tablePart(visual, false) : null;
+  const right: Part[] = visualPart ? [visualPart] : [];
 
   // More than four sizes: each part across the page, one under the other.
   if (sizes > 4) return pagesOf(pour([...left, ...right], (page) => ({ page, column: 0, width, room: room(page) }), sizes, 4).placed, "stack");
@@ -1001,12 +1029,50 @@ function planPages(doc: InspectionExport, entry: ReportPlanEntryFor<"holesVisual
     return pour([...leftParts, ...rightParts], (index) => frameOf(page + Math.floor(index / 2), index % 2), sizes, 2).placed;
   };
 
-  // The design: the holes, the critical defects and the photos down the left column, the major and minor defects down
-  // the right. What the first page cannot hold follows: the visual table breaks between its classes where it can.
-  if (left.length > 0 && right.length > 0) {
-    const leftFirst = pour(left, () => frameOf(0, 0), sizes, 2, 1);
-    const rightFirst = pour(right, () => frameOf(0, 1), sizes, 2, 1);
-    return pagesOf([...leftFirst.placed, ...rightFirst.placed, ...from(1, leftFirst.rest, rightFirst.rest)], "columns");
+  /** Whether a part fits under `used` mm of a frame. */
+  const fits = (part: Part, frame: Frame, used: number) => partHeight(part, frame.width, sizes, 2, used === 0) <= frame.room - used - (used > 0 ? ROOM.gap : 0);
+
+  /**
+   * The design's first page, its two columns filled before anything goes
+   * on, the tables first and in their reading order (the holes, the critical
+   * defects, the major, the minor): the holes and the critical defects down
+   * the left column, the visual table down the right, whole where it fits,
+   * else breaking between its classes as before. A class the right column
+   * cannot hold moves, whole, under the left column's tables where it fits
+   * there (Kenneth, 27 October 2026: the Minor table under the critical
+   * defects, not alone on a page), once they are all on the page. Then the
+   * photos: the left column where they fit, else the right once the visual
+   * table has ended, else their first row. Nothing goes above what a column
+   * already holds. What fits in neither column comes back, the left parts'
+   * and the visual table's, each in its order.
+   */
+  const firstPage = (visualTable: TablePart): { placed: Placed[]; left: Part[]; right: Part[] } => {
+    const [leftFrame, rightFrame] = [frameOf(0, 0), frameOf(0, 1)];
+    const holes = pour(tables, () => leftFrame, sizes, 2, 1);
+    const visualFirst = pour([visualTable], () => rightFrame, sizes, 2, 1);
+    const placed = [...holes.placed, ...visualFirst.placed];
+    const rightUsed = visualFirst.used[0];
+    let leftUsed = holes.used[0];
+    let rest = visualFirst.rest;
+    const [next] = rest;
+    const moved = next?.kind === "table" && leftUsed > 0 && holes.rest.length === 0 ? wholeClasses(next, leftFrame.room - leftUsed - ROOM.gap, leftFrame.width, sizes) : null;
+    if (moved) {
+      placed.push({ frame: leftFrame, slot: slotOf(moved[0], leftFrame.width, sizes, 2, false) });
+      leftUsed += ROOM.gap + partHeight(moved[0], leftFrame.width, sizes, 2, false);
+      rest = moved[1] ? [moved[1]] : [];
+    }
+    if (!photos) return { placed, left: holes.rest, right: rest };
+    // After a table that goes on, the photos go on too; else whole where they fit, the left column first, else their first row.
+    const spots = [{ frame: leftFrame, used: leftUsed }, ...(rest.length === 0 ? [{ frame: rightFrame, used: rightUsed }] : [])];
+    const choices = holes.rest.length > 0 ? [] : [photos, { ...photos, photos: photos.photos.slice(0, 2) }];
+    const spot = choices.flatMap((part) => spots.map((at) => ({ part, ...at }))).find((at) => fits(at.part, at.frame, at.used));
+    if (!spot) return { placed, left: [...holes.rest, photos], right: rest };
+    return { placed: [...placed, { frame: spot.frame, slot: slotOf(spot.part, spot.frame.width, sizes, 2, spot.used === 0) }], left: holes.rest, right: rest };
+  };
+
+  if (left.length > 0 && visualPart) {
+    const first = firstPage(visualPart);
+    return pagesOf([...first.placed, ...from(1, first.left, first.right)], "columns");
   }
   return pagesOf(from(0, left, right), "columns");
 }
