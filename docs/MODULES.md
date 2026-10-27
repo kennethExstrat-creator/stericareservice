@@ -5,7 +5,7 @@ How to build an inspection module on the module framework (BUILD_SPEC 4, 6 and 6
 | Path | What |
 |---|---|
 | `modules/<key>/` | One folder per module key. Yours to replace; nothing else changes when you do. |
-| `modules/_framework/` | The contract, the inspection context, the engine, the test kit. Import it as `@/modules/_framework`; its one React part, the file slot, as `@/modules/_framework/file-slot` (Capture only). |
+| `modules/_framework/` | The contract, the inspection context, the engine, the test kit. Import it as `@/modules/_framework`; its React parts by their own paths, such as the file slot as `@/modules/_framework/file-slot` (Capture only). |
 | `modules/registry.ts` | Maps every key to `modules/<key>/index.ts`. Never edited. |
 | `modules/index.ts` | The app's entry point (`@/modules`): the registry bound into the engine, for screens and server actions. |
 | `lib/templates/` | Template resolution, selection, per-inspection overrides, versions. |
@@ -17,7 +17,7 @@ How to build an inspection module on the module framework (BUILD_SPEC 4, 6 and 6
 
 - **Your folder only.** Each module engineer owns `modules/<key>/` for their keys. Do not edit `modules/registry.ts`, `modules/_framework/`, `lib/templates/`, `lib/validation/`, `lib/sizes/` or `lib/schemas/`. If the framework needs to change, write down the change and ask.
 - **Replace the stub in place.** Every folder starts with an `index.ts` that calls `stubModule(...)`. Replace it with your module; keep the export name: `export const definition = defineModule({...})`.
-- **Import from these only**: `@/modules/_framework` (contract, helpers, cell schemas, `SpecSchema`, issue builders), `@/lib/stats` (median, mean, specs, strict number parsing), `@/lib/sizes`, `@/lib/aql` (code letters, Ac/Re), `@/lib/schemas`, `zod`, and your own folder. `Capture.tsx` may also import React, `@/components/qc` and `@/components/ui` (docs/CAPTURE_KIT.md), `@/lib/format` (text for numbers, specs and sizes), `@/modules/_framework/file-slot` (section 10.1), `@/modules/_framework/shown-size` (section 10, photo tags) and, in the conclusion only, `@/modules/_framework/summary-assist` (section 10.2). **Never** import `@/modules`, `@/modules/registry` or `@/lib/validation`: they import the modules, so your module would import itself. `modules/_framework/architecture.test.ts` fails if you do.
+- **Import from these only**: `@/modules/_framework` (contract, helpers, cell schemas, `SpecSchema`, issue builders), `@/lib/stats` (median, mean, specs, strict number parsing), `@/lib/sizes`, `@/lib/aql` (code letters, Ac/Re), `@/lib/schemas`, `zod`, and your own folder. `Capture.tsx` may also import React, `@/components/qc` and `@/components/ui` (docs/CAPTURE_KIT.md), `@/lib/format` (text for numbers, specs and sizes), `@/modules/_framework/file-slot` (section 10.1), `@/modules/_framework/shown-size` (section 10, photo tags), `@/modules/_framework/inspection-links` (section 10.3) and, in the conclusion only, `@/modules/_framework/summary-assist` (section 10.2). **Never** import `@/modules`, `@/modules/registry` or `@/lib/validation`: they import the modules, so your module would import itself. `modules/_framework/architecture.test.ts` fails if you do.
 - **Pure.** `schema.ts`, `config.ts`, `calc.ts` and `index.ts` hold data and pure functions: no React, Next, Supabase, `fetch`, `Date.now()` or randomness. The same code runs on the iPad, in server actions and in the export. Only `Capture.tsx` is React.
 - **Plain JSON.** Data, config and computed values survive `JSON.stringify` unchanged: no `Date`, `Map`, class instances, `undefined` or `NaN`.
 - **No new npm packages.**
@@ -398,6 +398,19 @@ const steriAi = useSteriAiSummary({ assist: summaryAssist, words, finalResult: f
 - **Without a provider** (the template editor's preview, `capture-preview.tsx`; tests) `useSummaryAssist()` answers null, as it does under a provider whose value is null. The Steri-AI Summary button shows only with a value and while the Capture is not read-only; without one the summary is an editor like any other.
 - **Text only.** The draft comes back as a validated document: the Capture puts it in through the editor's handle as one undo step, and autosave saves it like typing, so `saveCaptureData` checks it again. Nothing in the slot reads or writes a result.
 - Only the conclusion uses it. Import it by its path, never through the framework's index: the framework's React parts are for Capture.tsx only (`modules/_framework/architecture.test.ts`).
+
+### 10.3 The inspection's links slot
+
+A Capture that opens a page of its inspection in a new tab gets the address through a slot, as 10.1 and 10.2 do, never from app code: the Sampling Plan's Export Sampling Plan (Kenneth, 27 October 2026) opens the plan for the manufacturer, `/inspections/[id]/sampling-plan/print` (BUILD_SPEC section 10).
+
+```tsx
+import { useInspectionLinks } from "@/modules/_framework/inspection-links";
+
+const links = useInspectionLinks(); // InspectionLinks | null: { samplingPlanPrint, saveFirst() }
+```
+
+- **How the screen gives it**: `capture-screen.tsx` wraps the open page in `<InspectionLinksProvider>` with the inspection's links and `saveFirst`, autosave's flush (briefly, `LEAVE_FLUSH_MS`), on a read-only inspection too. Open a blank tab on the click, call `saveFirst()`, then point the tab at the link, as Download PDF on the Report page does, so the page opened has the last change.
+- **Without a provider** (the design page, tests) the hook answers null: show no such button. The slot imports React alone.
 
 ## 11. Testing
 

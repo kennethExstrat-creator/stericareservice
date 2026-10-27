@@ -49,6 +49,15 @@
 // lib/aql, each size marked: Table 1 with both levels picked highlighted,
 // Table 2-A at the general one; Back to Settings returns.
 //
+// Export Sampling Plan, after Sampling Settings (Kenneth, 27 October 2026:
+// "This is to send to the manufacturer to prepare the sample before the
+// inspector arrive ... sampling plan should be can be exported once the
+// sampling plan section is done"): an outline button of their height that
+// opens the plan for the manufacturer, one A4 landscape page, in a new tab
+// (/inspections/[id]/sampling-plan/print), what is waiting saved first.
+// Enabled once the step is Done, on a draft and read-only alike; until then
+// disabled, "Complete the Sampling Plan first" its title.
+//
 // Sampling Quantity (Kenneth, 27 October 2026): # of Case, Inner Box Taken
 // per Case, Total # of Inner Box, then Gloves Taken per Inner Box, Put Back,
 // # of Gloves Sample and Code Letter. While a size's inner boxes per case are
@@ -78,8 +87,17 @@
 // 2026): switched off, the row is greyed, never hidden, its cells take no
 // typing and nothing in it is asked for. No template shows a row of gloves
 // for weight any more (shownColumns).
-import { ArrowDownIcon, ArrowLeftRightIcon, CalculatorIcon, ChevronDownIcon, ChevronUpIcon, Settings2Icon, TableIcon } from "lucide-react";
-import { useEffect, useId, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import {
+  ArrowDownIcon,
+  ArrowLeftRightIcon,
+  CalculatorIcon,
+  ChevronDownIcon,
+  ChevronUpIcon,
+  FileDownIcon,
+  Settings2Icon,
+  TableIcon,
+} from "lucide-react";
+import { useEffect, useId, useRef, useState, type CSSProperties, type MouseEvent, type ReactNode } from "react";
 import { toast } from "sonner";
 import {
   EnterGroup,
@@ -131,9 +149,12 @@ import {
   type Table2ACell,
 } from "@/lib/aql";
 import { formatSize } from "@/lib/format";
+import { samplingPlanReady } from "@/lib/sampling-plan/paths";
+import type { ModuleStatus } from "@/lib/schemas/module-result";
 import { cn } from "@/lib/utils";
 import { labelFor, lotSizeGloves, moduleShortTitle, type AqlSettings, type CaptureProps } from "@/modules/_framework";
 import { ModuleHeaderActions } from "@/modules/_framework/header-actions";
+import { useInspectionLinks } from "@/modules/_framework/inspection-links";
 import { useReportShownSize } from "@/modules/_framework/shown-size";
 import { autoSampleCases } from "./auto-cases";
 import { autoCalculateNotice, autoSampleGloves, type AutoGloves } from "./auto-gloves";
@@ -383,6 +404,7 @@ export default function Capture({
         readOnly={readOnly}
         onSave={saveSettings}
       />
+      <ExportSamplingPlanButton status={evaluation?.result.status ?? null} />
     </ModuleHeaderActions>
   );
 
@@ -942,6 +964,74 @@ function AutoCalculateButton({
         </AlertDialogContent>
       </AlertDialog>
     </>
+  );
+}
+
+/** Why Export Sampling Plan waits: its title while it is disabled. */
+export const EXPORT_NOT_READY = "Complete the Sampling Plan first";
+
+/**
+ * Export Sampling Plan (Kenneth, 27 October 2026: "Do a button to export the
+ * sampling plan using this template design. This is to send to the
+ * manufacturer to prepare the sample before the inspector arrive."): the plan
+ * for the manufacturer, one A4 landscape page to print or save as a PDF,
+ * opened in a new tab from the screen's links (InspectionLinksProvider).
+ * Enabled once the step is Done (samplingPlanReady), on a draft and on a
+ * read-only inspection alike, whatever the rest of the inspection; disabled
+ * until then, with why as its title. What is waiting is saved first, as
+ * Download PDF does on the Report page, so the page has the last count typed.
+ * None where the screen gives no links (the design page, a test).
+ */
+function ExportSamplingPlanButton({ status }: { status: ModuleStatus | null }) {
+  const links = useInspectionLinks();
+  if (!links) return null;
+  const content = (
+    <>
+      <FileDownIcon aria-hidden />
+      Export Sampling Plan
+    </>
+  );
+  if (!samplingPlanReady(status)) {
+    return (
+      <Button type="button" variant="outline" size="sm" disabled title={EXPORT_NOT_READY} data-slot="export-sampling-plan">
+        {content}
+      </Button>
+    );
+  }
+  const href = links.samplingPlanPrint;
+  const open = (event: MouseEvent<HTMLAnchorElement>) => {
+    // A tab or window asked for with a modifier key or the middle button opens as the browser does it.
+    if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+    event.preventDefault();
+    // Opened while the click still counts as the inspector's, so no pop-up blocker stops it, and pointed at the plan
+    // once what is waiting is saved (or the save gave up).
+    const tab = window.open("", "_blank");
+    void links
+      .saveFirst()
+      .catch(() => undefined)
+      .finally(() => {
+        if (tab) {
+          tab.opener = null;
+          tab.location.href = href;
+        } else {
+          window.location.assign(href);
+        }
+      });
+  };
+  return (
+    <Button asChild variant="outline" size="sm" className="relative">
+      <a
+        href={href}
+        target="_blank"
+        rel="noopener"
+        onClick={open}
+        data-slot="export-sampling-plan"
+        title="Open the sampling plan for the manufacturer in a new tab, to print or save as a PDF"
+      >
+        {content}
+        <span className="sr-only"> (opens in a new tab)</span>
+      </a>
+    </Button>
   );
 }
 

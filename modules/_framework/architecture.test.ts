@@ -50,12 +50,14 @@ function offenders(imports: Import[], forbidden: (specifier: string) => boolean)
 /**
  * The framework's React parts, for Capture.tsx only: imported by their own
  * path (`@/modules/_framework/file-slot`, `@/modules/_framework/header-actions`,
- * `@/modules/_framework/lab-reports`, `@/modules/_framework/shown-size`,
- * `@/modules/_framework/summary-assist`), never through the framework's index.
+ * `@/modules/_framework/inspection-links`, `@/modules/_framework/lab-reports`,
+ * `@/modules/_framework/shown-size`, `@/modules/_framework/summary-assist`),
+ * never through the framework's index.
  */
 const FRAMEWORK_CLIENT_FILES = [
   "modules/_framework/file-slot.tsx",
   "modules/_framework/header-actions.tsx",
+  "modules/_framework/inspection-links.tsx",
   "modules/_framework/lab-reports.tsx",
   "modules/_framework/shown-size.ts",
   "modules/_framework/summary-assist.tsx",
@@ -110,6 +112,8 @@ describe("module layering", () => {
       "./file-slot",
       "@/modules/_framework/header-actions",
       "./header-actions",
+      "@/modules/_framework/inspection-links",
+      "./inspection-links",
       "@/modules/_framework/lab-reports",
       "./lab-reports",
       "@/modules/_framework/shown-size",
@@ -137,6 +141,11 @@ describe("module layering", () => {
       "react",
       "@/lib/schemas/summary-style",
     ]);
+  });
+
+  it("keeps the inspection's links slot to React alone", () => {
+    // The capture screen gives the links (Export Sampling Plan; Kenneth, 27 October 2026): the slot itself knows no route.
+    expect(importsOf("modules/_framework/inspection-links.tsx").map((entry) => entry.specifier)).toEqual(["react"]);
   });
 
   it("lets only lib/validation/validate.ts load the registry from lib", () => {

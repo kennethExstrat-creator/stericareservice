@@ -16,13 +16,15 @@
 // its own (ActivePage; Kenneth, 26 October 2026). The conclusion's Steri-AI
 // Summary asks the screen for a draft (summaryAssist): what is waiting is
 // saved first, as for submit, and the draft comes back as text for the
-// editor, never as data. A step holding values for a size the order does
-// not list, which no step shows, says so at its top, with Open Order to that
-// size's row (SectionPart; Kenneth, 27 October 2026). After the Conclusion,
-// the Report page: the report's options, saved in the data (`report`)
-// through the same autosave, the report's own pages built from this screen's
-// copy, and Download PDF (report-page.tsx; Kenneth, 27 October 2026); then
-// the Audit Log.
+// editor, never as data. The Sampling Plan's Export Sampling Plan opens the
+// plan for the manufacturer in a new tab through the inspection's links
+// (inspectionLinks), what is waiting saved first. A step holding values for
+// a size the order does not list, which no step shows, says so at its top,
+// with Open Order to that size's row (SectionPart; Kenneth, 27 October
+// 2026). After the Conclusion, the Report page: the report's options, saved
+// in the data (`report`) through the same autosave, the report's own pages
+// built from this screen's copy, and Download PDF (report-page.tsx; Kenneth,
+// 27 October 2026); then the Audit Log.
 //
 // Layout: below 1280 px (the iPad) a section tab bar sticks under the shell's
 // top bar with the save pill, and the form runs full width; from 1280 px a
@@ -172,7 +174,9 @@ import {
   type InspectionData,
 } from "@/modules/_framework";
 import { MODULE_REGISTRY } from "@/modules";
+import { InspectionLinksProvider, type InspectionLinks } from "@/modules/_framework/inspection-links";
 import type { SummaryAssist } from "@/modules/_framework/summary-assist";
+import { samplingPlanPrintPath } from "@/lib/sampling-plan/paths";
 import { applyProposals, SOURCE_DOCUMENTS_KEY, SOURCE_DOCUMENTS_TITLE } from "@/lib/inspections/source-documents";
 import type { CaptureServerState } from "../actions";
 import { draftInspectionSummary } from "../summary-actions";
@@ -828,6 +832,14 @@ export function CaptureScreen({
     };
   }, [summaryMenu, inspectionId, user.id, flushNow]);
 
+  // The inspection's links slot (modules/_framework/inspection-links.tsx): the Sampling Plan's Export Sampling Plan
+  // opens the plan for the manufacturer in a new tab once what is waiting is saved, as Download PDF does, so the
+  // printed plan has the last count typed (Kenneth, 27 October 2026). Read-only too: only the plan is read.
+  const inspectionLinks = useMemo<InspectionLinks>(
+    () => ({ samplingPlanPrint: samplingPlanPrintPath(inspectionId), saveFirst: () => flushNow({ timeoutMs: LEAVE_FLUSH_MS }) }),
+    [inspectionId, flushNow],
+  );
+
   // After a refused submit, empty required fields say so where they are, too.
   const [submitTried, setSubmitTried] = useState(false);
   const onBlocked = useCallback(
@@ -1187,50 +1199,52 @@ export function CaptureScreen({
           />
 
           {activePage && (
-            <ActivePage
-              key={activePage.key}
-              page={activePage}
-              panelId={panelId}
-              titleRef={titleRef}
-              tabLabelledBy={wide ? undefined : tabId(idPrefix, activePage.key)}
-              documents={sourceDocuments}
-              template={template}
-              effective={evaluation.template}
-              overrides={overrides}
-              overrideAuthors={overrideAuthors}
-              userId={user.id}
-              data={data}
-              report={report}
-              context={context}
-              focusRequest={focusRequest}
-              readOnly={readOnly}
-              showRequired={submitTried}
-              access={access}
-              inspectionId={inspectionId}
-              keptFocus={keptFocus}
-              defectUsage={defectUsage}
-              summaryAssist={summaryAssist}
-              order={orderLink}
-              refusedStores={refusedStores}
-              onFocusReported={keepSize}
-              onUnreadableRemoved={focusTitleAfterRemoval}
-              // Each change from the form also marks its field as where the inspector stopped.
-              onModuleChange={(key, value) => {
-                writeEntry("modules", key, value);
-                landing.record();
-              }}
-              onCustomChange={(key, value) => {
-                writeEntry("custom", key, value);
-                landing.record();
-              }}
-              onMappedChange={(mapsTo, value) => {
-                writeMapped(mapsTo, value);
-                landing.record();
-              }}
-              onOverridesChange={onSwitched}
-              saveFirst={() => autosave.flush({ timeoutMs: LEAVE_FLUSH_MS })}
-              reportPage={{ ...reportPage, options: reportOptions, source: reportSource, onChange: writeReport }}
-            />
+            <InspectionLinksProvider value={inspectionLinks}>
+              <ActivePage
+                key={activePage.key}
+                page={activePage}
+                panelId={panelId}
+                titleRef={titleRef}
+                tabLabelledBy={wide ? undefined : tabId(idPrefix, activePage.key)}
+                documents={sourceDocuments}
+                template={template}
+                effective={evaluation.template}
+                overrides={overrides}
+                overrideAuthors={overrideAuthors}
+                userId={user.id}
+                data={data}
+                report={report}
+                context={context}
+                focusRequest={focusRequest}
+                readOnly={readOnly}
+                showRequired={submitTried}
+                access={access}
+                inspectionId={inspectionId}
+                keptFocus={keptFocus}
+                defectUsage={defectUsage}
+                summaryAssist={summaryAssist}
+                order={orderLink}
+                refusedStores={refusedStores}
+                onFocusReported={keepSize}
+                onUnreadableRemoved={focusTitleAfterRemoval}
+                // Each change from the form also marks its field as where the inspector stopped.
+                onModuleChange={(key, value) => {
+                  writeEntry("modules", key, value);
+                  landing.record();
+                }}
+                onCustomChange={(key, value) => {
+                  writeEntry("custom", key, value);
+                  landing.record();
+                }}
+                onMappedChange={(mapsTo, value) => {
+                  writeMapped(mapsTo, value);
+                  landing.record();
+                }}
+                onOverridesChange={onSwitched}
+                saveFirst={() => autosave.flush({ timeoutMs: LEAVE_FLUSH_MS })}
+                reportPage={{ ...reportPage, options: reportOptions, source: reportSource, onChange: writeReport }}
+              />
+            </InspectionLinksProvider>
           )}
 
           {(previous || next) && (
