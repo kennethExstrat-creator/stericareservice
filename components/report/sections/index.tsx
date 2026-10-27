@@ -14,6 +14,7 @@ import { forceAtBreakPages } from "./forceAtBreak";
 import { packingPages } from "./packing";
 import { dimensionsPages } from "./dimensions";
 import { measurementsPages } from "./measurements";
+import { orderSamplingPages } from "./order-sampling";
 
 export type SectionPagesProps<K extends ReportSlotKey> = {
   model: ReportModel;
@@ -37,6 +38,7 @@ export function defineSectionPages<K extends ReportSlotKey>(pages: SectionPages<
 
 /** Every built section's pages, one line each, in any order: the plan sets the order. */
 export const SECTION_PAGES: readonly AnySectionPages[] = [
+  orderSamplingPages,
   // orderSampling, dimensions, measurements, forceAtBreak, holesVisual, packing, labellingConclusion, photos
   forceAtBreakPages,
   packingPages,

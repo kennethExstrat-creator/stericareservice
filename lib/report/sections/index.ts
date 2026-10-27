@@ -16,6 +16,7 @@ import { forceAtBreak } from "./forceAtBreak";
 import { packing } from "./packing";
 import { dimensions } from "./dimensions";
 import { measurements } from "./measurements";
+import { orderSampling } from "./order-sampling";
 
 export type SectionBuilder<K extends ReportSlotKey> = {
   key: K;
@@ -36,6 +37,7 @@ export function defineSection<K extends ReportSlotKey>(builder: SectionBuilder<K
  * prints them in the report's order (REPORT_SECTIONS, then the photos).
  */
 export const SECTION_BUILDERS: readonly AnySectionBuilder[] = [
+  orderSampling,
   // orderSampling, dimensions, measurements, forceAtBreak, holesVisual, packing, labellingConclusion, photos
   forceAtBreak,
   packing,

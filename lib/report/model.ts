@@ -157,7 +157,7 @@ export type SummaryModel = {
 export type ReportSectionContent = { pageCount: number };
 
 /** Section 02, Order, Product & Sampling: Glove Information, packing, the order lots and sampling plan, the sampled box/carton numbers. */
-export type OrderSamplingSection = ReportSectionContent;
+export type OrderSamplingSection = import("./sections/order-sampling").OrderSamplingContent;
 /** Section 03, Dimensions & Weight: glove length (DotPlot), palm width (RangeBand), the medians, weight per glove (HBars). */
 export type DimensionsSection = ReportSectionContent & {
   /**
