@@ -129,7 +129,9 @@ describe("the page", () => {
   it("gives the Site URL to set, from NEXT_PUBLIC_SITE_URL", async () => {
     const page = text(await render());
     expect(page).toContain("Check by Hand");
-    expect(page).toContain("set it to https://qc.example.com and add https://qc.example.com/** to the redirect URLs.");
+    // The emails link back to the app that sent them (5cd669b): its address goes in the redirect URLs, the Site URL as it is.
+    expect(page).toContain("add https://qc.example.com/** to the redirect URLs.");
+    expect(page).not.toContain("set it to");
   });
 
   it("asks for NEXT_PUBLIC_SITE_URL in a production build without it, rather than the localhost fallback", async () => {
