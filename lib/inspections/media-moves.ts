@@ -13,6 +13,7 @@ import {
   SOURCE_MEDIA_KEY,
   type MediaCategoryKey,
 } from "@/lib/inspections/source-documents";
+import { MAX_PHOTO_MARKERS, PhotoMarkersSchema, PhotoSizeSchema } from "@/lib/schemas/photo-markers";
 
 /** Items Auto-Sort sends to the AI in one call. */
 export const MEDIA_SORT_MAX_ITEMS = 12;
@@ -38,7 +39,13 @@ export const MEDIA_MESSAGES = {
   noAnswer: "The server did not answer. Try again in a moment.",
   refused: "The server refused the change. Reload the page and try again.",
   unexpected: "Something went wrong. Try again in a moment.",
+  badMarkers: "The defect marks could not be read. Try again.",
+  tooManyMarkers: `Mark at most ${MAX_PHOTO_MARKERS} defects on one photo.`,
+  markersNotReady: "This server cannot save defect marks yet.",
 } as const;
+
+/** The category a photo's first defect mark puts it in, and that its last one, taken off, sorts it out of. */
+export const DEFECTS_CATEGORY: MediaCategoryKey = "media_defects";
 
 export type MediaKind = "photo" | "video";
 
@@ -154,8 +161,21 @@ export const SortMediaInputSchema = z.object({
     }),
 });
 
+/**
+ * A photo's defect marks (lib/schemas/photo-markers.ts) as the preview saves
+ * them, with the image's natural size: kept with the marks of a photo stored
+ * without one, and dropped, not refused, when it is no size.
+ */
+export const SaveMarkersInputSchema = z.object({
+  inspectionId: InspectionIdSchema,
+  photoId: ItemShape.id,
+  markers: PhotoMarkersSchema,
+  size: PhotoSizeSchema.nullable().catch(null),
+});
+
 export type MoveMediaInput = z.output<typeof MoveMediaInputSchema>;
 export type SortMediaInput = z.output<typeof SortMediaInputSchema>;
+export type SaveMarkersInput = z.output<typeof SaveMarkersInputSchema>;
 
 type Parsed<T> = { ok: true; data: T } | { ok: false; error: string };
 
@@ -172,4 +192,14 @@ export function parseMoveInput(inspectionId: unknown, item: unknown, category: u
 /** sortMediaWithAi's arguments, checked, each preview with its image type. */
 export function parseSortInput(inspectionId: unknown, items: unknown): Parsed<SortMediaInput> {
   return parsed(SortMediaInputSchema.safeParse({ inspectionId, items }));
+}
+
+/** savePhotoMarkers' arguments, checked: marks of any other shape are refused in the screen's words. */
+export function parseMarkersInput(inspectionId: unknown, photoId: unknown, markers: unknown, size: unknown): Parsed<SaveMarkersInput> {
+  const result = SaveMarkersInputSchema.safeParse({ inspectionId, photoId, markers, size });
+  if (result.success) return { ok: true, data: result.data };
+  const issue = result.error.issues[0];
+  if (issue?.path[0] !== "markers") return parsed(result);
+  const tooMany = issue.path.length === 1 && issue.code === "too_big";
+  return { ok: false, error: tooMany ? MEDIA_MESSAGES.tooManyMarkers : MEDIA_MESSAGES.badMarkers };
 }

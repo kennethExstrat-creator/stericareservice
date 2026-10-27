@@ -4,22 +4,28 @@ import { unstable_rethrow } from "next/navigation";
 import { sortMedia } from "@/lib/ai/media-sorter";
 import { loadAiEnv } from "@/lib/ai/settings";
 import { recordAiUsageLater } from "@/lib/ai/usage";
-import { authorizeAction } from "@/lib/auth/session";
+import { authorizeAction, userCan, type SessionUser } from "@/lib/auth/session";
 import {
+  DEFECTS_CATEGORY,
   isMediaVideoKey,
   itemKey,
   MEDIA_MESSAGES,
   mediaPlace,
   moduleKeyFor,
+  parseMarkersInput,
   parseMoveInput,
   parseSortInput,
+  previewMediaType,
   sortCounts,
   type MediaKind,
+  type PreviewMediaType,
 } from "@/lib/inspections/media-moves";
 import type { MediaCategoryKey } from "@/lib/inspections/source-documents";
 import { postgrestFailure, type FailureReason } from "@/lib/offline/failures";
+import { PHOTO_BUCKET } from "@/lib/photos/paths";
+import { lacksMarkersColumn, readPhotoMarkers, type PhotoMarker, type PhotoSize } from "@/lib/schemas/photo-markers";
 import { createAdminClient } from "@/lib/supabase/admin";
-import type { Json } from "@/lib/supabase/database.types";
+import type { Json, TablesUpdate } from "@/lib/supabase/database.types";
 import { createClient } from "@/lib/supabase/server";
 
 /*
@@ -35,11 +41,26 @@ import { createClient } from "@/lib/supabase/server";
  * log is written with the secret key, naming who (an inspector records only
  * a few events themselves). Nothing is refreshed: the screen keeps its own
  * copy.
+ *
+ * Defect marks (Kenneth, 27 October 2026): savePhotoMarkers keeps the red
+ * circles drawn on a photo's preview. A photo's first mark puts it in
+ * Product Defects, as a move by hand would; its last mark taken off while it
+ * is there has Steri-AI sort it again among the other categories (or puts it
+ * in Other).
  */
 
 /** A photo (an inspection photo) or a video (an inspection file) on the Media side. */
 export type MediaItemRef = { kind: "photo" | "video"; id: string };
 export type MoveMediaResult = { ok: true } | { ok: false; error: string };
+/**
+ * The marks as saved. `moved`: the photo's module_key after the save moved it
+ * (Product Defects for a first mark; another category, or null for Other,
+ * once the last one is taken off); left out when it stayed. `size`: the
+ * natural size saved beside the marks of a photo that had none.
+ */
+export type SaveMarkersResult =
+  | { ok: true; markers: PhotoMarker[]; moved?: { moduleKey: string | null }; size: PhotoSize | null }
+  | { ok: false; error: string };
 /** A small JPEG of the photo or of a frame of the video: base64 without "data:", at most 1024 px on its long edge. */
 export type SortMediaItem = MediaItemRef & { preview: string };
 export type SortedMediaItem = MediaItemRef & { category: MediaCategoryKey | null };
@@ -153,6 +174,167 @@ export async function sortMediaWithAi(inspectionId: string, items: SortMediaItem
 }
 
 /**
+ * Keeps a photo's defect marks (the red circles drawn on its preview), with
+ * the preview's natural size where the row has none. The photo's first mark
+ * puts it in Product Defects, the same write and the same audit row as a move
+ * by hand (`via` saying why); its last mark taken off while it is in Product
+ * Defects has it sorted again among the other categories (sortUnmarked). Who
+ * may: whoever may move it by hand, the database's rule for changing a photo.
+ */
+export async function savePhotoMarkers(
+  inspectionId: string,
+  photoId: string,
+  markers: PhotoMarker[],
+  size: PhotoSize | null = null,
+): Promise<SaveMarkersResult> {
+  try {
+    const auth = await authorizeAction();
+    if (!auth.ok) return { ok: false, error: auth.error };
+    const input = parseMarkersInput(inspectionId, photoId, markers, size);
+    if (!input.ok) return { ok: false, error: input.error };
+    const { inspectionId: id, photoId: photo, markers: after, size: natural } = input.data;
+
+    const opened = await openMarkedPhoto(id, photo);
+    if (!opened.ok) return { ok: false, error: opened.error };
+    const { supabase, row } = opened;
+    const before = readPhotoMarkers(row.markers);
+    const place = mediaPlace(row.module_key);
+    const media: MediaRow = { kind: "photo", id: row.id, moduleKey: row.module_key, target: row.target };
+
+    const marking = before.length === 0 && after.length > 0 && place !== DEFECTS_CATEGORY;
+    const sized = natural !== null && (row.width === null || row.height === null) ? natural : null;
+    const written = await writePhoto(supabase, id, row.id, {
+      markers: after,
+      ...(sized ? { width: sized.width, height: sized.height } : {}),
+      // The first mark moves it as Move To would: its category, and a step's old target goes.
+      ...(marking ? { module_key: DEFECTS_CATEGORY, target: null } : {}),
+    });
+    if (!written.ok) return written;
+
+    if (marking) {
+      await logMediaEvent(id, "media_moved", { by: auth.user.id, ...moveRecord(media, DEFECTS_CATEGORY), via: "defect_marked" });
+      return { ok: true, markers: after, moved: { moduleKey: DEFECTS_CATEGORY }, size: sized };
+    }
+    if (before.length > 0 && after.length === 0 && place === DEFECTS_CATEGORY) {
+      const sorted = await sortUnmarked(supabase, id, row, auth.user);
+      const moduleKey = moduleKeyFor("photo", sorted.category);
+      const moved = await writePlace(supabase, id, media, moduleKey, MEDIA_MESSAGES.photoGone);
+      if (moved.ok) {
+        await logMediaEvent(id, "media_moved", {
+          by: auth.user.id,
+          ...moveRecord(media, moduleKey),
+          via: "marks_removed",
+          ...(sorted.model ? { model: sorted.model } : {}),
+        });
+        return { ok: true, markers: after, moved: { moduleKey }, size: sized };
+      }
+      // The marks are saved; the photo stays in Product Defects for the inspector to move.
+      console.error("[media] moving an unmarked photo out of Product Defects failed", moved.error);
+    }
+    return { ok: true, markers: after, size: sized };
+  } catch (error) {
+    unstable_rethrow(error);
+    console.error("[media] savePhotoMarkers failed", error);
+    return { ok: false, error: MEDIA_MESSAGES.unexpected };
+  }
+}
+
+/** A photo's row as saving its marks needs it. */
+type MarkedPhotoRow = {
+  id: string;
+  module_key: string | null;
+  target: string | null;
+  markers: unknown;
+  width: number | null;
+  height: number | null;
+  storage_path: string;
+  thumb_path: string | null;
+  flagged: boolean;
+};
+
+const MARKED_PHOTO_COLUMNS = "id, module_key, target, markers, width, height, storage_path, thumb_path, flagged";
+
+/** The caller's client and the photo's row, once they may change the inspection's photos. */
+async function openMarkedPhoto(
+  inspectionId: string,
+  photoId: string,
+): Promise<{ ok: true; supabase: Supabase; row: MarkedPhotoRow } | { ok: false; error: string }> {
+  const supabase = await createClient();
+  const [allowed, photo] = await Promise.all([
+    supabase.rpc("can_edit_inspection", { inspection_id: inspectionId }),
+    supabase.from("inspection_photos").select(MARKED_PHOTO_COLUMNS).eq("inspection_id", inspectionId).eq("id", photoId).maybeSingle(),
+  ]);
+  // A project before migration 20261027210000 has nowhere to keep them.
+  if (lacksMarkersColumn(photo.error)) return { ok: false, error: MEDIA_MESSAGES.markersNotReady };
+  const failed = allowed.error ?? photo.error;
+  if (failed) {
+    console.error("[media] reading the photo to mark failed", failed.code, failed.message);
+    return { ok: false, error: MEDIA_MESSAGES.noAnswer };
+  }
+  if (allowed.data !== true) return { ok: false, error: MEDIA_MESSAGES.forbidden };
+  if (!photo.data) return { ok: false, error: MEDIA_MESSAGES.photoGone };
+  return { ok: true, supabase, row: photo.data };
+}
+
+/**
+ * Where a photo goes once its last defect mark is taken off in Product
+ * Defects: Steri-AI sorts it again among the other categories (Auto-Sort for
+ * one photo, Product Defects left out), for a role with Steri-AI Reading.
+ * Without it, or when Steri-AI is not connected, cannot read the photo, fails
+ * or is unsure, it goes to Other (null) for the inspector to file. `model`:
+ * the model that answered, when one did.
+ */
+async function sortUnmarked(
+  supabase: Supabase,
+  inspectionId: string,
+  row: MarkedPhotoRow,
+  user: SessionUser,
+): Promise<{ category: MediaCategoryKey | null; model: string | null }> {
+  if (!userCan(user, "ai_reading")) return { category: null, model: null };
+  const preview = await photoPreview(supabase, row);
+  if (!preview) return { category: null, model: null };
+  const outcome = await sortMedia(
+    [{ kind: "photo", ...preview }],
+    await loadAiEnv(),
+    // Its cost (Steri-AI Cost): one photo.
+    recordAiUsageLater({ feature: "media_sort", inspectionId, actorId: user.id, itemCount: 1 }),
+    { exclude: [DEFECTS_CATEGORY] },
+  );
+  if (!outcome.ok) {
+    console.warn("[media] sorting an unmarked photo again failed", outcome.reason);
+    return { category: null, model: null };
+  }
+  const category = outcome.categories[0] ?? null;
+  return { category: category === DEFECTS_CATEGORY ? null : category, model: outcome.model };
+}
+
+/** The largest image sent: base64 makes it a third larger, and Claude takes an image of up to 5 MB. */
+const PREVIEW_MAX_BYTES = 3_700_000;
+
+/**
+ * The photo as Claude reads it: the stored photo (a 2048 px JPEG, which
+ * Claude reads without scaling down), else its 400 px thumbnail, else a
+ * flagged original a browser can show; null when none is a JPEG, PNG or
+ * WebP within the limit (a HEIC original), or none can be read.
+ */
+async function photoPreview(supabase: Supabase, row: MarkedPhotoRow): Promise<{ mediaType: PreviewMediaType; base64: string } | null> {
+  const paths = [row.flagged ? null : row.storage_path, row.thumb_path, row.flagged ? row.storage_path : null];
+  for (const path of paths) {
+    if (!path) continue;
+    try {
+      const { data, error } = await supabase.storage.from(PHOTO_BUCKET).download(path);
+      if (error || !data || data.size > PREVIEW_MAX_BYTES) continue;
+      const base64 = Buffer.from(await data.arrayBuffer()).toString("base64");
+      const mediaType = previewMediaType(base64);
+      if (mediaType) return { mediaType, base64 };
+    } catch (error) {
+      console.warn("[media] reading the photo for Steri-AI failed", error instanceof Error ? error.message : error);
+    }
+  }
+  return null;
+}
+
+/**
  * The caller's client, once they may change the inspection's photos and
  * files, with the rows of the items that are its media (by itemKey): any of
  * its photos, and its videos on Media, a category's or Other's. Source
@@ -217,8 +399,33 @@ async function writePlace(
           .eq("inspection_id", inspectionId)
           .select("id")
           .maybeSingle();
+  return writeAnswer({ data, error, status }, gone);
+}
+
+/** Writes a photo's marks, with its size or its new place, through the caller's client. */
+async function writePhoto(
+  supabase: Supabase,
+  inspectionId: string,
+  photoId: string,
+  patch: TablesUpdate<"inspection_photos">,
+): Promise<MoveMediaResult> {
+  const answer = await supabase
+    .from("inspection_photos")
+    .update(patch)
+    .eq("id", photoId)
+    .eq("inspection_id", inspectionId)
+    .select("id")
+    .maybeSingle();
+  return writeAnswer(answer, MEDIA_MESSAGES.photoGone);
+}
+
+/** A write's answer in words: a refusal by its reason, and no row back as `gone`. */
+function writeAnswer(
+  { data, error, status }: { data: unknown; error: { code?: string; message: string } | null; status: number },
+  gone: string,
+): MoveMediaResult {
   if (error) {
-    console.error("[media] move refused", { code: error.code, status, message: error.message });
+    console.error("[media] change refused", { code: error.code, status, message: error.message });
     const reason: FailureReason = postgrestFailure(error, status).reason;
     const messages: Record<FailureReason, string> = {
       unauthorized: MEDIA_MESSAGES.signedOut,

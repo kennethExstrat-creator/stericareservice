@@ -436,6 +436,7 @@ export type Database = {
           id: string
           include_in_report: boolean
           inspection_id: string
+          markers: Json
           module_key: string | null
           storage_path: string
           taken_at: string | null
@@ -455,6 +456,7 @@ export type Database = {
           id?: string
           include_in_report?: boolean
           inspection_id: string
+          markers?: Json
           module_key?: string | null
           storage_path: string
           taken_at?: string | null
@@ -474,6 +476,7 @@ export type Database = {
           id?: string
           include_in_report?: boolean
           inspection_id?: string
+          markers?: Json
           module_key?: string | null
           storage_path?: string
           taken_at?: string | null

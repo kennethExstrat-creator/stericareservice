@@ -15,6 +15,7 @@ import type { InspectionFileKind } from "@/lib/photos/files";
 import { MODULE_TARGET_KEYS, parseTarget, type PhotoTarget, type TargetKey } from "@/lib/photos/target";
 import type { InspectionStatus } from "@/lib/schemas/common";
 import { isModuleKey } from "@/lib/schemas/module-result";
+import { readPhotoMarkers, type PhotoMarker } from "@/lib/schemas/photo-markers";
 import { ResolvedTemplateSchema, type ResolvedModule } from "@/lib/schemas/template";
 import type { Tables } from "@/lib/supabase/database.types";
 import { applyModuleOverrides, parseModuleOverrides } from "@/lib/templates/overrides";
@@ -30,8 +31,12 @@ import { LOADING_LABELS, LOADING_STAGES } from "@/modules/loading/config";
  * Rows
  * ------------------------------------------------------------------ */
 
-/** The inspection_photos columns the screens read. */
+/** The inspection_photos columns the screens read, the defect marks among them (migration 20261027210000). */
 export const PHOTO_COLUMNS =
+  "id, inspection_id, module_key, target, storage_path, thumb_path, caption, taken_at, width, height, flagged, include_in_report, created_by, created_at, markers";
+
+/** PHOTO_COLUMNS without the marks, for a project that has not run migration 20261027210000 (lacksMarkersColumn). */
+export const PHOTO_COLUMNS_UNMARKED =
   "id, inspection_id, module_key, target, storage_path, thumb_path, caption, taken_at, width, height, flagged, include_in_report, created_by, created_at";
 
 /** The inspection_files columns the screens read. */
@@ -53,7 +58,10 @@ export type PhotoRow = Pick<
   | "include_in_report"
   | "created_by"
   | "created_at"
->;
+> & {
+  /** The defect marks, as stored; left out where the project has no such column yet. */
+  markers?: Tables<"inspection_photos">["markers"];
+};
 
 export type FileRow = Pick<
   Tables<"inspection_files">,
@@ -90,6 +98,8 @@ export interface MediaPhoto {
   description: PhotoDescribed["description"];
   /** When Steri-AI looked at the photo; null while it has not. */
   describedAt: string | null;
+  /** The defect marks drawn on it (lib/schemas/photo-markers.ts); none when left out. */
+  markers?: PhotoMarker[];
 }
 
 /** An uploaded lab report or certificate. */
@@ -145,6 +155,7 @@ export function toMediaPhoto(row: PhotoRow, urls: ReadonlyMap<string, string>, d
     fullUrl: urls.get(row.storage_path) ?? null,
     description: described?.description ?? null,
     describedAt: described?.describedAt ?? null,
+    markers: readPhotoMarkers(row.markers),
   };
 }
 

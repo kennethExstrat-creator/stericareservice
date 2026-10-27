@@ -92,7 +92,7 @@ function describe(action: string, changes: Record<string, unknown>, words: Words
       return event("Steri-AI Sorted Photos and Videos", joined([photos, videos], " and "));
     }
     case "media_moved":
-      return event("Photo or Video Moved", `From ${category(changes.from)} to ${category(changes.to)}`);
+      return event("Photo or Video Moved", movedDetail(changes));
     case "photos_described":
       return event("Steri-AI Described Photos", count(changes.photos, "photo"));
     case "module_override": {
@@ -192,6 +192,20 @@ function statusTitle(from: unknown, to: unknown): string {
   if (after.success && after.data === "reopened") return "Reopened";
   const word = (status: typeof before) => (status.success ? INSPECTION_STATUS_LABEL[status.data] : "Unknown");
   return `Status Changed From ${word(before)} to ${word(after)}`;
+}
+
+/**
+ * "From Other to Product Defects", and why when its defect marks moved it
+ * (Kenneth, 27 October 2026): "…: a defect marked.", "…: its defect marks
+ * removed, sorted by Steri-AI." (or "Steri-AI unsure", or nothing more when
+ * Steri-AI was not asked).
+ */
+function movedDetail(changes: Record<string, unknown>): string {
+  const fromTo = `From ${category(changes.from)} to ${category(changes.to)}`;
+  if (changes.via === "defect_marked") return `${fromTo}: a defect marked.`;
+  if (changes.via !== "marks_removed") return fromTo;
+  const steriAi = typeof changes.model !== "string" ? "" : changes.to === null || changes.to === undefined ? ", Steri-AI unsure" : ", sorted by Steri-AI";
+  return `${fromTo}: its defect marks removed${steriAi}.`;
 }
 
 function category(key: unknown): string {

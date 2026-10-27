@@ -22,6 +22,8 @@ let queries: Query[];
 let tables: Record<string, Answer>;
 /** Steri-AI's descriptions: the photos read again for ai_description (migration 20261027200000). */
 let described: Answer;
+/** A table's answer as a function of the query (the columns it reads), over `tables`. */
+let answering: Record<string, (query: Query) => Answer>;
 let rpcs: Record<string, Answer>;
 let signing: ReturnType<typeof vi.fn>;
 
@@ -39,7 +41,7 @@ function fakeClient() {
     const answer = () => {
       const columns = query.calls.find(([name]) => name === "select")?.[1][0];
       if (table === "inspection_photos" && typeof columns === "string" && columns.includes("ai_description")) return described;
-      return tables[table] ?? { data: [], error: null };
+      return answering[table]?.(query) ?? tables[table] ?? { data: [], error: null };
     };
     builder.maybeSingle = () => Promise.resolve(answer());
     builder.then = (resolve: (value: Answer) => unknown, reject: (reason: unknown) => unknown) =>
@@ -86,6 +88,7 @@ const signedUrl = (bucket: string, path: string) => `https://storage.example/sig
 
 beforeEach(() => {
   queries = [];
+  answering = {};
   tables = {
     inspections: {
       data: {
@@ -159,6 +162,30 @@ describe("loadInspectionMedia", () => {
       levels: {},
       items: {},
     });
+  });
+
+  it("reads each photo's defect marks, and none for a project that has no markers column yet (Kenneth, 27 October 2026)", async () => {
+    const circle = { x: 0.5, y: 0.4, r: 0.1 };
+    const rows = [photoRow(PHOTO, { markers: [circle] }), photoRow(FLAGGED)];
+    tables.inspection_photos = { data: rows, error: null };
+    const marked = await loadInspectionMedia(fakeClient(), INSPECTION);
+    if (marked.kind !== "ok") throw new Error(marked.kind);
+    expect(marked.media.photos.map((photo) => photo.markers)).toEqual([[circle], []]);
+    expect(String(queries.find((query) => query.table === "inspection_photos")?.calls[0][1][0])).toContain("markers");
+
+    // PostgREST answers 42703 to a select that names the column: the photos are read again without it.
+    queries = [];
+    answering.inspection_photos = (query) =>
+      String(query.calls[0][1][0]).includes("markers")
+        ? { data: null, error: { code: "42703", message: "column inspection_photos.markers does not exist" } }
+        : { data: [photoRow(PHOTO)], error: null };
+    const unmarked = await loadInspectionMedia(fakeClient(), INSPECTION);
+    if (unmarked.kind !== "ok") throw new Error(unmarked.kind);
+    expect(unmarked.media.photos.map((photo) => [photo.id, photo.markers])).toEqual([[PHOTO, []]]);
+    expect(queries.filter((query) => query.table === "inspection_photos")).toHaveLength(2);
+
+    const added = await loadPhotos(fakeClient(), [PHOTO]);
+    expect(added).toMatchObject({ ok: true, photos: [{ id: PHOTO, markers: [] }] });
   });
 
   it("names the modules as the inspection shows them: weight with no count of gloves, whatever the sampling plan holds", async () => {

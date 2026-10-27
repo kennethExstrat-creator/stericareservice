@@ -13,6 +13,7 @@ import {
   makeTables,
   PATHS,
   UPDATED_AT,
+  VISUAL_MARKERS,
 } from "./__fixtures__/inspection";
 import { canExportInspection } from "./access";
 import { buildInspectionExport, type BuildExportOptions } from "./build";
@@ -210,12 +211,13 @@ describe("buildInspectionExport", () => {
       includeInReport: true,
       flagged: false,
       description: null,
-      markers: [],
-      size: null,
+      // Its defect marks and the natural size that places them (Kenneth, 27 October 2026).
+      markers: VISUAL_MARKERS,
+      size: { width: 2048, height: 1536 },
     });
-    // Blank tags and captions read as none; a HEIC original keeps its flag.
-    expect(photos[2]).toMatchObject({ moduleKey: null, caption: null });
-    expect(photos[3]).toMatchObject({ moduleKey: null, flagged: true, url: expect.stringContaining(PATHS.photoHeic) });
+    // Blank tags and captions read as none; a HEIC original keeps its flag, and has no size stored.
+    expect(photos[2]).toMatchObject({ moduleKey: null, caption: null, markers: [] });
+    expect(photos[3]).toMatchObject({ moduleKey: null, flagged: true, url: expect.stringContaining(PATHS.photoHeic), size: null });
 
     expect(files).toEqual([
       {
@@ -253,6 +255,25 @@ describe("buildInspectionExport", () => {
     expect(older.photos.map((photo) => photo.id)).toEqual(described.photos.map((photo) => photo.id));
     expect(older.photos.every((photo) => photo.description === null)).toBe(true);
     expect(error).not.toHaveBeenCalled();
+  });
+
+  it("exports the photos without marks from a project that has not run migration 20261027210000", async () => {
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    // PostgREST refuses the read of the photos that names the missing column; the photos are read again without it.
+    const missing = { code: "42703", message: "column inspection_photos.markers does not exist" };
+    let refused = 0;
+    const fake = setup({
+      failQuery: (query, columns) => {
+        if (query.table !== "inspection_photos" || !columns?.includes("markers")) return null;
+        refused += 1;
+        return missing;
+      },
+    });
+    const doc = await exportOf(fake);
+    expect(refused).toBe(1);
+    expect(doc.photos.map((photo) => photo.id)).toEqual([IDS.photoWeight, IDS.photoVisual, IDS.photoUntagged, IDS.photoHeic]);
+    expect(doc.photos.every((photo) => photo.markers.length === 0)).toBe(true);
+    expect(doc.photos[1].size).toEqual({ width: 2048, height: 1536 });
   });
 
   it("concludes with the computed suggestion and the final result and remark the inspector entered", async () => {

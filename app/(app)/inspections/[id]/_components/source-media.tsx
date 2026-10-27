@@ -16,7 +16,10 @@
 // Auto-Sort, at the top, uploads a heap of photos and videos into Other and
 // has Steri-AI sort them (auto-sort.ts), for a role with Steri-AI Reading
 // (`canAutoSort`). Files dropped on a section come in
-// through useFileDrop (../../_components/use-file-drop.ts).
+// through useFileDrop (../../_components/use-file-drop.ts). A photo's
+// Preview has the defect marking tool (media-photo-marks.tsx; Kenneth, 27
+// October 2026): its first red circle moves it to Product Defects, and its
+// last one taken off there has it sorted again, the board following at once.
 import {
   useCallback,
   useEffect,
@@ -64,6 +67,8 @@ import {
   type PendingMoves,
 } from "./media-board";
 import { DragGhost, MediaRow, type RowActions } from "./media-rows";
+import { MediaPhotoMarks } from "./media-photo-marks";
+import { flushMarkers } from "./marker-saves";
 import { unreachable } from "./unreachable";
 import { useMediaDrag } from "./use-media-drag";
 
@@ -298,8 +303,27 @@ export function SourceMedia({ inspectionId, readOnly, canAutoSort }: SourceMedia
               }
             : null
         }
-        onClose={() => setPreviewing(null)}
-      />
+        onClose={() => {
+          // Marks still waiting out their delay are sent now; a save under way finishes on its own.
+          if (previewing?.kind === "photo") flushMarkers(inspectionId, previewing.id);
+          setPreviewing(null);
+        }}
+      >
+        {previewing?.kind === "photo" && previewing.url ? (
+          <MediaPhotoMarks
+            key={previewing.id}
+            inspectionId={inspectionId}
+            photoId={previewing.id}
+            name={previewing.name}
+            src={previewing.url}
+            photo={media.media?.photos.find((photo) => photo.id === previewing.id) ?? null}
+            section={placed.find((item) => item.key === previewing.key)?.section ?? null}
+            // The database's rule for changing a photo (can_edit_inspection): the inspector while a draft or
+            // reopened, admins until it is approved, also while the capture screen is read-only (submitted).
+            canEdit={access?.canEdit === true}
+          />
+        ) : undefined}
+      </FilePreviewDialog>
       {deleting?.photo && (
         <PhotoDeleteDialog inspectionId={inspectionId} photo={deleting.photo} alt={deleting.name} onClose={closeDelete} />
       )}

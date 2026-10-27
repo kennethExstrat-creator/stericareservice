@@ -166,9 +166,16 @@ function photo(id: string, values: Row): Row {
     include_in_report: false,
     flagged: false,
     created_at: "2026-10-05T03:00:00+00:00",
+    // The size of the converted photo, and its defect marks (migration 20261027210000).
+    width: 2048,
+    height: 1536,
+    markers: [],
     ...values,
   };
 }
+
+/** The defect marked on the visual photo: a red circle on the thin spot. */
+export const VISUAL_MARKERS = [{ x: 0.42, y: 0.58, r: 0.12 }];
 
 export function makePhotoRows(): Row[] {
   return [
@@ -178,6 +185,7 @@ export function makePhotoRows(): Row[] {
       caption: "Thin spot on glove body",
       taken_at: "2026-10-05T04:10:00+00:00",
       include_in_report: true,
+      markers: VISUAL_MARKERS,
     }),
     photo(IDS.photoWeight, { module_key: "weight", target: "size:M", caption: "Scale reading", taken_at: "2026-10-05T03:05:00+00:00" }),
     photo(IDS.photoUntagged, { caption: "   ", taken_at: "2026-10-05T05:00:00+00:00" }),
@@ -187,6 +195,9 @@ export function makePhotoRows(): Row[] {
       thumb_path: null,
       flagged: true,
       taken_at: "2026-10-05T05:30:00+00:00",
+      // An original the browser could not convert: no size stored.
+      width: null,
+      height: null,
     }),
     photo(IDS.photoMissing, { module_key: "visual", caption: "Lost upload", taken_at: "2026-10-05T04:20:00+00:00" }),
   ];

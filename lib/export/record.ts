@@ -4,6 +4,7 @@ import { z } from "zod";
 import { MANUFACTURER_NAMES_SELECT, manufacturerLabel } from "@/lib/inspections/format";
 import type { InspectionResult, InspectionStatus, ProductType, Standard } from "@/lib/schemas/common";
 import { readPhotoDescription, type PhotoDescription } from "@/lib/schemas/photo-description";
+import { lacksMarkersColumn, readPhotoMarkers, type PhotoMarker } from "@/lib/schemas/photo-markers";
 import type { Database } from "@/lib/supabase/database.types";
 
 /* ------------------------------------------------------------------ *
@@ -21,7 +22,10 @@ export const INSPECTION_RECORD_SELECT =
   `id, ref_no, status, inspection_date, inspector_id, data, module_overrides, result, suggested_result, remarks, created_at, updated_at, submitted_at, approved_at, template:templates(id, code, version, standard, product_type, resolved, source_file_path), client:clients(id, name, logo_path), manufacturer:manufacturers(id, ${MANUFACTURER_NAMES_SELECT}), inspector:profiles!inspections_inspector_id_fkey(id, full_name, email, lead_id)` as const;
 
 const PHOTO_SELECT =
-  "id, module_key, target, storage_path, thumb_path, caption, taken_at, include_in_report, flagged, created_at";
+  "id, module_key, target, storage_path, thumb_path, caption, taken_at, include_in_report, flagged, created_at, width, height, markers";
+/** PHOTO_SELECT without the markers column, for a project before migration 20261027210000. */
+const PHOTO_SELECT_UNMARKED =
+  "id, module_key, target, storage_path, thumb_path, caption, taken_at, include_in_report, flagged, created_at, width, height";
 /** Steri-AI's descriptions (migration 20261027200000), read apart: a project without them exports its photos all the same. */
 const DESCRIPTION_SELECT = "id, ai_description";
 const FILE_SELECT = "id, module_key, kind, storage_path, name, created_at";
@@ -42,6 +46,27 @@ export type PhotoRecord = {
   createdAt: string;
   /** What Steri-AI says the photo shows (docs/AI.md, "Describing photos"); null or absent until it has described it. */
   description?: PhotoDescription | null;
+  /** The defect marks drawn on it (lib/schemas/photo-markers.ts); none when left out. */
+  markers?: PhotoMarker[];
+  /** Its natural size in pixels, stored at upload (or with its first marks); null, or left out, when unknown. */
+  width?: number | null;
+  height?: number | null;
+};
+
+type PhotoRow = {
+  id: string;
+  module_key: string | null;
+  target: string | null;
+  storage_path: string;
+  thumb_path: string | null;
+  caption: string | null;
+  taken_at: string | null;
+  include_in_report: boolean;
+  flagged: boolean;
+  created_at: string;
+  width: number | null;
+  height: number | null;
+  markers: unknown;
 };
 
 export type FileRecord = {
@@ -116,7 +141,7 @@ export async function loadInspectionRecord(client: ExportClient, inspectionId: s
 
   const [row, photos, described, files] = await Promise.all([
     client.from("inspections").select(INSPECTION_RECORD_SELECT).eq("id", id).maybeSingle(),
-    client.from("inspection_photos").select(PHOTO_SELECT).eq("inspection_id", id),
+    readPhotos(client, id),
     client.from("inspection_photos").select(DESCRIPTION_SELECT).eq("inspection_id", id),
     client.from("inspection_files").select(FILE_SELECT).eq("inspection_id", id),
   ]);
@@ -183,6 +208,9 @@ export async function loadInspectionRecord(client: ExportClient, inspectionId: s
         flagged: photo.flagged,
         createdAt: photo.created_at,
         description: descriptions.get(photo.id) ?? null,
+        markers: readPhotoMarkers(photo.markers),
+        width: photo.width,
+        height: photo.height,
       })),
       files: files.data.map((file) => ({
         id: file.id,
@@ -194,6 +222,23 @@ export async function loadInspectionRecord(client: ExportClient, inspectionId: s
       })),
     },
   };
+}
+
+/**
+ * The inspection's photos with their defect marks and sizes. A project that
+ * has not run migration 20261027210000 answers 42703 for the markers column:
+ * its photos are read again without it, with no marks.
+ */
+async function readPhotos(
+  client: ExportClient,
+  inspectionId: string,
+): Promise<{ data: PhotoRow[]; error: null } | { data: null; error: { code?: string; message: string } }> {
+  const marked = await client.from("inspection_photos").select(PHOTO_SELECT).eq("inspection_id", inspectionId);
+  if (!marked.error) return { data: marked.data, error: null };
+  if (!lacksMarkersColumn(marked.error)) return { data: null, error: marked.error };
+  const unmarked = await client.from("inspection_photos").select(PHOTO_SELECT_UNMARKED).eq("inspection_id", inspectionId);
+  if (unmarked.error) return { data: null, error: unmarked.error };
+  return { data: unmarked.data.map((photo) => ({ ...photo, markers: [] })), error: null };
 }
 
 /** PostgREST embeds a to-one relation as an object; older typings call it an array. */

@@ -2,6 +2,13 @@
 
 Shared building blocks for every module's `Capture.tsx` (`docs/MODULES.md` section 10), so all sixteen modules look and behave the same and the look is tuned in one place. Capture renders the module body only; the screen wraps it in `ModuleCard`. Import components from `@/components/qc` and text helpers from `@/lib/format`. Check here before writing a control of your own.
 
+## Changed on 27 October 2026 (defect marks)
+
+Nothing breaks, and no Capture has to change (Kenneth: "add in tools to mark defect (red circle)" on a photo's preview):
+
+1. **`SaveStatus` takes `label`**: words in place of the state's own, in its colours and with its icon, for a save that does more than save ("Sorting…" while a photo whose last defect mark came off is sorted again, "Moved to Product Defects" once saved). Without it, Saved, Saving…, Offline (Will Sync) and Not Saved as before.
+2. **The defect marking tool is no kit control**: `PhotoMarkup` (`components/capture/photos/photo-markup.tsx`) draws a photo's red circles and, given `onMarkersChange`, the tools to add, drag, size and remove them (mouse, trackpad and touch; the arrows, + and − and Delete on a circle). It knows nothing of saving: Source Documents' Media preview saves through `savePhotoMarkers` (docs/AI.md, "Auto-Sort (Media)"), and a photo dialog elsewhere can take it the same way, with its own save.
+
 ## Changed on 26 October 2026 (a pencil in the grid's footer)
 
 Nothing breaks, and no Capture has to change (Kenneth: "put the edit icon into the table, not outside"). A Capture that lets the inspector change a column's spec or verdict, as Dimension's does, passes MeasurementGrid:

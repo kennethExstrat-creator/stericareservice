@@ -152,6 +152,28 @@ describe("auditLogEntries: the Audit Log page in plain words (Kenneth, 26 Octobe
     ]);
   });
 
+  it("says why defect marks moved a photo: the first marked, the last removed and how it was sorted again (Kenneth, 27 October 2026)", () => {
+    const moved = (changes: Record<string, unknown>, at: string) =>
+      row("media_moved", { by: INSPECTOR, photo_id: "photo-1", target: null, ...changes }, at, null);
+    const entries = auditLogEntries(
+      [
+        moved({ from: null, to: "media_defects", via: "defect_marked" }, "2026-10-27T05:00:00.000Z"),
+        moved({ from: "media_defects", to: "media_warehouse", via: "marks_removed", model: "claude-opus-5-5" }, "2026-10-27T04:00:00.000Z"),
+        moved({ from: "media_defects", to: null, via: "marks_removed", model: "claude-opus-5-5" }, "2026-10-27T03:00:00.000Z"),
+        moved({ from: "media_defects", to: null, via: "marks_removed" }, "2026-10-27T02:00:00.000Z"),
+        moved({ from: "media_samples", to: "media_proof" }, "2026-10-27T01:00:00.000Z"),
+      ],
+      WORDS,
+    );
+    expect(entries.map((entry) => [entry.who, entry.title, entry.detail])).toEqual([
+      ["Test Inspector", "Photo or Video Moved", "From Other to Product Defects: a defect marked."],
+      ["Test Inspector", "Photo or Video Moved", "From Product Defects to Warehouse: its defect marks removed, sorted by Steri-AI."],
+      ["Test Inspector", "Photo or Video Moved", "From Product Defects to Other: its defect marks removed, Steri-AI unsure."],
+      ["Test Inspector", "Photo or Video Moved", "From Product Defects to Other: its defect marks removed."],
+      ["Test Inspector", "Photo or Video Moved", "From Product and Package Samples to Inspection Proof"],
+    ]);
+  });
+
   it("names who acted on a row the service role wrote for them (`by`), an admin unnamed, and the system", () => {
     const entries = auditLogEntries(
       [

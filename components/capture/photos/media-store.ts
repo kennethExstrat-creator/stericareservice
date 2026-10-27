@@ -17,6 +17,7 @@ import {
 import type { DescribedPhoto } from "@/lib/inspections/photos/descriptions";
 import type { PhotoChange } from "@/lib/inspections/photos/messages";
 import { photoObjectPaths, previewPath, type MediaPhoto } from "@/lib/inspections/photos/view";
+import type { PhotoMarker, PhotoSize } from "@/lib/schemas/photo-markers";
 import { backoffDelay, UPLOAD_BACKOFF, type Backoff } from "@/lib/offline/backoff";
 import { FILE_BUCKET, PHOTO_BUCKET } from "@/lib/photos/paths";
 import type { UploadItem } from "@/lib/photos/upload-queue";
@@ -206,6 +207,22 @@ export class InspectionMediaStore {
     // A finished upload whose row is not read yet: read it (again), after the move.
     this.askToRead(id, kind);
     void this.readUnread();
+  }
+
+  /**
+   * A photo's defect marks as the server saved them (Source Documents'
+   * Media, savePhotoMarkers), with the natural size saved beside the marks of
+   * a photo that had none.
+   */
+  applyMarkers(id: string, markers: readonly PhotoMarker[], size: PhotoSize | null = null): void {
+    const media = this.state.media;
+    if (!media || !media.photos.some((photo) => photo.id === id)) return;
+    const photos = media.photos.map((photo) => {
+      if (photo.id !== id) return photo;
+      const sized = size && (photo.width === null || photo.height === null) ? { width: size.width, height: size.height } : {};
+      return { ...photo, ...sized, markers: [...markers] };
+    });
+    this.setState({ ...this.state, media: { ...media, photos } });
   }
 
   removePhoto(id: string): void {

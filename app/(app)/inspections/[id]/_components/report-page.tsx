@@ -33,6 +33,7 @@ import { PillSwitch, type PillOption } from "@/components/ui/pill-switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
+import { withPhotoMarks } from "@/lib/export/photo-marks";
 import { NOT_IN_INSPECTION, reportSectionsAvailable } from "@/lib/inspections/capture/report";
 import { REPORT_KEY, REPORT_TITLE } from "@/lib/inspections/capture/sections";
 import type { MediaPhoto } from "@/lib/inspections/photos/view";
@@ -119,8 +120,9 @@ export function ReportPage({
   const photos = useMemo(() => livePhotos(media.media?.photos ?? []), [media.media]);
   const model = useMemo(() => {
     const doc = liveReportExport({ ...source, photos });
-    return doc ? buildReportModel(doc) : null;
-  }, [source, photos]);
+    // Each photo's defect marks and natural size, as the print route's export carries them (lib/export/photo-marks.ts).
+    return doc ? buildReportModel(withPhotoMarks(doc, media.media?.photos ?? [])) : null;
+  }, [source, photos, media.media]);
   const moduleKeys = useMemo(() => source.evaluation.report.modules.map((evaluation) => evaluation.key), [source.evaluation]);
   // Steri-AI describes the photos the report can show that it has not looked at yet; the preview follows.
   const describing = useBackgroundDescriptions(inspectionId);

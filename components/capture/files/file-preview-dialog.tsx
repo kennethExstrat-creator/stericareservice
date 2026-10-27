@@ -6,7 +6,7 @@
 // lib/spreadsheets), anything else with a Download button. The URL is the
 // file's signed link (24 hours), or a blob: link to a file New Inspection
 // holds before Create.
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { DownloadIcon, TriangleAlertIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -52,7 +52,12 @@ export function downloadUrl(url: string, name: string): string {
   return `${url}${url.includes("?") ? "&" : "?"}download=${encodeURIComponent(name)}`;
 }
 
-export function FilePreviewDialog({ file, onClose }: { file: PreviewFile | null; onClose: () => void }) {
+/**
+ * `children`: what the dialog shows in place of the file, under its title
+ * and Download (Media's photo with its defect marks, which brings its own
+ * frame).
+ */
+export function FilePreviewDialog({ file, onClose, children }: { file: PreviewFile | null; onClose: () => void; children?: ReactNode }) {
   const kind = file ? (file.kind ?? previewKind(file.name)) : "other";
   const saveAs = file ? (file.downloadName ?? file.name) : "";
   return (
@@ -70,25 +75,27 @@ export function FilePreviewDialog({ file, onClose }: { file: PreviewFile | null;
             </Button>
           )}
         </DialogHeader>
-        <div className="min-h-0 flex-1 overflow-hidden rounded-lg bg-muted ring-1 ring-border">
-          {file && kind === "pdf" && <iframe src={file.url} title={file.name} className="size-full border-0 bg-white" />}
-          {file && kind === "image" && (
-            // eslint-disable-next-line @next/next/no-img-element -- a signed link to a private file: not for next/image
-            <img src={file.url} alt={file.name} className="size-full object-contain" />
-          )}
-          {file && kind === "video" && (
-            <video src={file.url} controls playsInline className="size-full bg-black object-contain">
-              <track kind="captions" />
-            </video>
-          )}
-          {/* Keyed by the link: another file's sheets are read afresh. */}
-          {file && kind === "sheet" && file.sheets && <SheetsView key={file.url} load={file.sheets} />}
-          {file && (kind === "other" || (kind === "sheet" && !file.sheets)) && (
-            <p className="flex size-full items-center justify-center p-6 text-center text-muted-foreground">
-              This file cannot be shown here. Download it to open it.
-            </p>
-          )}
-        </div>
+        {children ?? (
+          <div className="min-h-0 flex-1 overflow-hidden rounded-lg bg-muted ring-1 ring-border">
+            {file && kind === "pdf" && <iframe src={file.url} title={file.name} className="size-full border-0 bg-white" />}
+            {file && kind === "image" && (
+              // eslint-disable-next-line @next/next/no-img-element -- a signed link to a private file: not for next/image
+              <img src={file.url} alt={file.name} className="size-full object-contain" />
+            )}
+            {file && kind === "video" && (
+              <video src={file.url} controls playsInline className="size-full bg-black object-contain">
+                <track kind="captions" />
+              </video>
+            )}
+            {/* Keyed by the link: another file's sheets are read afresh. */}
+            {file && kind === "sheet" && file.sheets && <SheetsView key={file.url} load={file.sheets} />}
+            {file && (kind === "other" || (kind === "sheet" && !file.sheets)) && (
+              <p className="flex size-full items-center justify-center p-6 text-center text-muted-foreground">
+                This file cannot be shown here. Download it to open it.
+              </p>
+            )}
+          </div>
+        )}
       </DialogContent>
     </Dialog>
   );

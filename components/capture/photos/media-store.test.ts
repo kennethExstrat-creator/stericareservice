@@ -406,6 +406,22 @@ describe("changes from the actions", () => {
     expect(store.getSnapshot().media?.files).toEqual([]);
   });
 
+  it("applies a photo's saved defect marks, with the size saved beside them where it had none (Kenneth, 27 October 2026)", () => {
+    const store = new InspectionMediaStore(INSPECTION);
+    store.seed(media([photo("a"), photo("b", { width: null, height: null })]));
+    const circle = { x: 0.5, y: 0.4, r: 0.1 };
+    store.applyMarkers("a", [circle], { width: 4032, height: 3024 });
+    store.applyMarkers("b", [circle], { width: 4032, height: 3024 });
+    const [a, b] = store.getSnapshot().media?.photos ?? [];
+    // A stored size stays; a missing one takes the preview's.
+    expect(a).toMatchObject({ markers: [circle], width: 2048, height: 1536 });
+    expect(b).toMatchObject({ markers: [circle], width: 4032, height: 3024 });
+    const listener = vi.fn();
+    store.subscribe(listener);
+    store.applyMarkers("missing", [circle]);
+    expect(listener).not.toHaveBeenCalled();
+  });
+
   it("tells nobody when a removed photo was not there, and still drops any copy the queue shows", () => {
     const store = new InspectionMediaStore(INSPECTION);
     store.seed(media([photo("a")]));

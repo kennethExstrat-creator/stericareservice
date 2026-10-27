@@ -35,14 +35,22 @@ const STATE = {
 export function SaveStatus({
   state,
   pendingUploads = 0,
+  label: words,
   className,
 }: {
   state: SaveState;
   /** Photos still in the upload queue. Hidden at zero. */
   pendingUploads?: number;
+  /**
+   * Words in place of the state's own, in its colours and with its icon, for
+   * a save that does more: "Sorting…" while a photo's defect marks are saved
+   * and Steri-AI sorts it again, "Moved to Product Defects" once saved.
+   */
+  label?: string;
   className?: string;
 }) {
-  const { label, Icon, className: stateClass } = STATE[state];
+  const { label: stateLabel, Icon, className: stateClass } = STATE[state];
+  const label = words ?? stateLabel;
   return (
     <div
       role="status"

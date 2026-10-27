@@ -8,6 +8,7 @@ import { UUID_PATTERN } from "@/lib/offline/id";
 import { FILE_BUCKET, PHOTO_BUCKET, type MediaBucket } from "@/lib/photos/paths";
 import type { InspectionStatus } from "@/lib/schemas/common";
 import { readPhotoDescription } from "@/lib/schemas/photo-description";
+import { lacksMarkersColumn } from "@/lib/schemas/photo-markers";
 import { ResolvedTemplateSchema } from "@/lib/schemas/template";
 import type { Database } from "@/lib/supabase/database.types";
 import { parseModuleOverrides } from "@/lib/templates/overrides";
@@ -17,6 +18,7 @@ import { isNoConnection } from "./messages";
 import {
   FILE_COLUMNS,
   PHOTO_COLUMNS,
+  PHOTO_COLUMNS_UNMARKED,
   photoObjectPaths,
   tagOptionsFromTemplate,
   toMediaFile,
@@ -97,7 +99,7 @@ export async function loadInspectionMedia(
     client.rpc("is_admin"),
     // Choosing the report's photos is part of approving: the role's Approve and Reopen (migration 20261027150000).
     client.rpc("has_permission", { permission: "approve_inspections" }),
-    client.from("inspection_photos").select(PHOTO_COLUMNS).eq("inspection_id", inspectionId).order("created_at").order("id"),
+    inspectionPhotoRows(client, inspectionId),
     client.from("inspection_photos").select(DESCRIBED_COLUMNS).eq("inspection_id", inspectionId),
     client.from("inspection_files").select(FILE_COLUMNS).eq("inspection_id", inspectionId).order("created_at").order("id"),
     client.from("defect_codes").select("code, name").eq("active", true).order("name"),
@@ -198,13 +200,32 @@ export async function loadPhotos(
 ): Promise<{ ok: true; photos: MediaPhoto[]; complete: boolean } | { ok: false }> {
   const wanted = ids.filter((id) => UUID_PATTERN.test(id));
   if (wanted.length === 0) return { ok: true, photos: [], complete: true };
-  const { data, error } = await client.from("inspection_photos").select(PHOTO_COLUMNS).in("id", wanted);
+  const { data, error } = await photoRowsById(client, wanted);
   if (error) {
     logFailure("new photos", error);
     return { ok: false };
   }
   const signed = await signPaths(client, PHOTO_BUCKET, photoObjectPaths(data), ttlSeconds);
   return { ok: true, photos: data.map((row) => toMediaPhoto(row, signed.urls)), complete: signed.complete };
+}
+
+/*
+ * The photo rows with their defect marks. A project that has not run
+ * migration 20261027210000 answers 42703 for the markers column
+ * (lacksMarkersColumn): the rows are read again without it, with no marks,
+ * so the photo screens work before the migration is applied.
+ */
+
+async function inspectionPhotoRows(client: Client, inspectionId: string) {
+  const marked = await client.from("inspection_photos").select(PHOTO_COLUMNS).eq("inspection_id", inspectionId).order("created_at").order("id");
+  if (!lacksMarkersColumn(marked.error)) return marked;
+  return client.from("inspection_photos").select(PHOTO_COLUMNS_UNMARKED).eq("inspection_id", inspectionId).order("created_at").order("id");
+}
+
+async function photoRowsById(client: Client, ids: readonly string[]) {
+  const marked = await client.from("inspection_photos").select(PHOTO_COLUMNS).in("id", ids);
+  if (!lacksMarkersColumn(marked.error)) return marked;
+  return client.from("inspection_photos").select(PHOTO_COLUMNS_UNMARKED).in("id", ids);
 }
 
 /** Files by id with fresh URLs. `complete` is false when some URLs could not be signed. */

@@ -159,6 +159,7 @@ describe("schema guards", { timeout: 30_000 }, () => {
     "20261026140000_source_spreadsheets.sql",
     "20261027120000_code_letter_events.sql",
     "20261027200000_photo_descriptions.sql",
+    "20261027210000_photo_markers.sql",
   ])("applies %s again without changing the schema", async (name) => {
     const before = await schemaSnapshot(db);
     const migration = (await readMigrations()).find((file) => file.name === name);

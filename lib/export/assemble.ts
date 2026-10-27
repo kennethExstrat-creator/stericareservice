@@ -9,6 +9,7 @@ import {
   type ExportReport,
 } from "@/lib/schemas/export";
 import { IsoDateSchema, type JsonValue } from "@/lib/schemas/common";
+import { photoSizeOf } from "@/lib/schemas/photo-markers";
 import type { ResolvedTemplate, TemplateUnit } from "@/lib/schemas/template";
 import { sectionOrder } from "@/lib/templates";
 import { exportIssuesOf } from "@/lib/validation";
@@ -110,8 +111,9 @@ export function assembleExport({ record, evaluated, links, exportedAt }: Assembl
               includeInReport: photo.includeInReport,
               flagged: photo.flagged,
               description: photo.description ?? null,
-              markers: [],
-              size: null,
+              // Defect marks and the size that places them (lib/schemas/photo-markers.ts).
+              markers: photo.markers ?? [],
+              size: photoSizeOf(photo.width, photo.height),
             },
           ]
         : [];

@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("@/lib/auth/session", () => ({ authorizeAction: vi.fn() }));
+vi.mock("@/lib/auth/session", () => ({ authorizeAction: vi.fn(), userCan: vi.fn() }));
 vi.mock("@/lib/supabase/server", () => ({ createClient: vi.fn() }));
 vi.mock("@/lib/supabase/admin", () => ({ createAdminClient: vi.fn() }));
 vi.mock("@/lib/ai/settings", () => ({ loadAiEnv: vi.fn() }));
@@ -9,11 +9,11 @@ vi.mock("@/lib/ai/usage", () => ({ recordAiUsageLater: vi.fn() }));
 
 import { sortMedia } from "@/lib/ai/media-sorter";
 import { recordAiUsageLater } from "@/lib/ai/usage";
-import { authorizeAction } from "@/lib/auth/session";
+import { authorizeAction, userCan } from "@/lib/auth/session";
 import { MEDIA_MESSAGES } from "@/lib/inspections/media-moves";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
-import { moveMedia, sortMediaWithAi, type SortMediaItem } from "./media-actions";
+import { moveMedia, savePhotoMarkers, sortMediaWithAi, type SortMediaItem } from "./media-actions";
 
 const INSPECTION = "0b5c7d1e-2f3a-4b5c-8d9e-0f1a2b3c4d5e";
 const PHOTO = "1c2d3e4f-5a6b-4c7d-8e9f-0a1b2c3d4e5f";
@@ -37,6 +37,9 @@ type Query = { table: string; calls: Array<[string, unknown[]]> };
 let queries: Query[] = [];
 const rpc = vi.fn();
 const adminRpc = vi.fn();
+/** Storage's download, for the photo Steri-AI looks at again. */
+const download = vi.fn();
+const storageFrom = vi.fn(() => ({ download }));
 
 function useDatabase(responder: (query: Query) => Answer, canEdit = true) {
   queries = [];
@@ -61,7 +64,7 @@ function useDatabase(responder: (query: Query) => Answer, canEdit = true) {
     return builder;
   };
   rpc.mockResolvedValue({ data: canEdit, error: null });
-  vi.mocked(createClient).mockResolvedValue({ from, rpc } as never);
+  vi.mocked(createClient).mockResolvedValue({ from, rpc, storage: { from: storageFrom } } as never);
 }
 
 const arg = (query: Query | undefined, method: string) => query?.calls.find(([name]) => name === method)?.[1];
@@ -84,7 +87,10 @@ beforeEach(() => {
   });
   adminRpc.mockResolvedValue({ data: 1, error: null });
   vi.mocked(createAdminClient).mockReturnValue({ rpc: adminRpc } as never);
+  vi.mocked(userCan).mockReturnValue(true);
+  storageFrom.mockImplementation(() => ({ download }));
   vi.spyOn(console, "error").mockImplementation(() => {});
+  vi.spyOn(console, "warn").mockImplementation(() => {});
   useDatabase(() => ({ data: [], error: null }));
 });
 
@@ -232,6 +238,176 @@ describe("sortMediaWithAi", () => {
 
     expect(await sortMediaWithAi(INSPECTION, [item("photo", PHOTO)])).toEqual({ ok: false, error: message });
     expect(writes()).toEqual([]);
+    expect(adminRpc).not.toHaveBeenCalled();
+  });
+});
+
+/* ------------------------------------------------------------------ *
+ * Defect marks (Kenneth, 27 October 2026)
+ * ------------------------------------------------------------------ */
+
+describe("savePhotoMarkers", () => {
+  const CIRCLE = { x: 0.4, y: 0.6, r: 0.1 };
+  const STORED = `${INSPECTION}/${PHOTO}.jpg`;
+  const THUMB = `${INSPECTION}/thumbs/${PHOTO}.jpg`;
+  const JPEG_BYTES = Buffer.from(JPEG, "base64");
+  const ROW = { id: PHOTO, module_key: null, target: null, markers: [], width: 2048, height: 1536, storage_path: STORED, thumb_path: THUMB, flagged: false };
+
+  /** One photo as the database holds it: the read answers the row, every write its id. */
+  function useOnePhoto(row: Record<string, unknown>, canEdit = true) {
+    useDatabase((query) => (arg(query, "update") ? { data: { id: PHOTO }, error: null } : { data: { ...ROW, ...row }, error: null }), canEdit);
+  }
+
+  const updates = () => writes().map((query) => arg(query, "update")?.[0]);
+  const moves = () =>
+    adminRpc.mock.calls
+      .filter(([, args]) => (args as { action: string }).action === "media_moved")
+      .map(([, args]) => (args as { changes: unknown }).changes);
+
+  beforeEach(() => {
+    download.mockResolvedValue({ data: new Blob([JPEG_BYTES]), error: null });
+  });
+
+  it.each([
+    ["a centre off the photo", [{ ...CIRCLE, x: 1.2 }], MEDIA_MESSAGES.badMarkers],
+    ["a circle that is no circle", ["circle"], MEDIA_MESSAGES.badMarkers],
+    ["marks that are no list", { x: 0.5 }, MEDIA_MESSAGES.badMarkers],
+    ["21 circles", Array.from({ length: 21 }, () => CIRCLE), MEDIA_MESSAGES.tooManyMarkers],
+  ])("refuses %s before it reads anything", async (_name, markers, error) => {
+    expect(await savePhotoMarkers(INSPECTION, PHOTO, markers as never)).toEqual({ ok: false, error });
+    expect(createClient).not.toHaveBeenCalled();
+  });
+
+  it("refuses a photo id that is no id, and checks the session first", async () => {
+    expect(await savePhotoMarkers(INSPECTION, "nope", [CIRCLE])).toEqual({ ok: false, error: MEDIA_MESSAGES.itemGone });
+    vi.mocked(authorizeAction).mockResolvedValue({ ok: false, error: "Your session has ended. Sign in again." });
+    expect(await savePhotoMarkers(INSPECTION, PHOTO, [CIRCLE])).toEqual({ ok: false, error: "Your session has ended. Sign in again." });
+    expect(createClient).not.toHaveBeenCalled();
+  });
+
+  it("puts a photo in Product Defects with its first mark, in the same write, recorded as a move by hand is", async () => {
+    useOnePhoto({ module_key: "visual", target: "size:M/defect:thin_spot" });
+    expect(await savePhotoMarkers(INSPECTION, PHOTO, [CIRCLE], { width: 2048, height: 1536 })).toEqual({
+      ok: true,
+      markers: [CIRCLE],
+      moved: { moduleKey: "media_defects" },
+      size: null,
+    });
+    expect(rpc).toHaveBeenCalledWith("can_edit_inspection", { inspection_id: INSPECTION });
+    // The photo's size is stored already: only the marks and the move are written.
+    expect(updates()).toEqual([{ markers: [CIRCLE], module_key: "media_defects", target: null }]);
+    expect(moves()).toEqual([
+      { by: "inspector-id", photo_id: PHOTO, from: "visual", to: "media_defects", target: "size:M/defect:thin_spot", via: "defect_marked" },
+    ]);
+    expect(sortMedia).not.toHaveBeenCalled();
+  });
+
+  it("keeps marks without a move when the photo is in Product Defects already, or has marks already", async () => {
+    useOnePhoto({ module_key: "media_defects" });
+    expect(await savePhotoMarkers(INSPECTION, PHOTO, [CIRCLE])).toEqual({ ok: true, markers: [CIRCLE], size: null });
+    expect(updates()).toEqual([{ markers: [CIRCLE] }]);
+
+    // Moved by hand to Warehouse after its first mark: a second mark leaves it there.
+    useOnePhoto({ module_key: "media_warehouse", markers: [CIRCLE] });
+    expect(await savePhotoMarkers(INSPECTION, PHOTO, [CIRCLE, { x: 0.1, y: 0.1, r: 0.05 }])).toMatchObject({ ok: true });
+    expect(updates()).toEqual([{ markers: [CIRCLE, { x: 0.1, y: 0.1, r: 0.05 }] }]);
+    expect(adminRpc).not.toHaveBeenCalled();
+  });
+
+  it("saves the preview's natural size with the marks of a photo stored without one", async () => {
+    useOnePhoto({ module_key: "media_defects", width: null, height: null, flagged: true });
+    expect(await savePhotoMarkers(INSPECTION, PHOTO, [CIRCLE], { width: 4032, height: 3024 })).toEqual({
+      ok: true,
+      markers: [CIRCLE],
+      size: { width: 4032, height: 3024 },
+    });
+    expect(updates()).toEqual([{ markers: [CIRCLE], width: 4032, height: 3024 }]);
+
+    // A size that is no size is left out, never a refusal.
+    useOnePhoto({ module_key: "media_defects", width: null, height: null });
+    expect(await savePhotoMarkers(INSPECTION, PHOTO, [CIRCLE], { width: 0, height: 3024 })).toEqual({ ok: true, markers: [CIRCLE], size: null });
+    expect(updates()).toEqual([{ markers: [CIRCLE] }]);
+  });
+
+  it("has Steri-AI sort a photo again among the other categories once its last mark is taken off in Product Defects", async () => {
+    useOnePhoto({ module_key: "media_defects", markers: [CIRCLE] });
+    vi.mocked(sortMedia).mockResolvedValue({ ok: true, categories: ["media_samples"], model: "claude-opus-5-5" });
+    const recorder = vi.fn();
+    vi.mocked(recordAiUsageLater).mockReturnValue(recorder);
+
+    expect(await savePhotoMarkers(INSPECTION, PHOTO, [])).toEqual({ ok: true, markers: [], moved: { moduleKey: "media_samples" }, size: null });
+
+    expect(userCan).toHaveBeenCalledWith(expect.objectContaining({ id: "inspector-id" }), "ai_reading");
+    expect(storageFrom).toHaveBeenCalledWith("inspection-photos");
+    expect(download).toHaveBeenCalledWith(STORED);
+    const [previews, , onCall, options] = vi.mocked(sortMedia).mock.calls[0];
+    expect(previews).toEqual([{ kind: "photo", mediaType: "image/jpeg", base64: JPEG }]);
+    expect(options).toEqual({ exclude: ["media_defects"] });
+    expect(onCall).toBe(recorder);
+    expect(recordAiUsageLater).toHaveBeenCalledWith({ feature: "media_sort", inspectionId: INSPECTION, actorId: "inspector-id", itemCount: 1 });
+    // The marks first, then the move, as a move by hand writes it.
+    expect(updates()).toEqual([{ markers: [] }, { module_key: "media_samples", target: null }]);
+    expect(moves()).toEqual([
+      { by: "inspector-id", photo_id: PHOTO, from: "media_defects", to: "media_samples", target: null, via: "marks_removed", model: "claude-opus-5-5" },
+    ]);
+  });
+
+  it("puts the photo in Other when Steri-AI is unsure, fails or has nothing it can read", async () => {
+    useOnePhoto({ module_key: "media_defects", markers: [CIRCLE] });
+    vi.mocked(sortMedia).mockResolvedValue({ ok: true, categories: [null], model: "claude-opus-5-5" });
+    expect(await savePhotoMarkers(INSPECTION, PHOTO, [])).toEqual({ ok: true, markers: [], moved: { moduleKey: null }, size: null });
+    expect(updates()).toEqual([{ markers: [] }, { module_key: null, target: null }]);
+    expect(moves()).toEqual([
+      { by: "inspector-id", photo_id: PHOTO, from: "media_defects", to: null, target: null, via: "marks_removed", model: "claude-opus-5-5" },
+    ]);
+
+    adminRpc.mockClear();
+    useOnePhoto({ module_key: "media_defects", markers: [CIRCLE] });
+    vi.mocked(sortMedia).mockResolvedValue({ ok: false, reason: "not_connected", message: "Auto-Sort needs Steri-AI." });
+    expect(await savePhotoMarkers(INSPECTION, PHOTO, [])).toEqual({ ok: true, markers: [], moved: { moduleKey: null }, size: null });
+    expect(moves()).toEqual([{ by: "inspector-id", photo_id: PHOTO, from: "media_defects", to: null, target: null, via: "marks_removed" }]);
+
+    // A flagged HEIC original without a thumbnail: nothing Claude reads, so no request.
+    vi.mocked(sortMedia).mockClear();
+    useOnePhoto({ module_key: "media_defects", markers: [CIRCLE], flagged: true, thumb_path: null, storage_path: `${INSPECTION}/${PHOTO}.heic` });
+    download.mockResolvedValue({ data: new Blob([Buffer.from("ftypheic, an image Claude does not read")]), error: null });
+    expect(await savePhotoMarkers(INSPECTION, PHOTO, [])).toMatchObject({ ok: true, moved: { moduleKey: null } });
+    expect(sortMedia).not.toHaveBeenCalled();
+  });
+
+  it("puts the photo in Other without asking Steri-AI for a role without Steri-AI Reading", async () => {
+    vi.mocked(userCan).mockReturnValue(false);
+    useOnePhoto({ module_key: "media_defects", markers: [CIRCLE] });
+    expect(await savePhotoMarkers(INSPECTION, PHOTO, [])).toEqual({ ok: true, markers: [], moved: { moduleKey: null }, size: null });
+    expect(download).not.toHaveBeenCalled();
+    expect(sortMedia).not.toHaveBeenCalled();
+    expect(moves()).toEqual([{ by: "inspector-id", photo_id: PHOTO, from: "media_defects", to: null, target: null, via: "marks_removed" }]);
+  });
+
+  it("leaves a photo where it is when its last mark is taken off anywhere but Product Defects", async () => {
+    useOnePhoto({ module_key: "media_samples", markers: [CIRCLE] });
+    expect(await savePhotoMarkers(INSPECTION, PHOTO, [])).toEqual({ ok: true, markers: [], size: null });
+    expect(updates()).toEqual([{ markers: [] }]);
+    expect(sortMedia).not.toHaveBeenCalled();
+    expect(adminRpc).not.toHaveBeenCalled();
+  });
+
+  it("refuses a photo the user can no longer change, and says when the server has nowhere to keep marks", async () => {
+    useOnePhoto({}, false);
+    expect(await savePhotoMarkers(INSPECTION, PHOTO, [CIRCLE])).toEqual({ ok: false, error: MEDIA_MESSAGES.forbidden });
+    expect(writes()).toEqual([]);
+
+    useDatabase(() => ({ data: null, error: { code: "42703", message: "column inspection_photos.markers does not exist" } }));
+    expect(await savePhotoMarkers(INSPECTION, PHOTO, [CIRCLE])).toEqual({ ok: false, error: MEDIA_MESSAGES.markersNotReady });
+    expect(writes()).toEqual([]);
+
+    // The guard of an approved inspection's photos refuses the write itself.
+    useDatabase((query) =>
+      arg(query, "update")
+        ? { data: null, error: { code: "42501", message: "the photos and files of an approved inspection are read-only" } }
+        : { data: ROW, error: null },
+    );
+    expect(await savePhotoMarkers(INSPECTION, PHOTO, [CIRCLE])).toEqual({ ok: false, error: MEDIA_MESSAGES.forbidden });
     expect(adminRpc).not.toHaveBeenCalled();
   });
 });

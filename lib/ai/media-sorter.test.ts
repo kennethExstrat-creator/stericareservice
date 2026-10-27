@@ -83,4 +83,44 @@ describe("sortMedia", () => {
       { type: "text", text: "Sort the 2 items above and answer with the JSON object." },
     ]);
   });
+
+  it("offers every category, Product Defects among them, unless told to leave some out", async () => {
+    vi.mocked(createMessage).mockResolvedValue({
+      model: "claude-opus-5-5",
+      stop_reason: "end_turn",
+      content: [{ type: "text", text: answer([{ item: 1, category: "defects" }]) }],
+    } as never);
+    const env = { ANTHROPIC_API_KEY: "sk-ant-test-key-0000000000" };
+
+    expect(await sortMedia(previews.slice(0, 1), env)).toEqual({ ok: true, categories: ["media_defects"], model: "claude-opus-5-5" });
+    const everything = vi.mocked(createMessage).mock.calls[0][1].system as string;
+    expect(everything).toContain('- "defects": Product Defects.');
+    expect(everything).toContain('a close-up showing a defect is "defects"');
+    expect(everything).not.toContain("Not offered");
+  });
+
+  // A photo whose last defect mark is removed while in Product Defects is sorted again among the others (Kenneth, 27 October 2026).
+  it("sorts among the others when Product Defects is left out, an answer naming it counting as unsure", async () => {
+    vi.mocked(createMessage).mockResolvedValue({
+      model: "claude-opus-5-5",
+      stop_reason: "end_turn",
+      content: [{ type: "text", text: answer([{ item: 1, category: "defects" }, { item: 2, category: "samples" }]) }],
+    } as never);
+    const recorder = vi.fn();
+
+    const outcome = await sortMedia(previews, { ANTHROPIC_API_KEY: "sk-ant-test-key-0000000000" }, recorder, { exclude: ["media_defects"] });
+
+    expect(outcome).toEqual({ ok: true, categories: [null, "media_samples"], model: "claude-opus-5-5" });
+    const [, params, onCall] = vi.mocked(createMessage).mock.calls[0];
+    expect(onCall).toBe(recorder);
+    expect(params).toMatchObject({ output_config: { effort: "low" } });
+    const system = params.system as string;
+    expect(system).not.toContain('"defects"');
+    expect(system).toContain('- "warehouse": Warehouse.');
+    expect(system).toContain('- "samples": Product and Package Samples.');
+    expect(system).toContain('- "proof": Inspection Proof.');
+    expect(system).toContain('Not offered for these items: Product Defects. Choose among the categories above, or "unsure".');
+    expect(system).toContain('gloves, boxes or cartons shown as sampled are "samples"');
+    expect(system).toContain('{"items": [{"item": 1, "category": "warehouse"}, {"item": 2, "category": "unsure"}]}');
+  });
 });
