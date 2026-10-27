@@ -420,7 +420,11 @@ export default function Capture({
         );
       case "worked":
         return (
-          <div key={line.row.key} style={at(row, 1)} className={cn(CELL, LABEL_CELL, "text-foreground", edge(row))}>
+          <div
+            key={line.row.key}
+            style={at(row, 1)}
+            className={cn(CELL, LABEL_CELL, "text-foreground", byProduct(line.row) && "italic", edge(row))}
+          >
             {line.row.label}
           </div>
         );
@@ -530,7 +534,7 @@ export default function Capture({
               key={line.row.key}
               data-worked={line.row.key}
               style={at(row, column)}
-              className={cn(CELL, VALUE_CELL, "bg-slate-50 text-foreground", edge(row))}
+              className={cn(CELL, VALUE_CELL, "bg-slate-50 text-foreground", byProduct(line.row) && "italic", edge(row))}
             >
               <span className="sr-only">{line.row.label}: </span>
               <Figure value={computed?.sizes?.[size]?.[line.row.key] ?? null} grouping />
@@ -603,7 +607,7 @@ export default function Capture({
           return <div key={line.row.key} aria-hidden data-no-total="" style={at(row, totalColumn)} className={cell} />;
         }
         return (
-          <div key={line.row.key} style={at(row, totalColumn)} className={cell}>
+          <div key={line.row.key} style={at(row, totalColumn)} className={cn(cell, byProduct(line.row) && "italic")}>
             <span className="sr-only">{line.row.label}: </span>
             <Figure value={computed?.totals?.[line.row.key] ?? null} grouping />
           </div>
@@ -1376,6 +1380,15 @@ function fieldId(size: string, column: Count): string {
 }
 
 /** Auto Calculate Sampling would change a count already entered: one it works out, and not to the same number. */
+/**
+ * A worked row that only follows from the others, set in italics: Total Gloves
+ * Taken (Kenneth, 27 October 2026: "italic total gloves taken because thats
+ * not the important data").
+ */
+function byProduct(row: WorkedRow): boolean {
+  return row.key === "totalGlovesTaken";
+}
+
 function wouldReplace(entered: number | null, next: number | undefined): boolean {
   return entered !== null && next !== undefined && entered !== next;
 }

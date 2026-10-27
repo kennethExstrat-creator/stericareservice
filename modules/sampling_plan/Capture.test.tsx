@@ -181,6 +181,10 @@ describe("sampling_plan Capture", () => {
       html.indexOf(text),
     );
     expect(order).toEqual([...order].sort((a, b) => a - b));
+    // Total Gloves Taken is set in italics, the data that matters in upright type (Kenneth, 27 October 2026).
+    expect(html).toMatch(/<div[^>]*class="[^"]*\bitalic\b[^"]*"[^>]*>Total Gloves Taken</);
+    expect(html).toMatch(/data-worked="totalGlovesTaken"[^>]*class="[^"]*\bitalic\b/);
+    expect(html).not.toMatch(/data-worked="putBack"[^>]*class="[^"]*\bitalic\b/);
     for (const old of ['aria-label="Case, Size M"', 'aria-label="Inner Box, Size M"', 'aria-label="Gloves, Size M"']) {
       expect(html).not.toContain(old);
     }
