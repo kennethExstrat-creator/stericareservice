@@ -1,9 +1,9 @@
 // Words and numbers as the report prints them: dates in full ("23 October
 // 2026", "Friday, 23 October 2026"), counts with thousands separators,
-// shares, ranges ("243 to 244 mm") and lists ("S, M, L and XL"). Pure and
-// locale-free apart from the month and day names, which are the same on the
-// server and in the browser, so the Report page's preview and the printed
-// pages read alike.
+// shares, ranges ("243 to 244 mm"), lists ("S, M, L and XL") and the aged
+// gloves' ageing ("70 °C · 7 days"). Pure and locale-free apart from the
+// month and day names, which are the same on the server and in the browser,
+// so the Report page's preview and the printed pages read alike.
 import { formatCount, formatNumber, withUnit, type NumberFormat } from "@/lib/format";
 
 // Calendar dates (the inspection day in Malaysia), formatted in UTC so they never shift.
@@ -91,6 +91,25 @@ export function sharesOf(values: readonly number[]): number[] {
 export function shareText(share: number): string {
   return formatNumber(share, { maxDecimals: 1, unit: "%" });
 }
+
+/**
+ * The aged gloves' ageing, stated wherever the report shows them (Kenneth,
+ * 27 October 2026; TG35 page 7 and EN 455-2's accelerated ageing): 7 days at
+ * 70 °C. The packing check records no ageing of its own, so the report says
+ * it from here, in the three phrasings below.
+ */
+export const AGEING_CONDITION = { celsius: 70, days: 7 } as const;
+
+const AGEING_DEGREES = `${AGEING_CONDITION.celsius} °C`;
+
+/** "70 °C · 7 days": under "Aged Gloves" in the packing chart, before their box count. */
+export const AGEING_LINE = `${AGEING_DEGREES} · ${counted(AGEING_CONDITION.days, "day")}`;
+
+/** "70 °C, 7 Days": in the aged gloves' table heading, "Box-Aged Gloves (70 °C, 7 Days)", in Title Case as headings are. */
+export const AGEING_HEADING = `${AGEING_DEGREES}, ${counted(AGEING_CONDITION.days, "Day")}`;
+
+/** "Aged at 70 °C for 7 days": in a sentence, the aged gloves' photo note. */
+export const AGEING_SENTENCE = `Aged at ${AGEING_DEGREES} for ${counted(AGEING_CONDITION.days, "day")}`;
 
 /** An AQL as the reports head it: "AQL 1.5", "AQL 4.0", "AQL 0.0", "AQL 0.65". */
 export function aqlText(aql: number): string {

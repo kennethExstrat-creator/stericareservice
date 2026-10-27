@@ -46,13 +46,28 @@ export {
   type ForceAtBreakSection,
   type HolesVisualSection,
   type PackingSection,
+  type PackingSlot,
+  type GloveDispensingSection,
   type LabellingConclusionSection,
   type PhotosSection,
 } from "./model";
 export { checkRows, checksVerdict, type CheckRow, type CheckStatus } from "./checks";
 export { SECTION_BUILDERS, sectionBuilder, defineSection, type SectionBuilder, type AnySectionBuilder } from "./sections";
 export { STERICARE_LETTERHEAD, type Letterhead } from "./letterhead";
-export { longDate, weekdayDate, andList, counted, rangeText, sharesOf, shareText, aqlText } from "./format";
+export {
+  longDate,
+  weekdayDate,
+  andList,
+  counted,
+  rangeText,
+  sharesOf,
+  shareText,
+  aqlText,
+  AGEING_CONDITION,
+  AGEING_LINE,
+  AGEING_HEADING,
+  AGEING_SENTENCE,
+} from "./format";
 export { isRecord, rec, list, num, text, at, moduleOf, labelOf, orderedSizes, inTemplateOrder, sizeLabel } from "./read";
 export {
   position,

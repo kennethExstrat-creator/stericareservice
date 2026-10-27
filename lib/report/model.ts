@@ -418,8 +418,16 @@ export type ForceAtBreakPart =
 export type ForceAtBreakPage = { parts: ForceAtBreakPart[] };
 /** Section 06, Freedom From Holes & Visual Inspection: defects against the limits (TrackBar), pinholes, defects by class, photos. */
 export type HolesVisualSection = ReportSectionContent & import("./sections/holes-visual").HolesVisualContent;
+/**
+ * Section 07's slot: the packing check's content (PackingSection), or, for a
+ * template with the Safedon dispensing check and no packing check, Glove
+ * Dispensing's (GloveDispensingSection, `kind: "safedon"`).
+ */
+export type PackingSlot = PackingSection | GloveDispensingSection;
 /** Section 07, Glove Packing & Dispensing: average layering and dispensing (GroupedHBars), each box, the aged gloves, stickiness. */
 export type PackingSection = ReportSectionContent & {
+  /** Absent: the packing check's content (Glove Dispensing's is "safedon"). */
+  kind?: undefined;
   /** Under the title, from the config: what was opened and why, the minimums, the stickiness grades that pass and fail. */
   lead: string;
   /** The template's words, its labels without their marks: "Layering %" is "Layering"; the per-box table's short forms "Layer" and "Disp.". */
@@ -447,7 +455,7 @@ export type PackingChartRow = {
   key: string;
   /** "S", "Aged Gloves". */
   label: string;
-  /** "8 boxes"; the aged gloves' under their label, after their ageing where the data records it. */
+  /** "8 boxes"; the aged gloves' under their label, after their ageing: "70 °C · 7 days · 4 boxes". */
   sublabel: string;
   layering: PackingFigure;
   dispensing: PackingFigure;
@@ -466,7 +474,7 @@ export type PackingPerBox = {
 };
 export type PackingAgedRow = { size: string; label: string; layering: PackingFigure; dispensing: PackingFigure; grade: PackingGrade | null; status: CheckStatus };
 export type PackingAged = {
-  /** "Box-Aged Gloves", with the ageing where the aged samples record it: "Box-Aged Gloves (70 °C, 7 days)". */
+  /** With the ageing (AGEING_CONDITION in ./format.ts): "Box-Aged Gloves (70 °C, 7 Days)". */
   title: string;
   rows: PackingAgedRow[];
   /** The samples' average layering and dispensing, and the worst grade among them. */
@@ -476,6 +484,8 @@ export type PackingAged = {
 };
 /** A part of a page: the chart, items `from` to `to` (0-based, `to` left out) of the per-box table, or the aged gloves beside the grades. */
 export type PackingPart = { kind: "chart" } | { kind: "perBox"; from: number; to: number } | { kind: "agedAndGrades" };
+/** Section 07 for a Safedon template, Glove Dispensing: each size's defect rate against the maximum, each box, the defects by type and their definitions. */
+export type GloveDispensingSection = ReportSectionContent & import("./sections/glove-dispensing").GloveDispensingContent;
 /** Section 08, Packaging Labelling & Conclusion: the label checks, the results matrix (TickMatrix), the conclusion card. */
 export type LabellingConclusionSection = ReportSectionContent & {
   /** The heading's title: the plan entry's, or the conclusion's own where the template inspects no labels. */
@@ -577,7 +587,7 @@ export type ReportSections = {
   measurements?: MeasurementsSection;
   forceAtBreak?: ForceAtBreakSection;
   holesVisual?: HolesVisualSection;
-  packing?: PackingSection;
+  packing?: PackingSlot;
   labellingConclusion?: LabellingConclusionSection;
   photos?: PhotosSection;
 };

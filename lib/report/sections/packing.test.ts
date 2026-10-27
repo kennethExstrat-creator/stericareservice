@@ -14,7 +14,9 @@ import { lineCount, MIN_ROWS, PACKING_ROOM, perBoxGeometry, planPages, textWidth
 function packingOf(doc: InspectionExport): { entry: ReportSectionPlanEntry | undefined; content: PackingSection | undefined } {
   const model = buildReportModel(doc);
   const entry = model.plan.find((item): item is ReportSectionPlanEntry => item.kind === "section" && item.key === "packing");
-  return { entry, content: model.sections.packing };
+  const content = model.sections.packing;
+  // The packing check's content; a Safedon template's Glove Dispensing has tests of its own (glove-dispensing.test.ts).
+  return { entry, content: content?.kind === "safedon" ? undefined : content };
 }
 
 function contentOf(doc: InspectionExport): PackingSection {
@@ -30,11 +32,11 @@ const DEFAULT_LEAD =
   "Inner boxes opened to check glove layering and how cleanly gloves dispense. Minimum 70% layering and 80% dispensing; stickiness grades A to C pass, D fails.";
 
 describe("which inspections it builds for", () => {
-  it("builds from the packing check, and leaves an inspection without one 'nothing entered yet' (SAFEDON_EG's Safedon dispensing)", () => {
+  it("builds from the packing check, and hands an inspection without one to Glove Dispensing (SAFEDON_EG's Safedon dispensing)", () => {
     expect(packingOf(makeStdEgExport()).entry).toMatchObject({ kicker: "Section 07", title: "Glove Packing & Dispensing", built: true, pageCount: 1 });
-    const safedon = packingOf(makeSafedonExport());
-    expect(safedon.entry).toMatchObject({ title: "Glove Dispensing", built: false, pageCount: 1 });
-    expect(safedon.content).toBeUndefined();
+    const safedon = buildReportModel(makeSafedonExport());
+    expect(safedon.plan.find((item) => item.key === "packing")).toMatchObject({ title: "Glove Dispensing", built: true });
+    expect(safedon.sections.packing?.kind).toBe("safedon");
   });
 
   it("builds only the blocks switched on, in the plan's order", () => {
@@ -125,11 +127,11 @@ describe("four sizes with an aged sample each, as TG35 page 7", () => {
       ["L", "8 boxes", 88, 90, "A"],
       ["XL", "5 boxes", 87, 89, "A"],
     ]);
-    // The aged samples' averages, their count, and their worst grade (B1 comes after B among the codes).
+    // The aged samples' ageing (TG35's 70 °C for 7 days), their count, averages and worst grade (B1 comes after B among the codes).
     expect(content.chart?.aged).toEqual({
       key: "aged",
       label: "Aged Gloves",
-      sublabel: "4 boxes",
+      sublabel: "70 °C · 7 days · 4 boxes",
       layering: { value: 88.5, low: false },
       dispensing: { value: 86.5, low: false },
       grade: { code: "B1", label: "A mix of non sticky to light stickiness at the bead", pass: true },
@@ -150,7 +152,7 @@ describe("four sizes with an aged sample each, as TG35 page 7", () => {
   });
 
   it("tables the aged samples with one result for all of them, their average and worst grade", () => {
-    expect(content.aged?.title).toBe("Box-Aged Gloves");
+    expect(content.aged?.title).toBe("Box-Aged Gloves (70 °C, 7 Days)");
     expect(content.aged?.rows.map((row) => [row.label, row.layering.value, row.dispensing.value, row.grade?.code, row.status])).toEqual([
       ["S", 87, 85, "B", "pass"],
       ["M", 91, 89, "B", "pass"],
@@ -300,7 +302,7 @@ describe("missing data", () => {
     expect(content.pages).toEqual([{ parts: [{ kind: "agedAndGrades" }] }]);
   });
 
-  it("prints the ageing only where the aged samples record it", () => {
+  it("states the ageing as TG35 does, 70 °C for 7 days, whatever the samples' notes say", () => {
     const aged = (notes: (string | null)[]) => {
       const sizes = Object.fromEntries(
         ["S", "M", "L"].map((size, index): [string, PackingSizeInput] => [
@@ -311,11 +313,11 @@ describe("missing data", () => {
       const content = contentOf(packingExport(sizes));
       return [content.chart?.aged?.sublabel, content.aged?.title];
     };
-    expect(aged(["70 °C, 7 days", "70 °C, 7 days", "70 °C, 7 days"])).toEqual(["70 °C, 7 days · 3 boxes", "Box-Aged Gloves (70 °C, 7 days)"]);
-    expect(aged(["70 °C, 7 days", null, null])).toEqual(["70 °C, 7 days · 3 boxes", "Box-Aged Gloves (70 °C, 7 days)"]);
-    expect(aged(["Aged sample", "Aged sample", "aged sample."])).toEqual(["3 boxes", "Box-Aged Gloves"]);
-    expect(aged(["70 °C, 7 days", "70 °C, 3 days", null])).toEqual(["3 boxes", "Box-Aged Gloves"]);
-    expect(aged([null, null, null])).toEqual(["3 boxes", "Box-Aged Gloves"]);
+    const stated = ["70 °C · 7 days · 3 boxes", "Box-Aged Gloves (70 °C, 7 Days)"];
+    expect(aged(["70 °C, 7 days", "70 °C, 7 days", "70 °C, 7 days"])).toEqual(stated);
+    expect(aged(["Aged sample", "Aged sample", "aged sample."])).toEqual(stated);
+    expect(aged(["70 °C, 7 days", "70 °C, 3 days", null])).toEqual(stated);
+    expect(aged([null, null, null])).toEqual(stated);
   });
 });
 

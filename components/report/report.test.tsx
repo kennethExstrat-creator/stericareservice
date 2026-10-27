@@ -162,7 +162,7 @@ describe("the pages still to come", () => {
       const model = buildReportModel(doc);
       const html = renderToStaticMarkup(<ReportDocument model={model} />);
       expect(pagesOf(html)).toHaveLength(model.pageCount);
-      for (const entry of model.plan) if (entry.kind !== "summary" && entry.key !== "packing") expect(entry.built, entry.key).toBe(true);
+      for (const entry of model.plan) if (entry.kind !== "summary") expect(entry.built, entry.key).toBe(true);
     }
   });
 

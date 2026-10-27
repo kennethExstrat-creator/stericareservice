@@ -102,11 +102,11 @@ describe("four sizes with aged samples, as TG35 page 7", () => {
     expect(pages).toHaveLength(1);
   });
 
-  it("charts every size, then the aged gloves under a dashed rule with their count under the label", () => {
+  it("charts every size, then the aged gloves under a dashed rule with their ageing and count under the label", () => {
     const chart = slot(page, "report-packing-chart");
     expect(Array.from(chart.matchAll(/data-row="(\w+)"/g), (match) => match[1])).toEqual(["S", "M", "L", "XL", "aged"]);
-    expect(text(chart)).toContain("Aged Gloves 4 boxes Layering 88.5% Dispensing 86.5% B1");
-    expect(chart).toMatch(/<span class="text-slate-600 block">4 boxes<\/span>/);
+    expect(text(chart)).toContain("Aged Gloves 70 °C · 7 days · 4 boxes Layering 88.5% Dispensing 86.5% B1");
+    expect(chart).toMatch(/<span class="text-slate-600 block">70 °C · 7 days · 4 boxes<\/span>/);
     expect(chart).toMatch(/data-row="aged" class="contents"><div class="[^"]*border-t-\[0\.3mm\] border-dashed/);
   });
 
@@ -125,7 +125,7 @@ describe("four sizes with aged samples, as TG35 page 7", () => {
 
   it("tables the aged gloves with one result across their rows, as the design prints it", () => {
     const aged = slot(page, "report-packing-aged");
-    expect(text(aged)).toContain("Box-Aged Gloves Size Layering Dispensing Stickiness Result S 87% 85% B Passed M 91% 89% B L 89% 87% B1 XL 87% 85% B Average 88.5% 86.5% B1");
+    expect(text(aged)).toContain("Box-Aged Gloves (70 °C, 7 Days) Size Layering Dispensing Stickiness Result S 87% 85% B Passed M 91% 89% B L 89% 87% B1 XL 87% 85% B Average 88.5% 86.5% B1");
     expect(aged).toMatch(/<td rowSpan="5"[^>]*><div class="flex justify-end"><span data-slot="report-status-chip" data-status="pass"/);
     expect(aged.match(/data-slot="report-status-chip"/g)).toHaveLength(1);
     expect(aged).toMatch(/<tr data-row="average" class="bg-brand-50 font-semibold/);

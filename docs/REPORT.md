@@ -76,6 +76,14 @@ report's design, not the capture steps (Kenneth: "make the setting of report mat
 A section's title is the design's, or the test it shows where the inspection has another: Physical Properties for
 tensile, Glove Dispensing for the Safedon dispensing check.
 
+Section 07's slot holds the packing check's content, or, for a template with the Safedon dispensing check and no
+packing check, Glove Dispensing's (`kind: "safedon"`, `lib/report/sections/glove-dispensing.ts`), laid out in TG35
+page 7's style: each size's defect rate against the template's maximum, the per-box results, and the defects by type
+beside the template's definitions of them. It follows the section's chart and Per-Box Results switches; its defects
+table prints whatever Aged Gloves and Stickiness Grades (the packing check's) say. The aged gloves' ageing, 70 °C for
+7 days (TG35 page 7, EN 455-2), is stated from one constant (`AGEING_CONDITION`, `lib/report/format.ts`): under
+"Aged Gloves" in the chart, in the aged gloves' table heading and in their photo record's note.
+
 Results by Check has a row per check the inspection judged: each test module with a result (a module that only
 records, "info", has none), Visual Inspection once per defect class, the packing check's aged sample on a row of its
 own. The order, the sampling plan and the box/carton numbers are records, listed only when they hold a failure or a

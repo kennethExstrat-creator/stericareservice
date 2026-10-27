@@ -7,25 +7,30 @@
 // size's average layering and dispensing against the minimums, with the
 // worst stickiness grade given, and under a dashed rule the aged samples
 // (one per size, Kenneth 26 October 2026: judged on their own, never one of
-// the boxes). The per-box table lists every box by its item, size by size,
-// with each size's averages; the aged gloves' table each size's aged sample
-// and its result; the grades the template's stickiness codes. Labels are
-// the template's (docs/DESIGN.md: the report keeps the template's words);
-// the averages, the worst grades and the results are the module's own
-// (calc), worked out here only where an export lacks them. A value below its
-// minimum and a failing grade print in red; the app never changes a result.
+// the boxes), their ageing stated as TG35 states it, 70 °C for 7 days
+// (AGEING_CONDITION in ../format.ts). The per-box table lists every box by
+// its item, size by size, with each size's averages; the aged gloves' table
+// each size's aged sample and its result; the grades the template's
+// stickiness codes. Labels are the template's (docs/DESIGN.md: the report
+// keeps the template's words); the averages, the worst grades and the
+// results are the module's own (calc), worked out here only where an export
+// lacks them. A value below its minimum and a failing grade print in red;
+// the app never changes a result.
 //
 // The pages are planned here, so the plan knows their count: heights in
 // millimetres from the components' own sizes (PACKING_ROOM), each erring
 // long. The per-box table runs on to another page when the boxes do not fit,
 // its header repeated and the average row on its last page; a block that
 // does not fit moves to the next page whole.
+//
+// An inspection with no packing check fills the slot from the Safedon
+// dispensing check instead (Glove Dispensing, ./glove-dispensing.ts).
 import { formatNumber, plainLabel } from "@/lib/format";
 import type { ExportModule, InspectionExport } from "@/lib/schemas/export";
 import { REPORT_PAGE_SIZES, type ReportBlockKey } from "@/lib/schemas/report-options";
 import { roundTo } from "@/lib/stats";
 import type { CheckStatus } from "../checks";
-import { andList, counted } from "../format";
+import { AGEING_HEADING, AGEING_LINE, andList, counted } from "../format";
 import type {
   PackingAged,
   PackingBoxRow,
@@ -34,9 +39,11 @@ import type {
   PackingPart,
   PackingPerBox,
   PackingSection,
+  PackingSlot,
   ReportSectionPlanEntry,
 } from "../model";
 import { at, labelOf, list, moduleOf, num, orderedSizes, rec, sizeLabel, text } from "../read";
+import { buildGloveDispensing } from "./glove-dispensing";
 import { defineSection } from "./index";
 
 /* ------------------------------------------------------------------ *
@@ -55,9 +62,6 @@ const BOX_AGED_GLOVES = "Box-Aged Gloves";
 
 /** The per-box table's short headings for the template's default words, as the design sets them; any other word is kept whole. */
 const SHORT_WORDS: Readonly<Record<string, string>> = { Layering: "Layer", Dispensing: "Disp." };
-
-/** A note longer than this is a remark, not an ageing: it is not printed as one. */
-const AGEING_NOTE_MAX = 40;
 
 type Words = PackingSection["words"];
 type Minimums = PackingSection["minimums"];
@@ -250,7 +254,7 @@ function chartOf(sizes: readonly SizeReading[], minimums: Minimums, aged: AgedSa
     aged: aged && {
       key: AGED_ROW_KEY,
       label: AGED_GLOVES,
-      sublabel: [aged.ageing, counted(aged.sizes.length, "box", "boxes")].filter((part): part is string => part !== null).join(" · "),
+      sublabel: `${AGEING_LINE} · ${counted(aged.sizes.length, "box", "boxes")}`,
       layering: aged.layering,
       dispensing: aged.dispensing,
       grade: aged.worst,
@@ -303,25 +307,23 @@ function boxNote(sizes: readonly SizeReading[], words: Words, grades: readonly P
   return [notePart(`${unit} ${capitalised(stickiness)} grades: `), ...listed, notePart(".")];
 }
 
-/** The sizes with an aged sample entered, and what the chart's row and the table share of them. */
+/**
+ * The sizes with an aged sample entered, and what the chart's row and the
+ * table share of them. Their ageing is the report's own (AGEING_CONDITION,
+ * ../format.ts): the module has no field for it.
+ */
 type AgedSamples = {
   sizes: (SizeReading & { aged: Entry })[];
-  /** The ageing as the samples' note records it: "70 °C, 7 days"; null where none does. */
-  ageing: string | null;
   layering: PackingFigure;
   dispensing: PackingFigure;
   worst: PackingGrade | null;
 };
 
-function agedSamplesOf(sizes: readonly SizeReading[], minimums: Minimums, grades: readonly PackingGrade[], agedLabel: string): AgedSamples | null {
+function agedSamplesOf(sizes: readonly SizeReading[], minimums: Minimums, grades: readonly PackingGrade[]): AgedSamples | null {
   const aged = sizes.filter((size): size is SizeReading & { aged: Entry } => size.aged !== null);
   if (aged.length === 0) return null;
   return {
     sizes: aged,
-    ageing: ageingOf(
-      aged.map((size) => size.aged.note),
-      agedLabel,
-    ),
     layering: figureOf(meanOf(aged.map((size) => size.aged.layering)), minimums.layering),
     dispensing: figureOf(meanOf(aged.map((size) => size.aged.dispensing)), minimums.dispensing),
     worst: worstOf(
@@ -329,22 +331,6 @@ function agedSamplesOf(sizes: readonly SizeReading[], minimums: Minimums, grades
       aged.map((size) => size.aged.stickiness),
     ),
   };
-}
-
-/**
- * The ageing the aged samples record (the module has no field of its own for
- * it): their note when each sample with one says the same, short, and more
- * than that the row is aged ("Aged sample", the template's label). Never
- * made up: none recorded is none printed.
- */
-function ageingOf(notes: readonly (string | null)[], agedLabel: string): string | null {
-  const written = notes.filter((note): note is string => note !== null).map((note) => note.replace(/\s+/g, " "));
-  if (written.length === 0) return null;
-  const first = written[0];
-  if (first.length > AGEING_NOTE_MAX || written.some((note) => note.toLowerCase() !== first.toLowerCase())) return null;
-  const bare = first.replace(/[\s.:;,]+$/, "").toLowerCase();
-  if (bare === agedLabel.toLowerCase() || /^aged( (sample|samples|glove|gloves|box|boxes))?$/.test(bare)) return null;
-  return first;
 }
 
 function agedOf(samples: AgedSamples, minimums: Minimums, grades: readonly PackingGrade[]): PackingAged {
@@ -359,7 +345,7 @@ function agedOf(samples: AgedSamples, minimums: Minimums, grades: readonly Packi
   }));
   const statuses = new Set(rows.map((row) => row.status));
   return {
-    title: samples.ageing ? `${BOX_AGED_GLOVES} (${samples.ageing})` : BOX_AGED_GLOVES,
+    title: `${BOX_AGED_GLOVES} (${AGEING_HEADING})`,
     rows,
     average: { layering: samples.layering, dispensing: samples.dispensing, grade: samples.worst },
     status: statuses.size === 1 ? rows[0].status : null,
@@ -370,15 +356,16 @@ function agedOf(samples: AgedSamples, minimums: Minimums, grades: readonly Packi
  * The section
  * ------------------------------------------------------------------ */
 
-function buildPacking(doc: InspectionExport, entry: ReportSectionPlanEntry<"packing">): PackingSection | null {
+function buildPacking(doc: InspectionExport, entry: ReportSectionPlanEntry<"packing">): PackingSlot | null {
   const check = moduleOf(doc, "dispensing_packing");
-  if (!check) return null;
+  // No packing check: a Safedon template's Glove Dispensing (./glove-dispensing.ts), or "coming next".
+  if (!check) return withSafedon(doc, entry);
   const on = (key: ReportBlockKey<"packing">) => entry.blocks.some((block) => block.key === key);
   const words = wordsOf(check);
   const minimums: Minimums = { layering: num(check.config?.minLayeringPct), dispensing: num(check.config?.minDispensingPct) };
   const grades = gradesOf(check);
   const sizes = sizesOf(doc, check, grades);
-  const samples = agedSamplesOf(sizes, minimums, grades, labelOf(check, "agedSample", "Aged Sample"));
+  const samples = agedSamplesOf(sizes, minimums, grades);
   const body: Omit<PackingSection, "pages" | "pageCount"> = {
     lead: leadOf(doc, words, minimums, grades),
     words,
@@ -391,6 +378,12 @@ function buildPacking(doc: InspectionExport, entry: ReportSectionPlanEntry<"pack
   if (!body.chart && !body.perBox && !body.aged && !body.grades) return null;
   const pages = planPages(body, layoutOf(doc));
   return { ...body, pages, pageCount: pages.length };
+}
+
+/** Glove Dispensing's content where the inspection has the Safedon dispensing check; null without it. */
+function withSafedon(doc: InspectionExport, entry: ReportSectionPlanEntry<"packing">): PackingSlot | null {
+  const safedon = moduleOf(doc, "dispensing_safedon");
+  return safedon ? buildGloveDispensing(doc, entry, safedon) : null;
 }
 
 export const packing = defineSection({ key: "packing", build: buildPacking });
@@ -476,13 +469,17 @@ const MM_PER_PT = 25.4 / 72;
 /**
  * Outfit's advance widths in em, by groups of characters alike: its latin
  * face at a medium weight (bolder is up to 3% wider), each group's widest
- * rounded up. Anything else is taken at 0.6 em.
+ * rounded up. Anything else is taken at 0.6 em. The middle dot and the
+ * degree sign are their own, as Chrome sets them (0.146 and 0.392 em): the
+ * aged gloves' "70 °C · 7 days · 4 boxes" fits its 34 mm, as TG35 sets it.
  */
 const ADVANCES: readonly (readonly [string, number])[] = [
+  ["·", 0.15],
   [" ", 0.21],
-  ["iIjl'|!.,:;·", 0.29],
+  ["iIjl'|!.,:;", 0.29],
   ["()[]{}`1", 0.35],
-  ["frts/°\\\"", 0.43],
+  ["°", 0.4],
+  ["frts/\\\"", 0.43],
   ["z*^-?_", 0.51],
   ["ceuvxyk7J~+<=>L", 0.55],
   ["abdghnopq2345689$FSZE", 0.6],

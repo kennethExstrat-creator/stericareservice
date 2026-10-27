@@ -9,7 +9,9 @@
 // hairlines, zebra rows tighter than a table's usual (the design's 4.75 mm),
 // and each size's average. Box-Aged Gloves beside Stickiness Grades. A value
 // below its minimum and a failing grade print in red. Sizes in millimetres
-// match the plan's estimates (PACKING_ROOM): change them together.
+// match the plan's estimates (PACKING_ROOM): change them together. A
+// Safedon template's Section 07, Glove Dispensing, has its own pages
+// (./glove-dispensing.tsx).
 import { Fragment, type ReactNode } from "react";
 import { STATUS_TINT_CLASS } from "@/lib/design/status";
 import { formatNumber } from "@/lib/format";
@@ -32,11 +34,14 @@ import { ReportTable, type ReportColumn, type ReportRow } from "../report-table"
 import { BlockHeading, SectionHeading } from "../section-heading";
 import { StatusChip } from "../status-chip";
 import { contentWidth, TYPE } from "../theme";
+import { gloveDispensingPages } from "./glove-dispensing";
 import { defineSectionPages, type SectionPagesProps } from "./index";
 
 type Words = PackingSection["words"];
 
 function Pages({ model, entry, content }: SectionPagesProps<"packing">): ReactNode[] {
+  // A Safedon template's Section 07, Glove Dispensing: its own pages (./glove-dispensing.tsx).
+  if (content.kind === "safedon") return gloveDispensingPages({ model, entry, content });
   const width = contentWidth(model.paper);
   return content.pages.map((page, index) => (
     <div key={index} data-slot="report-packing" data-page-part={index + 1} className="flex flex-col gap-[4mm]">

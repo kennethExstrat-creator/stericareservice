@@ -33,7 +33,7 @@ import type { ExportPhoto, InspectionExport } from "@/lib/schemas/export";
 import { isModuleKey, type ModuleKey } from "@/lib/schemas/module-result";
 import { REPORT_PHOTO_GROUPS, type ReportPhotoGroupKey } from "@/lib/schemas/report-options";
 import { shortTitleFor } from "@/lib/templates/short-titles";
-import { andList, counted, longDate } from "../format";
+import { AGEING_SENTENCE, andList, counted, longDate } from "../format";
 import type { PhotoBlock, PhotoRecordPage, PhotosSection, PhotoTile } from "../model";
 import { at, labelOf, list, moduleOf, num, orderedSizes, rec, sizeLabel, text } from "../read";
 import type { SectionBuilder } from "./index";
@@ -319,9 +319,10 @@ function noteOf(doc: InspectionExport, key: PhotoBlockKey, entries: readonly Pla
       return gloves ? `${counted(gloves, "glove")} inspected` : null;
     }
     case "aged": {
+      // The ageing as TG35 states it (AGEING_CONDITION), then the samples: "Aged at 70 °C for 7 days, one box per size: S, M, L and XL".
       const aged = sizes.filter((size) => Object.keys(rec(at(computed("dispensing_packing"), "sizes", size, "agedSample"))).length > 0).map((size) => sizeLabel(doc, size));
-      if (aged.length === 0) return null;
-      return aged.length === 1 ? `One box, size ${aged[0]}` : `One box per size: ${andList(aged)}`;
+      if (aged.length === 0) return AGEING_SENTENCE;
+      return `${AGEING_SENTENCE}, ${aged.length === 1 ? `one box, size ${aged[0]}` : `one box per size: ${andList(aged)}`}`;
     }
     case "watertight": {
       const perSize = sizes.map((size) => rec(at(computed("watertight"), "sizes", size)));

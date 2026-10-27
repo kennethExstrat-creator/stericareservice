@@ -1,5 +1,18 @@
 import { describe, expect, it } from "vitest";
-import { andList, aqlText, counted, longDate, rangeText, shareText, sharesOf, weekdayDate } from "./format";
+import {
+  AGEING_CONDITION,
+  AGEING_HEADING,
+  AGEING_LINE,
+  AGEING_SENTENCE,
+  andList,
+  aqlText,
+  counted,
+  longDate,
+  rangeText,
+  shareText,
+  sharesOf,
+  weekdayDate,
+} from "./format";
 
 describe("the report's dates", () => {
   it("print a day in full, a month kept at month precision as month and year, the inspection day with its weekday", () => {
@@ -31,6 +44,13 @@ describe("the report's words", () => {
     expect(rangeText([87, 90], { unit: "%", dash: true })).toBe("87–90%");
     expect(rangeText([null, undefined, Number.NaN])).toBeNull();
     expect(rangeText([2.9], { decimals: 2, unit: "g" })).toBe("2.90 g");
+  });
+
+  it("state the aged gloves' ageing as TG35 does, 70 °C for 7 days: under the chart's label, in the table's heading, in a sentence", () => {
+    expect(AGEING_CONDITION).toEqual({ celsius: 70, days: 7 });
+    expect(AGEING_LINE).toBe("70 °C · 7 days");
+    expect(AGEING_HEADING).toBe("70 °C, 7 Days");
+    expect(AGEING_SENTENCE).toBe("Aged at 70 °C for 7 days");
   });
 
   it("head an AQL as the reports do, with at least one decimal", () => {
