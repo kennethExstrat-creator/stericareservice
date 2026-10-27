@@ -23,9 +23,12 @@ export type HBarRow = {
   value: number | null;
   /** The figure at the bar's end: "3.3 g". */
   display?: string;
-  /** A value that fails its limit: the bar and the figure in red. */
-  tone?: "fail";
+  /** The bar and its figure in a status colour: a value out of its spec (fail), or one with a warning. */
+  tone?: "fail" | "warn" | null;
 };
+
+const BAR_TONE = { fail: "bg-fail-solid", warn: "bg-warn-solid" } as const;
+const FIGURE_TONE = { fail: "font-semibold text-fail", warn: "font-semibold text-warn" } as const;
 
 export type HBarsProps = {
   rows: readonly HBarRow[];
@@ -49,7 +52,7 @@ export function HBars({ rows, axis, minimum, label, className }: HBarsProps) {
                 aria-hidden
                 data-slot="report-bar"
                 data-value={row.value}
-                className={cn("absolute inset-y-0 left-0 rounded-[0.8mm]", row.tone === "fail" ? "bg-fail-solid" : "bg-brand-500")}
+                className={cn("absolute inset-y-0 left-0 rounded-[0.8mm]", row.tone ? BAR_TONE[row.tone] : "bg-brand-500")}
                 style={{ width: barLength(row.value, axis) }}
               />
             )}
@@ -62,7 +65,7 @@ export function HBars({ rows, axis, minimum, label, className }: HBarsProps) {
               />
             )}
           </div>
-          <p data-tone={row.tone} className={cn("text-right tabular-nums", TYPE.body, row.tone === "fail" ? "font-semibold text-fail" : "text-slate-900")}>
+          <p data-tone={row.tone ?? undefined} className={cn("text-right tabular-nums", TYPE.body, row.tone ? FIGURE_TONE[row.tone] : "text-slate-900")}>
             {row.display ?? (row.value === null ? "" : plainTick(row.value))}
           </p>
         </div>

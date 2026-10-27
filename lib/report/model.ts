@@ -159,9 +159,151 @@ export type ReportSectionContent = { pageCount: number };
 /** Section 02, Order, Product & Sampling: Glove Information, packing, the order lots and sampling plan, the sampled box/carton numbers. */
 export type OrderSamplingSection = ReportSectionContent;
 /** Section 03, Dimensions & Weight: glove length (DotPlot), palm width (RangeBand), the medians, weight per glove (HBars). */
-export type DimensionsSection = ReportSectionContent;
+export type DimensionsSection = ReportSectionContent & {
+  /**
+   * Under the title, from the specs in force: "13 gloves measured per size.
+   * Length must reach 240 mm and palm width must sit inside each size's
+   * tolerance. Thickness and weight are recorded for information."
+   */
+  lead: string | null;
+  /** Glove Length (mm), Each Glove, by its block's key; null while switched off or with no length measured. */
+  gloveLength: DimensionsLengthChart | null;
+  /** Palm Width (mm) against Size Tolerance. */
+  palmWidth: DimensionsWidthChart | null;
+  /** Median Results by Size. */
+  medianResults: DimensionsResultsTable | null;
+  /** Weight per Glove (g). */
+  weightPerGlove: DimensionsWeightBars | null;
+  /** What each page prints, in order. */
+  pages: DimensionsPage[];
+};
+
+/** A figure as printed, in fail red where it fails its spec. */
+export type DimensionsFigure = { text: string; failed: boolean };
+/** A line at a chart row's right: words, then the figure in bold, red where it fails ("Median **243 mm**"). */
+export type DimensionsAsideLine = { text: string; strong?: string; tone?: "fail" };
+/** A chart's axis (lib/report/geometry's Axis). */
+export type DimensionsAxis = { min: number; max: number; ticks: number[] };
+/** One page of Section 03: its parts in print order. */
+export type DimensionsPage = { parts: DimensionsPagePart[] };
+/** A run of a chart's sizes (its rows from, to; continued from the page before), or the results and the weight side by side. */
+export type DimensionsPagePart = { block: "gloveLength" | "palmWidth"; from: number; to: number; continued: boolean } | { block: "results" };
+
+export type DimensionsLengthChart = {
+  /** "Glove Length (mm), Each Glove". */
+  title: string;
+  /** The template's statistic, "Median" or "Average": the marker's name in the key. */
+  statisticLabel: string;
+  /** The key's words for the reject zone: "Below 240 mm minimum"; null when no size has a limit. */
+  limitText: string | null;
+  axis: DimensionsAxis;
+  /** Readings within this of each other stack: their precision (1 mm). */
+  step: number;
+  rows: {
+    size: string;
+    /** As the template shows the size. */
+    label: string;
+    /** Each glove's length, in glove order. */
+    values: number[];
+    /** The statistic as printed: the marker's place; null without readings. */
+    statistic: number | null;
+    /** The spec in force as limits: a minimum's reject zone below it, a maximum's above, a range's both. */
+    limits: { value: number; side: "below" | "above" }[];
+    /** "Median 243 mm", "Range 242 to 245"; "Not stated" without readings. */
+    aside: DimensionsAsideLine[];
+  }[];
+};
+
+export type DimensionsWidthChart = {
+  /** "Palm Width (mm) against Size Tolerance". */
+  title: string;
+  statisticLabel: string;
+  axis: DimensionsAxis;
+  rows: {
+    size: string;
+    label: string;
+    /** The spec in force along the axis: nominal ± tolerance, a range, a minimum open to the right; null for NA. */
+    band: { from: number; to: number } | null;
+    /** The narrowest and widest measured; null without readings. */
+    range: { min: number; max: number } | null;
+    statistic: number | null;
+    /** "Spec 80 ± 10", "Median 84". */
+    aside: DimensionsAsideLine[];
+  }[];
+};
+
+export type DimensionsResultsTable = {
+  /** "Median Results by Size". */
+  title: string;
+  /** Over length and width: "Median (mm)". */
+  statisticGroup: string;
+  /** The measures the template switches on: length and width first, under the statistic, then the thicknesses. */
+  columns: { measure: string; label: string; group: "statistic" | "thickness" }[];
+  rows: {
+    size: string;
+    label: string;
+    /** By measure: the statistic as printed, red where the measure failed; "—" without readings. */
+    cells: Record<string, DimensionsFigure>;
+    /** The size's verdict, the module's own. */
+    status: CheckStatus;
+    /** A P/F set by hand among its measures: a note mark beside the chip. */
+    byHand: boolean;
+  }[];
+  /** Under the table, for the marks: "* Set by the inspector: size M Width." */
+  note: string | null;
+};
+
+export type DimensionsWeightBars = {
+  /** "Weight per Glove (g)". */
+  title: string;
+  /** The bars' scale from 0: just past the heaviest. */
+  max: number;
+  /** A minimum every size shares: a dashed red line across the bars. */
+  minimum: number | null;
+  rows: {
+    size: string;
+    label: string;
+    value: number | null;
+    /** "2.90 g", at the template's decimals; "—" without a weight. */
+    display: string;
+    /** Out of its spec (fail), or past the indicative weight's threshold (warn). */
+    tone: "fail" | "warn" | null;
+  }[];
+  /** "Average of 13 gloves per size. For information only; indicative weight for size M is 3.5 g." */
+  note: string | null;
+};
 /** Section 04, Measurements by Glove: every glove's readings, size by size. */
-export type MeasurementsSection = ReportSectionContent;
+export type MeasurementsSection = ReportSectionContent & {
+  /** At the title's right: "All values in mm · 13 gloves per size". */
+  aside: string;
+  /** The measures the template switches on, in its order, by short label: "Length", "Finger". */
+  columns: { measure: string; label: string }[];
+  /** The template's words for the rows ("No.", "Median", "Spec."), and "Result". */
+  labels: { no: string; statistic: string; spec: string; result: string };
+  /** Each page's rows of tables, two side by side, and under them what its marks mean: "* Set by the inspector." */
+  pages: { rows: MeasurementsTable[][]; note: string | null }[];
+};
+
+/** A size's gloves, or a run of them where they pass a page. */
+export type MeasurementsTable = {
+  key: string;
+  size: string;
+  /** "Size S". */
+  title: string;
+  /** "Lot LOT-A01 · Avg. weight 2.90 g"; null when neither is recorded. */
+  aside: string | null;
+  /** The rest of a size's gloves after a page: headed "(continued)". */
+  continued: boolean;
+  gloves: { no: number; cells: Record<string, DimensionsFigure> }[];
+  /** On a size's last run: the statistic, the spec in force and the result per measure. */
+  summary: {
+    statistic: Record<string, DimensionsFigure>;
+    spec: Record<string, string>;
+    result: Record<string, { text: string; status: CheckStatus; byHand: boolean }>;
+    /** The size's verdict: the Result label's colour. */
+    status: CheckStatus;
+  } | null;
+};
 /** Section 05, Force at Break (or Physical Properties): the lab's details, each specimen (DotPlot), the readings, the lab's summary. */
 export type ForceAtBreakSection = ReportSectionContent & {
   /** Under the title, from the config: "Lab test to EN 455-2. The median of 13 specimens per size must reach 6 N." */

@@ -14,6 +14,8 @@ import type { InspectionExport } from "@/lib/schemas/export";
 import type { ReportPlanEntryFor, ReportSections, ReportSlotKey } from "../model";
 import { forceAtBreak } from "./forceAtBreak";
 import { packing } from "./packing";
+import { dimensions } from "./dimensions";
+import { measurements } from "./measurements";
 
 export type SectionBuilder<K extends ReportSlotKey> = {
   key: K;
@@ -37,6 +39,8 @@ export const SECTION_BUILDERS: readonly AnySectionBuilder[] = [
   // orderSampling, dimensions, measurements, forceAtBreak, holesVisual, packing, labellingConclusion, photos
   forceAtBreak,
   packing,
+  dimensions,
+  measurements,
 ];
 
 /** The builder of a slot, if one is listed. */

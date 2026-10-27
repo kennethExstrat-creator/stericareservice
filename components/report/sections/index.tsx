@@ -12,6 +12,8 @@ import type { ReactNode } from "react";
 import type { ReportModel, ReportPlanEntryFor, ReportSections, ReportSlotKey } from "@/lib/report/model";
 import { forceAtBreakPages } from "./forceAtBreak";
 import { packingPages } from "./packing";
+import { dimensionsPages } from "./dimensions";
+import { measurementsPages } from "./measurements";
 
 export type SectionPagesProps<K extends ReportSlotKey> = {
   model: ReportModel;
@@ -38,6 +40,8 @@ export const SECTION_PAGES: readonly AnySectionPages[] = [
   // orderSampling, dimensions, measurements, forceAtBreak, holesVisual, packing, labellingConclusion, photos
   forceAtBreakPages,
   packingPages,
+  dimensionsPages,
+  measurementsPages,
 ];
 
 /** The pages of a slot, if listed. */
