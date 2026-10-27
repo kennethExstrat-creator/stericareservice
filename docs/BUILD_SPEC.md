@@ -221,7 +221,9 @@ All tables have `created_at` and `updated_at`.
 | Table | Columns |
 |---|---|
 | `profiles` | id (= auth.users.id), full_name, role (`inspector`, `admin`), active, signature_path |
-| `manufacturers` | id, name, factory_name, address, country, notes |
+| `manufacturer_brands` | id, name (Kenneth, 27 October 2026: a manufacturer is a brand, its operating companies and each company's factories) |
+| `manufacturer_companies` | id, brand_id, name |
+| `manufacturers` | One row per factory: id, company_id, factory_name, address, country, notes (`name` copies the company's) |
 | `clients` | id, name, logo_path, notes |
 | `defect_codes` | code (pk), name, description, active. Severity is set per template, not here. |
 | `templates` | id, code, version, extends_code, product_type, standard, client_id, manufacturer_id, status (`draft`, `active`, `retired`), definition (jsonb), resolved (jsonb, inheritance applied), source_file_path, coverage_confirmed_by, coverage_confirmed_at. Unique (code, version). |
@@ -235,7 +237,7 @@ All tables have `created_at` and `updated_at`.
 RLS:
 
 - Helpers `is_admin()` and `is_active()` (security definer).
-- Reference tables (`manufacturers`, `clients`, `defect_codes`, `templates`): read for active users, write for admins.
+- Reference tables (`manufacturer_brands`, `manufacturer_companies`, `manufacturers`, `clients`, `defect_codes`, `templates`): read for active users, write for admins.
 - `inspections`: inspectors read their own, insert with `inspector_id = auth.uid()`, and update their own only while `draft` or `reopened`. Admins have full access.
 - `inspection_photos`, `inspection_files` and the private storage buckets `inspection-photos` and `inspection-files` follow the parent inspection. Show files through signed URLs.
 - `ai_reviews` and `ai_review_actions`: admins read and write; inspectors read reviews of their own inspections.
@@ -420,7 +422,7 @@ An AI reviews each submitted inspection on top of the inspector's results and co
 - `/admin`: the admin dashboard (Kenneth, 27 October 2026: "the overview should be a dashboard"; `lib/admin/dashboard.ts`). Open Inspections: Awaiting Approval, Reopened and Drafts, each count a link to the list filtered to it. Activity, for the period its picker names (Last 7, 30 or 90 Days, or All Time; `?period=`, the last 30 days by default): the inspections, then Passed, On Hold, Failed and Not Done with each one's share; Inspections per Day (per Month for All Time over 92 days), stacked by result from the first inspection on; By Client, By Manufacturer and By Inspector, busiest first, a client or manufacturer linking to the list filtered to it. An inspection counts on its inspection date, with the result its Result column shows (the inspector's, whatever the status; Not Done until set)
 - `/admin/users` (the built-in Admin role only): UID, name, email, phone (its own column from 1440 px without touch, under the name otherwise), role and team, status (Active, Invited, Pending Activation, Deactivated), last signed in, added. Search by name, email, phone or UID. Invite User (email and role, sent by email or as a link). Row actions: Edit Details (name and phone), Change Role, Change Lead Inspector, Send Password Link, Resend Invite / Copy Invite Link / Cancel Invite for an Invited account, Deactivate / Reactivate / Activate
 - `/admin/roles`, Roles & Permissions (the built-in Admin role only; Kenneth, 27 October 2026): every role, the built-in ones first, with what it sees, how many screens and actions it allows and how many people have it; a panel to add or edit one (name, description, what it sees, a switch per screen and action; Users and Roles & Permissions locked to the Admin role; the Admin role read-only), version-checked saves, Delete Role for a custom role nobody has
-- `/admin/manufacturers`, `/admin/clients` (with logo), `/admin/defects` (codes and label mapping), each behind its switch
+- `/admin/manufacturers` (brand, company and factory with its address in one table: Kenneth, 27 October 2026), `/admin/clients` (with logo), `/admin/defects` (codes and label mapping), each behind its switch
 - `/admin/settings`, General Settings: whether Supabase is wired up and the sign-in emails are set up (the status the overview showed; Kenneth, 27 October 2026: "these looks more like should be in general settings or AI settings"). The Steri-AI hand-offs' status sits on Steri-AI Settings' General (`/admin/ai`, docs/AI.md)
 - No `/admin/templates` (Kenneth, 26 October 2026): every client uses the one standard inspection flow, so the Templates screens (the list, the versions, the editor) are gone and the address is an unknown page. Templates stay behind the scenes: `npm run seed:templates` publishes them, `/inspections/new` shows the one it picks (an admin can Use Another Template), and `/admin/defects/labels` lists their labels, read only.
 - **Role switches** (section 3; Kenneth, 27 October 2026): every screen hides what the person's role does not allow, and every Server Action and route refuses it on the server. The list's New Inspection, Review and Delete follow Create Inspections, Approve and Reopen and Delete Drafts; `/inspections/new` is a 404 without Create Inspections, and without Steri-AI Reading its files only upload (no reading, no Read Again) and media go to Other (no Auto-Sort); Use Another Template stays with roles that see every inspection. On the capture screen the step switches follow Switch Inspection Steps, the Summary button Steri-AI Summary, Source Documents' reading Steri-AI Reading, Download PDF Export Reports (with the owner-or-admin rule) and Send to Steri-AI Report Export Reports for an admin. On the review, approve, reopen and the report photos follow Approve and Reopen; the Steri-AI panel's request and decisions follow Steri-AI Second Opinion, its Download JSON Export Reports.
@@ -432,7 +434,7 @@ An AI reviews each submitted inspection on top of the inspector's results and co
 
 Build every seed template field for field from `docs/forms/reports/` first, then `docs/forms/onsite/`: every label in the form's words (fix only the `[sic]` typos), written in Title Case (rule 4.2.3; the coverage matrix keeps them verbatim), every column, the same row counts as defaults.
 
-- **Manufacturers:** Hartalega NGC; Terang Nusa Sdn. Bhd. (TG Factory 40). Addresses from the example reports.
+- **Manufacturers:** Hartalega › Hartalega NGC; Top Glove › Terang Nusa Sdn. Bhd. › TG Factory 40 (TG-F40 on the live project). Addresses from the example reports. An inspection names its manufacturer by brand and factory ("Top Glove · TG-F40"), as Kenneth's report design does.
 - **Clients:** the client of `SAFEDON_EG` (the report carries the Polyco Healthline logo), retired with its template on 26 October 2026.
 - **Templates:**
 
