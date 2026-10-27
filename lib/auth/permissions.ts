@@ -115,6 +115,40 @@ export type RoleGrant = {
   permissions: readonly string[];
 };
 
+/** The built-in roles' names, as migration 20261027150000 made them. */
+export const BUILT_IN_ROLE_NAME: Readonly<Record<BuiltInRole, string>> = {
+  admin: "Admin",
+  lead: "Lead Inspector",
+  inspector: "Inspector",
+};
+
+/**
+ * What the built-in roles allowed when migration 20261027150000 made them:
+ * what each could do before roles. Only a stand-in for when the role cannot
+ * be read (a project without the migration, a test double); an admin may
+ * have changed the Lead Inspector's and Inspector's switches since.
+ */
+const BUILT_IN_DEFAULTS: Readonly<Record<BuiltInRole, readonly Permission[]>> = {
+  admin: PERMISSIONS,
+  lead: ["create_inspections", "delete_drafts", "export_reports", "ai_reading", "ai_summary"],
+  inspector: ["create_inspections", "delete_drafts", "export_reports", "ai_reading", "ai_summary"],
+};
+
+const BUILT_IN_ACCESS: Readonly<Record<BuiltInRole, RoleAccess>> = { admin: "all", lead: "team", inspector: "own" };
+
+/** A built-in role as it was made, for when someone's role cannot be read. */
+export function builtInGrant(kind: BuiltInRole): RoleGrant {
+  return { builtIn: kind, access: BUILT_IN_ACCESS[kind], permissions: BUILT_IN_DEFAULTS[kind] };
+}
+
+export function isBuiltInRole(value: unknown): value is BuiltInRole {
+  return typeof value === "string" && (BUILT_IN_ROLES as readonly string[]).includes(value);
+}
+
+export function isRoleAccess(value: unknown): value is RoleAccess {
+  return typeof value === "string" && (ROLE_ACCESS as readonly string[]).includes(value);
+}
+
 export function isPermission(value: string): value is Permission {
   return (PERMISSIONS as readonly string[]).includes(value);
 }

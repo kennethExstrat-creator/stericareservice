@@ -4,6 +4,17 @@ import { cache } from "react";
 import { isSupabaseConfigured } from "@/lib/env";
 import { createClient } from "@/lib/supabase/server";
 import type { Database } from "@/lib/supabase/database.types";
+import {
+  BUILT_IN_ROLE_NAME,
+  builtInGrant,
+  can,
+  isBuiltInRole,
+  isPermission,
+  isRoleAccess,
+  type AdminOnly,
+  type Permission,
+  type RoleGrant,
+} from "./permissions";
 import { CREATE_ACCOUNT_PATH, LOGIN_PATH } from "./routes";
 
 /**
@@ -33,7 +44,17 @@ export type SessionUser = {
    * first. getSession() always sets it; absent (test doubles) means joined.
    */
   joined?: boolean;
+  /**
+   * Their role (public.roles, migration 20261027150000): its name, what it
+   * sees and what it allows. getSession() sets it whenever the role can be
+   * read; absent (test doubles, a project without the migration) means the
+   * built-in role for `role` and `isLead` as it was made (grantOf).
+   */
+  grant?: SessionRole;
 };
+
+/** Someone's role as the session reads it: its id (null for a stand-in) and name too. */
+export type SessionRole = RoleGrant & { id: string | null; name: string };
 
 export type SessionState =
   | { status: "unconfigured" }
@@ -62,9 +83,10 @@ export const getSession = cache(async (): Promise<SessionState> => {
   if (authError || !auth) return { status: "signed-out" };
 
   const userId = auth.claims.sub;
-  const [statusResult, profile] = await Promise.all([
+  const [statusResult, profile, grant] = await Promise.all([
     supabase.rpc("my_profile_status"),
     readOwnProfile(supabase, userId),
+    readOwnRole(supabase),
   ]);
   if (statusResult.error) {
     throw new Error(`Could not load the profile status for ${userId}: ${statusResult.error.message}`);
@@ -87,9 +109,49 @@ export const getSession = cache(async (): Promise<SessionState> => {
       // counts as joined: joining only decides where people are sent, it guards
       // nothing, and must never lock anyone out of the app.
       joined: profile?.joined_at !== null,
+      ...(grant ? { grant } : {}),
     },
   };
 });
+
+/**
+ * The signed-in user's own role (my_role(), security definer), or null when it
+ * cannot be read: a project without migration 20261027150000, or a passing
+ * fault. The session then stands in the built-in role (grantOf), which never
+ * gives more than someone had before roles; the database checks every write
+ * against the real role anyway.
+ */
+async function readOwnRole(supabase: Awaited<ReturnType<typeof createClient>>): Promise<SessionRole | null> {
+  const { data, error } = await supabase.rpc("my_role");
+  const row = data?.[0];
+  if (error || !row || !isRoleAccess(row.access)) {
+    if (error) console.error("[session] reading the role failed", { code: error.code, message: error.message });
+    return null;
+  }
+  return {
+    id: row.id,
+    name: row.name,
+    builtIn: isBuiltInRole(row.built_in) ? row.built_in : null,
+    access: row.access,
+    permissions: (row.permissions ?? []).filter(isPermission),
+  };
+}
+
+/** Someone's role: the one the session read, else the built-in role for what they are. */
+export function grantOf(user: Pick<SessionUser, "role" | "isLead" | "grant">): SessionRole {
+  if (user.grant) return user.grant;
+  const kind = user.role === "admin" ? "admin" : user.isLead ? "lead" : "inspector";
+  return { ...builtInGrant(kind), id: null, name: BUILT_IN_ROLE_NAME[kind] };
+}
+
+/**
+ * Whether someone's role allows a permission or opens an admin-only screen
+ * (lib/auth/permissions.ts can()): the check every page, Server Action and
+ * Route Handler makes before what the role switches.
+ */
+export function userCan(user: Pick<SessionUser, "role" | "isLead" | "grant">, permission: Permission | AdminOnly): boolean {
+  return can(grantOf(user), permission);
+}
 
 type OwnProfile = { full_name: string | null; email: string | null; joined_at?: string | null };
 
@@ -142,19 +204,33 @@ export async function requireAdmin(): Promise<SessionUser> {
   return user;
 }
 
+/**
+ * For a page behind a role's switch: someone whose role does not allow it gets
+ * a 404, as a non-admin does on /admin, so the page does not reveal itself.
+ */
+export async function requirePermission(permission: Permission | AdminOnly): Promise<SessionUser> {
+  const user = await requireUser();
+  if (!userCan(user, permission)) notFound();
+  return user;
+}
+
 export type ActionAuth =
   | { ok: true; user: SessionUser }
   | { ok: false; error: string };
 
 /**
  * For Server Actions, which are public HTTP endpoints: returns an error result
- * instead of redirecting, so the form can show it.
+ * instead of redirecting, so the form can show it. `need` is a role level
+ * ("admin": every inspection in sight) or a permission of the caller's role.
  */
-export async function authorizeAction(role?: UserRole): Promise<ActionAuth> {
+export async function authorizeAction(need?: UserRole | { permission: Permission | AdminOnly }): Promise<ActionAuth> {
   const session = await getSession();
   if (session.status === "unconfigured") return { ok: false, error: "Supabase is not configured yet." };
   if (session.status === "signed-out") return { ok: false, error: "Your session has ended. Sign in again." };
   if (session.status === "deactivated") return { ok: false, error: "This account has been deactivated." };
-  if (role && session.user.role !== role) return { ok: false, error: "You do not have permission to do that." };
+  const allowed =
+    need === undefined ||
+    (typeof need === "string" ? session.user.role === need : userCan(session.user, need.permission));
+  if (!allowed) return { ok: false, error: "You do not have permission to do that." };
   return { ok: true, user: session.user };
 }

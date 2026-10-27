@@ -23,7 +23,7 @@ vi.mock("next/navigation", () => ({
 }));
 
 import { createClient } from "@/lib/supabase/server";
-import { DEACTIVATED_PATH, getSession, hasJoined, requireUser } from "./session";
+import { authorizeAction, DEACTIVATED_PATH, getSession, grantOf, hasJoined, requirePermission, requireUser, userCan } from "./session";
 
 const USER = "7c2d4e1a-0b3f-4a5c-9d8e-1f2a3b4c5d6e";
 const LEAD = "0a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d";
@@ -180,5 +180,59 @@ describe("requireUser", () => {
     supabase.auth.getClaims.mockResolvedValue({ data: null, error: new Error("no session") });
     vi.mocked(createClient).mockResolvedValue(supabase as never);
     await expect(requireUser()).rejects.toMatchObject({ url: "/login" });
+  });
+});
+
+describe("the role", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  /** A client whose my_profile_status() and my_role() answer as given. */
+  function withRole(role: { data: unknown; error: { code: string; message: string } | null }) {
+    const base = client(INSPECTOR);
+    base.rpc = vi.fn((name: string) =>
+      Promise.resolve(name === "my_role" ? role : { data: INSPECTOR, error: null }),
+    );
+    vi.mocked(createClient).mockResolvedValue(base as never);
+  }
+
+  const DESK = { id: "r1", name: "Clients Desk", built_in: null, access: "own", permissions: ["clients", "fly", "approve_inspections"] };
+
+  it("reads the role, keeping only known permissions, and follows its switches", async () => {
+    withRole({ data: [DESK], error: null });
+    const session = await getSession();
+    if (session.status !== "active") throw new Error("expected an active session");
+    expect(session.user.grant).toEqual({
+      id: "r1",
+      name: "Clients Desk",
+      builtIn: null,
+      access: "own",
+      permissions: ["clients", "approve_inspections"],
+    });
+    expect(userCan(session.user, "clients")).toBe(true);
+    // Approving needs every inspection in sight.
+    expect(userCan(session.user, "approve_inspections")).toBe(false);
+    expect(userCan(session.user, "create_inspections")).toBe(false);
+    expect(userCan(session.user, "users")).toBe(false);
+  });
+
+  it("stands in the built-in role when the role cannot be read", async () => {
+    withRole({ data: null, error: { code: "PGRST202", message: "Could not find the function public.my_role" } });
+    const session = await getSession();
+    if (session.status !== "active") throw new Error("expected an active session");
+    expect(session.user.grant).toBeUndefined();
+    expect(grantOf(session.user)).toMatchObject({ builtIn: "inspector", name: "Inspector", access: "own" });
+    expect(userCan(session.user, "create_inspections")).toBe(true);
+    expect(userCan({ role: "admin" }, "users")).toBe(true);
+  });
+
+  it("answers a page the role does not allow with a 404, and a Server Action with a message", async () => {
+    withRole({ data: [DESK], error: null });
+    await expect(requirePermission("clients")).resolves.toMatchObject({ id: USER });
+    await expect(requirePermission("manufacturers")).rejects.toThrow("not found");
+    expect(await authorizeAction({ permission: "manufacturers" })).toEqual({
+      ok: false,
+      error: "You do not have permission to do that.",
+    });
+    expect(await authorizeAction({ permission: "clients" })).toMatchObject({ ok: true });
   });
 });
