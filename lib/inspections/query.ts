@@ -1,8 +1,9 @@
 import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { seesTeamInspections } from "@/lib/auth/org";
-import type { InspectionResult, InspectionStatus } from "@/lib/schemas/common";
+import { InspectionStatusSchema, type InspectionResult, type InspectionStatus } from "@/lib/schemas/common";
 import type { Database } from "@/lib/supabase/database.types";
+import { todayInMalaysia } from "./create";
 import { manufacturerLabel, personLabel } from "./format";
 import { arrayLiteral, inspectionSearchFilter, quoteFilterValue } from "./postgrest";
 import { PAGE_SIZE, type FilterOption, type InspectionListFilters } from "./search-params";
@@ -104,9 +105,18 @@ function logFailure(what: string, error: { code?: string; message: string }) {
   console.error(`Inspections list: ${what} failed`, { code: error.code, message: error.message });
 }
 
-/** The list query with the filters applied, before ordering and paging. */
-function filteredQuery(supabase: Client, filters: InspectionListFilters, head: boolean, searchColumns: boolean) {
-  let query = supabase.from("inspections").select(INSPECTION_LIST_SELECT, { count: "exact", head });
+/**
+ * The list query with the filters applied, before ordering and paging: the
+ * list's columns, or only the ids for a count (countInspections).
+ */
+function filteredQuery<Columns extends typeof INSPECTION_LIST_SELECT | "id">(
+  supabase: Client,
+  columns: Columns,
+  filters: Omit<InspectionListFilters, "page">,
+  head: boolean,
+  searchColumns: boolean,
+) {
+  let query = supabase.from("inspections").select(columns, { count: "exact", head });
   if (filters.status) query = query.eq("status", filters.status);
   if (filters.client) query = query.eq("client_id", filters.client);
   if (filters.manufacturer) query = query.eq("manufacturer_id", filters.manufacturer);
@@ -151,7 +161,7 @@ async function listPage(
   searchColumns: boolean,
 ): Promise<InspectionListResult> {
   const from = (filters.page - 1) * PAGE_SIZE;
-  const { data, error, count } = await filteredQuery(supabase, filters, false, searchColumns)
+  const { data, error, count } = await filteredQuery(supabase, INSPECTION_LIST_SELECT, filters, false, searchColumns)
     .order("inspection_date", { ascending: false })
     .order("created_at", { ascending: false })
     .order("id", { ascending: false })
@@ -187,13 +197,100 @@ async function pastTheEnd(
   filters: InspectionListFilters,
   searchColumns: boolean,
 ): Promise<InspectionListResult> {
-  const { error, count } = await filteredQuery(supabase, filters, true, searchColumns);
+  const { error, count } = await filteredQuery(supabase, INSPECTION_LIST_SELECT, filters, true, searchColumns);
   if (error) {
     logFailure("count", error);
     return { kind: "error" };
   }
   const total = count ?? 0;
   return total > 0 ? { kind: "out-of-range", total } : { kind: "rows", rows: [], total: 0 };
+}
+
+/**
+ * The counts above the list (inspection-metrics.tsx): inspections per
+ * status, and those dated this month. Null where a count could not be read.
+ */
+export type InspectionCounts = {
+  byStatus: Readonly<Record<InspectionStatus, number | null>>;
+  /** Dated this month (Malaysia time), whatever their status. */
+  thisMonth: number | null;
+  /** That month's first day, YYYY-MM-DD. */
+  month: string;
+};
+
+/** The first day of the month `day` (YYYY-MM-DD) falls in, and of the month after. */
+export function monthOf(day: string): { from: string; to: string } {
+  const [year, month] = day.split("-").map(Number);
+  const first = (y: number, m: number) => `${y}-${String(m).padStart(2, "0")}-01`;
+  return { from: first(year, month), to: month === 12 ? first(year + 1, 1) : first(year, month + 1) };
+}
+
+type CountFailure = { code?: string; message: string };
+type CountAnswer = { count: number | null; error: CountFailure | null; status: number };
+
+/**
+ * A head-only count, built and read inside one try. Its error has no code or
+ * message (a HEAD answer has no body), so the HTTP status stands in; an answer
+ * without a count (a HEAD 404 reads as No Content) fails too.
+ */
+async function readCount(query: () => PromiseLike<CountAnswer>): Promise<number | CountFailure> {
+  try {
+    const { count, error, status } = await query();
+    if (error) return { code: error.code, message: error.message || `HTTP ${status}` };
+    return count ?? { message: `HTTP ${status} without a count` };
+  } catch (error) {
+    return { message: error instanceof Error ? error.message : String(error) };
+  }
+}
+
+/** One count per status, in InspectionStatusSchema's order, then this month's. */
+function readCounts(
+  supabase: Client,
+  filters: Pick<InspectionListFilters, "q" | "client" | "manufacturer">,
+  month: { from: string; to: string },
+  searchColumns: boolean,
+): Promise<(number | CountFailure)[]> {
+  const ids = (status?: InspectionStatus) => filteredQuery(supabase, "id", { ...filters, status }, true, searchColumns);
+  return Promise.all([
+    ...InspectionStatusSchema.options.map((status) => readCount(() => ids(status))),
+    readCount(() => ids().gte("inspection_date", month.from).lt("inspection_date", month.to)),
+  ]);
+}
+
+/**
+ * How many inspections each status has, and how many are dated this month
+ * (Malaysia time). They follow the search, client and manufacturer filters,
+ * never the status filter or the page, so a status's count is what choosing
+ * it lists. Head-only exact counts of ids: no row, and never an inspection's
+ * data, is read. Never throws: a count that fails is null, and logged.
+ */
+export async function countInspections(
+  supabase: Client,
+  filters: InspectionListFilters,
+  now: Date = new Date(),
+): Promise<InspectionCounts> {
+  const month = monthOf(todayInMalaysia(now));
+  const { q, client, manufacturer } = filters;
+  let reads = await readCounts(supabase, { q, client, manufacturer }, month, true);
+  // With no error code to go by, a project without SEARCH_COLUMNS_MIGRATION
+  // shows as every count with search text failing: count again without the
+  // search columns, as the list then searches.
+  if (q && reads.every((read) => typeof read !== "number")) {
+    reads = await readCounts(supabase, { q, client, manufacturer }, month, false);
+  }
+  const failures = reads.filter((read) => typeof read !== "number");
+  if (failures.length > 0) logFailure(`${failures.length} of ${reads.length} counts`, failures[0]);
+
+  const counts = reads.map((read) => (typeof read === "number" ? read : null));
+  const statuses = InspectionStatusSchema.options;
+  return {
+    byStatus: Object.fromEntries(statuses.map((status, index) => [status, counts[index]])) as Record<
+      InspectionStatus,
+      number | null
+    >,
+    thisMonth: counts[statuses.length],
+    month: month.from,
+  };
 }
 
 export type FilterOptionsResult =

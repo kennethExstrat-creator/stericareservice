@@ -3,7 +3,7 @@ import { PageHeader } from "@/components/qc";
 import { Button } from "@/components/ui/button";
 import { inspectionScope, type InspectionScope } from "@/lib/auth/org";
 import { requireUser } from "@/lib/auth/session";
-import { listInspections, loadFilterOptions } from "@/lib/inspections/query";
+import { countInspections, listInspections, loadFilterOptions } from "@/lib/inspections/query";
 import {
   buildInspectionsHref,
   dropUnknownReferences,
@@ -17,6 +17,7 @@ import {
 import { createClient } from "@/lib/supabase/server";
 import { InspectionResults } from "./_components/delete-inspection";
 import { InspectionFilters } from "./_components/inspection-filters";
+import { InspectionMetrics } from "./_components/inspection-metrics";
 import { InspectionTable } from "./_components/inspection-table";
 import { ListFocusScope } from "./_components/list-focus";
 import { RESULTS_FOCUS_TARGET } from "./_components/list-focus-target";
@@ -42,7 +43,9 @@ const HEADING: Readonly<Record<InspectionScope, { eyebrow: string; caption: stri
  * inspectors their own and their team's (read-only), admins everyone's; the
  * last two with an Inspector in Charge column. Row Level Security does the scoping;
  * this page only reads through the signed-in user's client. Filters live in
- * the URL (lib/inspections/search-params.ts), so a view can be shared. Each
+ * the URL (lib/inspections/search-params.ts), so a view can be shared. Above
+ * them, the counts per status, each a link to that status, and this month's
+ * (inspection-metrics.tsx); they follow every filter but the status. Each
  * row ends with its actions: Continue, Review or View, and Delete on a draft
  * (./actions.ts, which re-renders this page once the draft is gone).
  */
@@ -51,15 +54,20 @@ export default async function InspectionsPage({ searchParams }: PageProps<"/insp
   const requested = parseInspectionSearchParams(await searchParams);
   const supabase = await createClient();
 
-  // The options and the list load together. A client or manufacturer id that
-  // matches nothing the user can see is dropped like any other invalid value,
-  // which needs the options, so in that rare case the list loads again.
-  const [options, firstTry] = await Promise.all([
+  // The options, the list and the counts above it load together. A client or
+  // manufacturer id that matches nothing the user can see is dropped like any
+  // other invalid value, which needs the options, so in that rare case the
+  // list and the counts load again.
+  const [options, firstTry, firstCounts] = await Promise.all([
     loadFilterOptions(supabase),
     listInspections(supabase, requested, user),
+    countInspections(supabase, requested),
   ]);
   const filters = options.ok ? dropUnknownReferences(requested, options) : requested;
-  const list = filters === requested ? firstTry : await listInspections(supabase, filters, user);
+  const [list, counts] =
+    filters === requested
+      ? [firstTry, firstCounts]
+      : await Promise.all([listInspections(supabase, filters, user), countInspections(supabase, filters)]);
 
   const scope = inspectionScope(user);
   const filtered = hasActiveFilters(filters);
@@ -92,6 +100,9 @@ export default async function InspectionsPage({ searchParams }: PageProps<"/insp
       />
 
       <ListFocusScope href={buildInspectionsHref(filters)} view={view} className="group/list flex flex-col gap-4">
+        {/* Inside the scope: a tile's link dims the results while the list loads, as the filters do. */}
+        {!failed && !nothingYet && <InspectionMetrics filters={filters} counts={counts} />}
+
         {options.ok && !nothingYet && (
           <InspectionFilters filters={filters} clients={options.clients} manufacturers={options.manufacturers} />
         )}

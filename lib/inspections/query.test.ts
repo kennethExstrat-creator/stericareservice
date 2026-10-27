@@ -3,17 +3,24 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import type { Database } from "@/lib/supabase/database.types";
 import { inspectionSearchFilter } from "./postgrest";
 import {
+  countInspections,
   INSPECTION_LIST_SELECT,
   listInspections,
   listSearchFilter,
   loadFilterOptions,
+  monthOf,
   SEARCH_COLUMNS_MIGRATION,
   toListRow,
 } from "./query";
 import type { InspectionListFilters } from "./search-params";
 
 type Call = [method: string, ...args: unknown[]];
-type Response = { data?: unknown; error?: { code: string; message: string } | null; count?: number | null };
+type Response = {
+  data?: unknown;
+  error?: { code?: string; message: string } | null;
+  count?: number | null;
+  status?: number;
+};
 
 /**
  * A stand-in for the Supabase client: every query records its method calls
@@ -355,6 +362,140 @@ describe("listSearchFilter", () => {
 
   it("is the ref, PO and lot search alone without the search columns", () => {
     for (const text of ["5420", "Lt081315", "),("]) expect(listSearchFilter(text, false)).toBe(inspectionSearchFilter(text));
+  });
+});
+
+/** 27 October 2026, midday in Malaysia. */
+const NOW = new Date("2026-10-27T04:00:00Z");
+const HEAD_IDS: Call = ["select", "id", { count: "exact", head: true }];
+const OCTOBER: Call[] = [
+  ["gte", "inspection_date", "2026-10-01"],
+  ["lt", "inspection_date", "2026-11-01"],
+];
+
+/** Five answers, one per status in InspectionStatusSchema's order, then this month's. */
+function counted(...counts: [number, number, number, number, number]): Response[] {
+  return counts.map((count) => ({ count }));
+}
+
+/** A failed count as supabase-js reads it: a HEAD answer has no body, so no code and no message. */
+function headFailure(status: number): Response {
+  return { error: { message: "" }, status };
+}
+
+describe("countInspections", () => {
+  it("counts each status and this month's, ids only, with the filters but never the status or the page", async () => {
+    const { supabase, queries } = fakeSupabase(...counted(3, 1, 1204, 2, 5));
+    const filters: InspectionListFilters = { q: "x", status: "draft", client: CLIENT, manufacturer: MANUFACTURER, page: 3 };
+    expect(await countInspections(supabase, filters, NOW)).toEqual({
+      byStatus: { draft: 3, submitted: 1, approved: 1204, reopened: 2 },
+      thisMonth: 5,
+      month: "2026-10-01",
+    });
+
+    const narrowed: Call[] = [
+      ["eq", "client_id", CLIENT],
+      ["eq", "manufacturer_id", MANUFACTURER],
+      ["or", listSearchFilter("x")],
+    ];
+    expect(queries).toEqual([
+      ...(["draft", "submitted", "approved", "reopened"] as const).map((status) => [
+        ["from", "inspections"],
+        HEAD_IDS,
+        ["eq", "status", status],
+        ...narrowed,
+      ]),
+      [["from", "inspections"], HEAD_IDS, ...narrowed, ...OCTOBER],
+    ]);
+  });
+
+  it("never filters by inspector itself: Row Level Security scopes the counts", async () => {
+    const { supabase, queries } = fakeSupabase(...counted(0, 0, 0, 0, 0));
+    await countInspections(supabase, { page: 1 }, NOW);
+    expect(queries.map((calls) => calls.slice(2))).toEqual([
+      [["eq", "status", "draft"]],
+      [["eq", "status", "submitted"]],
+      [["eq", "status", "approved"]],
+      [["eq", "status", "reopened"]],
+      OCTOBER,
+    ]);
+  });
+
+  it("counts the month in Malaysia, which starts 8 hours before UTC's", async () => {
+    // 31 October, 16:30 UTC: already 1 November in Kuala Lumpur.
+    const { supabase, queries } = fakeSupabase(...counted(0, 0, 0, 0, 0));
+    expect((await countInspections(supabase, { page: 1 }, new Date("2026-10-31T16:30:00Z"))).month).toBe("2026-11-01");
+    expect(queries[4].slice(2)).toEqual([
+      ["gte", "inspection_date", "2026-11-01"],
+      ["lt", "inspection_date", "2026-12-01"],
+    ]);
+  });
+
+  it("gives null for a count that cannot be read, keeps the others, and logs once", async () => {
+    const log = vi.spyOn(console, "error").mockImplementation(() => {});
+    // A refused count, and an answer without one (a HEAD 404 reads as No Content).
+    const { supabase } = fakeSupabase({ count: 3 }, headFailure(500), { count: 0 }, { count: 2 }, { status: 204 });
+    expect(await countInspections(supabase, { page: 1 }, NOW)).toEqual({
+      byStatus: { draft: 3, submitted: null, approved: 0, reopened: 2 },
+      thisMonth: null,
+      month: "2026-10-01",
+    });
+    expect(log).toHaveBeenCalledTimes(1);
+    expect(log).toHaveBeenCalledWith("Inspections list: 2 of 5 counts failed", { code: undefined, message: "HTTP 500" });
+  });
+
+  it("never throws, so the list shows whatever happens to the counts", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const broken = {
+      from() {
+        throw new Error("no connection");
+      },
+    } as unknown as SupabaseClient<Database>;
+    expect(await countInspections(broken, { q: "x", page: 1 }, NOW)).toEqual({
+      byStatus: { draft: null, submitted: null, approved: null, reopened: null },
+      thisMonth: null,
+      month: "2026-10-01",
+    });
+  });
+});
+
+describe("countInspections on a project without the search columns", () => {
+  const searchOf = (calls: Call[]) => calls.find(([method]) => method === "or")?.[1];
+
+  it("counts again without them when every count with search text fails, as the list then searches", async () => {
+    const log = vi.spyOn(console, "error").mockImplementation(() => {});
+    const { supabase, queries } = fakeSupabase(
+      ...Array.from({ length: 5 }, () => headFailure(400)),
+      ...counted(1, 0, 0, 0, 1),
+    );
+    expect(await countInspections(supabase, { q: "5420", page: 1 }, NOW)).toMatchObject({
+      byStatus: { draft: 1, submitted: 0, approved: 0, reopened: 0 },
+      thisMonth: 1,
+    });
+    expect(queries.map(searchOf)).toEqual([
+      ...Array.from({ length: 5 }, () => listSearchFilter("5420")),
+      ...Array.from({ length: 5 }, () => inspectionSearchFilter("5420")),
+    ]);
+    expect(log).not.toHaveBeenCalled();
+  });
+
+  it("counts once when only some counts fail, or when there is no search text", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const some = fakeSupabase({ count: 1 }, headFailure(400), { count: 0 }, { count: 0 }, { count: 1 });
+    expect((await countInspections(some.supabase, { q: "5420", page: 1 }, NOW)).byStatus.submitted).toBeNull();
+    expect(some.queries).toHaveLength(5);
+
+    const plain = fakeSupabase(...Array.from({ length: 5 }, () => headFailure(400)));
+    await countInspections(plain.supabase, { client: CLIENT, page: 1 }, NOW);
+    expect(plain.queries).toHaveLength(5);
+  });
+});
+
+describe("monthOf", () => {
+  it("gives the month's first day and the next month's, across a year's end", () => {
+    expect(monthOf("2026-10-27")).toEqual({ from: "2026-10-01", to: "2026-11-01" });
+    expect(monthOf("2026-12-31")).toEqual({ from: "2026-12-01", to: "2027-01-01" });
+    expect(monthOf("2027-01-01")).toEqual({ from: "2027-01-01", to: "2027-02-01" });
   });
 });
 

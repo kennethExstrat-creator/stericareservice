@@ -10,19 +10,28 @@ import { INSPECTION_STATUS_LABEL } from "@/lib/inspections/format";
 import type { InspectionStatus } from "@/lib/schemas/common";
 import { cn } from "@/lib/utils";
 
-const LOOK: Readonly<Record<InspectionStatus, { icon: LucideIcon; className: string }>> = {
+/** Each state's icon, also on the counts above the list (inspection-metrics.tsx). */
+export const INSPECTION_STATUS_ICON: Readonly<Record<InspectionStatus, LucideIcon>> = {
+  draft: PencilLineIcon,
+  submitted: SendIcon,
+  approved: LockIcon,
+  reopened: RotateCcwIcon,
+};
+
+const LOOK: Readonly<Record<InspectionStatus, string>> = {
   // Unfinished: dashed, like every other "not done yet" in the app.
-  draft: { icon: PencilLineIcon, className: "border-dashed border-slate-400 bg-card text-slate-700" },
+  draft: "border-dashed border-slate-400 bg-card text-slate-700",
   // Waiting for an admin to review: brand blue, filled.
-  submitted: { icon: SendIcon, className: "border-brand-200 bg-brand-50 text-brand-700" },
+  submitted: "border-brand-200 bg-brand-50 text-brand-700",
   // Final and read-only: quiet, since most rows end up here.
-  approved: { icon: LockIcon, className: "border-slate-200 bg-slate-100 text-slate-700" },
+  approved: "border-slate-200 bg-slate-100 text-slate-700",
   // Sent back to the inspector to change: brand blue, outlined on white.
-  reopened: { icon: RotateCcwIcon, className: "border-brand-300 bg-card text-brand-700" },
+  reopened: "border-brand-300 bg-card text-brand-700",
 };
 
 export function InspectionStatusBadge({ status, className }: { status: InspectionStatus; className?: string }) {
-  const { icon: Icon, className: look } = LOOK[status];
+  const Icon = INSPECTION_STATUS_ICON[status];
+  const look = LOOK[status];
   return (
     <span
       data-slot="inspection-status"
