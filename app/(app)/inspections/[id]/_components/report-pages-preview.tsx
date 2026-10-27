@@ -60,7 +60,8 @@ export function ReportPagesPreview({
   const zoom = chosen ?? fit;
   return (
     <div ref={frame} data-slot="report-preview-pages" className="w-full">
-      <div data-zoom={zoom.toFixed(3)} style={{ zoom }}>
+      {/* As wide as a page and centred by its margins: zoomed past the width, it starts at the left edge and scrolls right, never cut off at the left. */}
+      <div data-zoom={zoom.toFixed(3)} style={{ zoom }} className="mx-auto w-max">
         <ReportDocument model={model} className="[&_[data-report-page]]:shadow-md [&_[data-report-page]]:ring-1 [&_[data-report-page]]:ring-slate-200" />
       </div>
     </div>

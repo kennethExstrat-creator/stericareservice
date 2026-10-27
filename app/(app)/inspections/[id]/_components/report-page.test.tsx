@@ -239,7 +239,8 @@ describe("the preview: the report's own pages", () => {
   });
 
   it("zooms the pages to the preview's width, from half size until measured", () => {
-    expect(page()).toMatch(/data-slot="report-preview-pages" class="w-full"><div data-zoom="0.500" style="zoom:0.5">/);
+    // As wide as a page and centred by its margins, so a zoom past the width scrolls right rather than cutting the left off.
+    expect(page()).toMatch(/data-slot="report-preview-pages" class="w-full"><div data-zoom="0.500" style="zoom:0.5" class="mx-auto w-max">/);
   });
 });
 
