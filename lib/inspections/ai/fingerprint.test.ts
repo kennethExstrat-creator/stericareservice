@@ -53,6 +53,15 @@ describe("inspectionFingerprint", () => {
     expect(inspectionFingerprint(saved)).toBe(fingerprint());
   });
 
+  it("stays the same whatever the Report page's options are: how the report is laid out is nothing a review reads (27 October 2026)", () => {
+    const record = stdEgRecord();
+    const withOptions: InspectionRecord = {
+      ...record,
+      data: { ...(record.data as object), report: { pageSize: "letter", omittedSteps: ["weight"], includePhotos: false } },
+    };
+    expect(inspectionFingerprint(withOptions)).toBe(fingerprint());
+  });
+
   it("changes with anything a review depends on", () => {
     const record = stdEgRecord();
     const data = record.data as { modules: Record<string, Record<string, unknown>>; custom: object };

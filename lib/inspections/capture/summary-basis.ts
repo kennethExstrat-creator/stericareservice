@@ -6,6 +6,8 @@
 // inserting or editing the draft never makes it stale. To Sign After
 // Exported off counts as missing (Kenneth, 13 October 2026): inserting the
 // draft writes a conclusion saved before the switch existed back with it.
+// The Report page's options are left out too (27 October 2026): how the
+// report is laid out is nothing the summary is written from.
 import { contentHash, hashText } from "@/lib/offline/stable-json";
 import type { InspectionData } from "@/modules/_framework";
 
@@ -17,24 +19,27 @@ export const SIGN_AFTER_EXPORT_KEY = "signAfterExport";
 
 /**
  * contentHash of the inspection's data without the conclusion's Inspection
- * Summary: 16 hex digits, the same whatever the key order, and the same
- * whether the summary is empty, missing or written, and whether To Sign
- * After Exported is off or missing.
+ * Summary and the Report page's options: 16 hex digits, the same whatever
+ * the key order, and the same whether the summary is empty, missing or
+ * written, whether To Sign After Exported is off or missing, and whatever
+ * the report options are.
  */
 export function summaryBasisHash(data: InspectionData): string {
-  const conclusion = data.modules.conclusion;
+  const basis: InspectionData = { ...data };
+  delete basis.report;
+  const conclusion = basis.modules.conclusion;
   if (
     typeof conclusion !== "object" ||
     conclusion === null ||
     Array.isArray(conclusion) ||
     !(SUMMARY_DATA_KEY in conclusion || SIGN_AFTER_EXPORT_KEY in conclusion)
   ) {
-    return contentHash(data);
+    return contentHash(basis);
   }
   const rest: Record<string, unknown> = { ...conclusion };
   delete rest[SUMMARY_DATA_KEY];
   if (rest[SIGN_AFTER_EXPORT_KEY] !== true) delete rest[SIGN_AFTER_EXPORT_KEY];
-  return contentHash({ ...data, modules: { ...data.modules, conclusion: rest } });
+  return contentHash({ ...basis, modules: { ...basis.modules, conclusion: rest } });
 }
 
 /**

@@ -31,6 +31,7 @@ import { authorizeAction } from "@/lib/auth/session";
 import { scheduleAiReviewOnSubmit } from "@/lib/inspections/ai";
 import { CODE_LETTER_CHANGED, samplingEvents } from "@/lib/inspections/capture/sampling-events";
 import { contentHash } from "@/lib/offline/stable-json";
+import { DEFAULT_REPORT_OPTIONS } from "@/lib/schemas/report-options";
 import type { ResolvedTemplate } from "@/lib/schemas/template";
 import { createAdminClient, isAdminClientConfigured } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
@@ -241,6 +242,30 @@ describe("saveCaptureData", () => {
     );
     expect(outcome).toMatchObject({ ok: false, reason: "invalid" });
     expect(outcome.ok === false && "message" in outcome ? outcome.message : "").toMatch(/^Glove Information: indicativeWeight: /);
+  });
+
+  it("saves the Report page's options with the data, and refuses options it could not have sent (Kenneth, 27 October 2026)", async () => {
+    useClient((query) =>
+      isUpdate(query) ? { data: { updated_at: NEXT_VERSION }, error: null } : { data: row(), error: null },
+    );
+    const withOptions = { ...COMPLETE, report: { ...DEFAULT_REPORT_OPTIONS, pageSize: "letter", omittedSteps: ["weight"] } };
+    await expect(saveCaptureData(request(withOptions))).resolves.toMatchObject({ ok: true, updatedAt: NEXT_VERSION });
+    expect(updatePayload(client.queries.find(isUpdate))).toMatchObject({ data: withOptions });
+
+    useClient(() => ({ data: row(), error: null }));
+    await expect(
+      saveCaptureData(request({ ...COMPLETE, report: { ...DEFAULT_REPORT_OPTIONS, footerNote: "x".repeat(301) } })),
+    ).resolves.toEqual({ ok: false, reason: "invalid", message: "Report: Keep the footer note to 300 characters." });
+    expect(client.queries.filter(isUpdate)).toHaveLength(0);
+  });
+
+  it("lets report options saved by another build through untouched, as it does a module's old data", async () => {
+    const stored = { ...COMPLETE, report: { pageSize: "a3" } };
+    useClient((query) =>
+      isUpdate(query) ? { data: { updated_at: NEXT_VERSION }, error: null } : { data: row({ data: stored }), error: null },
+    );
+    const next = { ...stored, modules: { ...stored.modules, glove_info: { indicativeWeight: 3.6, colour: "Blue" } } };
+    await expect(saveCaptureData(request(next))).resolves.toMatchObject({ ok: true, updatedAt: NEXT_VERSION });
   });
 
   it("writes the data with compare-and-set and the mirrored columns", async () => {

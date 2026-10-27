@@ -6,13 +6,17 @@ import { FileWarningIcon } from "lucide-react";
 import { PhotoQueueProvider } from "@/components/capture/photos";
 import { StatusScreen } from "@/components/shell/status-screen";
 import { Button } from "@/components/ui/button";
+import { getAiStatus } from "@/lib/ai";
 import { loadSummaryMenu } from "@/lib/ai/settings";
 import { HOME_PATH } from "@/lib/auth/routes";
 import { requireUser } from "@/lib/auth/session";
+import { AI_STATUSES } from "@/lib/inspections/ai";
 import { captureAccess } from "@/lib/inspections/capture/access";
 import { loadDefectUsage, type DefectUsage } from "@/lib/inspections/capture/defect-usage";
+import { loadLastReport } from "@/lib/inspections/capture/last-report";
 import { loadCaptureInspection, loadOverrideAuthors } from "@/lib/inspections/capture/load";
 import { loadReopenNote } from "@/lib/inspections/capture/reopen";
+import { generateAvailability } from "@/lib/inspections/capture/report";
 import { readSectionParam } from "@/lib/inspections/capture/schemas";
 import { personLabel } from "@/lib/inspections/format";
 import { createClient } from "@/lib/supabase/server";
@@ -52,9 +56,11 @@ export async function generateMetadata({ params }: PageProps<"/inspections/[id]"
  * template version it started with (templates.resolved) and its module
  * overrides, read on the server through the user's own client. With them:
  * why it was reopened, when it was, how often each defect was counted
- * before, so the defect lists open on the most-used ones, and, where the
+ * before, so the defect lists open on the most-used ones, where the
  * inspection can be changed here, the Steri-AI Summary's menu from the house
- * style (docs/AI.md, "Steri-AI Summary").
+ * style (docs/AI.md, "Steri-AI Summary"), and for the Report page, whether
+ * Generate Report may run (the AI report's rules, BUILD_SPEC 9.1) and the
+ * report last made.
  */
 export default async function CapturePage({ params, searchParams }: PageProps<"/inspections/[id]">) {
   const user = await requireUser();
@@ -90,7 +96,7 @@ export default async function CapturePage({ params, searchParams }: PageProps<"/
     userId: user.id,
     inspectorId: inspection.inspectorId,
   });
-  const [authors, query, reopen, defectUsage, summaryMenu] = await Promise.all([
+  const [authors, query, reopen, defectUsage, summaryMenu, lastReport] = await Promise.all([
     loadOverrideAuthors(supabase, inspection.overrides),
     searchParams,
     loadReopenNote(
@@ -113,7 +119,15 @@ export default async function CapturePage({ params, searchParams }: PageProps<"/
       : Promise.resolve<DefectUsage>({}),
     // Only where the button can show; never throws (the house style's defaults stand in).
     access.editable ? loadSummaryMenu() : Promise.resolve(null),
+    // Never throws: without it, Open Last Report does not show.
+    loadLastReport(supabase, inspection.id),
   ]);
+  // Generate Report runs the AI report as the review's Send to Steri-AI Report does, which checks all three again.
+  const generate = generateAvailability({
+    isAdmin: user.role === "admin",
+    reportable: AI_STATUSES.includes(inspection.status),
+    connected: getAiStatus().report.connected,
+  });
 
   return (
     // The page's upload queue starts for this user at once, offline too (components/capture/photos).
@@ -143,6 +157,7 @@ export default async function CapturePage({ params, searchParams }: PageProps<"/
         reopenNote={reopen}
         defectUsage={defectUsage}
         summaryMenu={summaryMenu}
+        reportPage={{ generate, lastReport }}
       />
     </PhotoQueueProvider>
   );

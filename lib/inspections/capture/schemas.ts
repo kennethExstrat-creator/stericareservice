@@ -15,11 +15,14 @@ const EntryKeySchema = z.string().min(1).max(64);
  * The inspection's data with every module optional: a draft schema
  * (docs/OFFLINE.md, "The transport"). Completeness is the modules' business
  * and blocks submit, never saving. Checks a restored local copy and the
- * autosave payload.
+ * autosave payload. The Report page's options (`report`) are any JSON here,
+ * as module entries are: the save checks them with their own schema when
+ * they change (reportOptionsProblem, report.ts).
  */
 export const CaptureDataSchema: z.ZodType<InspectionData> = z.strictObject({
   modules: z.record(EntryKeySchema, JsonValueSchema),
   custom: z.record(EntryKeySchema, JsonValueSchema),
+  report: JsonValueSchema.optional(),
 });
 
 /** The autosave request: `{ inspectionId, data, baseUpdatedAt }` (lib/offline protocol). */

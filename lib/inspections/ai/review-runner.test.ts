@@ -22,7 +22,7 @@ import { recordAiUsage, type AiCall } from "@/lib/ai/usage";
 import { createFakeSupabase, type FakeSupabase } from "@/lib/export/__fixtures__/fake-supabase";
 import { IDS, makeInspectionRow, makeObjects, makeTables, UPDATED_AT } from "@/lib/export/__fixtures__/inspection";
 import { loadInspectionRecord } from "@/lib/export/record";
-import { ExportSchema, type InspectionExport } from "@/lib/schemas/export";
+import { ExportReportSchema, ExportSchema, type InspectionExport } from "@/lib/schemas/export";
 import { createAdminClient, isAdminClientConfigured } from "@/lib/supabase/admin";
 import { inspectionFingerprint } from "./fingerprint";
 import { ALREADY_PENDING, NOT_REVIEWABLE } from "./panel-model";
@@ -437,5 +437,6 @@ function minimalExport(): InspectionExport {
     photos: [],
     files: [],
     conclusion: { suggestedResult: "hold", finalResult: null, remark: null, inspector: null, date: null },
+    report: ExportReportSchema.parse({}),
   };
 }

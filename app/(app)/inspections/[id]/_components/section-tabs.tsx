@@ -5,15 +5,23 @@
 // (lib/inspections/capture/sections.ts capturePages) with its result chip:
 // a section, or a module with the modules shown on its page (packing
 // configuration on the order's tab), named by the first's short name, its
-// full title on hover (docs/DESIGN.md, Step Names). Then the Audit Log,
-// which is no step and has no result chip (Kenneth, 26 October 2026), and
-// the sections an admin switched off for this inspection, marked off. The
-// bar scrolls sideways; the page never does. WAI-ARIA tabs with automatic
-// activation: arrow keys, Home and End move between tabs and open the page.
+// full title on hover (docs/DESIGN.md, Step Names). Then the Report page
+// (Kenneth, 27 October 2026) and the Audit Log (26 October 2026), which are
+// no steps and have no result chip, and the sections an admin switched off
+// for this inspection, marked off. The bar scrolls sideways; the page never
+// does. WAI-ARIA tabs with automatic activation: arrow keys, Home and End
+// move between tabs and open the page.
 import { useEffect, useRef, type KeyboardEvent } from "react";
-import { CircleOffIcon, ScrollTextIcon } from "lucide-react";
+import { CircleOffIcon, FileTextIcon, ScrollTextIcon } from "lucide-react";
 import { ResultChip } from "@/components/qc";
-import { isOpenPage, isStepPage, pageSectionKeys, stepIcon, type CapturePage } from "@/lib/inspections/capture/sections";
+import {
+  isClosingPage,
+  isOpenPage,
+  isStepPage,
+  pageSectionKeys,
+  stepIcon,
+  type CapturePage,
+} from "@/lib/inspections/capture/sections";
 import { cn } from "@/lib/utils";
 
 type SectionTabsProps = {
@@ -50,12 +58,8 @@ export function nextTabIndex(key: string, index: number, count: number): number 
 }
 
 export function SectionTabs({ pages, activeKey, onSelect, panelId, idPrefix, className }: SectionTabsProps) {
-  // The steps, the Audit Log, then the switched-off sections.
-  const ordered = [
-    ...pages.filter(isStepPage),
-    ...pages.filter((page) => page.kind === "audit"),
-    ...pages.filter((page) => !isOpenPage(page)),
-  ];
+  // The steps, the Report page and the Audit Log, then the switched-off sections.
+  const ordered = [...pages.filter(isStepPage), ...pages.filter(isClosingPage), ...pages.filter((page) => !isOpenPage(page))];
   // A section switched off moves to the end of the bar: its tab must stay in view there too.
   const order = ordered.map((page) => page.key).join(" ");
   const scroller = useRef<HTMLDivElement>(null);
@@ -125,6 +129,7 @@ export function SectionTabs({ pages, activeKey, onSelect, panelId, idPrefix, cla
               )}
             >
               {excluded && <CircleOffIcon aria-hidden className="size-4 shrink-0 text-slate-500" />}
+              {page.kind === "report" && <FileTextIcon aria-hidden className="size-4 shrink-0 text-brand-600" />}
               {page.kind === "audit" && <ScrollTextIcon aria-hidden className="size-4 shrink-0 text-brand-600" />}
               <span className="max-w-56 truncate">{page.shortTitle}</span>
               {/* The files' own words while they are the page's only section; with General Information, the page's result. */}

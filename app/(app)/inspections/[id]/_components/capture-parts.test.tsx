@@ -18,7 +18,9 @@ import {
   AUDIT_LOG_KEY,
   capturePages,
   leadPagesFirst,
+  REPORT_KEY,
   withAuditLog,
+  withReport,
   withSourceDocuments,
   type CapturePage,
   type CaptureSection,
@@ -147,6 +149,30 @@ describe("SectionTabs", () => {
     // The three steps' chips only: the Audit Log has no result.
     expect(tagsWith(markup, 'data-slot="result-chip"')).toHaveLength(3);
     expect(markup).toMatch(/data-section="audit_log"(?:(?!<\/button>).)*>Audit Log<\/span><\/button>/);
+  });
+
+  it("puts the Report page after the Conclusion and before the Audit Log, with no result chip (Kenneth, 27 October 2026)", () => {
+    const markup = renderToStaticMarkup(
+      <SectionTabs pages={withAuditLog(withReport(capturePages(SECTIONS)))} activeKey={REPORT_KEY} onSelect={noop} panelId="panel" idPrefix="cap" />,
+    );
+    const tabs = tagsWith(markup, 'role="tab"');
+    expect(tabs.map((tab) => /data-section="([a-z_]+)"/.exec(tab)?.[1])).toEqual([
+      "dimensions",
+      "glove_info",
+      "conclusion",
+      REPORT_KEY,
+      AUDIT_LOG_KEY,
+      "packing_config",
+    ]);
+    const report = tabs[3];
+    expect(report).toContain('aria-selected="true"');
+    expect(report).toContain('aria-controls="panel"');
+    expect(report).toContain(`id="${tabId("cap", REPORT_KEY)}"`);
+    expect(report).toContain('title="Report"');
+    expect(report).not.toContain("data-excluded");
+    // The three steps' chips only: neither the Report page nor the Audit Log has a result.
+    expect(tagsWith(markup, 'data-slot="result-chip"')).toHaveLength(3);
+    expect(markup).toMatch(/data-section="report"(?:(?!<\/button>).)*lucide-file-text(?:(?!<\/button>).)*>Report<\/span><\/button>/);
   });
 
   it("names each tab by its short name, with its full title on hover (docs/DESIGN.md, Step Names)", () => {
@@ -630,6 +656,23 @@ describe("SectionList (the desktop sidebar)", () => {
     expect(markup).not.toContain('data-step="audit_log"');
     expect(markup).toMatch(/<li aria-current="page"><button type="button" data-section="audit_log" title="Audit Log"/);
     expect(markup).not.toMatch(/data-section="audit_log"(?:(?!<\/button>).)*data-slot="result-chip"/);
+  });
+
+  it("lists the Report page under the Conclusion, above the Audit Log, a row with no progress or result (Kenneth, 27 October 2026)", () => {
+    const markup = renderToStaticMarkup(
+      <SectionList pages={withAuditLog(withReport(capturePages(long)))} activeKey={REPORT_KEY} onSelect={noop} />,
+    );
+    expect(rowTitles(markup)).toEqual([
+      "Glove Dispensing Inspection",
+      "Glove Dispensing Inspection: onsite notes",
+      "Report",
+      "Audit Log",
+      "Packaging Labeling Inspection",
+    ]);
+    expect(markup).not.toContain('data-step="report"');
+    expect(markup).toMatch(/<li aria-current="page"><button type="button" data-section="report" title="Report"/);
+    expect(markup).toMatch(/data-section="report"(?:(?!<\/button>).)*lucide-file-text/);
+    expect(markup).not.toMatch(/data-section="report"(?:(?!<\/button>).)*data-slot="result-chip"/);
   });
 
   it("lists the order's page once, under the order's title, with the worst result of the two", () => {

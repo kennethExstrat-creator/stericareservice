@@ -14,6 +14,14 @@ import {
   UnitSchema,
 } from "./common";
 import { isModuleKey, ModuleKeySchema, ModuleResultSchema } from "./module-result";
+import {
+  DEFAULT_REPORT_OPTIONS,
+  DEFAULT_REPORT_TITLE,
+  ReportPageSizeSchema,
+  ReportPhotoSizeSchema,
+  ReportPhotosPerStepSchema,
+  ReportTemplateSchema,
+} from "./report-options";
 import { TemplateUnitSchema } from "./template";
 
 /* ------------------------------------------------------------------ *
@@ -195,6 +203,42 @@ export const ExportConclusionSchema = z.object({
 });
 export type ExportConclusion = z.infer<typeof ExportConclusionSchema>;
 
+/**
+ * How the report is to be made: the capture screen's Report page options
+ * (Kenneth, 27 October 2026; lib/schemas/report-options.ts), as saved with
+ * the inspection, each with its default where none is saved. Every option
+ * has its default, and so does the block, so documents written before it
+ * existed read as the defaults: the standard template on A4, every section,
+ * photos on.
+ */
+export const ExportReportSchema = z.object({
+  template: ReportTemplateSchema.default(DEFAULT_REPORT_OPTIONS.template),
+  pageSize: ReportPageSizeSchema.default(DEFAULT_REPORT_OPTIONS.pageSize),
+  /**
+   * Sections the report leaves out, by key, in the order of `modules` then
+   * `custom`: every one on the page of a step switched off on the Report page
+   * (the order's page holds the order, Glove Information and packing
+   * configuration; Source Documents' page General Information). Every other
+   * section goes in.
+   */
+  omittedSections: z.array(z.string().min(1)).default(() => []),
+  includePhotos: z.boolean().default(DEFAULT_REPORT_OPTIONS.includePhotos),
+  /** Photos printed with each section, at most. */
+  photosPerStep: ReportPhotosPerStepSchema.default(DEFAULT_REPORT_OPTIONS.photosPerStep),
+  photoSize: ReportPhotoSizeSchema.default(DEFAULT_REPORT_OPTIONS.photoSize),
+  /** The cover's title, trimmed: the default title when none was typed. */
+  title: z.string().min(1).default(DEFAULT_REPORT_TITLE),
+  /** Show the client's name on the cover and the header (`template.client`). */
+  showClientName: z.boolean().default(DEFAULT_REPORT_OPTIONS.showClientName),
+  /** Print the conclusion's Inspection Summary (`conclusion.inspectionSummary`). */
+  includeSummary: z.boolean().default(DEFAULT_REPORT_OPTIONS.includeSummary),
+  /** Print the inspector's signature (the conclusion module's `data.signature`). */
+  includeSignature: z.boolean().default(DEFAULT_REPORT_OPTIONS.includeSignature),
+  /** On every page's footer, trimmed; null for none. */
+  footerNote: z.string().min(1).nullable().default(null),
+});
+export type ExportReport = z.infer<typeof ExportReportSchema>;
+
 export const ExportSchema = z
   .object({
     schemaVersion: z.literal(EXPORT_SCHEMA_VERSION),
@@ -221,6 +265,8 @@ export const ExportSchema = z
     photos: z.array(ExportPhotoSchema),
     files: z.array(ExportFileSchema),
     conclusion: ExportConclusionSchema,
+    /** The Report page's options; a document written before they existed reads with their defaults. */
+    report: ExportReportSchema.prefault({}),
   })
   .superRefine((doc, ctx) => {
     const moduleKeys = [...doc.modules, ...doc.excludedModules].map((module) => module.key);

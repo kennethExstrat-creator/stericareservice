@@ -6,6 +6,7 @@ import {
   type ExportFile,
   type ExportModule,
   type ExportPhoto,
+  type ExportReport,
 } from "@/lib/schemas/export";
 import { IsoDateSchema, type JsonValue } from "@/lib/schemas/common";
 import type { ResolvedTemplate, TemplateUnit } from "@/lib/schemas/template";
@@ -13,6 +14,13 @@ import { sectionOrder } from "@/lib/templates";
 import { exportIssuesOf } from "@/lib/validation";
 import { readModuleEntry, type ModuleEvaluation } from "@/modules/_framework";
 import { z } from "zod";
+import {
+  evaluatedReportSteps,
+  omittedSectionKeys,
+  readReportOptions,
+  reportFooterNote,
+  reportTitle,
+} from "@/lib/inspections/capture/report";
 import { richTextHtml, richTextPlain } from "@/lib/rich-text";
 import { conclusionDataForExport, inspectionSummaryOf, inspectorDecision, signAfterExportOf } from "./conclusion";
 import type { EvaluatedInspection } from "./evaluate";
@@ -115,6 +123,38 @@ export function assembleExport({ record, evaluated, links, exportedAt }: Assembl
       return url ? [{ id: file.id, url, moduleKey: file.moduleKey, kind: file.kind, name: file.name }] : [];
     }),
     conclusion: conclusionOf(record, evaluated),
+    report: reportOptionsOf(evaluated),
+  };
+}
+
+/**
+ * How the report is to be made (Kenneth, 27 October 2026): the Report page's
+ * options as saved with the inspection, each with its default where none is
+ * saved (lib/inspections/capture/report.ts). A step switched off there
+ * leaves out every section on its page on the capture screen, so the steps
+ * are worked out as the screen lists them, from this evaluation; the sections
+ * go by key, in export order. A blank title is the default title, a blank
+ * footer note none.
+ */
+export function reportOptionsOf(evaluated: Pick<EvaluatedInspection, "template" | "report" | "data">): ExportReport {
+  const options = readReportOptions(evaluated.data);
+  const omitted = new Set(omittedSectionKeys(options, evaluatedReportSteps(evaluated)));
+  const sections = [
+    ...evaluated.report.modules.map((evaluation): string => evaluation.key),
+    ...evaluated.report.custom.map((evaluation) => evaluation.custom.key),
+  ];
+  return {
+    template: options.template,
+    pageSize: options.pageSize,
+    omittedSections: sections.filter((key) => omitted.has(key)),
+    includePhotos: options.includePhotos,
+    photosPerStep: options.photosPerStep,
+    photoSize: options.photoSize,
+    title: reportTitle(options),
+    showClientName: options.showClientName,
+    includeSummary: options.includeSummary,
+    includeSignature: options.includeSignature,
+    footerNote: reportFooterNote(options),
   };
 }
 

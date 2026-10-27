@@ -160,13 +160,17 @@ export function toCaptureLoad(row: CaptureRow): CaptureLoad {
 
 /**
  * `{ modules, custom }` as stored. The column defaults to exactly that; a
- * missing or malformed half reads as empty, so the screen still opens.
+ * missing or malformed half reads as empty, so the screen still opens. The
+ * Report page's options (`report`) come as stored too, so the screen's copy
+ * hashes as the saved one does (submit and the Steri-AI Summary compare
+ * them); they are read with their defaults where they are shown.
  */
 export function normaliseData(value: unknown): InspectionData {
   const record = isRecord(value) ? value : {};
   return {
     modules: isRecord(record.modules) ? record.modules : {},
     custom: isRecord(record.custom) ? record.custom : {},
+    ...(record.report === undefined ? {} : { report: record.report }),
   };
 }
 

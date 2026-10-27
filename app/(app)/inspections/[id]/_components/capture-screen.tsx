@@ -18,7 +18,10 @@
 // saved first, as for submit, and the draft comes back as text for the
 // editor, never as data. A step holding values for a size the order does
 // not list, which no step shows, says so at its top, with Open Order to that
-// size's row (SectionPart; Kenneth, 27 October 2026).
+// size's row (SectionPart; Kenneth, 27 October 2026). After the Conclusion,
+// the Report page: the report's options, saved in the data (`report`)
+// through the same autosave, a layout preview and Generate Report
+// (report-page.tsx; Kenneth, 27 October 2026); then the Audit Log.
 //
 // Layout: below 1280 px (the iPad) a section tab bar sticks under the shell's
 // top bar with the save pill, and the form runs full width; from 1280 px a
@@ -121,6 +124,15 @@ import { canBeSwitchedOff } from "@/lib/inspections/capture/overrides";
 import { refusedTaskIssues } from "@/lib/inspections/capture/refused";
 import type { ReopenNote } from "@/lib/inspections/capture/reopen";
 import {
+  GENERATE_REASONS,
+  readReportOptions,
+  reportSteps,
+  writeReportOptions,
+  type GenerateAvailability,
+  type LastReport,
+  type ReportStep,
+} from "@/lib/inspections/capture/report";
+import {
   AUDIT_LOG_KEY,
   capturePages,
   captureSections,
@@ -131,9 +143,11 @@ import {
   neighbours,
   pageSectionKeys,
   progressSteps,
+  REPORT_KEY,
   sideBySideSections,
   stepIcon,
   withAuditLog,
+  withReport,
   withSourceDocuments,
   type CapturePage,
   type CaptureSection,
@@ -143,6 +157,7 @@ import { summaryBasisHash } from "@/lib/inspections/capture/summary-basis";
 import type { StartResult } from "@/lib/offline";
 import { contentHash } from "@/lib/offline/stable-json";
 import { isModuleKey } from "@/lib/schemas/module-result";
+import { ReportOptionsSchema, type ReportOptions } from "@/lib/schemas/report-options";
 import { SUMMARY_MESSAGES, type SummaryMenu } from "@/lib/schemas/summary-style";
 import type { ModuleOverrides, ResolvedTemplate } from "@/lib/schemas/template";
 import type { IssuePath, ValidationIssue } from "@/lib/validation";
@@ -169,6 +184,7 @@ import { ConflictDialog } from "./conflict-dialog";
 import { IssuesSheet } from "./issues-sheet";
 import { leaveAnswer } from "./leave-answer";
 import { SwitchedOffPanel, SwitchOffDialog } from "./module-switch";
+import { ReportPage, type ReportFacts } from "./report-page";
 import { SaveIndicator } from "./save-indicator";
 import { CustomBody, ModuleBody, preloadCaptures } from "./section-body";
 import { PagePanel, SectionFrame } from "./section-frame";
@@ -209,11 +225,21 @@ export type CaptureScreenProps = {
    * changed here; null (or left out) shows no Steri-AI Summary button.
    */
   summaryMenu?: SummaryMenu | null;
+  /**
+   * The Report page's Generate Report, as the server found it (an admin, a
+   * submitted or approved inspection, a report service), and the report last
+   * made. Left out: Generate Report waits, and there is no last report.
+   */
+  reportPage?: CaptureReport;
 };
+
+/** What the Report page needs from the server. */
+export type CaptureReport = { generate: GenerateAvailability; lastReport: LastReport | null };
 
 type FocusRequest = { sectionKey: string; path: IssuePath };
 
 const NO_USAGE: DefectUsage = {};
+const NO_REPORT: CaptureReport = { generate: { allowed: false, reason: GENERATE_REASONS.notYet }, lastReport: null };
 /** Nothing in focus: what a section's photo tags, and the kept size, start from. */
 const NO_FOCUS: CaptureFocus = {};
 
@@ -232,6 +258,7 @@ export function CaptureScreen({
   reopenNote = null,
   defectUsage = NO_USAGE,
   summaryMenu = null,
+  reportPage = NO_REPORT,
 }: CaptureScreenProps) {
   const idPrefix = useId();
   const panelId = `${idPrefix}-section`;
@@ -379,6 +406,17 @@ export function CaptureScreen({
     [writeEntry],
   );
 
+  // The Report page's options, with their defaults until one is changed: saved whole in the data's `report`,
+  // through the same autosave as every field (lib/inspections/capture/report.ts). Only options the save takes go
+  // in: a character Postgres cannot store is not typed.
+  const reportOptions = useMemo(() => readReportOptions({ report: data.report }), [data.report]);
+  const writeReport = useCallback(
+    (next: ReportOptions) => {
+      if (ReportOptionsSchema.safeParse(next).success) commit(writeReportOptions(dataRef.current, next));
+    },
+    [commit],
+  );
+
   /* -------------------------------------------------------------- *
    * Evaluation and sections
    * -------------------------------------------------------------- */
@@ -417,20 +455,22 @@ export function CaptureScreen({
   });
   // What a tab, a sidebar row, a progress step and Previous or Next open: Source Documents first, with General
   // Information beside the files (withSourceDocuments), then the order, the sampling plan and the box/carton numbers
-  // (LEAD_PAGE_KEYS), then each other section, or a module with those shown on its page, and the Audit Log last
-  // (withAuditLog), which is no step.
+  // (LEAD_PAGE_KEYS), then each other section, or a module with those shown on its page, and after the Conclusion
+  // the Report page (withReport) and the Audit Log (withAuditLog), which are no steps.
   const pages = useMemo(
     (): CapturePage[] =>
       withAuditLog(
-        withSourceDocuments(
-          {
-            key: SOURCE_DOCUMENTS_KEY,
-            title: SOURCE_DOCUMENTS_TITLE,
-            shortTitle: SOURCE_DOCUMENTS_TITLE,
-            status: sourceDocuments.status,
-            progress: sourceDocuments.progress,
-          },
-          leadPagesFirst(capturePages(sections)),
+        withReport(
+          withSourceDocuments(
+            {
+              key: SOURCE_DOCUMENTS_KEY,
+              title: SOURCE_DOCUMENTS_TITLE,
+              shortTitle: SOURCE_DOCUMENTS_TITLE,
+              status: sourceDocuments.status,
+              progress: sourceDocuments.progress,
+            },
+            leadPagesFirst(capturePages(sections)),
+          ),
         ),
       ),
     [sections, sourceDocuments.status, sourceDocuments.progress],
@@ -440,14 +480,20 @@ export function CaptureScreen({
   useEffect(() => {
     pagesRef.current = pages;
   }, [pages]);
+  // The Report page's switches, one per step, in step order: the steps the progress tracker shows.
+  const steps = useMemo(() => reportSteps(pages), [pages]);
+  const reportFacts = useMemo<ReportFacts>(
+    () => ({ refNo: heading.refNo, clientName: heading.clientName, inspectorName: heading.inspectorName }),
+    [heading.refNo, heading.clientName, heading.inspectorName],
+  );
 
   // The section asked for (?module=, an issue link, a switch) or the page chosen: the screen shows the page it is on.
   // Without one, Source Documents, the first step.
   const [activeKey, setActiveKey] = useState(() =>
     initialSection === null || initialSection === SOURCE_DOCUMENTS_KEY
       ? SOURCE_DOCUMENTS_KEY
-      : initialSection === AUDIT_LOG_KEY
-        ? AUDIT_LOG_KEY
+      : initialSection === REPORT_KEY || initialSection === AUDIT_LOG_KEY
+        ? initialSection
         : initialSectionKey(sections, initialSection),
   );
   const activePage: CapturePage | undefined = findPage(pages, activeKey) ?? pages.find(isIncludedPage) ?? pages[0];
@@ -1133,6 +1179,7 @@ export function CaptureScreen({
               }}
               onOverridesChange={onSwitched}
               saveFirst={() => autosave.flush({ timeoutMs: LEAVE_FLUSH_MS })}
+              reportPage={{ ...reportPage, options: reportOptions, steps, facts: reportFacts, onChange: writeReport }}
             />
           )}
 
@@ -1243,6 +1290,16 @@ type ActivePageProps = SharedSectionProps & {
   onOverridesChange: (overrides: ModuleOverrides, sectionKey: string) => void;
   /** Saves what is waiting: the Audit Log reads after it, so the last change is in the list. */
   saveFirst: () => Promise<unknown>;
+  /** The Report page's options, its steps and what it names, and Generate Report. */
+  reportPage: ReportPageData;
+};
+
+/** What the Report page shows and changes: the options as saved, one switch per step, Generate Report. */
+type ReportPageData = CaptureReport & {
+  options: ReportOptions;
+  steps: readonly ReportStep[];
+  facts: ReportFacts;
+  onChange: (options: ReportOptions) => void;
 };
 
 /**
@@ -1282,8 +1339,27 @@ function ActivePage({
   onUnreadableRemoved,
   onOverridesChange,
   saveFirst,
+  reportPage,
   ...shared
 }: ActivePageProps) {
+  // The Report page: the report's options and a layout preview, no section of its own.
+  if (page.kind === "report") {
+    return (
+      <ReportPage
+        id={panelId}
+        tabLabelledBy={tabLabelledBy}
+        titleRef={titleRef}
+        inspectionId={shared.inspectionId}
+        options={reportPage.options}
+        steps={reportPage.steps}
+        facts={reportPage.facts}
+        readOnly={shared.readOnly}
+        generate={reportPage.generate}
+        lastReport={reportPage.lastReport}
+        onChange={reportPage.onChange}
+      />
+    );
+  }
   // The Audit Log: the inspection's audit rows, read-only, no section of its own.
   if (page.kind === "audit") {
     return (

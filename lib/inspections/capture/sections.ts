@@ -17,10 +17,11 @@
 // moved up to its host, the lead pages first (LEAD_PAGE_KEYS); the review
 // and the export keep template order. General Information (the header) has
 // no page of its own: it sits beside the files on Source Documents' page
-// (withSourceDocuments; Kenneth, 26 October 2026). The Audit Log comes last,
-// after the Conclusion (withAuditLog; Kenneth, 26 October 2026): a page for
-// the sidebar, the tabs and Previous / Next, never a step, with no progress,
-// result or Pending row.
+// (withSourceDocuments; Kenneth, 26 October 2026). After the Conclusion come
+// the Report page (withReport; Kenneth, 27 October 2026), where the report
+// is customised and generated, and the Audit Log, last (withAuditLog;
+// Kenneth, 26 October 2026): pages for the sidebar, the tabs and Previous /
+// Next, never steps, with no progress, result or Pending row.
 //
 // Names: every section and page carries its title, the template's wording
 // (as the inspection words it, shownTitle), for its card heading, and its short
@@ -289,16 +290,24 @@ export type CapturePage =
       status: Status;
       progress: SectionProgress;
     }
+  /**
+   * The Report page, after the Conclusion (withReport): the report's options
+   * and a layout preview, and Generate Report. No sections, result or progress.
+   */
+  | { kind: "report"; key: string; title: string; shortTitle: string }
   /** The Audit Log, last (withAuditLog): the inspection's audit rows, read-only. No sections, result or progress. */
   | { kind: "audit"; key: string; title: string; shortTitle: string };
 
 export type IncludedPage = Extract<CapturePage, { kind: "included" }>;
 export type DocumentsPage = Extract<CapturePage, { kind: "documents" }>;
+export type ReportPage = Extract<CapturePage, { kind: "report" }>;
 export type AuditPage = Extract<CapturePage, { kind: "audit" }>;
 /** A page the progress steps stand for: Source Documents and the included pages. */
 export type StepPage = IncludedPage | DocumentsPage;
-/** A page the tabs and Previous / Next go to: the steps and the Audit Log, not a switched-off page. */
-export type OpenPage = StepPage | AuditPage;
+/** A page the tabs and Previous / Next go to: the steps, the Report page and the Audit Log, not a switched-off page. */
+export type OpenPage = StepPage | ReportPage | AuditPage;
+/** A page after the steps that is no step: the Report page and the Audit Log. */
+export type ClosingPage = ReportPage | AuditPage;
 
 export function isStepPage(page: CapturePage): page is StepPage {
   return page.kind === "included" || page.kind === "documents";
@@ -306,6 +315,27 @@ export function isStepPage(page: CapturePage): page is StepPage {
 
 export function isOpenPage(page: CapturePage): page is OpenPage {
   return page.kind !== "excluded";
+}
+
+/** The Report page or the Audit Log: open from the tabs, the sidebar and Previous / Next, but no step. */
+export function isClosingPage(page: CapturePage): page is ClosingPage {
+  return page.kind === "report" || page.kind === "audit";
+}
+
+/**
+ * The Report page (Kenneth, 27 October 2026: "After conclusion page, give
+ * another page "Report", thats the page where report generation is done,
+ * inclusing customizing report"): its key for ?module= and the tabs, and its
+ * name, in Title Case.
+ */
+export const REPORT_KEY = "report";
+export const REPORT_TITLE = "Report";
+
+/** The pages with the Report page after the Conclusion and every other page: before the Audit Log, when it is there. */
+export function withReport(pages: readonly CapturePage[]): CapturePage[] {
+  const report: ReportPage = { kind: "report", key: REPORT_KEY, title: REPORT_TITLE, shortTitle: REPORT_TITLE };
+  const audit = pages.findIndex((page) => page.kind === "audit");
+  return audit === -1 ? [...pages, report] : [...pages.slice(0, audit), report, ...pages.slice(audit)];
 }
 
 /**
@@ -316,7 +346,7 @@ export function isOpenPage(page: CapturePage): page is OpenPage {
 export const AUDIT_LOG_KEY = "audit_log";
 export const AUDIT_LOG_TITLE = "Audit Log";
 
-/** The pages with the Audit Log last: after the Conclusion and every other page. */
+/** The pages with the Audit Log last: after the Conclusion, the Report page and every other page. */
 export function withAuditLog(pages: readonly CapturePage[]): CapturePage[] {
   return [...pages, { kind: "audit", key: AUDIT_LOG_KEY, title: AUDIT_LOG_TITLE, shortTitle: AUDIT_LOG_TITLE }];
 }
@@ -470,9 +500,10 @@ export function pageProgress(sections: readonly IncludedSection[]): SectionProgr
 
 /**
  * The pages before and after the page holding `key`, in screen order, for
- * the Previous and Next buttons: the steps and the Audit Log, so Next on the
- * Conclusion opens the Audit Log. Switched-off pages are stepped over; from
- * one of them, the buttons go to the pages around it.
+ * the Previous and Next buttons: the steps, the Report page and the Audit
+ * Log, so Next on the Conclusion opens the Report page, and Next there the
+ * Audit Log. Switched-off pages are stepped over; from one of them, the
+ * buttons go to the pages around it.
  */
 export function neighbours(
   pages: readonly CapturePage[],

@@ -12,17 +12,18 @@
 // collapses (Kenneth, 12 October 2026: "make these section collapsable,
 // leaving source document and conclusion visible by default"). Collapsed at
 // first, open whenever the page in view is one of its steps, and as the
-// inspector last left it otherwise (use-step-group.ts). The Audit Log comes
-// under the Conclusion, a row of its own with no progress or result: it is no
-// step (Kenneth, 26 October 2026). The sections an admin switched off for
-// this inspection follow in their own group, marked off. Every row names its
-// step by its short name, its full title on hover (Kenneth, 12 October 2026:
-// "this menu is crowded, simplify the section name"; docs/DESIGN.md, Step
-// Names).
-import { CircleOffIcon, ScrollTextIcon } from "lucide-react";
+// inspector last left it otherwise (use-step-group.ts). The Report page
+// (Kenneth, 27 October 2026) and the Audit Log (26 October 2026) come under
+// the Conclusion, rows of their own with no progress or result: they are no
+// steps. The sections an admin switched off for this inspection follow in
+// their own group, marked off. Every row names its step by its short name,
+// its full title on hover (Kenneth, 12 October 2026: "this menu is crowded,
+// simplify the section name"; docs/DESIGN.md, Step Names).
+import { CircleOffIcon, FileTextIcon, ScrollTextIcon } from "lucide-react";
 import type { ReactNode } from "react";
 import { ProgressTracker, type ProgressGroup } from "@/components/qc";
 import {
+  isClosingPage,
   LEAD_PAGE_KEYS,
   pageStatus,
   progressSteps,
@@ -67,7 +68,8 @@ type SectionListProps = {
 
 export function SectionList({ pages, activeKey, onSelect, viewerId, className }: SectionListProps) {
   const excluded = pages.filter((page) => page.kind === "excluded");
-  const audit = pages.filter((page) => page.kind === "audit");
+  // The Report page, then the Audit Log.
+  const closing = pages.filter(isClosingPage);
   const grouped = groupedPages(pages);
   // A header over a single step would only add a row.
   const grouping = grouped.length > 1;
@@ -97,15 +99,21 @@ export function SectionList({ pages, activeKey, onSelect, viewerId, className }:
         onStepSelect={onSelect}
         group={group}
       />
-      {audit.length > 0 && (
+      {closing.length > 0 && (
         <ul className="space-y-0.5">
-          {audit.map((page) => (
+          {closing.map((page) => (
             <PageRow
               key={page.key}
               page={page}
               active={page.key === activeKey}
               onSelect={onSelect}
-              icon={<ScrollTextIcon aria-hidden className="size-4 shrink-0 text-brand-600" />}
+              icon={
+                page.kind === "report" ? (
+                  <FileTextIcon aria-hidden className="size-4 shrink-0 text-brand-600" />
+                ) : (
+                  <ScrollTextIcon aria-hidden className="size-4 shrink-0 text-brand-600" />
+                )
+              }
               className="text-foreground"
             />
           ))}
@@ -135,7 +143,7 @@ export function SectionList({ pages, activeKey, onSelect, viewerId, className }:
   );
 }
 
-/** A row for a page that is no step: the Audit Log, a switched-off section. */
+/** A row for a page that is no step: the Report page, the Audit Log, a switched-off section. */
 function PageRow({
   page,
   active,
@@ -153,7 +161,7 @@ function PageRow({
   className?: string;
 }) {
   return (
-    <li aria-current={active ? (page.kind === "audit" ? "page" : "step") : undefined}>
+    <li aria-current={active ? (isClosingPage(page) ? "page" : "step") : undefined}>
       <button
         type="button"
         data-section={page.key}

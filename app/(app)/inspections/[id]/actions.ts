@@ -11,6 +11,7 @@ import { blockedSubmitMessage, neededSectionCount } from "@/lib/inspections/capt
 import { loadCaptureInspection, type CaptureInspection } from "@/lib/inspections/capture/load";
 import { mirroredColumns } from "@/lib/inspections/capture/mirror";
 import { dimensionEvents } from "@/lib/inspections/capture/dimension-events";
+import { reportOptionsProblem } from "@/lib/inspections/capture/report";
 import { samplingEvents } from "@/lib/inspections/capture/sampling-events";
 import {
   switchOffProblem,
@@ -117,6 +118,9 @@ export async function saveCaptureData(input: unknown): Promise<CaptureSaveOutcom
     // Named as the screen names them: a count in a title as the stored data has it.
     const problems = changedEntryProblems(row.data, request.data, shownTemplate(row));
     if (problems.length > 0) return { ok: false, reason: "invalid", message: describeProblems(problems) };
+    // The Report page's options, when they changed (Kenneth, 27 October 2026).
+    const reportProblem = reportOptionsProblem(row.data, request.data);
+    if (reportProblem) return { ok: false, reason: "invalid", message: reportProblem };
 
     const evaluation = evaluateCapture({
       template: row.template.resolved,

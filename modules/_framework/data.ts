@@ -2,6 +2,8 @@
 // each entry validated by its module's schema. Every module also carries an
 // inspector comment; the framework keeps it under the reserved key `comment`
 // inside the entry and strips it before the module's schema sees the data.
+// Beside them, `report`: the capture screen's Report page options, which no
+// module reads (lib/schemas/report-options.ts; Kenneth, 27 October 2026).
 import { z } from "zod";
 import { JsonValueSchema, SizeSchema } from "@/lib/schemas/common";
 
@@ -13,6 +15,11 @@ export const InspectionDataSchema = z.looseObject({
 export type InspectionData = {
   modules: Readonly<Record<string, unknown>>;
   custom: Readonly<Record<string, unknown>>;
+  /**
+   * The Report page's options as saved, absent until one is changed; read
+   * with their defaults (readReportOptions, lib/inspections/capture/report.ts).
+   */
+  report?: unknown;
 };
 
 export type DataNamespace = "modules" | "custom";

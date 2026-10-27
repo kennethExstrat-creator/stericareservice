@@ -13,7 +13,9 @@ import type { InspectionRecord } from "@/lib/export";
  * updated_at: approving the inspection, reopening it or storing its report
  * link saves the row too, and an opinion is no less about what is there.
  * Photos are left out: they decide no result, and choosing report photos is
- * part of an admin's review.
+ * part of an admin's review. So are the Report page's options (the data's
+ * `report`; Kenneth, 27 October 2026): how the report is laid out is
+ * nothing a review reads.
  *
  * Stored as ai_reviews.inspection_fingerprint (migration 20261007113245).
  * ------------------------------------------------------------------ */
@@ -32,7 +34,7 @@ export type InspectionContent = Pick<
  */
 export function inspectionFingerprint(record: InspectionContent): string {
   const content = {
-    data: record.data ?? null,
+    data: withoutReportOptions(record.data ?? null),
     moduleOverrides: record.moduleOverrides ?? null,
     result: record.result ?? null,
     remarks: record.remarks ?? null,
@@ -42,6 +44,14 @@ export function inspectionFingerprint(record: InspectionContent): string {
       .sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0)),
   };
   return createHash("sha256").update(canonicalJson(content)).digest("hex");
+}
+
+/** The data as stored, without the Report page's options: the same for data saved before they existed. */
+function withoutReportOptions(data: unknown): unknown {
+  if (typeof data !== "object" || data === null || Array.isArray(data) || !("report" in data)) return data;
+  const rest: Record<string, unknown> = { ...data };
+  delete rest.report;
+  return rest;
 }
 
 /** JSON with every object's keys sorted, at every level; undefined values are dropped, as JSON.stringify does. */

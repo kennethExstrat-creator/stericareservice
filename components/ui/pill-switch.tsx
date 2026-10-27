@@ -20,6 +20,7 @@ export function PillSwitch<T extends string>({
   options,
   onValueChange,
   label,
+  disabled,
   className,
   "data-testid": testId,
 }: {
@@ -28,6 +29,8 @@ export function PillSwitch<T extends string>({
   onValueChange: (value: T) => void;
   /** The switch's accessible name. */
   label: string;
+  /** Shows its side and takes no change (a read-only inspection's Report page). */
+  disabled?: boolean;
   className?: string;
   "data-testid"?: string;
 }) {
@@ -42,6 +45,7 @@ export function PillSwitch<T extends string>({
         if (option) onValueChange(option.value);
       }}
       aria-label={label}
+      disabled={disabled}
       className={cn("rounded-full bg-muted p-1 ring-1 ring-border/60", className)}
       data-testid={testId}
     >

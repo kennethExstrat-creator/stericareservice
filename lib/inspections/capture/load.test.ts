@@ -97,6 +97,14 @@ describe("normaliseData", () => {
     expect(normaliseData({ modules: [] })).toEqual({ modules: {}, custom: {} });
     expect(normaliseData(null)).toEqual({ modules: {}, custom: {} });
   });
+
+  it("keeps the Report page's options as stored, so the screen's copy hashes as the saved one (Kenneth, 27 October 2026)", () => {
+    const report = { pageSize: "letter", omittedSteps: ["weight"] };
+    expect(normaliseData({ modules: {}, custom: {}, report })).toEqual({ modules: {}, custom: {}, report });
+    // As stored, readable or not: they are read with their defaults where they are shown.
+    expect(normaliseData({ modules: {}, custom: {}, report: "corrupt" })).toEqual({ modules: {}, custom: {}, report: "corrupt" });
+    expect(normaliseData({ modules: {}, custom: {} })).not.toHaveProperty("report");
+  });
 });
 
 describe("loading", () => {

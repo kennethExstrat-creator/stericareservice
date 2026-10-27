@@ -19,6 +19,7 @@ import {
   findPage,
   findSection,
   initialSectionKey,
+  isClosingPage,
   isOpenPage,
   isStepPage,
   leadPagesFirst,
@@ -29,10 +30,12 @@ import {
   progressOf,
   progressSteps,
   progressSummary,
+  REPORT_KEY,
   SHOWN_WITH,
   sideBySideSections,
   stepIcon,
   withAuditLog,
+  withReport,
   withSourceDocuments,
   type CapturePage,
   type CaptureSection,
@@ -518,5 +521,37 @@ describe("withAuditLog: the Audit Log under the Conclusion (Kenneth, 26 October 
     expect(neighbours(pages, AUDIT_LOG_KEY)).toMatchObject({ previous: { key: "conclusion" }, next: null });
     // A switched-off page is still stepped over.
     expect(neighbours(pages, "site_notes").next?.key).toBe("weight");
+  });
+});
+
+describe("withReport: the Report page after the Conclusion, before the Audit Log (Kenneth, 27 October 2026)", () => {
+  it("comes after the Conclusion and before the Audit Log: a page with no step, result, progress or count", () => {
+    const pages = withAuditLog(withReport(pagesFor(filledData(), OFF)));
+    expect(pages.slice(-2).map((page) => page.key)).toEqual([REPORT_KEY, AUDIT_LOG_KEY]);
+    const report = pages.at(-2)!;
+    expect(report).toEqual({ kind: "report", key: "report", title: "Report", shortTitle: "Report" });
+    expect(isStepPage(report)).toBe(false);
+    expect(isOpenPage(report)).toBe(true);
+    expect(isClosingPage(report)).toBe(true);
+    expect(progressSteps(pages).map((step) => step.key)).not.toContain(REPORT_KEY);
+    expect(progressSummary(pages)).toEqual(progressSummary(pagesFor(filledData(), OFF)));
+    // ?module=report opens it.
+    expect(findPage(pages, REPORT_KEY)).toBe(report);
+    expect(pageSectionKeys(report)).toEqual([REPORT_KEY]);
+  });
+
+  it("goes before the Audit Log whichever is added first", () => {
+    const keys = (pages: readonly CapturePage[]) => pages.slice(-2).map((page) => page.key);
+    expect(keys(withReport(withAuditLog(pagesFor())))).toEqual([REPORT_KEY, AUDIT_LOG_KEY]);
+    expect(keys(withAuditLog(withReport(pagesFor())))).toEqual([REPORT_KEY, AUDIT_LOG_KEY]);
+    // Without the Audit Log, last.
+    expect(withReport(pagesFor()).at(-1)?.key).toBe(REPORT_KEY);
+  });
+
+  it("is where Next goes from the Conclusion; from it, Previous goes back to the Conclusion and Next to the Audit Log", () => {
+    const pages = withAuditLog(withReport(pagesFor(filledData(), OFF)));
+    expect(neighbours(pages, "conclusion").next).toMatchObject({ kind: "report", key: REPORT_KEY, shortTitle: "Report" });
+    expect(neighbours(pages, REPORT_KEY)).toMatchObject({ previous: { key: "conclusion" }, next: { key: AUDIT_LOG_KEY } });
+    expect(neighbours(pages, AUDIT_LOG_KEY)).toMatchObject({ previous: { key: REPORT_KEY }, next: null });
   });
 });

@@ -21,6 +21,13 @@ describe("CaptureDataSchema", () => {
     expect(CaptureDataSchema.safeParse({ modules: {} }).success).toBe(false);
     expect(CaptureDataSchema.safeParse({ modules: { a: Number.NaN }, custom: {} }).success).toBe(false);
   });
+
+  it("takes the Report page's options beside them, as any JSON: the save checks them when they change (Kenneth, 27 October 2026)", () => {
+    const report = { pageSize: "letter", omittedSteps: ["weight"] };
+    expect(CaptureDataSchema.parse({ modules: {}, custom: {}, report })).toEqual({ modules: {}, custom: {}, report });
+    expect(CaptureDataSchema.safeParse({ modules: {}, custom: {}, report: { pageSize: "a3" } }).success).toBe(true);
+    expect(CaptureDataSchema.safeParse({ modules: {}, custom: {}, report: { footerNote: Number.NaN } }).success).toBe(false);
+  });
 });
 
 describe("action inputs", () => {

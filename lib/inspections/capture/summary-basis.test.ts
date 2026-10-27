@@ -38,6 +38,12 @@ describe("summaryBasisHash", () => {
     expect(summaryBasisHash(data({ ...inserted, signAfterExport: true }))).not.toBe(summaryBasisHash(data(saved)));
   });
 
+  it("leaves the Report page's options out: how the report is laid out is nothing the summary is written from (27 October 2026)", () => {
+    const basis = summaryBasisHash(data({ finalResult: "pass", inspectionSummary: summary }));
+    expect(summaryBasisHash({ ...data({ finalResult: "pass", inspectionSummary: summary }), report: { pageSize: "letter" } })).toBe(basis);
+    expect(summaryBasisHash({ ...data(undefined), report: { includePhotos: false } })).toBe(contentHash(data(undefined)));
+  });
+
   it("is the data's own hash without a conclusion, whatever the key order", () => {
     expect(summaryBasisHash(data(undefined))).toBe(contentHash(data(undefined)));
     const reordered: InspectionData = { custom: {}, modules: { conclusion: { inspectionSummary: summary, finalResult: "pass" }, weight: { sizes: { M: { average: 2.9 } } } } };
