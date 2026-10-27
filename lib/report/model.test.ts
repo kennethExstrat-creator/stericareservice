@@ -267,7 +267,11 @@ describe("the options", () => {
 
   it("plan every page, each section 'coming next' until its builder lands, and count them", () => {
     const model = buildReportModel(makeStdEgExport());
-    expect(model.plan.filter((entry) => entry.kind !== "summary").every((entry) => "built" in entry && !entry.built)).toBe(true);
+    // A section is built once its builder lands (lib/report/sections); until then it prints "coming next".
+    for (const entry of model.plan) {
+      if (entry.kind === "summary") continue;
+      expect(entry.built, entry.key).toBe(model.sections[entry.key] !== undefined);
+    }
     expect(model.pageCount).toBe(model.plan.reduce((sum, entry) => sum + entry.pageCount, 0));
     expect(model.sizes.map((size) => size.value)).toEqual(["XS", "S", "M", "L", "XL"]);
   });

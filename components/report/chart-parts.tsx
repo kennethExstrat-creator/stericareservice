@@ -18,15 +18,15 @@ export function along(value: number, axis: Pick<Axis, "min" | "max">): string {
 /** A tick's label: the number as stored, less binary noise. */
 export const plainTick = (value: number) => formatNumber(value);
 
-/** A line of a row's note at its right: words, then the figure in bold ("Median **243 mm**"). */
-export type AsideLine = { text: string; strong?: string };
+/** A line of a row's note at its right: words, then the figure in bold ("Median **243 mm**"); a failing figure's line in red. */
+export type AsideLine = { text: string; strong?: string; tone?: "fail" };
 
 export function AsideLines({ lines, className }: { lines?: readonly AsideLine[]; className?: string }) {
   if (!lines || lines.length === 0) return null;
   return (
     <div data-slot="report-chart-aside" className={cn("flex flex-col justify-center text-slate-900", TYPE.small, className)}>
       {lines.map((line, index) => (
-        <p key={index} className="tabular-nums">
+        <p key={index} data-tone={line.tone} className={cn("tabular-nums", line.tone === "fail" && "text-fail")}>
           {line.text}
           {line.strong !== undefined && <span className="font-bold"> {line.strong}</span>}
         </p>

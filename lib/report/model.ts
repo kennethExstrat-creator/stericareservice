@@ -163,7 +163,114 @@ export type DimensionsSection = ReportSectionContent;
 /** Section 04, Measurements by Glove: every glove's readings, size by size. */
 export type MeasurementsSection = ReportSectionContent;
 /** Section 05, Force at Break (or Physical Properties): the lab's details, each specimen (DotPlot), the readings, the lab's summary. */
-export type ForceAtBreakSection = ReportSectionContent;
+export type ForceAtBreakSection = ReportSectionContent & {
+  /** Under the title, from the config: "Lab test to EN 455-2. The median of 13 specimens per size must reach 6 N." */
+  lead: string | null;
+  /** Laboratory Details: what the inspection records of the lab's test; null while switched off or with nothing recorded. */
+  details: ForceAtBreakDetail[] | null;
+  /** The force at break readings (force_at_break), when the inspection includes them. */
+  force: ForceAtBreakTest | null;
+  /** The lab report's tensile strength and elongation averages (tensile), when the inspection includes them. */
+  tensile: ForceAtBreakTensile | null;
+  /** What each page draws, in order: the blocks switched on, split to the paper (lib/report/sections/forceAtBreak.ts). */
+  pages: ForceAtBreakPage[];
+};
+
+/** A detail of the lab's test: "Standard", "EN 455-2". */
+export type ForceAtBreakDetail = { key: string; label: string; value: string };
+
+/** A specimen's reading as entered, padded to the readings' decimals ("6.0"); `low` below the minimum (red, with "*"). */
+export type ForceAtBreakReading = { value: number; text: string; low: boolean };
+
+/** One size of the force at break test. */
+export type ForceAtBreakSize = {
+  size: string;
+  /** As the template shows it. */
+  label: string;
+  /** Specimens tested: the sampling plan's gloves for the test, else the template's. */
+  n: number;
+  /** One per specimen, in test order; null where none is entered yet. */
+  readings: (ForceAtBreakReading | null)[];
+  /** The module's median at its decimals, as judged; null until every reading is in. */
+  median: number | null;
+  /** The median as printed, in N: "6.4"; null without one. */
+  medianText: string | null;
+  /** "5.5 to 6.9": the lowest and highest reading; null with none. */
+  range: string | null;
+  /** Of the readings entered, at the median's decimals; null with none (the SD with fewer than two). */
+  average: string | null;
+  sd: string | null;
+  minimum: ForceAtBreakReading | null;
+  maximum: ForceAtBreakReading | null;
+  /** The size's lots on the order: "LOT-A01, LOT-A02"; null when none is entered. */
+  lots: string | null;
+  /** The module's own verdict for the size. */
+  status: CheckStatus;
+  /** The chart row's tallest stack of dots. */
+  stack: number;
+};
+
+export type ForceAtBreakTest = {
+  sizes: ForceAtBreakSize[];
+  /** The minimum median (config specMin) and its words ("6 N"); null when none is set. */
+  specMin: number | null;
+  specText: string | null;
+  /** The template's words: the statistic ("Median"), the reading number ("No."), the order's lots ("Lot Number"). */
+  medianLabel: string;
+  rowLabel: string;
+  lotLabel: string;
+  /** The chart's axis (niceAxis), its ticks' decimals, and how close readings stack (their precision, or a dot's width). */
+  axis: { min: number; max: number; ticks: number[] };
+  tickDecimals: number;
+  step: number;
+  /** The most specimens of any size: the readings table's rows. */
+  rows: number;
+  /** Under the chart: each size with a specimen below the minimum, and each size that failed, judged by the statistic. */
+  notes: string[];
+  /** Under the lab's summary: the lab reports the readings come from. Who tested and verified is not recorded. */
+  labNote: string | null;
+};
+
+/** An average of the tensile test as printed, the figure ("34.18") and with its unit ("34.18 MPa"); red when below its minimum. */
+export type ForceAtBreakAverage = { value: number; figure: string; text: string; fail: boolean };
+
+export type ForceAtBreakTensileSize = {
+  size: string;
+  label: string;
+  tensile: ForceAtBreakAverage | null;
+  elongation: ForceAtBreakAverage | null;
+  lots: string | null;
+  status: CheckStatus;
+};
+
+/** Physical Properties: the lab report's averages per size (the app holds no specimen readings). */
+export type ForceAtBreakTensile = {
+  sizes: ForceAtBreakTensileSize[];
+  /** The template's words: "Tensile Strength (Average) (MPa)", "Elongation at Break, Average (%)", "Lot Number". */
+  tensileLabel: string;
+  elongationLabel: string;
+  lotLabel: string;
+  /** Each minimum and its words ("14 MPa", "500%"); null when none is set. */
+  tensileMin: { value: number; text: string } | null;
+  elongationMin: { value: number; text: string } | null;
+  /** The bars' axes, from 0. */
+  tensileAxis: { min: number; max: number };
+  elongationAxis: { min: number; max: number };
+  /** Under the summary: the lab reports the averages come from, or that none is attached. */
+  labNote: string | null;
+};
+
+/** A part of a page of the section: a block, or a stretch of one split across pages. */
+export type ForceAtBreakPart =
+  | { kind: "details" }
+  /** The chart's rows for these sizes; `notes` under the last of them. */
+  | { kind: "forceChart"; sizes: string[]; notes: boolean }
+  /** Specimen Readings' rows from `from` to `to` (the Median under the last), beside the lab's summary where `summary`; `paired` while both blocks are on. */
+  | { kind: "forceTables"; readings: { from: number; to: number; median: boolean } | null; summary: boolean; paired: boolean }
+  | { kind: "tensileChart" }
+  | { kind: "tensileSummary" };
+
+export type ForceAtBreakPage = { parts: ForceAtBreakPart[] };
 /** Section 06, Freedom From Holes & Visual Inspection: defects against the limits (TrackBar), pinholes, defects by class, photos. */
 export type HolesVisualSection = ReportSectionContent;
 /** Section 07, Glove Packing & Dispensing: average layering and dispensing (GroupedHBars), each box, the aged gloves, stickiness. */

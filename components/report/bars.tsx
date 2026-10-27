@@ -23,6 +23,8 @@ export type HBarRow = {
   value: number | null;
   /** The figure at the bar's end: "3.3 g". */
   display?: string;
+  /** A value that fails its limit: the bar and the figure in red. */
+  tone?: "fail";
 };
 
 export type HBarsProps = {
@@ -47,7 +49,7 @@ export function HBars({ rows, axis, minimum, label, className }: HBarsProps) {
                 aria-hidden
                 data-slot="report-bar"
                 data-value={row.value}
-                className="absolute inset-y-0 left-0 rounded-[0.8mm] bg-brand-500"
+                className={cn("absolute inset-y-0 left-0 rounded-[0.8mm]", row.tone === "fail" ? "bg-fail-solid" : "bg-brand-500")}
                 style={{ width: barLength(row.value, axis) }}
               />
             )}
@@ -60,7 +62,9 @@ export function HBars({ rows, axis, minimum, label, className }: HBarsProps) {
               />
             )}
           </div>
-          <p className={cn("text-right text-slate-900 tabular-nums", TYPE.body)}>{row.display ?? (row.value === null ? "" : plainTick(row.value))}</p>
+          <p data-tone={row.tone} className={cn("text-right tabular-nums", TYPE.body, row.tone === "fail" ? "font-semibold text-fail" : "text-slate-900")}>
+            {row.display ?? (row.value === null ? "" : plainTick(row.value))}
+          </p>
         </div>
       ))}
     </figure>

@@ -10,6 +10,7 @@
 // options' section keys, and "photos".
 import type { ReactNode } from "react";
 import type { ReportModel, ReportPlanEntryFor, ReportSections, ReportSlotKey } from "@/lib/report/model";
+import { forceAtBreakPages } from "./forceAtBreak";
 
 export type SectionPagesProps<K extends ReportSlotKey> = {
   model: ReportModel;
@@ -34,6 +35,7 @@ export function defineSectionPages<K extends ReportSlotKey>(pages: SectionPages<
 /** Every built section's pages, one line each, in any order: the plan sets the order. */
 export const SECTION_PAGES: readonly AnySectionPages[] = [
   // orderSampling, dimensions, measurements, forceAtBreak, holesVisual, packing, labellingConclusion, photos
+  forceAtBreakPages,
 ];
 
 /** The pages of a slot, if listed. */
