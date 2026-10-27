@@ -105,7 +105,9 @@ describe("STD_EG: one size", () => {
     ]);
     // Every defect the template lists, in its order and words, the class's own wording for one it shares.
     expect(rowsOf(visual).filter(([kind]) => kind === "defect").map(([, label]) => label)).toContain("Defective Beads");
-    expect(rowsOf(visual).filter(([kind]) => kind === "defect")).toHaveLength(17);
+    // STD_EG v7 adds Ring Mark, last of its majors (5a081a9).
+    expect(rowsOf(visual).filter(([kind]) => kind === "defect").map(([, label]) => label)).toContain("Ring Mark");
+    expect(rowsOf(visual).filter(([kind]) => kind === "defect")).toHaveLength(18);
   });
 
   it("shows the defect photos marked In Report, captioned by the inspector", () => {
