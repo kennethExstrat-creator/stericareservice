@@ -787,9 +787,6 @@ test("newcomer: password screens from an email link, the empty list", async ({ p
     await audit(auditor, "reset-password-mismatch");
   });
 
-  await open(page, "/reset-password?flow=invite");
-  await audit(auditor, "reset-password-invite-wording");
-
   await open(page, "/inspections");
   await audit(auditor, "list-empty", { tabs: 12 });
 });

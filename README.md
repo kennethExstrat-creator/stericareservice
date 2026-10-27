@@ -77,9 +77,13 @@ deployment. Design rules and tokens: [docs/DESIGN.md](docs/DESIGN.md).
      production); add `http://localhost:3000/**` to the redirect URLs.
    - Emails → Templates: paste `supabase/templates/invite.html` into **Invite user** and
      `supabase/templates/recovery.html` into **Reset password**. Their links go to `/auth/confirm`,
-     which works on whichever device opens the email.
+     which works on whichever device opens the email; an invitation's ("Create your account")
+     opens Account Creation (`/create-account`), where the invitee types their name, phone and
+     password.
    - Passwords: minimum length 10, letters and digits (matches `supabase/config.toml`).
-   - Production: set up custom SMTP so invites are not limited by Supabase's built-in mailer.
+   - Production: set up custom SMTP so invites are not limited by Supabase's built-in mailer,
+     which only delivers to the project's team. Until then, invite with **Create Link** on
+     `/admin/users` and send the link yourself.
 
 5. **First admin (Kenneth).** Dashboard → Authentication → Users → Add user (with a password),
    then run in the SQL editor, using that email:
@@ -133,13 +137,29 @@ deployment. Design rules and tokens: [docs/DESIGN.md](docs/DESIGN.md).
 
 ## Roles and teams
 
-| Role | Can |
-|---|---|
-| Inspector | Records inspections and sees their own. Works in a lead inspector's team. |
-| Lead Inspector | An inspector who also sees every inspection of their team, in every status, read-only: the list, the review, the photos and files, the history. They cannot edit, submit, approve, reopen or delete their team's inspections. Their own inspections work like any inspector's. |
-| Admin | Everything (BUILD_SPEC 3): users and their teams, reference data (templates no longer, since Admin > Templates went: Kenneth, 26 October 2026), every inspection, approve and reopen, the AI hand-offs. Admins are in no team. |
+Every person has one role (BUILD_SPEC 3; Admin > Roles & Permissions, `/admin/roles`). A role is
+what its people see and a switch for each screen and action (`lib/auth/permissions.ts`). Three
+come with the app:
+
+| Role | Sees | Can |
+|---|---|---|
+| Inspector | Own Inspections | Records inspections. Works in a lead inspector's team. Made with Create Inspections, Delete Drafts, Export Reports, Steri-AI Reading and Steri-AI Summary; an admin may change its switches. |
+| Lead Inspector | Team Inspections | An inspector who also sees every inspection of their team, in every status, read-only: the list, the review, the photos and files, the history. They cannot edit, submit, approve, reopen or delete their team's inspections. Same switches as Inspector to start with. |
+| Admin | All Inspections | Everything, and it never changes: users and roles, every screen, every action. Admins are in no team. |
+
+Admins add **custom roles** on Roles & Permissions (a name, what it sees, its switches); a role
+that sees its own inspections works in a lead inspector's team, one that sees its team's leads
+one. Only the built-in Admin role opens Users and Roles & Permissions, and the app keeps at least
+one active Admin. The database refuses what a role does not allow (migration
+`20261027150000_roles_and_permissions.sql`); the screens hide it.
 
 Set up on `/admin/users`:
+
+- **Invite User**: their email and their role (and the lead inspector for a role that sees its own
+  inspections), then **Send Email** or **Create Link** (copy the link and send it yourself, e.g.
+  by WhatsApp; it works once, for an hour). They create their account from the link (name,
+  phone, password) and are signed in. Until then the list shows them as **Invited**, by email,
+  with **Resend Invite**, **Copy Invite Link** and **Cancel Invite**.
 
 - Invite (or make) the lead inspectors first, then their inspectors: inviting, activating or
   making someone an inspector asks for their lead inspector. **Change Lead Inspector** moves an
@@ -148,9 +168,10 @@ Set up on `/admin/users`:
   move their team to another lead first (the screen names who is in it).
 - Accounts from before teams keep working with no lead; the screen lists them under
   **No Lead Inspector** until an admin chooses one.
-- **Change Name**, next to anyone's name (your own included, active or deactivated): the name the
-  app shows for them, 1 to 100 characters on one line, the same rule as the invite's Full Name
-  (`fullNameSchema()` in `lib/auth/users.ts`). Every screen, the export and the AI
+- **Edit Details**, next to anyone's name (your own included, active or deactivated): the name the
+  app shows for them, 1 to 100 characters on one line, and their phone (optional; 7 to 15 digits,
+  an optional + and spaces, brackets or hyphens), the same rules as Account Creation
+  (`lib/auth/fields.ts`). Every screen, the export and the AI
   hand-offs read it from their profile, so it changes everywhere at once, on their past
   inspections too (the list's Inspector in Charge, the capture header's "Inspected By", the review);
   only what already left the app keeps the old name (exported files, AI reports and the AI's
@@ -164,7 +185,7 @@ Set up on `/admin/users`:
   (a deleted account's, a test account's), and a gap never means a missing user. The list shows
   it in its first column, and every dialog beside the person's name. It is not used for signing
   in, on inspections or in reports. Details: [docs/DATABASE.md](docs/DATABASE.md#user-uids).
-- **Search**, above the list beside the Team picker: finds people by name, email or UID as you
+- **Search**, above the list beside the Team picker: finds people by name, email, phone or UID as you
   type, any part of each word, in any order and any case (`SC-0042`, `sc42`, `boon keat`,
   `@stericare`). It searches the team the Team picker shows and stays when you pick another;
   the links that open a team (a lead's name, **Show Them**, **Show Their Team**) show it

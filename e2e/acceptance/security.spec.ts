@@ -148,6 +148,7 @@ function protectedPages(): string[] {
     `/inspections/${i.mDraft.id}/review`,
     "/admin",
     "/admin/users",
+    "/admin/roles",
     "/admin/manufacturers",
     "/admin/clients",
     "/admin/defects",
@@ -165,6 +166,7 @@ function protectedPages(): string[] {
 const ADMIN_PAGES = () => [
   "/admin",
   "/admin/users",
+  "/admin/roles",
   "/admin/manufacturers",
   "/admin/clients",
   "/admin/defects",
@@ -351,6 +353,8 @@ function actionCases(): ActionCase[] {
     { name: "signIn", kind: "public", path: "/login", args: [idle, form({ email: "not-an-email", password: "x", next: "/inspections" })] },
     { name: "requestPasswordReset", kind: "public", path: "/forgot-password", args: [idle, form({ email: "not-an-email" })] },
     { name: "updatePassword", kind: "password", path: "/reset-password", args: [idle, form({ password: "Security-e2e-2026", confirm: "Security-e2e-2026" })] },
+    // Account Creation (an invitation's link session only): signed out, the link has expired.
+    { name: "createAccount", kind: "password", path: "/create-account", args: [idle, form({ fullName: "Probe", phone: "0123456789", password: "Security-e2e-2026", confirm: "Security-e2e-2026" })] },
     { name: "signOut", kind: "signout", path: "/inspections", args: [] },
     // Inspections.
     { name: "createInspection", kind: "user", path: "/inspections/new", args: [{ status: "idle" }, form({ clientId: "none", manufacturerId: NOWHERE, productType: "examination", productName: "", templateId: "", previousId: "" })] },
@@ -372,13 +376,20 @@ function actionCases(): ActionCase[] {
     { name: "sendToAiReport", kind: "admin", path: review, args: [{ status: "idle" }, form({ inspectionId: i.mSubmitted.id })] },
     { name: "getAiReviewProgress", kind: "progress", path: review, args: [i.mSubmitted.id] },
     // Admin: users.
-    { name: "inviteUser", kind: "admin", path: "/admin/users", args: [{ status: "idle" }, form({ email: "not-an-email", fullName: "Probe", role: "inspector", leadId: "" })] },
+    { name: "inviteUser", kind: "admin", path: "/admin/users", args: [{ status: "idle" }, form({ email: "not-an-email", role: "inspector", leadId: "", delivery: "email" })] },
     { name: "changeRole", kind: "admin", path: "/admin/users", args: [{ status: "idle" }, form({ userId: R, role: "admin", leadId: "" })] },
     { name: "assignLead", kind: "admin", path: "/admin/users", args: [{ status: "idle" }, form({ userId: R, leadId: R })] },
     { name: "deactivateUser", kind: "admin", path: "/admin/users", args: [{ status: "idle" }, form({ userId: R })] },
     { name: "reactivateUser", kind: "admin", path: "/admin/users", args: [{ status: "idle" }, form({ userId: R, role: "inspector", leadId: "" })] },
     { name: "sendPasswordLink", kind: "admin", path: "/admin/users", args: [{ status: "idle" }, form({ userId: R })] },
-    { name: "renameUser", kind: "admin", path: "/admin/users", args: [{ status: "idle" }, form({ userId: R, fullName: "Probe" })] },
+    { name: "editUserDetails", kind: "admin", path: "/admin/users", args: [{ status: "idle" }, form({ userId: R, fullName: "Probe", phone: "" })] },
+    { name: "resendInvite", kind: "admin", path: "/admin/users", args: [{ status: "idle" }, form({ userId: R })] },
+    { name: "createInviteLink", kind: "admin", path: "/admin/users", args: [{ status: "idle" }, form({ userId: R })] },
+    { name: "cancelInvite", kind: "admin", path: "/admin/users", args: [{ status: "idle" }, form({ userId: R })] },
+    // Admin: roles (the built-in Admin role only). A blank name is refused before anything is written.
+    { name: "createRole", kind: "admin", path: "/admin/roles", args: [{ status: "idle" }, form({ name: "", description: "", access: "own" })] },
+    { name: "updateRole", kind: "admin", path: "/admin/roles", args: [{ status: "idle" }, form({ id: R, version: "2000-01-01T00:00:00+00:00", name: "", description: "", access: "own" })] },
+    { name: "deleteRole", kind: "admin", path: "/admin/roles", args: [{ status: "idle" }, form({ id: R })] },
     // Admin: reference data.
     { name: "saveManufacturer", kind: "admin", path: "/admin/manufacturers", args: [{ status: "idle" }, form({ id: R, version: "x", name: "Probe" })] },
     { name: "deleteManufacturer", kind: "admin", path: "/admin/manufacturers", args: [{ status: "idle" }, form({ id: R })] },
