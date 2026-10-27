@@ -21,6 +21,7 @@ export type NavIconName =
   | "admin"
   | "dashboard"
   | "users"
+  | "roles"
   | "manufacturers"
   | "clients"
   | "defects"
@@ -69,6 +70,8 @@ const ADMINS: readonly UserRole[] = ["admin"];
 
 export const ADMIN_PATH = "/admin";
 export const ADMIN_USERS_PATH = "/admin/users";
+/** Roles & Permissions: what each role sees and may do (migration 20261027150000). Only the built-in Admin role opens it. */
+export const ADMIN_ROLES_PATH = "/admin/roles";
 export const ADMIN_MANUFACTURERS_PATH = "/admin/manufacturers";
 export const ADMIN_CLIENTS_PATH = "/admin/clients";
 /** DEFECTS_PATH in lib/admin/defects.ts: the codes, with label mapping and unmapped labels below. */
@@ -109,6 +112,9 @@ export const NAV: readonly NavSection[] = [
       // below it (/admin/defects/labels). No Templates: every client uses the
       // one standard flow (Kenneth, 26 October 2026).
       { kind: "link", key: "users", label: "Users", href: ADMIN_USERS_PATH, match: "prefix", icon: "users", roles: ADMINS },
+      // Kenneth, 27 October 2026: "build permission and module on off for each role". Shown to every
+      // admin for now; the page itself answers 404 to anyone without the built-in Admin role.
+      { kind: "link", key: "roles", label: "Roles & Permissions", href: ADMIN_ROLES_PATH, match: "prefix", icon: "roles", roles: ADMINS },
       { kind: "link", key: "manufacturers", label: "Manufacturers", href: ADMIN_MANUFACTURERS_PATH, match: "prefix", icon: "manufacturers", roles: ADMINS },
       { kind: "link", key: "clients", label: "Clients", href: ADMIN_CLIENTS_PATH, match: "prefix", icon: "clients", roles: ADMINS },
       { kind: "link", key: "defects", label: "Defects", href: ADMIN_DEFECTS_PATH, match: "prefix", icon: "defects", roles: ADMINS },

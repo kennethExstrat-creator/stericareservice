@@ -5,6 +5,7 @@ import {
   LayoutDashboardIcon,
   Settings2Icon,
   SettingsIcon,
+  ShieldUserIcon,
   SparklesIcon,
   TagsIcon,
   UsersIcon,
@@ -17,6 +18,8 @@ const ICONS: Readonly<Record<NavIconName, LucideIcon>> = {
   admin: SettingsIcon,
   dashboard: LayoutDashboardIcon,
   users: UsersIcon,
+  // A person in a shield: who may see and do what. Not the Users page's Admin shield (ShieldCheckIcon).
+  roles: ShieldUserIcon,
   manufacturers: FactoryIcon,
   clients: Building2Icon,
   defects: TagsIcon,

@@ -29,7 +29,7 @@ const ROOT_ERROR_PAGE = process.env.SHELL_E2E_ROOT_ERROR_PAGE;
 const ERROR_TITLE = "This Page Did Not Load · SteriCare QC";
 
 /** The admin section's pages, in the nav's order (components/shell/nav.ts). */
-const ADMIN_PAGES = ["Dashboard", "Users", "Manufacturers", "Clients", "Defects", "General Settings", "Steri-AI Settings"];
+const ADMIN_PAGES = ["Dashboard", "Users", "Roles & Permissions", "Manufacturers", "Clients", "Defects", "General Settings", "Steri-AI Settings"];
 
 /** Photo uploads to Storage (lib/photos/supabase-adapters.ts). */
 const PHOTO_UPLOADS = "**/storage/v1/object/inspection-photos/**";

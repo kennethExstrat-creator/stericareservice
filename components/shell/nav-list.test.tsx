@@ -25,6 +25,7 @@ const linkHrefs = (html: string) => [...html.matchAll(/<a [^>]*href="([^"]+)"/g)
 const ADMIN_PAGES = [
   "/admin",
   "/admin/users",
+  "/admin/roles",
   "/admin/manufacturers",
   "/admin/clients",
   "/admin/defects",
@@ -49,6 +50,7 @@ describe("SidebarNav", () => {
   it("marks the current page and nothing else", () => {
     const nav = navForRole("admin");
     expect(currentLinks(render("/admin/users", <SidebarNav sections={nav} />))).toEqual([["Users", "page"]]);
+    expect(currentLinks(render("/admin/roles", <SidebarNav sections={nav} />))).toEqual([["Roles &amp; Permissions", "page"]]);
     expect(currentLinks(render("/admin", <SidebarNav sections={nav} />))).toEqual([["Dashboard", "page"]]);
     expect(currentLinks(render("/admin/defects", <SidebarNav sections={nav} />))).toEqual([["Defects", "page"]]);
     expect(currentLinks(render("/admin/settings", <SidebarNav sections={nav} />))).toEqual([["General Settings", "page"]]);
@@ -80,7 +82,7 @@ describe("SidebarNav", () => {
   it("shows an inspector no admin entries at all", () => {
     const html = render("/inspections", <SidebarNav sections={navForRole("inspector")} />);
     expect(linkHrefs(html)).toEqual(["/inspections"]);
-    expect(html).not.toMatch(/Admin|Dashboard|Users|Manufacturers|Clients|Defects|Settings|Steri-AI/);
+    expect(html).not.toMatch(/Admin|Dashboard|Users|Roles|Permissions|Manufacturers|Clients|Defects|Settings|Steri-AI/);
   });
 
   it("is a labelled navigation landmark with a labelled admin group", () => {
