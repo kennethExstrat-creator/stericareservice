@@ -257,6 +257,74 @@ describe("saveInspectionData", () => {
       expect(calls[2][1]).toEqual({ inspection_id: ID, action: "pass_fail_changed", changes: { ...EVENT.changes, by: "user-1" } });
     });
 
+    const CODE_LETTER = {
+      action: "code_letter_changed",
+      changes: { module: "sampling_plan", size: "S", from: "N", to: "M", direction: "reduced", reason: "Audited factory.", glovesFrom: 500, glovesTo: 315 },
+    };
+    /** How the function of migration 20261026130000 refuses code_letter_changed. */
+    const REFUSED = { code: "22023", message: "a save records only pass_fail_changed and spec_changed events, each with its changes" };
+
+    it("saves as before and records the rows right after when the function does not take an action yet, before migration 20261027120000", async () => {
+      const { admin, calls } = scriptedAdmin({
+        save_inspection_with_events: { data: null, error: REFUSED, status: 400 },
+        save_inspection: { data: V2, error: null, status: 200 },
+        log_inspection_event: { data: 8, error: null, status: 200 },
+      });
+      const { client, chains } = fakeClient();
+      expect(
+        await saveInspectionData(
+          client,
+          { inspectionId: ID, data, baseUpdatedAt: V1 },
+          { writer: { admin, actorId: "user-1" }, events: [CODE_LETTER, EVENT] },
+        ),
+      ).toEqual({ ok: true, updatedAt: V2 });
+      expect(calls.map(([name]) => name)).toEqual([
+        "save_inspection_with_events",
+        "save_inspection",
+        "log_inspection_event",
+        "log_inspection_event",
+      ]);
+      expect(calls[1][1]).toEqual({ inspection_id: ID, actor_id: "user-1", base_updated_at: V1, data, mirrored_columns: {} });
+      expect(calls[2][1]).toEqual({ inspection_id: ID, action: "code_letter_changed", changes: { ...CODE_LETTER.changes, by: "user-1" } });
+      expect(calls[3][1]).toEqual({ inspection_id: ID, action: "pass_fail_changed", changes: { ...EVENT.changes, by: "user-1" } });
+      expect(chains).toEqual([]);
+    });
+
+    it("records no rows when that save wrote nothing, and answers what the row holds now", async () => {
+      const server = { modules: { weight: { values: [9.9] } }, custom: {} };
+      const { admin, calls } = scriptedAdmin({
+        save_inspection_with_events: { data: null, error: REFUSED, status: 400 },
+        save_inspection: { data: null, error: null, status: 200 },
+      });
+      const { client } = fakeClient({ data: { data: server, updated_at: V2, status: "draft" }, error: null, status: 200 });
+      expect(
+        await saveInspectionData(
+          client,
+          { inspectionId: ID, data, baseUpdatedAt: V1 },
+          { writer: { admin, actorId: "user-1" }, events: [CODE_LETTER] },
+        ),
+      ).toEqual({ ok: false, reason: "conflict", server: { data: server, updatedAt: V2 } });
+      expect(calls.map(([name]) => name)).toEqual(["save_inspection_with_events", "save_inspection"]);
+    });
+
+    it("keeps the function's other refusals: nothing saved, the data refused", async () => {
+      for (const refused of [
+        { code: "22023", message: "a save records at most 200 events" },
+        { code: "22023", message: "an event records at most 8 kB of changes" },
+        { code: "42501", message: "the account is not active" },
+      ]) {
+        const { admin, calls } = scriptedAdmin({ save_inspection_with_events: { data: null, error: refused, status: 400 } });
+        const { client } = fakeClient();
+        const outcome = await saveInspectionData(
+          client,
+          { inspectionId: ID, data, baseUpdatedAt: V1 },
+          { writer: { admin, actorId: "user-1" }, events: [CODE_LETTER] },
+        );
+        expect(outcome, refused.message).toMatchObject({ ok: false, message: refused.message });
+        expect(calls.map(([name]) => name)).toEqual(["save_inspection_with_events"]);
+      }
+    });
+
     it("keeps calling save_inspection() for a save with no audit rows", async () => {
       const { admin, calls } = scriptedAdmin({ save_inspection: { data: V2, error: null, status: 200 } });
       const { client } = fakeClient();

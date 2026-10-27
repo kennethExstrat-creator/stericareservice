@@ -11,6 +11,7 @@ import { blockedSubmitMessage, neededSectionCount } from "@/lib/inspections/capt
 import { loadCaptureInspection, type CaptureInspection } from "@/lib/inspections/capture/load";
 import { mirroredColumns } from "@/lib/inspections/capture/mirror";
 import { dimensionEvents } from "@/lib/inspections/capture/dimension-events";
+import { samplingEvents } from "@/lib/inspections/capture/sampling-events";
 import {
   switchOffProblem,
   switchOnProblem,
@@ -123,14 +124,15 @@ export async function saveCaptureData(input: unknown): Promise<CaptureSaveOutcom
       data: request.data,
       meta: row.meta,
     });
-    // A Dimension spec set for the inspection or P/F set by hand, changed or given back since the stored data:
-    // audit rows written with the data, in the same transaction (Kenneth, 26 October 2026). From the server's
-    // own read, never from the browser.
-    const events = dimensionEvents(
-      row.data,
-      request.data,
-      evaluation.report.modules.find((module) => module.key === "dimensions"),
-    );
+    // A Sampling Plan code letter reduced, raised or cleared (Kenneth, 27 October 2026), and a Dimension spec
+    // set for the inspection or P/F set by hand, changed or given back (26 October 2026), since the stored data:
+    // audit rows written with the data, in the same transaction. From the server's own read, never from the
+    // browser.
+    const moduleEvaluation = (key: string) => evaluation.report.modules.find((module) => module.key === key);
+    const events = [
+      ...samplingEvents(row.data, request.data, moduleEvaluation("sampling_plan")),
+      ...dimensionEvents(row.data, request.data, moduleEvaluation("dimensions")),
+    ];
     const outcome = await saveInspectionData(supabase, request, {
       columns: () => mirroredColumns(evaluation),
       writer: serverWriter(auth.user.id),

@@ -5,7 +5,9 @@
 // page"): after the Conclusion, never a step. What the inspection's audit
 // log records, newest first: when (Malaysia time), who, and what in plain
 // words (lib/inspections/capture/audit-log.ts). A P/F set by hand is a
-// special action by the inspector, tinted and marked so, with its comment.
+// special action by the inspector, tinted and marked so, with its comment,
+// and so is a size's code letter reduced on the Sampling Plan, with its
+// reason (Kenneth, 27 October 2026).
 // Read-only for everyone. Whatever is waiting is saved first, so a change
 // just made is in the list; Refresh reads it again.
 import { RefreshCwIcon } from "lucide-react";

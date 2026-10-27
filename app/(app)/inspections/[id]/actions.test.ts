@@ -18,11 +18,18 @@ vi.mock("next/navigation", () => ({
   unstable_rethrow: vi.fn(),
 }));
 vi.mock("next/server", () => ({ after: vi.fn() }));
+// The code letter rows run on the data as they are; the test registry's sampling plan holds no letter, so a test
+// answers them to follow them into the save (sampling-events.test.ts reads real letters).
+vi.mock("@/lib/inspections/capture/sampling-events", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/inspections/capture/sampling-events")>();
+  return { ...actual, samplingEvents: vi.fn(actual.samplingEvents) };
+});
 
 import { redirect } from "next/navigation";
 import { after } from "next/server";
 import { authorizeAction } from "@/lib/auth/session";
 import { scheduleAiReviewOnSubmit } from "@/lib/inspections/ai";
+import { CODE_LETTER_CHANGED, samplingEvents } from "@/lib/inspections/capture/sampling-events";
 import { contentHash } from "@/lib/offline/stable-json";
 import type { ResolvedTemplate } from "@/lib/schemas/template";
 import { createAdminClient, isAdminClientConfigured } from "@/lib/supabase/admin";
@@ -284,6 +291,37 @@ describe("saveCaptureData", () => {
     ]);
     // The inspector's own session only read.
     expect(client.queries.filter(isUpdate)).toHaveLength(0);
+  });
+
+  it("writes a code letter changed since the stored data as an audit row with it, through save_inspection_with_events() (Kenneth, 27 October 2026)", async () => {
+    const stored = row({ template: { id: "t1", code: "TEST_EG", version: 1, resolved: makeTestTemplate(TEST_REGISTRY, ["glove_info", "sampling_plan"]) } });
+    useClient(() => ({ data: stored, error: null }));
+    const admin = withSecretKey(() => ({ data: NEXT_VERSION, error: null }));
+    const reduced = {
+      action: CODE_LETTER_CHANGED,
+      changes: { module: "sampling_plan", size: "S", from: "N", to: "M", direction: "reduced", reason: "Audited factory.", glovesFrom: 500, glovesTo: 315 },
+    };
+    vi.mocked(samplingEvents).mockReturnValueOnce([reduced]);
+    await expect(saveCaptureData(request())).resolves.toEqual({
+      ok: true,
+      updatedAt: NEXT_VERSION,
+      state: { status: "draft", overrides: {} },
+    });
+    // From the server's own read of the stored data, the data saved and the sampling plan's evaluation of it.
+    expect(samplingEvents).toHaveBeenCalledWith(stored.data, COMPLETE, expect.objectContaining({ key: "sampling_plan" }));
+    expect(admin.rpcCalls).toEqual([
+      [
+        "save_inspection_with_events",
+        {
+          inspection_id: INSPECTION,
+          actor_id: INSPECTOR,
+          base_updated_at: VERSION,
+          data: COMPLETE,
+          mirrored_columns: expect.objectContaining({ po_no: "PO-0001" }),
+          events: [reduced],
+        },
+      ],
+    ]);
   });
 
   it("reads the inspection's files with it, so the mirrored results count them as the screen does", async () => {

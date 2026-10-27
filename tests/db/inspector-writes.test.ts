@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { refusedEventAction } from "@/lib/offline/supabase-transport";
 import type { Tables } from "@/lib/supabase/database.types";
 import {
   createInspection,
@@ -664,7 +665,8 @@ describe("log_inspection_event() for an inspector", { timeout: 30_000 }, () => {
 /**
  * Migration 20261026130000 (Kenneth, 26 October 2026): a save with audit rows,
  * a Dimension P/F set by hand or a spec changed for the inspection, writes the
- * data and the rows in one transaction, or neither.
+ * data and the rows in one transaction, or neither. Migration 20261027120000
+ * (27 October 2026) adds a Sampling Plan code letter changed.
  */
 describe("save_inspection_with_events()", { timeout: 30_000 }, () => {
   let db: Db;
@@ -684,8 +686,8 @@ describe("save_inspection_with_events()", { timeout: 30_000 }, () => {
   const draftOf = (owner: string) => createInspection(db, owner, templateId, { client_id: POLYCO, manufacturer_id: HARTALEGA });
   const CHANGE = { module: "dimensions", size: "M", column: "width", from: null, to: "fail", calculated: "pass", comment: "Torn cuffs." };
   const SPEC = { module: "dimensions", size: "M", column: "fingerThickness", from: { kind: "tolerance", nominal: 0.18, tolerance: 0.04 }, to: { kind: "na" } };
-  const save = (actorId: string, inspectionId: string, baseUpdatedAt: string, events: unknown, data: unknown = SAVED_DATA) =>
-    asService(db, (tx) =>
+  const saveOn = (on: Db, actorId: string, inspectionId: string, baseUpdatedAt: string, events: unknown, data: unknown = SAVED_DATA) =>
+    asService(on, (tx) =>
       column<string | null>(
         tx,
         `select public.save_inspection_with_events(
@@ -693,6 +695,8 @@ describe("save_inspection_with_events()", { timeout: 30_000 }, () => {
         [inspectionId, actorId, baseUpdatedAt, JSON.stringify(data), JSON.stringify(events)],
       ),
     );
+  const save = (actorId: string, inspectionId: string, baseUpdatedAt: string, events: unknown, data: unknown = SAVED_DATA) =>
+    saveOn(db, actorId, inspectionId, baseUpdatedAt, events, data);
 
   it("saves the data and writes each event as an audit row in the actor's name, in order", async () => {
     const draft = await draftOf(people.inspector);
@@ -735,6 +739,90 @@ describe("save_inspection_with_events()", { timeout: 30_000 }, () => {
     expect((await readInspection(db, draft.id))?.data).toEqual(EMPTY_DATA);
     expect((await auditTrail(db, draft.id)).map((row) => row.action)).toEqual(["created"]);
   });
+
+  const REDUCED = {
+    module: "sampling_plan",
+    size: "S",
+    from: "N",
+    to: "M",
+    direction: "reduced",
+    reason: "Consistent high-quality factory.",
+    glovesFrom: 500,
+    glovesTo: 315,
+  };
+  const SAMPLED = {
+    modules: { sampling_plan: { sizes: { S: { gloves: 315, codeLetter: "M", codeLetterReason: "Consistent high-quality factory." } } } },
+    custom: {},
+  };
+
+  it("takes a code letter changed since migration 20261027120000, written with the data in its transaction, in order", async () => {
+    const draft = await draftOf(people.inspector);
+    const saved = await save(
+      people.inspector,
+      draft.id,
+      draft.updated_at,
+      [
+        { action: "code_letter_changed", changes: REDUCED },
+        { action: "spec_changed", changes: SPEC },
+      ],
+      SAMPLED,
+    );
+    expect(saved[0]).not.toBeNull();
+    expect((await readInspection(db, draft.id))?.data).toEqual(SAMPLED);
+    expect(await auditTrail(db, draft.id)).toEqual([
+      expect.objectContaining({ action: "created" }),
+      { action: "code_letter_changed", actor_id: people.inspector, changes: REDUCED },
+      { action: "spec_changed", actor_id: people.inspector, changes: SPEC },
+    ]);
+
+    // From the version that save replaced: neither the data nor the row.
+    const raised = { ...REDUCED, from: "M", to: "N", direction: "raised", reason: null, glovesFrom: 315, glovesTo: 500 };
+    const stale = await save(people.inspector, draft.id, draft.updated_at, [{ action: "code_letter_changed", changes: raised }], EMPTY_DATA);
+    expect(stale[0]).toBeNull();
+    expect((await readInspection(db, draft.id))?.data).toEqual(SAMPLED);
+    expect((await auditTrail(db, draft.id)).map((row) => row.action)).toEqual(["created", "code_letter_changed", "spec_changed"]);
+  });
+
+  it("still refuses every other action, beside code_letter_changed too, and then writes nothing", async () => {
+    const draft = await draftOf(people.inspector);
+    for (const events of [
+      [{ action: "code_letter_changed", changes: REDUCED }, { action: "status_changed", changes: {} }],
+      [{ action: "code_letter_reduced", changes: REDUCED }],
+      [{ action: "code_letter_changed" }],
+      [{ action: "code_letter_changed", changes: "N to M" }],
+    ]) {
+      expect(await pgError(save(people.inspector, draft.id, draft.updated_at, events, SAMPLED))).toEqual({
+        code: "22023",
+        message: "a save records only pass_fail_changed, spec_changed and code_letter_changed events, each with its changes",
+      });
+    }
+    expect((await readInspection(db, draft.id))?.data).toEqual(EMPTY_DATA);
+    expect((await auditTrail(db, draft.id)).map((row) => row.action)).toEqual(["created"]);
+  });
+
+  it("was refused before migration 20261027120000, writing nothing, as the app's fallback expects (refusedEventAction)", async () => {
+    const earlier = await createTestDb({ until: "20261026130000_save_inspection_with_events.sql" });
+    try {
+      const earlierPeople = await createPeople(earlier);
+      const earlierTemplate = await createTemplate(earlier);
+      const draft = await createInspection(earlier, earlierPeople.inspector, earlierTemplate, {
+        client_id: POLYCO,
+        manufacturer_id: HARTALEGA,
+      });
+      const error = await pgError(
+        saveOn(earlier, earlierPeople.inspector, draft.id, draft.updated_at, [{ action: "code_letter_changed", changes: REDUCED }], SAMPLED),
+      );
+      expect(error).toMatchObject({ code: "22023" });
+      expect(refusedEventAction(error)).toBe(true);
+      expect((await readInspection(earlier, draft.id))?.data).toEqual(EMPTY_DATA);
+      expect((await auditTrail(earlier, draft.id)).map((row) => row.action)).toEqual(["created"]);
+      // Its other refusals are no reason to save without the rows.
+      const tooMany = Array.from({ length: 201 }, () => ({ action: "spec_changed", changes: SPEC }));
+      expect(refusedEventAction(await pgError(saveOn(earlier, earlierPeople.inspector, draft.id, draft.updated_at, tooMany)))).toBe(false);
+    } finally {
+      await earlier.close();
+    }
+  }, 120_000);
 
   it("is for the secret key only: signed-in sessions and anon cannot call it", async () => {
     const draft = await draftOf(people.inspector);

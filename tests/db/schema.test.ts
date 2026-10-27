@@ -117,8 +117,13 @@ describe("schema guards", { timeout: 30_000 }, () => {
   // stand: on a project that has run up to them. 20261006000700 restates
   // rules that a project may already have, and 20261007190000 restates its
   // inspections guard and log_inspection_event(); 20261008140000 restates the
-  // profiles guard of 20261007170000.
-  it.each(["20261006000700_review_fixes.sql", "20261007170000_lead_inspectors.sql"])(
+  // profiles guard of 20261007170000; 20261027120000 restates
+  // save_inspection_with_events() of 20261026130000.
+  it.each([
+    "20261006000700_review_fixes.sql",
+    "20261007170000_lead_inspectors.sql",
+    "20261026130000_save_inspection_with_events.sql",
+  ])(
     "applies %s again where it stands without changing the schema",
     async (name) => {
       const upToIt = await createTestDb({ seed: false, until: name });
@@ -146,8 +151,8 @@ describe("schema guards", { timeout: 30_000 }, () => {
     "20261013120000_ai_usage.sql",
     "20261013130000_steri_ai_summary.sql",
     "20261026120000_source_reading_proposals.sql",
-    "20261026130000_save_inspection_with_events.sql",
     "20261026140000_source_spreadsheets.sql",
+    "20261027120000_code_letter_events.sql",
   ])("applies %s again without changing the schema", async (name) => {
     const before = await schemaSnapshot(db);
     const migration = (await readMigrations()).find((file) => file.name === name);

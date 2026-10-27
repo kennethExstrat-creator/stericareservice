@@ -69,6 +69,7 @@ export async function loadAuditLog(inspectionId: string): Promise<AuditLogResult
         inspectorName: personLabel(inspection.data.inspector) ?? "the inspector",
       },
       moduleTitle: (key) => titles.get(key) ?? humanise(key),
+      sizes: template.success ? template.data.sizes : undefined,
     });
     return { status: "ok", entries };
   } catch (error) {

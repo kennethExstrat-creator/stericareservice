@@ -38,11 +38,28 @@ export interface SaveInspectionOptions<T> {
   /**
    * Audit rows written with the data, in the same transaction, through
    * public.save_inspection_with_events() (migration 20261026130000): a
-   * Dimension P/F set by hand. Worked out by the server action; needs a
-   * `writer`. On a project that has not run the migration the data is saved
-   * as before and the rows are recorded right after it.
+   * Dimension P/F set by hand, a Sampling Plan code letter changed
+   * (code_letter_changed, migration 20261027120000). Worked out by the
+   * server action; needs a `writer`. On a project that has not run the
+   * migration, or whose function does not take an event's action yet
+   * (refusedEventAction), the data is saved as before and the rows are
+   * recorded right after it.
    */
   events?: readonly { action: string; changes: Json }[];
+}
+
+/** How save_inspection_with_events() starts the refusal of an event it does not take. */
+const REFUSED_ACTION = "a save records only ";
+
+/**
+ * save_inspection_with_events() refusing an event for its action (22023, "a
+ * save records only …"): code_letter_changed on a project that has not run
+ * migration 20261027120000. It wrote nothing, so the save goes on as on a
+ * project without the function. Its other refusals stand: more than 200
+ * events, or changes over 8 kB.
+ */
+export function refusedEventAction(error: { code?: string; message: string } | null | undefined): boolean {
+  return error?.code === "22023" && error.message.startsWith(REFUSED_ACTION);
 }
 
 const EDITABLE: ReadonlySet<string> = new Set(["draft", "reopened"]);
@@ -82,8 +99,9 @@ export async function saveInspectionData<T>(
     if (events.length > 0) {
       const call = admin.rpc("save_inspection_with_events", { ...args, events: events as unknown as Json });
       saved = await (signal ? call.abortSignal(signal) : call);
-      // A project that has not run migration 20261026130000: the data as before, then its rows on their own.
-      if (saved.error?.code === "PGRST202") {
+      // A project that has not run migration 20261026130000, or not 20261027120000 for code_letter_changed:
+      // the data as before, then its rows on their own.
+      if (saved.error?.code === "PGRST202" || refusedEventAction(saved.error)) {
         saved = await plainSave();
         if (!saved.error && saved.data) await recordEventsApart(admin, inspectionId, actorId, events);
       }
