@@ -230,7 +230,7 @@ describe("Section 03: the blocks and the pages", () => {
     const weightOnly = dimensionsOf(blocks({ gloveLength: false, palmWidth: false, medianResults: false }));
     expect(weightOnly).toMatchObject({ gloveLength: null, palmWidth: null, medianResults: null, lead: "Weight is recorded for information." });
     expect(layoutOf(weightOnly)).toEqual([["results"]]);
-    // No readings and no weight: the page says "coming next".
+    // No readings and no weight: the page says "nothing entered yet".
     const empty = safedonWith((modules) => {
       modules.dimensions = { sizes: {} };
       modules.weight = { sizes: {} };

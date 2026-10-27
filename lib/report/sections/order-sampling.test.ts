@@ -25,7 +25,7 @@ import {
   type GloveCard,
   type OrderSamplingContent,
 } from "./order-sampling";
-import { layoutOrderSampling, lineStarts, ORDER_SAMPLING_ROOM, stripHeight, textWidth, trackWidth, twoLineWidth, wrappedLines } from "./order-sampling-layout";
+import { captionText, layoutOrderSampling, lineStarts, ORDER_SAMPLING_ROOM, stripHeight, textWidth, trackWidth, twoLineWidth, wrappedLines } from "./order-sampling-layout";
 
 function sectionOf(doc: InspectionExport): OrderSamplingContent {
   const content = buildReportModel(doc).sections.orderSampling;
@@ -378,6 +378,9 @@ describe("the pages", () => {
     // A word wider than the line breaks anywhere and fills the lines it needs.
     expect(wrappedLines("W".repeat(40), 20, { pt: 10 })).toBe(Math.ceil(textWidth("W".repeat(40), { pt: 10 }) / 20));
     expect(twoLineWidth("Watertight & Visual", { pt: 8.5 })).toBeCloseTo(textWidth("Watertight", { pt: 8.5 }), 6);
+    // "&" stays with the word after it: two lines at the narrowest, never "&" alone (Kenneth's screen, 27 October 2026).
+    expect(wrappedLines("Packaging & Dispensing", textWidth("& Dispensing", { pt: 8.5 }), { pt: 8.5 })).toBe(2);
+    expect(captionText("Packaging & Dispensing")).toBe("Packaging &\u00a0Dispensing");
   });
 
   it("keeps the example reports to one page, the five sizes of a large order to two, the strips breaking two and three", () => {

@@ -166,12 +166,12 @@ describe("the pages still to come", () => {
     }
   });
 
-  it("print an entry its builder left empty as its heading, '<title>: coming next' and the parts the options keep", () => {
+  it("print an entry its builder left empty as its heading, '<title>: nothing entered yet' and the parts the options keep", () => {
     const model = buildReportModel(makeStdEgExport());
     const plan = model.plan.map((entry) => (entry.kind === "section" && entry.key === "dimensions" ? { ...entry, pageCount: 1, built: false } : entry));
     const pages = pagesOf(renderToStaticMarkup(<ReportDocument model={{ ...model, plan }} />));
-    const placeholder = pages.find((page) => text(page).includes("Dimensions & Weight: coming next")) ?? "";
-    expect(text(placeholder)).toContain("Section 03 Dimensions & Weight Dimensions & Weight: coming next Glove Length Chart Palm Width Chart Median Results by Size Weight per Glove");
+    const placeholder = pages.find((page) => text(page).includes("Dimensions & Weight: nothing entered yet")) ?? "";
+    expect(text(placeholder)).toContain("Section 03 Dimensions & Weight Dimensions & Weight: nothing entered yet Glove Length Chart Palm Width Chart Median Results by Size Weight per Glove");
   });
 
   it("follow the options at once: a section switched off leaves its page out", () => {

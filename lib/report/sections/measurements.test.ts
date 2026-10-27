@@ -169,7 +169,7 @@ describe("Section 04: Measurements by Glove", () => {
     expect(layoutOf(measurementsOf(withReportOptions(makeSafedonExport(), { pageSize: "letter" })))).toEqual([[["Size XS", "Size S"]], [["Size M", "Size L"]]]);
   });
 
-  it("builds nothing before a glove is measured: the page says coming next", () => {
+  it("builds nothing before a glove is measured: the page says nothing is entered yet", () => {
     const doc = safedonWith((modules) => {
       modules.dimensions = { sizes: {} };
     });

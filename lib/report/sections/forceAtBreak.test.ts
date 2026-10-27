@@ -220,7 +220,7 @@ describe("the blocks switched on", () => {
     expect(tables).toEqual([{ kind: "details" }, { kind: "forceTables", readings: { from: 0, to: 13, median: true }, summary: false, paired: false }]);
   });
 
-  it("print 'coming next' when nothing switched on has anything to show", () => {
+  it("print 'nothing entered yet' when nothing switched on has anything to show", () => {
     const empty = forceExport({ readings: { M: [] }, config: { standardLabel: null } });
     const { entry, content } = sectionOf(withBlocks(empty, { laboratorySummary: false }));
     expect(entry).toMatchObject({ built: false, pageCount: 1 });

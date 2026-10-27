@@ -265,9 +265,9 @@ describe("the options", () => {
     expect(sectionsOf(doc).map((entry) => entry.key)).not.toContain("forceAtBreak");
   });
 
-  it("plan every page, each section 'coming next' until its builder lands, and count them", () => {
+  it("plan every page, each section 'nothing entered yet' while its builder gives nothing, and count them", () => {
     const model = buildReportModel(makeStdEgExport());
-    // A section is built once its builder lands (lib/report/sections); until then it prints "coming next".
+    // A section is built once its builder lands (lib/report/sections); while it gives nothing the page says "nothing entered yet".
     for (const entry of model.plan) {
       if (entry.kind === "summary") continue;
       expect(entry.built, entry.key).toBe(model.sections[entry.key] !== undefined);

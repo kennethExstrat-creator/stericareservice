@@ -24,6 +24,7 @@ import type {
   PackingCard,
   PackingTile,
 } from "@/lib/report/sections/order-sampling";
+import { captionText } from "@/lib/report/sections/order-sampling-layout";
 import { cn } from "@/lib/utils";
 import { ChartKey } from "../chart-parts";
 import { InfoCard, KeyValueGrid } from "../info-card";
@@ -199,7 +200,7 @@ function LotsBlock({ table }: { table: OrderLotsTable }) {
   const columns: ReportColumn[] = [
     { key: "size", label: table.sizeHeader, strong: true, width: width("size") },
     { key: "lot", label: table.lotHeader, width: width("lot") },
-    ...table.columns.map((column): ReportColumn => ({ key: column.id, label: column.label, numeric: true, width: width(column.id) })),
+    ...table.columns.map((column): ReportColumn => ({ key: column.id, label: captionText(column.label), numeric: true, width: width(column.id) })),
   ];
   const groups: ReportColumnGroup[] = [{ span: 2 }, ...table.groups.map((group) => ({ label: group.label, span: group.span }))];
   const rows: ReportRow[] = table.rows.map((row) => ({

@@ -1,8 +1,10 @@
-// A planned page whose section is not built yet (Kenneth, 27 October 2026:
-// the Summary first, the other sections after): its heading as it will
-// print, "<Section title>: coming next", and the parts the options keep, so
-// the page count and the options already read right in the preview. The
-// photo records print one such page each.
+// A planned page whose builder gives nothing: its heading as it prints,
+// "<Section title>: nothing entered yet", and the parts the options keep, so
+// the page count and the options read right in the preview of an inspection
+// still being entered. It began as the "coming next" page of sections not
+// built yet (Kenneth, 27 October 2026); every section has its builder now,
+// so it only stands for data not entered. The photo records print one such
+// page each.
 import type { ReactNode } from "react";
 import { counted } from "@/lib/report/format";
 import type { ReportPhotosPlanEntry, ReportSectionPlanEntry } from "@/lib/report/model";
@@ -11,10 +13,10 @@ import { SectionHeading } from "./section-heading";
 import { TYPE } from "./theme";
 
 export function comingNextText(title: string): string {
-  return `${title}: coming next`;
+  return `${title}: nothing entered yet`;
 }
 
-/** The bodies of an entry not built yet: one for a section, one per photo record. */
+/** The bodies of an entry its builder left empty: one for a section, one per photo record. */
 export function comingNextPages(entry: ReportSectionPlanEntry | ReportPhotosPlanEntry): ReactNode[] {
   if (entry.kind === "section") {
     return [<ComingNextPage key={entry.key} slot={entry.key} kicker={entry.kicker} title={entry.title} parts={entry.blocks.map((block) => block.label)} />];

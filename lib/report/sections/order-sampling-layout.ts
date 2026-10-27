@@ -60,8 +60,17 @@ export function textWidth(text: string, { pt, bold = false, tabular = false }: T
   return (units / 1000) * pt * MM_PER_PT * (bold ? BOLD : 1);
 }
 
+/** A caption as the page prints it: "&" kept with the word after it, never alone on a line ("Packaging" over "& Dispensing"). */
+export function captionText(label: string): string {
+  return label.replace(/ & /g, " &\u00a0");
+}
+
+/** The words a line may break between: spaces, but not the one after "&" (captionText). */
 function wordsOf(text: string): string[] {
-  return text.split(/\s+/).filter((word) => word !== "");
+  return text
+    .split(/\s+/)
+    .filter((word) => word !== "")
+    .reduce<string[]>((words, word) => (words.at(-1) === "&" ? [...words.slice(0, -1), `& ${word}`] : [...words, word]), []);
 }
 
 /**

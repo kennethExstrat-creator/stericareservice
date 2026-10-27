@@ -2,7 +2,7 @@
 // file of its own in this folder (docs/REPORT.md, "Adding a section"). A
 // section's builder turns the export and its plan entry (its blocks switched
 // on, its modules, its number and title) into its slot's content
-// (ReportSections in ../model.ts), or null to print "coming next"; its pages
+// (ReportSections in ../model.ts), or null to print "nothing entered yet"; its pages
 // are drawn by components/report/sections. To add a section: write
 // lib/report/sections/<key>.ts exporting `defineSection({ key, build })`,
 // widen its content type in ../model.ts, and add one line to the list
@@ -23,7 +23,7 @@ import { holesVisual } from "./holes-visual";
 
 export type SectionBuilder<K extends ReportSlotKey> = {
   key: K;
-  /** The slot's content from the export, for its plan entry; null to print "coming next". */
+  /** The slot's content from the export, for its plan entry; null to print "nothing entered yet". */
   build: (doc: InspectionExport, entry: ReportPlanEntryFor<K>) => NonNullable<ReportSections[K]> | null;
 };
 

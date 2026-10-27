@@ -221,7 +221,7 @@ describe("the preview: the report's own pages", () => {
     pages.forEach((markup, index) => expect(markup).toContain(`Page ${index + 1} of 8</p>`));
     expect(pages[0]).toContain('data-slot="report-conclusion" data-status="pass"');
     expect(pages[2]).toContain("Dimensions &amp; Weight");
-    expect(html).not.toContain("coming next");
+    expect(html).not.toContain("nothing entered yet");
     expect(html).toContain(PREVIEW_CAPTION);
   });
 

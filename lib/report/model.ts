@@ -598,9 +598,9 @@ export type ReportSectionPlanEntry<K extends ReportSectionKey = ReportSectionKey
   blocks: { key: ReportBlockKey<K>; label: string }[];
   /** The section's modules the inspection includes, in report order. */
   moduleKeys: ModuleKey[];
-  /** Its content's page count once built; 1 ("coming next") until then. */
+  /** Its content's page count once built; 1 ("nothing entered yet") until then. */
   pageCount: number;
-  /** False until the section's builder fills its slot: the page then says "coming next". */
+  /** False while the section's builder gives nothing: the page then says "nothing entered yet". */
   built: boolean;
 };
 
@@ -934,7 +934,7 @@ export function sectionTitle(key: ReportSectionKey, moduleKeys: readonly ModuleK
  * records. Each entry is planned first, then its builder (SECTION_BUILDERS,
  * lib/report/sections) fills its slot from the export and the entry, and
  * the entry takes the content's page count; an entry with no builder, or
- * whose builder gives nothing, prints "coming next" (a page per section, a
+ * whose builder gives nothing, prints "nothing entered yet" (a page per section, a
  * page per photo record).
  */
 function planOf(doc: InspectionExport, summary: SummaryModel): { plan: ReportPlanEntry[]; sections: ReportSections } {

@@ -3,7 +3,7 @@
 // document (docs/REPORT.md). Given the report's model it draws the report in
 // the plan's order: the Summary first, then each section and the photo
 // records through their pages in SECTION_PAGES (components/report/sections)
-// once built, "coming next" until then. Given a paper, a chrome and page
+// once built, "nothing entered yet" while their builder gives nothing. Given a paper, a chrome and page
 // bodies it draws any other document on the same frame, the sampling plan
 // sent to manufacturers among them (A4 landscape). Pure markup with no
 // hooks: the print route renders it on the server at true size, and the

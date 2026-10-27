@@ -4,7 +4,7 @@
 // body per page, as many as the content's pageCount; ReportDocument puts
 // each in its frame, with the chrome and "Page X of N" across the report,
 // in the plan's order (the Summary first). A planned section with no entry
-// here prints "coming next". To add a section's pages: write
+// here prints "nothing entered yet". To add a section's pages: write
 // components/report/sections/<key>.tsx exporting `defineSectionPages({ key,
 // Pages })` and add one line to the list below. The keys are the report
 // options' section keys, and "photos".

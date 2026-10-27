@@ -30,7 +30,7 @@ const DEFAULT_LEAD =
   "Inner boxes opened to check glove layering and how cleanly gloves dispense. Minimum 70% layering and 80% dispensing; stickiness grades A to C pass, D fails.";
 
 describe("which inspections it builds for", () => {
-  it("builds from the packing check, and leaves an inspection without one 'coming next' (SAFEDON_EG's Safedon dispensing)", () => {
+  it("builds from the packing check, and leaves an inspection without one 'nothing entered yet' (SAFEDON_EG's Safedon dispensing)", () => {
     expect(packingOf(makeStdEgExport()).entry).toMatchObject({ kicker: "Section 07", title: "Glove Packing & Dispensing", built: true, pageCount: 1 });
     const safedon = packingOf(makeSafedonExport());
     expect(safedon.entry).toMatchObject({ title: "Glove Dispensing", built: false, pageCount: 1 });
@@ -48,7 +48,7 @@ describe("which inspections it builds for", () => {
     const boxes = only({ averageLayeringDispensing: false, perBoxResults: true, agedGloves: true, stickinessGrades: false });
     expect(boxes).toMatchObject({ chart: null, aged: null, grades: null });
     expect(boxes.pages).toEqual([{ parts: [{ kind: "perBox", from: 0, to: 13 }] }]);
-    // The aged gloves alone, with no aged sample entered: nothing to show, so "coming next".
+    // The aged gloves alone, with no aged sample entered: nothing to show, so "nothing entered yet".
     const nothing = withReportOptions(doc, {
       sections: { ...doc.report.sections, packing: { include: true, blocks: { averageLayeringDispensing: false, perBoxResults: false, agedGloves: true, stickinessGrades: false } } },
     });
