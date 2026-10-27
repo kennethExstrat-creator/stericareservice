@@ -114,11 +114,12 @@ describe("labeling capture", () => {
   it("shows the live total and the Accept 0 / Reject 1 decision from calc, in the template's words", () => {
     const html = render(RECORDED);
     expect(html).toContain("Accept 0 / Reject 1");
-    expect(html).not.toContain("Ac 0 / Re 1");
+    // On one line (Kenneth, 27 October 2026): Ac / Re only where a frame is too narrow for the template's words.
+    expect(html).toContain('class="whitespace-nowrap hidden @max-md:inline">Ac 0 / Re 1</span>');
     // A template that words them its own way, keyed level first as the dictionary keys level
     // wording: SAFEDON_EG prints both levels Acc. = 0 / Rej. = 1; one level may differ.
     const safedon = render(RECORDED, { labels: SAFEDON_LABELS });
-    expect(safedon.match(/Acc\. = 0 \/ Rej\. = 1/g)).toHaveLength(2);
+    expect(safedon.match(/<span class="sr-only">Acc\. = 0 \/ Rej\. = 1<\/span>/g)).toHaveLength(2);
     expect(safedon).not.toContain("Accept 0 / Reject 1");
     const worded = render(RECORDED, { labels: { ...LABELING_LABELS, innerAccept: "Acc. =", cartonReject: "Rej. =" } });
     expect(worded).toContain("Acc. = 0 / Reject 1");
@@ -127,7 +128,7 @@ describe("labeling capture", () => {
     // share, or a dotted key added in the editor; a blank level word falls back the same way.
     const older = Object.fromEntries(Object.entries(LABELING_LABELS).filter(([key]) => !/^(inner|carton)(Accept|Reject)$/.test(key)));
     const shared = render(RECORDED, { labels: { ...older, accept: "Acc. =" } });
-    expect(shared.match(/Acc\. = 0 \/ Reject 1/g)).toHaveLength(2);
+    expect(shared.match(/<span class="sr-only">Acc\. = 0 \/ Reject 1<\/span>/g)).toHaveLength(2);
     const dotted = render(RECORDED, { labels: { ...older, "inner.accept": "A =" } });
     expect(dotted).toContain("A = 0 / Reject 1");
     expect(dotted).toContain("Accept 0 / Reject 1");
