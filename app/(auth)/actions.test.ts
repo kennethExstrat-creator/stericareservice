@@ -494,7 +494,7 @@ describe("createAccount", () => {
     const url = await redirectOf(createAccount(INITIAL_CREATE_ACCOUNT_STATE, form(details)));
 
     expect(url).toBe("/inspections");
-    expect(mocks.authorizeAction).toHaveBeenCalledWith();
+    expect(mocks.authorizeAction).toHaveBeenCalledWith(undefined, { allowUnjoined: true });
     expect(supabase.auth.updateUser).toHaveBeenCalledWith({ password: PASSWORD });
     // On one line each, as the admin's dialogs save them.
     expect(supabase.rpc).toHaveBeenCalledWith("complete_account", { p_full_name: "Nora New", p_phone: "+60 12-345 6789" });

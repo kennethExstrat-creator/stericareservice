@@ -341,7 +341,8 @@ export async function createAccount(previous: CreateAccountState, formData: Form
     ...reply,
   });
 
-  const auth = await authorizeAction();
+  // The one action someone who has not joined yet may call.
+  const auth = await authorizeAction(undefined, { allowUnjoined: true });
   if (!auth.ok) {
     // As updatePassword: look again to tell an expired link from a blocked account.
     const session = await getSession();

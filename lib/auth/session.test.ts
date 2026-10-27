@@ -23,7 +23,7 @@ vi.mock("next/navigation", () => ({
 }));
 
 import { createClient } from "@/lib/supabase/server";
-import { authorizeAction, DEACTIVATED_PATH, getSession, grantOf, hasJoined, requirePermission, requireUser, userCan } from "./session";
+import { authorizeAction, CREATE_ACCOUNT_FIRST, DEACTIVATED_PATH, getSession, grantOf, hasJoined, requirePermission, requireUser, userCan } from "./session";
 
 const USER = "7c2d4e1a-0b3f-4a5c-9d8e-1f2a3b4c5d6e";
 const LEAD = "0a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d";
@@ -234,5 +234,15 @@ describe("the role", () => {
       error: "You do not have permission to do that.",
     });
     expect(await authorizeAction({ permission: "clients" })).toMatchObject({ ok: true });
+  });
+});
+
+describe("authorizeAction and joining", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("refuses every action but Create Account to someone who has not joined yet", async () => {
+    vi.mocked(createClient).mockResolvedValue(client(INSPECTOR, [{ data: { ...IVAN, joined_at: null }, error: null }]) as never);
+    expect(await authorizeAction()).toEqual({ ok: false, error: CREATE_ACCOUNT_FIRST });
+    expect(await authorizeAction(undefined, { allowUnjoined: true })).toMatchObject({ ok: true });
   });
 });

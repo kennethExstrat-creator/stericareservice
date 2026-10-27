@@ -218,16 +218,26 @@ export type ActionAuth =
   | { ok: true; user: SessionUser }
   | { ok: false; error: string };
 
+/** What an action answers someone invited who has not created their account yet. */
+export const CREATE_ACCOUNT_FIRST = "Create your account first: finish the Account Creation page.";
+
 /**
  * For Server Actions, which are public HTTP endpoints: returns an error result
  * instead of redirecting, so the form can show it. `need` is a role level
  * ("admin": every inspection in sight) or a permission of the caller's role.
+ * Someone invited who has not created their account yet may call no action
+ * but Create Account itself (`allowUnjoined`), as requireUser() lets them open
+ * no page but /create-account.
  */
-export async function authorizeAction(need?: UserRole | { permission: Permission | AdminOnly }): Promise<ActionAuth> {
+export async function authorizeAction(
+  need?: UserRole | { permission: Permission | AdminOnly },
+  { allowUnjoined = false }: { allowUnjoined?: boolean } = {},
+): Promise<ActionAuth> {
   const session = await getSession();
   if (session.status === "unconfigured") return { ok: false, error: "Supabase is not configured yet." };
   if (session.status === "signed-out") return { ok: false, error: "Your session has ended. Sign in again." };
   if (session.status === "deactivated") return { ok: false, error: "This account has been deactivated." };
+  if (!allowUnjoined && !hasJoined(session.user)) return { ok: false, error: CREATE_ACCOUNT_FIRST };
   const allowed =
     need === undefined ||
     (typeof need === "string" ? session.user.role === need : userCan(session.user, need.permission));
