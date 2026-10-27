@@ -1,13 +1,17 @@
 import { describe, expect, it } from "vitest";
 import { DEFECTS_PATH } from "@/lib/admin/defects";
 import { lowerCaseWords } from "@/lib/design/capitalisation";
+import { can, type RoleGrant } from "@/lib/auth/permissions";
 import {
   activeSection,
   ariaCurrentFor,
+  firstAdminHref,
   hiddenSectionPaths,
+  hiddenSectionPathsFor,
   isHiddenFromRole,
   isNavLinkActive,
   NAV,
+  navFor,
   navForRole,
   navLinks,
   normalizePath,
@@ -299,5 +303,42 @@ describe("the current entry", () => {
         expect(navLinks(nav).filter((link) => isNavLinkActive(link, pathname)).length).toBeLessThanOrEqual(1);
       }
     }
+  });
+});
+
+describe("navFor: the role's switches", () => {
+  const allows = (grant: RoleGrant) => (permission: Parameters<typeof can>[1]) => can(grant, permission);
+  const ADMIN: RoleGrant = { builtIn: "admin", access: "all", permissions: [] };
+  const INSPECTOR: RoleGrant = { builtIn: "inspector", access: "own", permissions: ["create_inspections"] };
+  const CLIENTS_DESK: RoleGrant = { builtIn: null, access: "own", permissions: ["clients", "defects"] };
+  const VIEWER: RoleGrant = { builtIn: null, access: "all", permissions: [] };
+
+  it("gives the Admin role every admin screen, Users and Roles & Permissions included", () => {
+    const admin = navFor("admin", allows(ADMIN)).find((section) => section.key === "admin");
+    expect(admin?.entries.map((entry) => entry.key)).toEqual([
+      "dashboard",
+      "users",
+      "roles",
+      "manufacturers",
+      "clients",
+      "defects",
+      "settings",
+      "ai",
+    ]);
+  });
+
+  it("shows a role the admin screens it switches on, whatever its level", () => {
+    const nav = navFor("inspector", allows(CLIENTS_DESK));
+    expect(nav.map((section) => section.key)).toEqual(["work", "admin"]);
+    expect(nav[1].entries.map((entry) => entry.key)).toEqual(["clients", "defects"]);
+    expect(hiddenSectionPathsFor("inspector", allows(CLIENTS_DESK))).toEqual([]);
+    expect(firstAdminHref("inspector", allows(CLIENTS_DESK))).toBe("/admin/clients");
+  });
+
+  it("hides the admin section from a role that opens none of it, even one that sees every inspection", () => {
+    expect(navFor("inspector", allows(INSPECTOR)).map((section) => section.key)).toEqual(["work"]);
+    expect(hiddenSectionPathsFor("inspector", allows(INSPECTOR))).toEqual(["/admin"]);
+    expect(navFor("admin", allows(VIEWER)).map((section) => section.key)).toEqual(["work"]);
+    expect(firstAdminHref("admin", allows(VIEWER))).toBeNull();
   });
 });

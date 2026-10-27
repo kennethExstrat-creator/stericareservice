@@ -56,7 +56,7 @@ describe("the admin check", () => {
     for (const call of [saveApiKey, removeSavedApiKey, saveInspectionSettings, saveAiPrices, loadAiEnv, testClaudeConnection]) {
       expect(call).not.toHaveBeenCalled();
     }
-    expect(vi.mocked(authorizeAction).mock.calls.every(([role]) => role === "admin")).toBe(true);
+    expect(vi.mocked(authorizeAction).mock.calls.every(([need]) => JSON.stringify(need) === JSON.stringify({ permission: "ai_settings" }))).toBe(true);
   });
 });
 
@@ -173,7 +173,7 @@ describe("testAiConnectionAction", () => {
 describe("saveAiPricesAction", () => {
   it("saves the list as the admin and refreshes the pages", async () => {
     expect(await saveAiPricesAction(LIST)).toEqual({ ok: true, message: "Prices saved. New calls use them." });
-    expect(authorizeAction).toHaveBeenCalledWith("admin");
+    expect(authorizeAction).toHaveBeenCalledWith({ permission: "ai_settings" });
     expect(saveAiPrices).toHaveBeenCalledWith(LIST, ADMIN.id);
     expect(vi.mocked(authorizeAction).mock.invocationCallOrder[0]).toBeLessThan(vi.mocked(saveAiPrices).mock.invocationCallOrder[0]);
     expect(vi.mocked(revalidatePath).mock.calls).toEqual([["/admin/ai"]]);

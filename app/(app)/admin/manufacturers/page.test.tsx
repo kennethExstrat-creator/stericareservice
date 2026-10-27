@@ -5,7 +5,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { ManufacturerItem } from "@/lib/admin/reference";
 
-vi.mock("@/lib/auth/session", () => ({ requireAdmin: vi.fn() }));
+vi.mock("@/lib/auth/session", () => ({ requirePermission: vi.fn() }));
 vi.mock("@/lib/supabase/server", () => ({ createClient: vi.fn() }));
 vi.mock("@/lib/admin/reference", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/admin/reference")>()),
@@ -14,7 +14,7 @@ vi.mock("@/lib/admin/reference", async (importOriginal) => ({
 vi.mock("./actions", () => ({ saveManufacturer: vi.fn(), deleteManufacturer: vi.fn() }));
 
 import { loadManufacturers } from "@/lib/admin/reference";
-import { requireAdmin } from "@/lib/auth/session";
+import { requirePermission } from "@/lib/auth/session";
 import { createClient } from "@/lib/supabase/server";
 import ManufacturersPage, { generateMetadata } from "./page";
 
@@ -51,8 +51,8 @@ describe("/admin/manufacturers", () => {
 
   beforeEach(() => {
     order.length = 0;
-    vi.mocked(requireAdmin).mockImplementation(async () => {
-      order.push("requireAdmin");
+    vi.mocked(requirePermission).mockImplementation(async () => {
+      order.push("requirePermission");
       return { id: "admin-id", email: "admin@test.local", fullName: "Test Admin", role: "admin" };
     });
     vi.mocked(createClient).mockImplementation(async () => {
@@ -63,11 +63,11 @@ describe("/admin/manufacturers", () => {
 
   it("checks for an admin before it reads anything", async () => {
     await render([hartalega]);
-    expect(order).toEqual(["requireAdmin", "createClient"]);
+    expect(order).toEqual(["requirePermission", "createClient"]);
   });
 
   it("stops at the role check: inspectors get the 404 it throws", async () => {
-    vi.mocked(requireAdmin).mockRejectedValue(new Error("NEXT_HTTP_ERROR_FALLBACK;404"));
+    vi.mocked(requirePermission).mockRejectedValue(new Error("NEXT_HTTP_ERROR_FALLBACK;404"));
     await expect(render([hartalega])).rejects.toThrow("NEXT_HTTP_ERROR_FALLBACK;404");
     expect(loadManufacturers).not.toHaveBeenCalled();
     await expect(generateMetadata()).rejects.toThrow("NEXT_HTTP_ERROR_FALLBACK;404");
@@ -75,7 +75,7 @@ describe("/admin/manufacturers", () => {
 
   it("names the page only for admins", async () => {
     await expect(generateMetadata()).resolves.toEqual({ title: "Manufacturers" });
-    expect(requireAdmin).toHaveBeenCalled();
+    expect(requirePermission).toHaveBeenCalled();
   });
 
   it("lists the manufacturers with their factory, country and usage", async () => {

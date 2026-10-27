@@ -38,7 +38,7 @@ function fieldErrorsOf(issues: readonly z.core.$ZodIssue[]): Record<string, stri
  * inspection events only); only the last save is kept.
  */
 export async function saveSummarySettingsAction(input: unknown): Promise<SummarySettingsSave> {
-  const auth = await authorizeAction("admin");
+  const auth = await authorizeAction({ permission: "ai_settings" });
   if (!auth.ok) return { ok: false, message: auth.error };
   const parsed = SummarySettingsInputSchema.safeParse(input);
   if (!parsed.success) return { ok: false, message: "Check the highlighted fields.", fieldErrors: fieldErrorsOf(parsed.error.issues) };
@@ -56,7 +56,7 @@ export async function saveSummarySettingsAction(input: unknown): Promise<Summary
  */
 export async function previewSummaryAction(input: unknown): Promise<SummaryPreviewResult> {
   try {
-    const auth = await authorizeAction("admin");
+    const auth = await authorizeAction({ permission: "ai_settings" });
     if (!auth.ok) return { ok: false, reason: "forbidden", message: auth.error };
     const parsed = SummaryPreviewInputSchema.safeParse(input);
     if (!parsed.success) {

@@ -351,7 +351,7 @@ export async function createAccount(previous: CreateAccountState, formData: Form
   }
 
   // Created already (a second tab, the back button): nothing changes; on to their dashboard.
-  if (hasJoined(auth.user)) redirect(dashboardPathFor(auth.user.role));
+  if (hasJoined(auth.user)) redirect(dashboardPathFor(auth.user));
 
   // Only from an invitation (or reset) link opened in the last hour, as
   // updatePassword. refresh() re-renders the page, which then says to ask for
@@ -397,7 +397,7 @@ export async function createAccount(previous: CreateAccountState, formData: Form
 
   // As after sign-in: a shared iPad may have cached another inspector's pages.
   revalidatePath("/", "layout");
-  redirect(dashboardPathFor(auth.user.role));
+  redirect(dashboardPathFor(auth.user));
 }
 
 /**

@@ -30,7 +30,7 @@ export const MAIN_CONTENT_ID = "main-content";
 
 type AppShellProps = {
   user: ShellUser;
-  /** Already filtered for the user's role (navForRole). */
+  /** Already filtered for the user's role (navFor: its level and its switches). */
   nav: readonly NavSection[];
   children: ReactNode;
 };

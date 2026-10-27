@@ -43,7 +43,7 @@ function text(formData: FormData, name: string): string {
 
 /** General's Save Key: the key alone, so the models in use are never written with it. */
 export async function saveApiKeyAction(_previous: ApiKeyState, formData: FormData): Promise<ApiKeyState> {
-  const auth = await authorizeAction("admin");
+  const auth = await authorizeAction({ permission: "ai_settings" });
   if (!auth.ok) return { status: "error", message: auth.error };
   const parsed = ApiKeyInputSchema.safeParse({ apiKey: text(formData, "apiKey") });
   if (!parsed.success) {
@@ -57,7 +57,7 @@ export async function saveApiKeyAction(_previous: ApiKeyState, formData: FormDat
 }
 
 export async function removeAiKeyAction(): Promise<ApiKeyState> {
-  const auth = await authorizeAction("admin");
+  const auth = await authorizeAction({ permission: "ai_settings" });
   if (!auth.ok) return { status: "error", message: auth.error };
   const result = await removeSavedApiKey(auth.user.id);
   if (!result.ok) return { status: "error", message: result.message };
@@ -70,7 +70,7 @@ export async function saveInspectionSettingsAction(
   _previous: InspectionSettingsState,
   formData: FormData,
 ): Promise<InspectionSettingsState> {
-  const auth = await authorizeAction("admin");
+  const auth = await authorizeAction({ permission: "ai_settings" });
   if (!auth.ok) return { status: "error", message: auth.error };
   const parsed = InspectionSettingsInputSchema.safeParse({
     documentModel: text(formData, "documentModel"),
@@ -98,7 +98,7 @@ export async function saveInspectionSettingsAction(
  * and nothing is billed.
  */
 export async function testAiConnectionAction(formData: FormData): Promise<ConnectionTest> {
-  const auth = await authorizeAction("admin");
+  const auth = await authorizeAction({ permission: "ai_settings" });
   if (!auth.ok) return { ok: false, message: auth.error };
   const typed = text(formData, "apiKey");
   let typedKey: string | undefined;
@@ -129,7 +129,7 @@ export type PriceListSave = { ok: boolean; message: string };
  * every Steri-AI setting: audit_log holds inspection events only.
  */
 export async function saveAiPricesAction(list: AiPriceList): Promise<PriceListSave> {
-  const auth = await authorizeAction("admin");
+  const auth = await authorizeAction({ permission: "ai_settings" });
   if (!auth.ok) return { ok: false, message: auth.error };
   const parsed = AiPriceListSchema.safeParse(list);
   if (!parsed.success) return { ok: false, message: priceListMessage(parsed.error.issues) };

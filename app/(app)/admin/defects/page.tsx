@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { addPrefill, buildCodeItems, defectsCounts, loadDefectsData } from "@/lib/admin/defects";
 import { loadGlossaryState } from "@/lib/ai/settings";
-import { requireAdmin } from "@/lib/auth/session";
+import { requirePermission } from "@/lib/auth/session";
 import { createClient } from "@/lib/supabase/server";
 import { MODULE_REGISTRY } from "@/modules/registry";
 import { DefectCodesAdmin } from "./_components/codes-admin";
@@ -12,7 +12,7 @@ import { DefectCodesAdmin } from "./_components/codes-admin";
  * is cached per request, so this adds no query.
  */
 export async function generateMetadata(): Promise<Metadata> {
-  await requireAdmin();
+  await requirePermission("defects");
   return { title: "Defect Codes" };
 }
 
@@ -24,12 +24,13 @@ export async function generateMetadata(): Promise<Metadata> {
  * one-off labels inspectors added (unmapped/) and what inspectors write on
  * paper (shortforms/).
  *
- * Inspectors get a 404 from requireAdmin(); a layout is not a security
- * boundary, so the page checks for itself, and RLS lets only admins write.
+ * Someone whose role has no Defects switch gets a 404 from
+ * requirePermission(); a layout is not a security boundary, so the page
+ * checks for itself, and the database lets only such a role write.
  * No outer padding or width: the app shell's main area provides both.
  */
 export default async function DefectCodesPage({ searchParams }: PageProps<"/admin/defects">) {
-  await requireAdmin();
+  await requirePermission("defects");
   const supabase = await createClient();
   const [data, glossary, params] = await Promise.all([
     loadDefectsData(supabase, MODULE_REGISTRY),

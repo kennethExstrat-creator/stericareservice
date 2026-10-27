@@ -46,7 +46,7 @@ export default async function CreateAccountPage() {
   if (session.status === "deactivated") redirect(DEACTIVATED_PATH);
 
   const { user } = session;
-  if (hasJoined(user)) redirect(dashboardPathFor(user.role));
+  if (hasJoined(user)) redirect(dashboardPathFor(user));
   if (!(await sessionStartedByRecentLink())) return <AskForNewInvitation />;
 
   const role = await chosenRole(user);

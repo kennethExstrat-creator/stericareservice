@@ -8,7 +8,7 @@ import type { DefectsData, InspectionQueryRow, TemplateRecord } from "@/lib/admi
 import type { GlossaryState } from "@/lib/ai/settings";
 import type { GlossaryEntry } from "@/lib/schemas/ai-settings";
 
-vi.mock("@/lib/auth/session", () => ({ requireAdmin: vi.fn() }));
+vi.mock("@/lib/auth/session", () => ({ requirePermission: vi.fn() }));
 vi.mock("@/lib/supabase/server", () => ({ createClient: vi.fn().mockResolvedValue({}) }));
 vi.mock("@/lib/admin/defects", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/admin/defects")>()),
@@ -27,7 +27,7 @@ vi.mock("./actions", () => ({
 import { z } from "zod";
 import { buildInspectionLabels, loadDefectsData, templateLabels } from "@/lib/admin/defects";
 import { loadGlossaryState } from "@/lib/ai/settings";
-import { requireAdmin } from "@/lib/auth/session";
+import { requirePermission } from "@/lib/auth/session";
 import type { ModuleRegistry } from "@/modules/_framework/contract";
 import { MODULE_REGISTRY } from "@/modules/registry";
 import LabelMappingPage, { generateMetadata as labelsMetadata } from "./labels/page";
@@ -179,7 +179,7 @@ function rowOf(html: string, attribute: string): string {
 
 beforeEach(() => {
   vi.clearAllMocks();
-  vi.mocked(requireAdmin).mockResolvedValue(ADMIN);
+  vi.mocked(requirePermission).mockResolvedValue(ADMIN);
   vi.mocked(loadDefectsData).mockResolvedValue(data());
   vi.mocked(loadGlossaryState).mockResolvedValue(glossary());
 });
@@ -194,10 +194,10 @@ describe("the titles", () => {
     ["Shortforms", shortformsMetadata],
   ])("names %s only for an admin", async (title, generate) => {
     expect(await generate()).toEqual({ title });
-    expect(requireAdmin).toHaveBeenCalledOnce();
+    expect(requirePermission).toHaveBeenCalledOnce();
 
     // Next resolves metadata apart from the page: a static title would still name it on an inspector's 404.
-    vi.mocked(requireAdmin).mockRejectedValue(notFound);
+    vi.mocked(requirePermission).mockRejectedValue(notFound);
     await expect(generate()).rejects.toBe(notFound);
   });
 
@@ -207,7 +207,7 @@ describe("the titles", () => {
     ["unmapped", () => UnmappedLabelsPage()],
     ["shortforms", () => ShortformsPage(props())],
   ])("the %s tab checks for an admin before loading anything", async (_tab, run) => {
-    vi.mocked(requireAdmin).mockRejectedValue(notFound);
+    vi.mocked(requirePermission).mockRejectedValue(notFound);
     await expect(run()).rejects.toBe(notFound);
     expect(loadDefectsData).not.toHaveBeenCalled();
     expect(loadGlossaryState).not.toHaveBeenCalled();

@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { loadManufacturers } from "@/lib/admin/reference";
-import { requireAdmin } from "@/lib/auth/session";
+import { requirePermission } from "@/lib/auth/session";
 import { createClient } from "@/lib/supabase/server";
 import { ManufacturersAdmin } from "./_components/manufacturers-admin";
 
@@ -10,20 +10,21 @@ import { ManufacturersAdmin } from "./_components/manufacturers-admin";
  * is cached per request, so this adds no query.
  */
 export async function generateMetadata(): Promise<Metadata> {
-  await requireAdmin();
+  await requirePermission("manufacturers");
   return { title: "Manufacturers" };
 }
 
 /**
  * /admin/manufacturers (BUILD_SPEC 3, 5 and 10): the factories inspections
- * and templates refer to. Inspectors get a 404 from requireAdmin(); a layout
- * is not a security boundary, so the page checks for itself, and RLS lets
- * only admins write.
+ * and templates refer to. Someone whose role has no Manufacturers switch
+ * gets a 404 from requirePermission(); a layout is not a security boundary,
+ * so the page checks for itself, and the database lets only such a role
+ * write (has_permission).
  *
  * No outer padding or width: the app shell's main area provides both.
  */
 export default async function ManufacturersPage({ searchParams }: PageProps<"/admin/manufacturers">) {
-  await requireAdmin();
+  await requirePermission("manufacturers");
   const supabase = await createClient();
   const [manufacturers, { q }] = await Promise.all([loadManufacturers(supabase), searchParams]);
 

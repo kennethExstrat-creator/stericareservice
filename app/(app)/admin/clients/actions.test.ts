@@ -133,7 +133,7 @@ describe("saveClient", () => {
   it("needs an active admin before it reads anything", async () => {
     vi.mocked(authorizeAction).mockResolvedValue({ ok: false, error: "This account has been deactivated." });
     const result = await saveClient(IDLE, form({ id: "", version: "", name: "Polyco", notes: "" }));
-    expect(authorizeAction).toHaveBeenCalledWith("admin");
+    expect(authorizeAction).toHaveBeenCalledWith({ permission: "clients" });
     expect(result).toEqual({ status: "error", message: "This account has been deactivated." });
     expect(queries).toEqual([]);
   });
@@ -203,7 +203,7 @@ describe("deleteClient", () => {
   it("needs an active admin before it reads or deletes anything", async () => {
     vi.mocked(authorizeAction).mockResolvedValue({ ok: false, error: "You do not have permission to do that." });
     const result = await deleteClient(IDLE, form({ id: CLIENT }));
-    expect(authorizeAction).toHaveBeenCalledWith("admin");
+    expect(authorizeAction).toHaveBeenCalledWith({ permission: "clients" });
     expect(result).toEqual({ status: "error", message: "You do not have permission to do that." });
     expect(createClient).not.toHaveBeenCalled();
     expect(queries).toEqual([]);
@@ -287,7 +287,7 @@ describe("confirmLogoUpload", () => {
   it("needs an active admin before it reads, points or removes anything", async () => {
     vi.mocked(authorizeAction).mockResolvedValue({ ok: false, error: "You do not have permission to do that." });
     const result = await confirmLogoUpload({ clientId: CLIENT, path: NEW_LOGO });
-    expect(authorizeAction).toHaveBeenCalledWith("admin");
+    expect(authorizeAction).toHaveBeenCalledWith({ permission: "clients" });
     expect(result).toEqual({ status: "error", message: "You do not have permission to do that." });
     // Not even for a client that has gone, whose whole logo folder it would otherwise remove.
     expect(createClient).not.toHaveBeenCalled();

@@ -14,7 +14,7 @@ import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/
 import { loadAiCostReport, type CostReportResult } from "@/lib/ai/cost-report";
 import { latestBnmRate, pickMyrRate } from "@/lib/ai/myr-rate";
 import { loadAiPrices } from "@/lib/ai/settings";
-import { requireAdmin } from "@/lib/auth/session";
+import { requirePermission } from "@/lib/auth/session";
 import { todayInMalaysia } from "@/lib/inspections/create";
 import { formatInspectionDate } from "@/lib/inspections/format";
 import type { AiPriceList } from "@/lib/schemas/ai-prices";
@@ -78,7 +78,7 @@ async function loadReport(period: CostPeriod): Promise<CostReportResult> {
 
 export async function CostView({ period, currency }: { period: CostPeriod; currency: CostCurrency }) {
   // The page has checked already; the check is cached for the request.
-  await requireAdmin();
+  await requirePermission("ai_settings");
   // BNM's rate never throws; Next's cache answers, and BNM is asked about once a day (lib/ai/myr-rate.ts).
   const [prices, result, bnmRate] = await Promise.all([loadAiPrices(), loadReport(period), latestBnmRate()]);
   return (

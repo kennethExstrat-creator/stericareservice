@@ -5,7 +5,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { ClientItem } from "@/lib/admin/reference";
 
-vi.mock("@/lib/auth/session", () => ({ requireAdmin: vi.fn() }));
+vi.mock("@/lib/auth/session", () => ({ requirePermission: vi.fn() }));
 vi.mock("@/lib/supabase/server", () => ({ createClient: vi.fn() }));
 vi.mock("@/lib/admin/reference", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/admin/reference")>()),
@@ -20,7 +20,7 @@ vi.mock("./actions", () => ({
 }));
 
 import { loadClients } from "@/lib/admin/reference";
-import { requireAdmin } from "@/lib/auth/session";
+import { requirePermission } from "@/lib/auth/session";
 import { createClient } from "@/lib/supabase/server";
 import ClientsPage, { generateMetadata } from "./page";
 
@@ -54,7 +54,7 @@ async function render(rows: ClientItem[], q?: string): Promise<string> {
 
 describe("/admin/clients", () => {
   beforeEach(() => {
-    vi.mocked(requireAdmin).mockResolvedValue({
+    vi.mocked(requirePermission).mockResolvedValue({
       id: "admin-id",
       email: "admin@test.local",
       fullName: "Test Admin",
@@ -64,7 +64,7 @@ describe("/admin/clients", () => {
   });
 
   it("stops at the role check: inspectors get the 404 it throws", async () => {
-    vi.mocked(requireAdmin).mockRejectedValue(new Error("NEXT_HTTP_ERROR_FALLBACK;404"));
+    vi.mocked(requirePermission).mockRejectedValue(new Error("NEXT_HTTP_ERROR_FALLBACK;404"));
     await expect(render([polyco])).rejects.toThrow("NEXT_HTTP_ERROR_FALLBACK;404");
     expect(createClient).not.toHaveBeenCalled();
     expect(loadClients).not.toHaveBeenCalled();

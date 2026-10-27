@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { buildLabelMaps, defectsCounts, loadDefectsData } from "@/lib/admin/defects";
 import { loadGlossaryState } from "@/lib/ai/settings";
-import { requireAdmin } from "@/lib/auth/session";
+import { requirePermission } from "@/lib/auth/session";
 import { createClient } from "@/lib/supabase/server";
 import { MODULE_REGISTRY } from "@/modules/registry";
 import { DefectsHeader } from "../_components/defects-header";
@@ -9,7 +9,7 @@ import { LabelMapView } from "../_components/label-map-view";
 
 /** Checks the role first, so the title never names this page on an inspector's 404. */
 export async function generateMetadata(): Promise<Metadata> {
-  await requireAdmin();
+  await requirePermission("defects");
   return { title: "Label Mapping" };
 }
 
@@ -21,7 +21,7 @@ export async function generateMetadata(): Promise<Metadata> {
  * Templates is gone (Kenneth, 26 October 2026).
  */
 export default async function LabelMappingPage({ searchParams }: PageProps<"/admin/defects/labels">) {
-  await requireAdmin();
+  await requirePermission("defects");
   const supabase = await createClient();
   const [data, glossary, params] = await Promise.all([
     loadDefectsData(supabase, MODULE_REGISTRY),

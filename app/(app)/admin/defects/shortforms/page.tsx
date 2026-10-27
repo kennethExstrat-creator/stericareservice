@@ -2,14 +2,14 @@ import type { Metadata } from "next";
 import { defectsCounts, loadDefectsData } from "@/lib/admin/defects";
 import { buildShortformItems, type LibraryCode } from "@/lib/admin/shortforms";
 import { loadGlossaryState } from "@/lib/ai/settings";
-import { requireAdmin } from "@/lib/auth/session";
+import { requirePermission } from "@/lib/auth/session";
 import { createClient } from "@/lib/supabase/server";
 import { MODULE_REGISTRY } from "@/modules/registry";
 import { ShortformsAdmin } from "../_components/shortforms-admin";
 
 /** Checks the role first, so the title never names this page on an inspector's 404. */
 export async function generateMetadata(): Promise<Metadata> {
-  await requireAdmin();
+  await requirePermission("defects");
   return { title: "Shortforms" };
 }
 
@@ -24,7 +24,7 @@ const byName = new Intl.Collator("en-GB", { sensitivity: "base", numeric: true }
  * the service role reads: lib/ai/settings.ts reads it after the admin check.
  */
 export default async function ShortformsPage({ searchParams }: PageProps<"/admin/defects/shortforms">) {
-  await requireAdmin();
+  await requirePermission("defects");
   const supabase = await createClient();
   const [data, glossary, params] = await Promise.all([
     loadDefectsData(supabase, MODULE_REGISTRY),

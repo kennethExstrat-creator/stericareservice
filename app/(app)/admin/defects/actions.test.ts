@@ -165,7 +165,7 @@ describe("every action", () => {
     vi.mocked(authorizeAction).mockResolvedValue({ ok: false, error: "You do not have permission to do that." });
 
     expect(await run()).toEqual({ status: "error", message: "You do not have permission to do that." });
-    expect(authorizeAction).toHaveBeenCalledWith("admin");
+    expect(authorizeAction).toHaveBeenCalledWith({ permission: "defects" });
     expect(createClient).not.toHaveBeenCalled();
     expect(loadGlossaryState).not.toHaveBeenCalled();
     expect(saveGlossary).not.toHaveBeenCalled();

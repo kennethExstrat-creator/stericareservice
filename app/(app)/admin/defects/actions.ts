@@ -82,7 +82,7 @@ export type MapLabelResult = ActionResult<MapField>;
  */
 export async function saveDefectCode(_previous: CodeFormResult, formData: FormData): Promise<CodeFormResult> {
   return guarded("saveDefectCode", async (): Promise<CodeFormResult> => {
-    const auth = await authorizeAction("admin");
+    const auth = await authorizeAction({ permission: "defects" });
     if (!auth.ok) return failed(auth.error);
 
     const fields = readForm(formData, ["mode", "code", "version", "name", "description"]);
@@ -160,7 +160,7 @@ async function insertFailed(
  */
 export async function setDefectCodeActive(_previous: ActionResult, formData: FormData): Promise<ActionResult> {
   return guarded("setDefectCodeActive", async (): Promise<ActionResult> => {
-    const auth = await authorizeAction("admin");
+    const auth = await authorizeAction({ permission: "defects" });
     if (!auth.ok) return failed(auth.error);
 
     const target = ActiveTargetSchema.safeParse(readForm(formData, ["code", "active"]));
@@ -196,7 +196,7 @@ export async function setDefectCodeActive(_previous: ActionResult, formData: For
  */
 export async function deleteDefectCode(_previous: ActionResult, formData: FormData): Promise<ActionResult> {
   return guarded("deleteDefectCode", async (): Promise<ActionResult> => {
-    const auth = await authorizeAction("admin");
+    const auth = await authorizeAction({ permission: "defects" });
     if (!auth.ok) return failed(auth.error);
 
     const target = CodeTargetSchema.safeParse(readForm(formData, ["code"]));
@@ -334,7 +334,7 @@ async function saveMapping(supabase: DatabaseClient, id: string, target: LabelTa
  */
 export async function mapDefectLabel(_previous: MapLabelResult, formData: FormData): Promise<MapLabelResult> {
   return guarded("mapDefectLabel", async (): Promise<MapLabelResult> => {
-    const auth = await authorizeAction("admin");
+    const auth = await authorizeAction({ permission: "defects" });
     if (!auth.ok) return failed(auth.error);
 
     const fields = readForm(formData, ["inspectionId", "target", "mode", "code", "newCode", "name", "description"]);
@@ -471,7 +471,7 @@ function notSavable(state: GlossaryState): string | null {
  */
 export async function saveShortform(_previous: ShortformResult, formData: FormData): Promise<ShortformResult> {
   return guarded("saveShortform", async (): Promise<ShortformResult> => {
-    const auth = await authorizeAction("admin");
+    const auth = await authorizeAction({ permission: "defects" });
     if (!auth.ok) return failed(auth.error);
 
     const form = readShortformForm(formData);
@@ -503,7 +503,7 @@ export async function saveShortform(_previous: ShortformResult, formData: FormDa
 /** Deletes a shortform, as the panel opened it (`original`): refused when it changed since. */
 export async function deleteShortform(_previous: ShortformResult, formData: FormData): Promise<ShortformResult> {
   return guarded("deleteShortform", async (): Promise<ShortformResult> => {
-    const auth = await authorizeAction("admin");
+    const auth = await authorizeAction({ permission: "defects" });
     if (!auth.ok) return failed(auth.error);
 
     const original = readOriginal(formData);

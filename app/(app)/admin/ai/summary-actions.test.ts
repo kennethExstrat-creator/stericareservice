@@ -81,7 +81,7 @@ describe("the admin check", () => {
     expect(createClient).not.toHaveBeenCalled();
     expect(writeSummary).not.toHaveBeenCalled();
     expect(recordAiUsageLater).not.toHaveBeenCalled();
-    expect(vi.mocked(authorizeAction).mock.calls.every(([role]) => role === "admin")).toBe(true);
+    expect(vi.mocked(authorizeAction).mock.calls.every(([need]) => JSON.stringify(need) === JSON.stringify({ permission: "ai_settings" }))).toBe(true);
   });
 });
 

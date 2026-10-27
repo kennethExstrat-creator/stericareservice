@@ -6,11 +6,11 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("@/lib/auth/session", () => ({ requireAdmin: vi.fn() }));
+vi.mock("@/lib/auth/session", () => ({ requirePermission: vi.fn() }));
 vi.mock("@/lib/supabase/server", () => ({ createClient: vi.fn() }));
 vi.mock("@/lib/supabase/admin", () => ({ isAdminClientConfigured: vi.fn() }));
 
-import { requireAdmin } from "@/lib/auth/session";
+import { requirePermission } from "@/lib/auth/session";
 import { isAdminClientConfigured } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import GeneralSettingsPage, { generateMetadata } from "./page";
@@ -66,7 +66,7 @@ async function render(tables: Record<string, Answer> = TABLES): Promise<string> 
 
 beforeEach(() => {
   vi.clearAllMocks();
-  vi.mocked(requireAdmin).mockResolvedValue(ADMIN);
+  vi.mocked(requirePermission).mockResolvedValue(ADMIN);
   vi.mocked(isAdminClientConfigured).mockReturnValue(true);
   vi.stubEnv("NEXT_PUBLIC_SUPABASE_URL", SUPABASE_URL);
   vi.stubEnv("NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY", PUBLISHABLE_KEY);
@@ -80,7 +80,7 @@ afterEach(() => {
 
 describe("the role check", () => {
   it("stops at the role check: inspectors get the 404 it throws, before anything is read", async () => {
-    vi.mocked(requireAdmin).mockRejectedValue(notFound);
+    vi.mocked(requirePermission).mockRejectedValue(notFound);
     await expect(render()).rejects.toBe(notFound);
     expect(createClient).not.toHaveBeenCalled();
     expect(isAdminClientConfigured).not.toHaveBeenCalled();
@@ -88,7 +88,7 @@ describe("the role check", () => {
 
   it("names the page only for an admin", async () => {
     await expect(generateMetadata()).resolves.toEqual({ title: "General Settings" });
-    vi.mocked(requireAdmin).mockRejectedValue(notFound);
+    vi.mocked(requirePermission).mockRejectedValue(notFound);
     await expect(generateMetadata()).rejects.toBe(notFound);
   });
 });

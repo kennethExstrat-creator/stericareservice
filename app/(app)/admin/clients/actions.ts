@@ -52,7 +52,7 @@ export type SaveClientResult = ActionResult<ClientField>;
 /** Adds a client (no id) or saves changes to one (id and the version the form started from). */
 export async function saveClient(_previous: SaveClientResult, formData: FormData): Promise<SaveClientResult> {
   return guarded("saveClient", async (): Promise<SaveClientResult> => {
-    const auth = await authorizeAction("admin");
+    const auth = await authorizeAction({ permission: "clients" });
     if (!auth.ok) return failed(auth.error);
 
     const target = EditTargetSchema.safeParse(readForm(formData, ["id", "version"]));
@@ -116,7 +116,7 @@ async function notSaved(supabase: DatabaseClient, id: string): Promise<SaveClien
 /** Deletes a client that no template or inspection uses, and then its logo files. */
 export async function deleteClient(_previous: ActionResult, formData: FormData): Promise<ActionResult> {
   return guarded("deleteClient", async (): Promise<ActionResult> => {
-    const auth = await authorizeAction("admin");
+    const auth = await authorizeAction({ permission: "clients" });
     if (!auth.ok) return failed(auth.error);
 
     const target = RecordTargetSchema.safeParse(readForm(formData, ["id"]));
@@ -160,7 +160,7 @@ export type PrepareLogoResult =
  */
 export async function prepareLogoUpload(request: { clientId: string; type: string; size: number }): Promise<PrepareLogoResult> {
   return guarded("prepareLogoUpload", async (): Promise<PrepareLogoResult> => {
-    const auth = await authorizeAction("admin");
+    const auth = await authorizeAction({ permission: "clients" });
     if (!auth.ok) return failed(auth.error);
 
     const parsed = LogoUploadRequestSchema.safeParse(request);
@@ -193,7 +193,7 @@ export async function prepareLogoUpload(request: { clientId: string; type: strin
  */
 export async function confirmLogoUpload(request: { clientId: string; path: string }): Promise<ActionResult> {
   return guarded("confirmLogoUpload", async (): Promise<ActionResult> => {
-    const auth = await authorizeAction("admin");
+    const auth = await authorizeAction({ permission: "clients" });
     if (!auth.ok) return failed(auth.error);
 
     const parsed = LogoConfirmSchema.safeParse(request);
@@ -233,7 +233,7 @@ export async function confirmLogoUpload(request: { clientId: string; path: strin
 /** Takes the logo off a client and deletes its file. */
 export async function removeClientLogo(_previous: ActionResult, formData: FormData): Promise<ActionResult> {
   return guarded("removeClientLogo", async (): Promise<ActionResult> => {
-    const auth = await authorizeAction("admin");
+    const auth = await authorizeAction({ permission: "clients" });
     if (!auth.ok) return failed(auth.error);
 
     const target = RecordTargetSchema.safeParse(readForm(formData, ["id"]));

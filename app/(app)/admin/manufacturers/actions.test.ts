@@ -97,7 +97,7 @@ describe("saveManufacturer", () => {
 
     const result = await saveManufacturer(IDLE, manufacturerForm());
 
-    expect(authorizeAction).toHaveBeenCalledWith("admin");
+    expect(authorizeAction).toHaveBeenCalledWith({ permission: "manufacturers" });
     expect(result).toEqual({ status: "error", message: "You do not have permission to do that." });
     expect(queries).toEqual([]);
   });

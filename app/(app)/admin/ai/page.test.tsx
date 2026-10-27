@@ -12,7 +12,7 @@ import { DEFAULT_AI_PRICES } from "@/lib/schemas/ai-prices";
 import type { AiSettingsView } from "@/lib/schemas/ai-settings";
 import { DEFAULT_SUMMARY_STYLE } from "@/lib/schemas/summary-style";
 
-vi.mock("@/lib/auth/session", () => ({ requireAdmin: vi.fn() }));
+vi.mock("@/lib/auth/session", () => ({ requirePermission: vi.fn() }));
 vi.mock("@/lib/ai/settings", () => ({
   readAiSettingsView: vi.fn(),
   loadAiEnv: vi.fn(),
@@ -46,7 +46,7 @@ vi.mock("next/navigation", async (importOriginal) => ({
 import { buildAiCostReport, loadAiCostReport } from "@/lib/ai/cost-report";
 import { latestBnmRate } from "@/lib/ai/myr-rate";
 import { loadAiEnv, loadAiPrices, readAiSettingsView, readSummarySettingsView, type SummarySettingsView } from "@/lib/ai/settings";
-import { requireAdmin } from "@/lib/auth/session";
+import { requirePermission } from "@/lib/auth/session";
 import { loadSummaryPreviewTargets } from "@/lib/inspections/ai/summary-runner";
 import { costNoteDetails } from "./_components/cost-filters";
 import { aiViewHref, parseAiViewState } from "./_components/view-state";
@@ -159,7 +159,7 @@ function chosenView(html: string, label?: string): string | undefined {
 
 beforeEach(() => {
   vi.clearAllMocks();
-  vi.mocked(requireAdmin).mockResolvedValue(ADMIN);
+  vi.mocked(requirePermission).mockResolvedValue(ADMIN);
   vi.mocked(readAiSettingsView).mockResolvedValue(VIEW);
   vi.mocked(loadAiEnv).mockResolvedValue({ ANTHROPIC_API_KEY: API_KEY });
   vi.mocked(loadAiPrices).mockResolvedValue(DEFAULT_AI_PRICES);
@@ -172,12 +172,12 @@ beforeEach(() => {
 describe("the role check", () => {
   it("names the page only for an admin", async () => {
     expect(await generateMetadata()).toEqual({ title: "Steri-AI Settings" });
-    vi.mocked(requireAdmin).mockRejectedValue(notFound);
+    vi.mocked(requirePermission).mockRejectedValue(notFound);
     await expect(generateMetadata()).rejects.toBe(notFound);
   });
 
   it.each<Record<string, string>>([{}, { view: "inspection" }, { view: "cost" }])("checks for an admin before reading anything (%o)", async (searchParams) => {
-    vi.mocked(requireAdmin).mockRejectedValue(notFound);
+    vi.mocked(requirePermission).mockRejectedValue(notFound);
     await expect(render(searchParams)).rejects.toBe(notFound);
     expect(readAiSettingsView).not.toHaveBeenCalled();
     expect(loadAiEnv).not.toHaveBeenCalled();
@@ -190,8 +190,8 @@ describe("the role check", () => {
 
   it("reads the settings only after the check", async () => {
     await render();
-    expect(vi.mocked(requireAdmin).mock.invocationCallOrder[0]).toBeLessThan(vi.mocked(readAiSettingsView).mock.invocationCallOrder[0]);
-    expect(vi.mocked(requireAdmin).mock.invocationCallOrder[0]).toBeLessThan(vi.mocked(loadAiEnv).mock.invocationCallOrder[0]);
+    expect(vi.mocked(requirePermission).mock.invocationCallOrder[0]).toBeLessThan(vi.mocked(readAiSettingsView).mock.invocationCallOrder[0]);
+    expect(vi.mocked(requirePermission).mock.invocationCallOrder[0]).toBeLessThan(vi.mocked(loadAiEnv).mock.invocationCallOrder[0]);
   });
 });
 

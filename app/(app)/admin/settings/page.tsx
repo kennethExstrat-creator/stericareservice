@@ -1,14 +1,14 @@
 import type { Metadata } from "next";
 import { PageHeader } from "@/components/qc";
 import { EmailCard, SupabaseCard, type DatabaseSummary } from "@/components/shell/admin-status-cards";
-import { requireAdmin } from "@/lib/auth/session";
+import { requirePermission } from "@/lib/auth/session";
 import { getSiteUrl, getSupabasePublicEnv } from "@/lib/env";
 import { isAdminClientConfigured } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 
 /** Checks the role too, so the title never names this page on an inspector's 404 (see /admin). */
 export async function generateMetadata(): Promise<Metadata> {
-  await requireAdmin();
+  await requirePermission("general_settings");
   return { title: "General Settings" };
 }
 
@@ -21,12 +21,13 @@ export async function generateMetadata(): Promise<Metadata> {
  * shows them, naming the variable to set, never a value: no keys or secrets
  * reach it.
  *
- * Inspectors get a 404 from requireAdmin(); a layout is not a security
- * boundary, so the page checks for itself. No outer padding or width: the
- * app shell's main area provides both.
+ * Someone whose role has no General Settings switch gets a 404 from
+ * requirePermission(); a layout is not a security boundary, so the page
+ * checks for itself. No outer padding or width: the app shell's main area
+ * provides both.
  */
 export default async function GeneralSettingsPage() {
-  await requireAdmin();
+  await requirePermission("general_settings");
 
   const supabaseEnv = getSupabasePublicEnv();
   const secretKeySet = isAdminClientConfigured();

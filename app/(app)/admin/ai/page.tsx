@@ -5,7 +5,7 @@ import { AiReportCard, AiReviewCard } from "@/components/shell/admin-status-card
 import { getAiStatus } from "@/lib/ai";
 import { latestBnmRate, pickMyrRate } from "@/lib/ai/myr-rate";
 import { loadAiEnv, loadAiPrices, readAiSettingsView, readSummarySettingsView } from "@/lib/ai/settings";
-import { requireAdmin } from "@/lib/auth/session";
+import { requirePermission } from "@/lib/auth/session";
 import { loadSummaryPreviewTargets, type SummaryPreviewTarget } from "@/lib/inspections/ai/summary-runner";
 import { createClient } from "@/lib/supabase/server";
 import { CostView } from "./_components/cost-view";
@@ -16,7 +16,7 @@ import { parseAiViewState, type AiViewState } from "./_components/view-state";
 
 /** Checks the role too, so the title never names this page on an inspector's 404 (see /admin). */
 export async function generateMetadata(): Promise<Metadata> {
-  await requireAdmin();
+  await requirePermission("ai_settings");
   return { title: "Steri-AI Settings" };
 }
 
@@ -31,12 +31,13 @@ export async function generateMetadata(): Promise<Metadata> {
  * only where the key comes from and its last four characters, never the key:
  * the status cards get getAiStatus()'s view, which holds no key or URL.
  *
- * Inspectors get a 404 from requireAdmin(); a layout is not a security
- * boundary, so the page checks for itself. No outer padding or width: the
- * app shell's main area provides both.
+ * Someone whose role has no Steri-AI Settings switch gets a 404 from
+ * requirePermission(); a layout is not a security boundary, so the page
+ * checks for itself. No outer padding or width: the app shell's main area
+ * provides both.
  */
 export default async function AiSettingsPage({ searchParams }: PageProps<"/admin/ai">) {
-  const admin = await requireAdmin();
+  const admin = await requirePermission("ai_settings");
   const params = await searchParams;
   const state = parseAiViewState(params);
   const body = await viewBody(state);

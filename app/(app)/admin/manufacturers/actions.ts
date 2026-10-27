@@ -42,7 +42,7 @@ export async function saveManufacturer(
   formData: FormData,
 ): Promise<SaveManufacturerResult> {
   return guarded("saveManufacturer", async (): Promise<SaveManufacturerResult> => {
-    const auth = await authorizeAction("admin");
+    const auth = await authorizeAction({ permission: "manufacturers" });
     if (!auth.ok) return failed(auth.error);
 
     const target = EditTargetSchema.safeParse(readForm(formData, ["id", "version"]));
@@ -103,7 +103,7 @@ async function notSaved(supabase: DatabaseClient, id: string): Promise<SaveManuf
 /** Deletes a manufacturer that no template or inspection uses. */
 export async function deleteManufacturer(_previous: ActionResult, formData: FormData): Promise<ActionResult> {
   return guarded("deleteManufacturer", async (): Promise<ActionResult> => {
-    const auth = await authorizeAction("admin");
+    const auth = await authorizeAction({ permission: "manufacturers" });
     if (!auth.ok) return failed(auth.error);
 
     const target = RecordTargetSchema.safeParse(readForm(formData, ["id"]));

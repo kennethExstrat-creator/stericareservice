@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { defectsCounts, loadDefectsData } from "@/lib/admin/defects";
 import { loadGlossaryState } from "@/lib/ai/settings";
-import { requireAdmin } from "@/lib/auth/session";
+import { requirePermission } from "@/lib/auth/session";
 import { createClient } from "@/lib/supabase/server";
 import { MODULE_REGISTRY } from "@/modules/registry";
 import { DefectsHeader } from "../_components/defects-header";
@@ -10,7 +10,7 @@ import { UnmappedView } from "../_components/unmapped-view";
 
 /** Checks the role first, so the title never names this page on an inspector's 404. */
 export async function generateMetadata(): Promise<Metadata> {
-  await requireAdmin();
+  await requirePermission("defects");
   return { title: "Unmapped Labels" };
 }
 
@@ -24,7 +24,7 @@ const byName = new Intl.Collator("en-GB", { sensitivity: "base", numeric: true }
  * recorded on that inspection's data (actions.ts, mapDefectLabel).
  */
 export default async function UnmappedLabelsPage() {
-  await requireAdmin();
+  await requirePermission("defects");
   const supabase = await createClient();
   const [data, glossary] = await Promise.all([loadDefectsData(supabase, MODULE_REGISTRY), loadGlossaryState()]);
   const codes: CodeOption[] = data.codes
