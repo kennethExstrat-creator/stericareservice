@@ -8,28 +8,37 @@
 // the inspection, the template's, the client's, else I), and that letter's
 // sample size is the gloves to sample (code-letters.ts sizeCodeLetters: a lot
 // of 150,001 to 500,000 gloves at level I is code M, 315 gloves). A sample not
-// smaller than the lot means every glove (docs/AQL.md rule 8). A size whose
-// lot is not known keeps its # of Gloves, and Auto Calculate says why in its
-// notice.
-import type { InspectionLevel } from "@/lib/aql";
+// smaller than the lot means every glove (docs/AQL.md rule 8). The letter
+// goes into the size's Code Letter row with it (Kenneth, 27 October 2026). A
+// size whose lot is not known keeps its # of Gloves and its letter, and Auto
+// Calculate says why in its notice.
+import type { CodeLetter, InspectionLevel } from "@/lib/aql";
 import { sizeCodeLetters, type SizeLot } from "./code-letters";
+import { letterSample } from "./letter-steps";
 
 export type AutoGloves = {
   /** Each size's gloves to sample, for the sizes whose lot is known. */
   gloves: Record<string, number>;
-  /** The sizes whose lot in gloves is not known, in order: their # of Gloves is left as it is. */
+  /** The code letter of each of those sizes' lots, which its gloves come from. */
+  letters: Record<string, CodeLetter>;
+  /** The sizes whose lot in gloves is not known, in order: their # of Gloves and code letter are left as they are. */
   unknownLot: string[];
 };
 
 export function autoSampleGloves(lots: readonly SizeLot[], level: InspectionLevel): AutoGloves {
   const gloves: Record<string, number> = {};
+  const letters: Record<string, CodeLetter> = {};
   const unknownLot: string[] = [];
-  // A lot of fewer than 2 gloves has no Table 1 row, so no sample size: no lot to work from.
-  for (const { size, lot, sampleSize } of sizeCodeLetters(lots, level)) {
-    if (lot === null || sampleSize === null) unknownLot.push(size);
-    else gloves[size] = Math.min(sampleSize, lot);
+  // A lot of fewer than 2 gloves has no Table 1 row, so no code letter: no lot to work from.
+  for (const { size, lot, codeLetter } of sizeCodeLetters(lots, level)) {
+    if (lot === null || codeLetter === null) {
+      unknownLot.push(size);
+      continue;
+    }
+    gloves[size] = letterSample(codeLetter, lot);
+    letters[size] = codeLetter;
   }
-  return { gloves, unknownLot };
+  return { gloves, letters, unknownLot };
 }
 
 /** Auto Calculate Sampling's toast, whatever it filled (Kenneth, 27 October 2026). */

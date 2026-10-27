@@ -1,12 +1,14 @@
 // Result (BUILD_SPEC 6.1 sampling_plan): "info" once every column the
 // template shows is entered for every ordered size; "warn" when a size's
 // watertight and visual sample is below the plan of the inspection level
-// (BUILD_SPEC 7) or is not a standard sample size, or its inner units in all
-// are not its cases × inner units per case; "not done" until then and while
-// a value is impossible (6.2 rule 5). The inner units per case are never
+// (BUILD_SPEC 7) or is not a standard sample size, its inner units in all
+// are not its cases × inner units per case, or its gloves are not its code
+// letter's sample; "not done" until then and while a value is impossible
+// (6.2 rule 5). The inner units per case and the code letter are never
 // asked for. Each size's gloves taken per inner box and those put back are
-// worked out here (Kenneth, 27 October 2026), never typed. The samples flow
-// forward to the modules that test them through the context (BUILD_SPEC 8).
+// worked out here (Kenneth, 27 October 2026), never typed, and so is whether
+// its code letter is below its lot's. The samples flow forward to the
+// modules that test them through the context (BUILD_SPEC 8).
 // The inspection level is resolved here and nowhere else
 // (resolveInspectionLevel): the one set for the inspection in Sampling
 // Settings, else the template's, else the client's, else I (Kenneth, 27
@@ -47,19 +49,25 @@ import {
 import {
   SAMPLING_CONTEXT_KEYS,
   shownColumns,
+  showsCodeLetter,
   showsGlovesPerInnerBox,
   showsInnerUnitsPerCase,
   type SamplingColumn,
   type SamplingPlanConfig,
 } from "./config";
-import { glovesPerInnerBox, glovesPutBack, glovesTaken } from "./inner-boxes";
+import { glovesPerInnerBox, glovesPutBack } from "./inner-boxes";
+import { letterSample, letterSteps } from "./letter-steps";
 import { emptySamplingSize, rowsOff, type SamplingPlanData, type SamplingSize } from "./schema";
 
 /** One size's lot at the inspection level, and its watertight and visual sample against it. */
 export type SizePlan = {
   /** Gloves in the lot: cases ordered x gloves per case; null until both are entered. */
   lotSizeGloves: number | null;
-  /** ISO 2859-1 Table 1 code letter of the lot at the inspection level; null without a lot size. */
+  /**
+   * ISO 2859-1 Table 1 code letter of the lot at the inspection level; null
+   * without a lot size. The letter the size's gloves are taken from, which
+   * the inspector may lower, is data (SamplingSize.codeLetter).
+   */
   codeLetter: CodeLetter | null;
   /**
    * The sample the inspection level asks for: the largest n among the plans
@@ -78,10 +86,16 @@ export type SizePlan = {
    * missing, and where the template shows no gloves or no inner units.
    */
   glovesPerInnerBox: number | null;
-  /** The gloves taken in all: glovesPerInnerBox × inner units; null with it. */
-  totalGlovesTaken: number | null;
-  /** The gloves taken beyond the sample, to put back: totalGlovesTaken − gloves; null with it. */
+  /** The gloves taken beyond the sample, to put back: glovesPerInnerBox × inner units − gloves; null with it. */
   putBack: number | null;
+  /**
+   * The size's code letter (data) is below its lot's (codeLetter): the
+   * inspector lowered it on purpose, for a factory whose performance is
+   * consistent (Kenneth, 27 October 2026). False where either is missing.
+   */
+  codeLetterReduced: boolean;
+  /** The lot's code letter while the size's is below it; null otherwise. */
+  reducedFrom: CodeLetter | null;
 };
 
 export type SamplingPlanComputed = {
@@ -91,9 +105,9 @@ export type SamplingPlanComputed = {
   sizes: Record<string, SizePlan>;
   /**
    * Each shown column summed over the ordered sizes (the onsite forms' Total:
-   * row), and the gloves taken in all and put back (`totalGlovesTaken`,
-   * `putBack`) where they show; null while none is entered. Never the inner
-   * units per case or the gloves per inner box.
+   * row), and the gloves put back (`putBack`) where they show; null while
+   * none is entered. Never the inner units per case, the gloves per inner box
+   * or the code letter.
    */
   totals: Record<string, number | null>;
 };
@@ -220,7 +234,7 @@ export function lotPlan(lotSize: number, level: InspectionLevel, aql: AqlSetting
 type Finding = {
   level: "error" | "warning";
   code: string;
-  column: SamplingColumn;
+  column: SamplingColumn | "codeLetter";
   /** The problem, for the size's summary. */
   brief: string;
   /** The problem in full, for the issue list. */
@@ -244,6 +258,8 @@ function checkSize({ size, row, config, level, labels, context }: SizeCheckInput
   const label = (key: string) => labelFor(labels, key);
   const value = (column: SamplingColumn) => (config.columns[column] ? row[column] : null);
   const findings: Finding[] = [];
+  const lot = lotSizeGloves(context, size);
+  const plan = lot === null ? null : lotPlan(lot, level, context.aql);
 
   const cases = value("cases");
   const ordered = context.order[size]?.qtyCases ?? null;
@@ -280,6 +296,17 @@ function checkSize({ size, row, config, level, labels, context }: SizeCheckInput
     });
   }
 
+  // The gloves are the code letter's sample, every glove of a smaller lot (Kenneth, 27 October 2026): gloves typed
+  // otherwise are a warning on the letter, as a total that is not its product is, never a block.
+  const letter = showsCodeLetter(config) ? row.codeLetter : null;
+  const sampled = value("gloves");
+  const letterGloves = letter === null ? null : letterSample(letter, lot);
+  if (letter !== null && letterGloves !== null && sampled !== null && sampled !== letterGloves) {
+    const whole = letterGloves < SAMPLE_SIZES[letter] ? ", every glove of the lot" : "";
+    const brief = `${label("gloves")} ${formatCount(sampled)} is not code ${letter}'s ${formatCount(letterGloves)}${whole}`;
+    findings.push({ level: "warning", code: "code_letter_mismatch", column: "codeLetter", brief, detail: `${brief}.` });
+  }
+
   // The sample's issues carry lib/aql's codes, as watertight and visual pass them on for their own n.
   const sample = value("glovesWatertightVisual");
   let sampleCodeLetter: CodeLetter | null = null;
@@ -305,8 +332,6 @@ function checkSize({ size, row, config, level, labels, context }: SizeCheckInput
     }
   }
 
-  const lot = lotSizeGloves(context, size);
-  const plan = lot === null ? null : lotPlan(lot, level, context.aql);
   // A plan's n at or above the lot means inspecting every glove (docs/AQL.md rule 8). A sample below it is no
   // warning (Kenneth, 26 October 2026: "the warning is not needed"): belowPlan still says so in the computed values.
   const required = plan === null ? null : Math.min(plan.n, plan.lotSize);
@@ -322,6 +347,7 @@ function checkSize({ size, row, config, level, labels, context }: SizeCheckInput
   // The gloves taken per inner box and those put back, whether the gloves came from Auto Calculate Sampling or were
   // typed (Kenneth, 27 October 2026: "Always use this method").
   const gloves = showsGlovesPerInnerBox(config) ? value("gloves") : null;
+  const { reducedFrom } = letterSteps(letter, plan?.codeLetter ?? null);
   const sizePlan: SizePlan = {
     lotSizeGloves: lot,
     codeLetter: plan?.codeLetter ?? null,
@@ -330,8 +356,9 @@ function checkSize({ size, row, config, level, labels, context }: SizeCheckInput
     sampleCodeLetter,
     belowPlan: required === null || sample === null ? null : sample < required,
     glovesPerInnerBox: glovesPerInnerBox(gloves, innerUnits),
-    totalGlovesTaken: glovesTaken(gloves, innerUnits),
     putBack: glovesPutBack(gloves, innerUnits),
+    codeLetterReduced: reducedFrom !== null,
+    reducedFrom,
   };
   return { plan: sizePlan, issues, result: sizeResult({ row, config, findings, label, plan: sizePlan }) };
 }
@@ -341,8 +368,12 @@ type SizeResultInput = {
   config: SamplingPlanConfig;
   findings: readonly Finding[];
   label: (key: string) => string;
-  /** The size's computed values: the gloves per inner box, taken in all and put back join a complete size's summary. */
-  plan: Pick<SizePlan, "glovesPerInnerBox" | "totalGlovesTaken" | "putBack">;
+  /**
+   * The size's computed values: the gloves per inner box and those put back
+   * join a complete size's summary, and the lot's letter while the size's is
+   * below it.
+   */
+  plan: Pick<SizePlan, "glovesPerInnerBox" | "putBack" | "reducedFrom">;
 };
 
 function sizeResult({ row, config, findings, label, plan }: SizeResultInput): PerSizeResult {
@@ -362,9 +393,15 @@ function sizeResult({ row, config, findings, label, plan }: SizeResultInput): Pe
     .filter((column) => config.columns[column])
     .map((column) => `${label(column)}: ${formatCount(row[column] ?? 0)}`);
   // What the inspector takes from each inner box and puts back: the review and the export read it here too.
-  for (const key of ["glovesPerInnerBox", "totalGlovesTaken", "putBack"] as const) {
+  for (const key of ["glovesPerInnerBox", "putBack"] as const) {
     const count = plan[key];
     if (count !== null) parts.push(`${label(key)}: ${formatCount(count)}`);
+  }
+  // The letter the gloves are taken from, and the lot's while it is lowered, so a reviewer sees it was (Kenneth, 27
+  // October 2026).
+  if (showsCodeLetter(config) && row.codeLetter !== null) {
+    const reduced = plan.reducedFrom === null ? "" : ` (reduced from ${plan.reducedFrom})`;
+    parts.push(`${label("codeLetter")}: ${row.codeLetter}${reduced}`);
   }
   return { status: "info", summary: sentence(parts) };
 }
@@ -403,11 +440,8 @@ function totalsOf(
   const totals: Record<string, number | null> = Object.fromEntries(
     shownColumns(config).map((column) => [column, sumOf(sizes.map((size) => data.sizes[size]?.[column] ?? null))]),
   );
-  // The gloves taken and put back add up; the inner units per case and the gloves per inner box do not, and have no total.
-  if (showsGlovesPerInnerBox(config)) {
-    totals.totalGlovesTaken = sumOf(sizes.map((size) => plans[size]?.totalGlovesTaken ?? null));
-    totals.putBack = sumOf(sizes.map((size) => plans[size]?.putBack ?? null));
-  }
+  // The gloves put back add up; the inner units per case and the gloves per inner box do not, and have no total.
+  if (showsGlovesPerInnerBox(config)) totals.putBack = sumOf(sizes.map((size) => plans[size]?.putBack ?? null));
   return totals;
 }
 

@@ -135,9 +135,10 @@ describe("canonical keys", () => {
         .data.filter((field) => field.entry !== "computed" && (filter ? filter(field.per) : true))
         .map((field) => field.key);
     expect(keysOf("dimensions", (per) => per.includes("glove"))).toEqual([...MEASURES]);
-    // The inner units per case have no column switch: they show with the inner units (Kenneth, 27 October 2026).
-    const [cases, ...afterCases] = SAMPLING_COLUMNS;
-    expect(keysOf("sampling_plan")).toEqual([cases, "innerUnitsPerCase", ...afterCases]);
+    // The inner units per case have no column switch: they show with the inner units; the code letter and the reason
+    // it was lowered show with the gloves (Kenneth, 27 October 2026).
+    const [cases, innerUnits, gloves, ...afterGloves] = SAMPLING_COLUMNS;
+    expect(keysOf("sampling_plan")).toEqual([cases, "innerUnitsPerCase", innerUnits, gloves, "codeLetter", "codeLetterReason", ...afterGloves]);
     expect(moduleSpec("header").data.map((field) => field.key)).toEqual([...HEADER_FIELDS]);
     expect(moduleSpec("glove_info").data.map((field) => field.key)).toEqual([...GLOVE_INFO_FIELDS]);
     expect(keysOf("loading")).toEqual([...LOADING_FIELDS]);
@@ -166,8 +167,9 @@ describe("field definitions", () => {
     const computedName =
       /^total|^(average|median|statistic|codeLetter|accept|reject|result|ratePct)$|Average$|Result$|RatePct$|Summary$|Check$/;
     // Entered by the inspector although the name looks computed: the final result (the decision next to the
-    // computed suggestion, BUILD_SPEC 6.1 conclusion) and the inspection summary.
-    const decisions = new Set(["conclusion.finalResult", "conclusion.inspectionSummary"]);
+    // computed suggestion, BUILD_SPEC 6.1 conclusion), the inspection summary, and the sampling plan's code letter,
+    // which Auto Calculate Sampling writes and the inspector may lower, never typed (Kenneth, 27 October 2026).
+    const decisions = new Set(["conclusion.finalResult", "conclusion.inspectionSummary", "sampling_plan.codeLetter"]);
     const matched: string[] = [];
     for (const { module, field } of fields) {
       const name = `${module}.${field.key}`;

@@ -1,16 +1,24 @@
 // Sampling Plan (BUILD_SPEC 6.1 sampling_plan): per ordered size, what was
 // sampled and how many gloves or inner units each test takes. Every value may
-// be missing while the inspection is a draft. The plan's code letter and n
-// are computed (6.2 rule 2), never stored here, and so are the gloves taken
-// per inner box and those put back (calc.ts). The inner units sampled in all
-// are worked out from the cases while the inner units per case are entered
-// (withCount; Kenneth, 27 October 2026). Sampling Settings (Kenneth, 27
-// October 2026) keep two choices for the inspection beside the sizes: its
-// inspection level and how Auto Calculate Sampling rounds the cases.
+// be missing while the inspection is a draft. The lot's code letter and the
+// plan's n are computed (6.2 rule 2), never stored here, and so are the
+// gloves taken per inner box and those put back (calc.ts). The inner units
+// sampled in all are worked out from the cases while the inner units per case
+// are entered (withCount; Kenneth, 27 October 2026). Sampling Settings
+// (Kenneth, 27 October 2026) keep two choices for the inspection beside the
+// sizes: its inspection level and how Auto Calculate Sampling rounds the
+// cases. Each size keeps the code letter its # of Gloves Sample is taken
+// from, which the inspector may lower with a reason (Kenneth, 27 October
+// 2026), and its Watertight & Visual follows its # of Gloves Sample.
 import { z } from "zod";
-import { InspectionLevelSchema, type InspectionLevel } from "@/lib/aql";
+import { CodeLetterSchema, InspectionLevelSchema, type CodeLetter, type InspectionLevel } from "@/lib/aql";
 import { CountCellSchema, perSizeData } from "@/modules/_framework";
+import type { SamplingPlanConfig } from "./config";
 import { innerUnitsFromCases } from "./inner-boxes";
+import { letterSample, letterSteps } from "./letter-steps";
+
+/** The longest reason a code letter lowered on screen keeps. */
+export const CODE_LETTER_REASON_MAX = 500;
 
 export const SamplingSizeSchema = z.strictObject({
   /** Cases sampled. carton_sampling lists exactly this many box/carton numbers (6.2 rule 6). */
@@ -39,6 +47,27 @@ export const SamplingSizeSchema = z.strictObject({
   ),
   /** Gloves sampled. */
   gloves: CountCellSchema,
+  /**
+   * The ISO 2859-1 sample size code letter the gloves are taken from
+   * (Kenneth, 27 October 2026): Auto Calculate Sampling writes the lot's at
+   * the inspection level, and the inspector may lower it a letter at a time
+   * for a factory whose performance is consistent, and raise it back; the
+   * gloves follow. Never typed. Optional: data saved before has none.
+   */
+  codeLetter: CodeLetterSchema.nullable()
+    .default(null)
+    .describe(
+      'The size\'s ISO 2859-1 sample size code letter (A to R, no I or O), only where a document states it for the size, such as "Code Letter M". Never work it out from the lot size, the sample size or the inspection level.',
+    ),
+  /** Why the letter was lowered, as given on Reduce; gone once it is back at the lot's letter. */
+  codeLetterReason: z
+    .string()
+    .trim()
+    .min(1)
+    .max(CODE_LETTER_REASON_MAX)
+    .nullable()
+    .default(null)
+    .describe("Why the inspector lowered the code letter on screen. Never set from a document."),
   /** n of watertight and visual (BUILD_SPEC 8), checked against the inspection level's plan (6.2 rule 8). */
   glovesWatertightVisual: CountCellSchema,
   /** The dimension rows. */
@@ -60,6 +89,9 @@ export const SamplingSizeSchema = z.strictObject({
 });
 export type SamplingSize = z.infer<typeof SamplingSizeSchema>;
 
+/** A count of a size's row: every value but its code letter and the reason it was lowered. */
+export type SamplingCount = Exclude<keyof SamplingSize, "codeLetter" | "codeLetterReason">;
+
 /**
  * The test rows the inspector may switch off on screen when the inspection
  * does not run that test (Kenneth, 26 October 2026): greyed, never hidden,
@@ -73,7 +105,7 @@ export const ROW_SWITCHES = [
   "glovesPhysical",
   "glovesWeight",
   "innerUnitsDispensing",
-] as const satisfies readonly (keyof SamplingSize)[];
+] as const satisfies readonly SamplingCount[];
 export type RowSwitch = (typeof ROW_SWITCHES)[number];
 
 /**
@@ -143,8 +175,22 @@ export function isRowSwitch(column: string): column is RowSwitch {
 }
 
 /** The test rows switched off. */
-export function rowsOff(data: SamplingPlanData): ReadonlySet<RowSwitch> {
+export function rowsOff(data: Pick<SamplingPlanData, "rowsOff">): ReadonlySet<RowSwitch> {
   return new Set(data.rowsOff ?? []);
+}
+
+/**
+ * Whether a size's Watertight & Visual follows its # of Gloves Sample
+ * (Kenneth, 27 October 2026: "the Watertight and Visual follow # of gloves
+ * sample"): where the template shows both rows and the inspector has not
+ * switched Watertight & Visual off. A count typed there holds until # of
+ * Gloves Sample next changes.
+ */
+export function watertightVisualFollows(
+  data: Pick<SamplingPlanData, "rowsOff">,
+  config: Pick<SamplingPlanConfig, "columns">,
+): boolean {
+  return config.columns.gloves && config.columns.glovesWatertightVisual && !rowsOff(data).has("glovesWatertightVisual");
 }
 
 /** `data` with one test row switched off or on; the same `data` when nothing changes. */
@@ -170,14 +216,17 @@ export function emptySamplingSize(): SamplingSize {
  * rule 4). While the size's inner units per case are entered, setting them
  * or its cases (by hand or by Auto Calculate Sampling) writes cases × per
  * case into innerUnits, null while the cases are empty; emptying them keeps
- * the total as it is, to be typed again (Kenneth, 27 October 2026). The
+ * the total as it is, to be typed again (Kenneth, 27 October 2026). Given
+ * the template's `config`, a change of # of Gloves Sample is written into
+ * Watertight & Visual too where it follows (watertightVisualFollows). The
  * same `data` when nothing changes.
  */
 export function withCount(
   data: SamplingPlanData,
   size: string,
-  column: keyof SamplingSize,
+  column: SamplingCount,
   value: number | null,
+  config: Pick<SamplingPlanConfig, "columns"> | null = null,
 ): SamplingPlanData {
   const row = data.sizes[size] ?? emptySamplingSize();
   if (row[column] === value) return data;
@@ -185,33 +234,153 @@ export function withCount(
   if ((column === "cases" || column === "innerUnitsPerCase") && next.innerUnitsPerCase !== null) {
     next.innerUnits = innerUnitsFromCases(next.cases, next.innerUnitsPerCase);
   }
+  if (column === "gloves" && config !== null && watertightVisualFollows(data, config)) next.glovesWatertightVisual = value;
   return { ...data, sizes: { ...data.sizes, [size]: next } };
 }
 
 /**
+ * `data` with a size's # of Gloves Sample worked out (Auto Calculate
+ * Sampling, a code letter's step), and its Watertight & Visual set to the
+ * same where it follows, also where the gloves were already that many: a
+ * count typed there gives way to the sample worked out.
+ */
+function withSample(
+  data: SamplingPlanData,
+  size: string,
+  gloves: number,
+  config: Pick<SamplingPlanConfig, "columns"> | null,
+): SamplingPlanData {
+  const next = withCount(data, size, "gloves", gloves, config);
+  return config !== null && watertightVisualFollows(next, config) ? withCount(next, size, "glovesWatertightVisual", gloves) : next;
+}
+
+/** `data` with a size's code letter and the reason it is below its lot's; the same `data` when both are as they are. */
+function withLetter(data: SamplingPlanData, size: string, letter: CodeLetter, reason: string | null): SamplingPlanData {
+  const row = data.sizes[size] ?? emptySamplingSize();
+  if (row.codeLetter === letter && row.codeLetterReason === reason) return data;
+  return { ...data, sizes: { ...data.sizes, [size]: { ...row, codeLetter: letter, codeLetterReason: reason } } };
+}
+
+/** What Auto Calculate Sampling works out for the sizes (Capture.tsx). */
+export type AutoSampling = {
+  /** Each size's cases to sample (auto-cases.ts). */
+  cases: Readonly<Record<string, number>>;
+  /** The gloves to sample of each size whose lot is known (auto-gloves.ts); a size left out keeps its own. */
+  gloves: Readonly<Record<string, number>>;
+  /** The code letter of each of those sizes' lots, which their gloves come from. */
+  letters: Readonly<Record<string, CodeLetter>>;
+  /** The inner units per case where a size has none (AUTO_INNER_UNITS_PER_CASE); null where the template shows no such row. */
+  perCase: number | null;
+};
+
+/**
  * `data` with Auto Calculate Sampling's counts in (Capture.tsx): each size's
- * cases, its inner units per case where it has none and `perCase` is given
- * (AUTO_INNER_UNITS_PER_CASE; null where the template shows no such row),
- * then its gloves where it has a number for them (auto-gloves.ts: a size
- * whose lot is not known keeps its own). Through withCount, so a total of
- * inner units worked out from the cases follows them.
+ * cases, its inner units per case where it has none and `auto.perCase` is
+ * given, then its code letter and gloves where its lot is known (a size whose
+ * lot is not known keeps both). The letter is the lot's own, so a reason
+ * kept for a lower one goes (Kenneth, 27 October 2026). Through withCount,
+ * so a total of inner units worked out from the cases follows them, and
+ * Watertight & Visual takes the gloves where it follows.
  */
 export function withAutoSampling(
   data: SamplingPlanData,
   sizes: readonly string[],
-  cases: Readonly<Record<string, number>>,
-  gloves: Readonly<Record<string, number>>,
-  perCase: number | null = null,
+  auto: AutoSampling,
+  config: Pick<SamplingPlanConfig, "columns"> | null = null,
 ): SamplingPlanData {
   return sizes.reduce((next, size) => {
-    const withCases = withCount(next, size, "cases", cases[size] ?? null);
+    const withCases = withCount(next, size, "cases", auto.cases[size] ?? null);
     const withPerCase =
-      perCase !== null && (withCases.sizes[size]?.innerUnitsPerCase ?? null) === null
-        ? withCount(withCases, size, "innerUnitsPerCase", perCase)
+      auto.perCase !== null && (withCases.sizes[size]?.innerUnitsPerCase ?? null) === null
+        ? withCount(withCases, size, "innerUnitsPerCase", auto.perCase)
         : withCases;
-    const count = gloves[size];
-    return count === undefined ? withPerCase : withCount(withPerCase, size, "gloves", count);
+    const letter = auto.letters[size];
+    const withLot = letter === undefined ? withPerCase : withLetter(withPerCase, size, letter, null);
+    const gloves = auto.gloves[size];
+    return gloves === undefined ? withLot : withSample(withLot, size, gloves, config);
   }, data);
+}
+
+/**
+ * Auto Calculate Sampling would change something already entered, so the
+ * capture screen asks first ("Replace the Counts Entered?"): a size's cases,
+ * gloves or code letter, its total of inner units where it puts in the
+ * inner units per case, or its Watertight & Visual where that follows the
+ * gloves; each only where it holds a value and the new one differs.
+ */
+export function autoSamplingReplaces(
+  data: SamplingPlanData,
+  sizes: readonly string[],
+  auto: AutoSampling,
+  config: Pick<SamplingPlanConfig, "columns"> | null = null,
+): boolean {
+  const follows = config !== null && watertightVisualFollows(data, config);
+  return sizes.some((size) => {
+    const row = data.sizes[size] ?? emptySamplingSize();
+    const total =
+      auto.perCase !== null && row.innerUnitsPerCase === null
+        ? (innerUnitsFromCases(auto.cases[size] ?? null, auto.perCase) ?? undefined)
+        : undefined;
+    const gloves = auto.gloves[size];
+    return (
+      replaces(row.cases, auto.cases[size]) ||
+      replaces(row.gloves, gloves) ||
+      replaces(row.innerUnits, total) ||
+      replaces(row.codeLetter, auto.letters[size]) ||
+      (follows && replaces(row.glovesWatertightVisual, gloves))
+    );
+  });
+}
+
+/** A value entered would change: one is worked out for it, and not the same. */
+function replaces<T>(entered: T | null, next: T | undefined): boolean {
+  return entered !== null && next !== undefined && entered !== next;
+}
+
+/** The reason Reduce keeps: trimmed, 1 to 500 characters; null for none, and Reduce waits for one. */
+export function codeLetterReason(text: string): string | null {
+  const trimmed = text.trim();
+  return trimmed === "" || trimmed.length > CODE_LETTER_REASON_MAX ? null : trimmed;
+}
+
+/** A step of a size's code letter on the capture screen: Reduce, or Raise. */
+export type CodeLetterStep = {
+  /** Down a letter (Reduce, with the reason), or up a letter (Raise), never past the lot's. */
+  direction: "down" | "up";
+  /** The size's lot in gloves; null while it is not known. */
+  lot: number | null;
+  /** The lot's code letter at the inspection level (calc's codeLetter); null while the lot is not known. */
+  lotLetter: CodeLetter | null;
+  /** Why the letter goes down: Reduce takes none without one. */
+  reason?: string | null;
+};
+
+/**
+ * `data` with one size's code letter a step down or up, and that size alone
+ * worked out again for it (Kenneth, 27 October 2026: "When code letter is
+ * reduced, the auto calculate trigger for that size to meet the new code
+ * letter"): # of Gloves Sample becomes the letter's sample, never more than
+ * the lot (letterSample), and Watertight & Visual follows where it does.
+ * Reduce keeps the reason given (codeLetterReason); Raise keeps the one
+ * there while the letter is still below the lot's, and back at the lot's
+ * letter the reason goes. The same `data` when the step cannot be taken: no
+ * letter, A, Reduce without a reason, Raise with the letter not below the
+ * lot's, or with no lot letter. Every other size stays as it is.
+ */
+export function withCodeLetterStep(
+  data: SamplingPlanData,
+  size: string,
+  step: CodeLetterStep,
+  config: Pick<SamplingPlanConfig, "columns"> | null = null,
+): SamplingPlanData {
+  const row = data.sizes[size] ?? emptySamplingSize();
+  const steps = letterSteps(row.codeLetter, step.lotLetter);
+  const letter = step.direction === "down" ? steps.reduceTo : steps.raiseTo;
+  if (letter === null) return data;
+  const given = codeLetterReason(step.reason ?? "");
+  if (step.direction === "down" && given === null) return data;
+  const reason = step.direction === "down" ? given : letter === step.lotLetter ? null : row.codeLetterReason;
+  return withSample(withLetter(data, size, letter, reason), size, letterSample(letter, step.lot), config);
 }
 
 /**

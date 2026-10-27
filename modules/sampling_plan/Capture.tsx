@@ -23,11 +23,12 @@
 //
 // Auto Calculate Sampling, top right of the card (Kenneth, 26 October 2026),
 // fills each size's cases from the order (auto-cases.ts) and, since 27
-// October 2026, its # of Gloves from its lot's code letter (auto-gloves.ts):
-// one of three ways the plan comes in, beside typing it and Steri-AI reading
-// a photo of the written table on Source Documents. Counts already typed are
-// replaced only after a yes. It says "Sampling Plan Calculation Completed",
-// with a line under it for a size whose lot size it lacked.
+// October 2026, its Code Letter and # of Gloves from its lot's code letter
+// (auto-gloves.ts): one of three ways the plan comes in, beside typing it and
+// Steri-AI reading a photo of the written table on Source Documents. Counts
+// already typed, and a letter it would change, are replaced only after a
+// yes. It says "Sampling Plan Calculation Completed", with a line under it
+// for a size whose lot size it lacked.
 //
 // Sampling Settings, the button beside it (Kenneth, 27 October 2026: "put a
 // setting beside the auto calculation sampling, that is to set general
@@ -43,31 +44,49 @@
 // the level picked, each size marked; Back to Settings returns.
 //
 // Sampling Quantity (Kenneth, 27 October 2026): # of Case, Inner Box Taken
-// per Case, Total # of Inner Box, then Gloves Taken per Inner Box, Total
-// Gloves Taken, Put Back and # of Gloves Sample. While a size's inner boxes per case are entered, its
-// total is worked out from its cases (withCount): read-only on grey, the sum
-// at its left ("16 × 1"); empty, the total is typed. The gloves per inner box,
-// taken in all and put back are calc's, read-only on grey. The Total column sums
-// neither the inner boxes per case nor the gloves per inner box.
+// per Case, Total # of Inner Box, then Gloves Taken per Inner Box, Put Back,
+// # of Gloves Sample and Code Letter. While a size's inner boxes per case are
+// entered, its total is worked out from its cases (withCount): read-only on
+// grey, the sum at its left ("16 × 1"); empty, the total is typed. The gloves
+// per inner box and put back are calc's, read-only on grey, and # of Gloves
+// Sample shows the sum they come to at its left, "(15 × 34) − 10" (Kenneth:
+// "remove this row [Total Gloves Taken], instead, add formula beside the
+// number of glove sample"), under its count where the cell is too narrow.
+// The Total column sums neither the inner boxes per case, the gloves per
+// inner box nor the code letter. Watertight & Visual follows # of Gloves
+// Sample, typed or worked out, unless it is switched off; a count typed
+// there holds until # of Gloves Sample next changes (Kenneth, 27 October
+// 2026: "the Watertight and Visual follow # of glvoes sample").
+//
+// Code Letter (Kenneth, 27 October 2026: "the auto calculate gives N. The
+// inspector can manually reduce it to M"): each size's letter in bold, with
+// its own Reduce, which asks why in a dialog, and Raise, back up as far as
+// its lot's letter, never above; either works that size's # of Gloves Sample
+// out again for the new letter, and no other size's. A letter below its
+// lot's says "Reduced from N", the reason as its title, and gloves typed
+// otherwise than the letter's sample are a warning on it. Read-only, the
+// letter and its note, no buttons.
 //
 // Each test row (watertight and visual, dimension, the physical test,
 // packaging and dispensing) has a switch at its left (Kenneth, 26 October
 // 2026): switched off, the row is greyed, never hidden, its cells take no
 // typing and nothing in it is asked for. No template shows a row of gloves
 // for weight any more (shownColumns).
-import { CalculatorIcon, Settings2Icon, TableIcon } from "lucide-react";
+import { CalculatorIcon, ChevronDownIcon, ChevronUpIcon, Settings2Icon, TableIcon } from "lucide-react";
 import { useEffect, useId, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { toast } from "sonner";
 import {
   EnterGroup,
   EntryProblems,
   Figure,
+  issueNoticeProps,
   NumberField,
   StatusIcon,
   StatusPill,
   useDataUpdater,
   useIssueFocus,
   type EntryProblem,
+  type IssuePath,
 } from "@/components/qc";
 import {
   AlertDialog,
@@ -92,6 +111,7 @@ import {
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
+import { Textarea } from "@/components/ui/textarea";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import {
   formatAql,
@@ -99,6 +119,7 @@ import {
   INSPECTION_LEVELS,
   InspectionLevelSchema,
   TABLE_2A_AQLS,
+  type CodeLetter,
   type InspectionLevel,
   type Table2ACell,
 } from "@/lib/aql";
@@ -122,20 +143,26 @@ import {
   type SizeLot,
 } from "./code-letters";
 import { showsInnerUnitsPerCase, type SamplingPlanConfig } from "./config";
-import { AUTO_INNER_UNITS_PER_CASE, innerUnitsFromCases } from "./inner-boxes";
-import { countGroups, type CountRow, type WorkedRow } from "./rows";
+import { AUTO_INNER_UNITS_PER_CASE, glovesFormula } from "./inner-boxes";
+import { letterSample, letterSteps, type LetterSteps } from "./letter-steps";
+import { countGroups, type CountRow, type LetterRow, type WorkedRow } from "./rows";
 import {
+  autoSamplingReplaces,
+  CODE_LETTER_REASON_MAX,
+  codeLetterReason,
   isRowSwitch,
   rowsOff,
   samplingSettings,
   withAutoSampling,
+  withCodeLetterStep,
   withCount,
   withRowOff,
   withSamplingSettings,
+  type AutoSampling,
   type RowSwitch,
+  type SamplingCount,
   type SamplingPlanData,
   type SamplingSettings,
-  type SamplingSize,
 } from "./schema";
 import { GENERAL_LEVELS, levelSourceText, SPECIAL_LEVELS } from "./settings";
 
@@ -147,12 +174,13 @@ type Line =
   | { kind: "heading"; key: string; text: string | null }
   | { kind: "count"; row: CountRow }
   | { kind: "worked"; row: WorkedRow }
+  | { kind: "letter"; row: LetterRow }
   | { kind: "result" };
 
 /** A count's column in a size's row of data. */
-type Count = keyof SamplingSize;
+type Count = SamplingCount;
 
-const NO_GLOVES: AutoGloves = { gloves: {}, unknownLot: [] };
+const NO_GLOVES: AutoGloves = { gloves: {}, letters: {}, unknownLot: [] };
 
 // The labels' column at its narrowest is the box's scroll padding: a cell
 // brought into view never sits under the pinned labels.
@@ -163,6 +191,26 @@ const TOTAL_MIN_REM = 10;
 const CELL = "flex min-w-0 items-center border-b border-border text-sm touch:text-base";
 const LABEL_CELL = "sticky left-0 z-10 bg-card px-3 py-1.5 text-left touch:py-2";
 const VALUE_CELL = "justify-end border-l border-border px-2.5 py-1.5 text-right tabular-nums touch:py-2";
+
+// The sum at the left of # of Gloves Sample, quiet as the inner boxes' "16 × 1": beside the count while the cell has
+// room for both, under it where it has not (an iPad in portrait), never over it. "(15 × 34) − 10" needs about 8.5rem
+// with a mouse and 10rem with the iPad's larger text; "25 × 12", with nothing put back, 6.5rem and 7.5rem.
+const FORMULA_BESIDE =
+  "pointer-events-none absolute inset-y-0 left-2.5 items-center text-xs whitespace-nowrap text-muted-foreground touch:text-sm";
+const FORMULA_UNDER =
+  "pointer-events-none w-full px-2.5 pb-1 text-right text-xs whitespace-nowrap text-muted-foreground touch:pb-1.5 touch:text-sm";
+const FORMULA_ROOM = {
+  short: { beside: "hidden fine:@min-[6.5rem]:flex touch:@min-[7.5rem]:flex", under: "fine:@min-[6.5rem]:hidden touch:@min-[7.5rem]:hidden" },
+  long: { beside: "hidden fine:@min-[8.5rem]:flex touch:@min-[10rem]:flex", under: "fine:@min-[8.5rem]:hidden touch:@min-[10rem]:hidden" },
+} as const;
+
+// The Code Letter cell's Reduce and Raise: the whole button is the target, 28 px (44 px on any touchscreen), its fill
+// a circle inside its padding, quiet until hovered or focused, as a measurement grid's pencil (docs/DESIGN.md). Its
+// negative margins reach into the cell's padding, so the row keeps the others' height.
+const STEP =
+  "-my-1 inline-flex size-7 shrink-0 items-center justify-center rounded-full bg-clip-content p-0.5 text-muted-foreground outline-none transition-colors hover:bg-brand-100 hover:text-brand-700 focus-visible:text-brand-700 focus-ring-inset active:bg-brand-200 disabled:pointer-events-none disabled:opacity-40 touch:-my-2 touch:size-11 touch:p-1 [&_svg]:size-4 touch:[&_svg]:size-5";
+// The amber dot on a letter below its lot's, as on a figure set for the inspection (docs/DESIGN.md).
+const MARK = "size-2 shrink-0 rounded-full border border-warn bg-warn-solid touch:size-2.5";
 
 export default function Capture({
   data,
@@ -213,13 +261,19 @@ export default function Capture({
   const groups = countGroups(config, label);
   const countRows = groups.flatMap((group) => group.rows.filter((row): row is CountRow => row.kind === "count"));
   const perCaseShown = showsInnerUnitsPerCase(config);
-  // The issues of the cells on screen, size by size: the screen lists the module's own (not done) elsewhere.
-  const cells = new Set(sizes.flatMap((size) => countRows.map((row) => cellKey(size, row.column))));
+  // The issues of the cells on screen, size by size, the code letters' included: the screen lists the module's own
+  // (not done) elsewhere.
+  const columns = groups.flatMap((group) =>
+    group.rows.flatMap((row) => (row.kind === "count" ? [row.column] : row.kind === "letter" ? [row.key] : [])),
+  );
+  const cells = new Set(sizes.flatMap((size) => columns.map((column) => cellKey(size, column))));
   const issues = (evaluation?.issues ?? []).filter(
     (issue) => issue.path.length === 3 && issue.path[0] === "sizes" && cells.has(cellKey(String(issue.path[1]), String(issue.path[2]))),
   );
 
-  const setCount = (size: string, column: Count, value: number | null) => update((current) => withCount(current, size, column, value));
+  // # of Gloves Sample typed is written into Watertight & Visual too where it follows (withCount).
+  const setCount = (size: string, column: Count, value: number | null) =>
+    update((current) => withCount(current, size, column, value, config));
   const off = rowsOff(data);
   const setRowOff = (column: RowSwitch, switchedOff: boolean) => update((current) => withRowOff(current, column, switchedOff));
 
@@ -234,34 +288,32 @@ export default function Capture({
   const lot = (size: string) => computed?.sizes?.[size]?.lotSizeGloves ?? lotSizeGloves(context, size);
   const lots: SizeLot[] = sizes.map((size) => ({ size, lot: lot(size) }));
 
+  // Each size's own Reduce and Raise (Kenneth, 27 October 2026: "each size should have their own reduction control
+  // button"): the size's letter a step down or up from the latest data, and only that size's gloves worked out again.
+  const stepLetter = (size: string, direction: "down" | "up", reason?: string) =>
+    update((current) =>
+      withCodeLetterStep(current, size, { direction, lot: lot(size), lotLetter: computed?.sizes?.[size]?.codeLetter ?? null, reason }, config),
+    );
+
   // Auto Calculate Sampling, where the template has a Case row: null until every size has its order quantity. It
-  // fills # of Gloves too, where the template has the row: the sample size of each size's lot's code letter at the
-  // inspection level in force (auto-gloves.ts), and 1 inner box per case where a size has none and the template shows
-  // that row, so the total inner boxes, the gloves per inner box and the put back follow.
+  // fills # of Gloves and the Code Letter too, where the template has the row: each size's lot's code letter at the
+  // inspection level in force and its sample size (auto-gloves.ts), and 1 inner box per case where a size has none
+  // and the template shows that row, so the total inner boxes, the gloves per inner box and the put back follow.
   const hasCases = countRows.some((row) => row.column === "cases");
   const hasGloves = countRows.some((row) => row.column === "gloves");
   const autoCases = hasCases
     ? autoSampleCases(sizes, (size) => context.order[size]?.qtyCases ?? null, settings.roundCases)
     : null;
   const autoGloves = hasGloves ? autoSampleGloves(lots, resolveInspectionLevel(data, config, context).level) : NO_GLOVES;
-  const replacesEntered =
-    autoCases !== null &&
-    sizes.some((size) => {
-      const row = data.sizes[size];
-      const total =
-        perCaseShown && (row?.innerUnitsPerCase ?? null) === null
-          ? (innerUnitsFromCases(autoCases[size] ?? null, AUTO_INNER_UNITS_PER_CASE) ?? undefined)
-          : undefined;
-      return (
-        wouldReplace(row?.cases ?? null, autoCases[size]) ||
-        wouldReplace(row?.gloves ?? null, autoGloves.gloves[size]) ||
-        wouldReplace(row?.innerUnits ?? null, total)
-      );
-    });
+  const autoSampling = (cases: Readonly<Record<string, number>>): AutoSampling => ({
+    cases,
+    gloves: autoGloves.gloves,
+    letters: autoGloves.letters,
+    perCase: perCaseShown ? AUTO_INNER_UNITS_PER_CASE : null,
+  });
+  const replacesEntered = autoCases !== null && autoSamplingReplaces(data, sizes, autoSampling(autoCases), config);
   const applyAutoCases = (cases: Readonly<Record<string, number>>) => {
-    update((current) =>
-      withAutoSampling(current, sizes, cases, autoGloves.gloves, perCaseShown ? AUTO_INNER_UNITS_PER_CASE : null),
-    );
+    update((current) => withAutoSampling(current, sizes, autoSampling(cases), config));
     const notice = autoCalculateNotice({
       unknownLot: autoGloves.unknownLot,
       sizeName: sizeHead,
@@ -329,7 +381,10 @@ export default function Capture({
     ...noteLines,
     ...groups.flatMap((group, index): Line[] => [
       { kind: "heading", key: `group-${index}`, text: group.heading },
-      ...group.rows.map((row): Line => (row.kind === "count" ? { kind: "count", row } : { kind: "worked", row })),
+      ...group.rows.map((row): Line => {
+        if (row.kind === "count") return { kind: "count", row };
+        return row.kind === "letter" ? { kind: "letter", row } : { kind: "worked", row };
+      }),
     ]),
     { kind: "result" },
   ];
@@ -419,12 +474,9 @@ export default function Capture({
           </div>
         );
       case "worked":
+      case "letter":
         return (
-          <div
-            key={line.row.key}
-            style={at(row, 1)}
-            className={cn(CELL, LABEL_CELL, "text-foreground", byProduct(line.row) && "italic", edge(row))}
-          >
+          <div key={line.row.key} style={at(row, 1)} className={cn(CELL, LABEL_CELL, "text-foreground", edge(row))}>
             {line.row.label}
           </div>
         );
@@ -483,16 +535,28 @@ export default function Capture({
           const perCase = stored?.innerUnitsPerCase ?? null;
           const workedOut = count === "innerUnits" && perCaseShown && perCase !== null;
           const cases = stored?.cases ?? null;
+          // # of Gloves Sample shows the gloves the inner boxes give, less those put back (Kenneth, 27 October 2026),
+          // while the inner boxes and the gloves per inner box are known; the count stays typed.
+          const plan = computed?.sizes?.[size];
+          const formula =
+            count === "gloves" ? glovesFormula(stored?.innerUnits ?? null, plan?.glovesPerInnerBox ?? null, plan?.putBack ?? null) : null;
+          const room = formula === null ? null : FORMULA_ROOM[(plan?.putBack ?? 0) === 0 ? "short" : "long"];
+          const title = workedOut
+            ? `${label("cases")} × ${label("innerUnitsPerCase")}`
+            : formula !== null
+              ? `${label("innerUnits")} × ${label("glovesPerInnerBox")} − ${label("putBack")}`
+              : undefined;
           return (
             <div
               key={count}
               data-row-off={rowOff || undefined}
               data-worked-out={workedOut || undefined}
               style={at(row, column)}
-              title={workedOut ? `${label("cases")} × ${label("innerUnitsPerCase")}` : undefined}
+              title={title}
               className={cn(
                 CELL,
                 "relative border-l border-border p-0",
+                room && "@container flex-wrap",
                 rowOff && "bg-slate-50 opacity-50",
                 workedOut && "bg-slate-50",
                 edge(row),
@@ -505,6 +569,11 @@ export default function Capture({
                   className="pointer-events-none absolute inset-y-0 left-2.5 flex items-center text-xs whitespace-nowrap text-muted-foreground touch:text-sm"
                 >
                   {`${formatCount(cases)} × ${formatCount(perCase)}`}
+                </span>
+              )}
+              {room && (
+                <span aria-hidden data-slot="gloves-formula" className={cn(FORMULA_BESIDE, room.beside)}>
+                  {formula}
                 </span>
               )}
               <NumberField
@@ -524,6 +593,11 @@ export default function Capture({
                 readOnly={readOnly || rowOff || workedOut}
                 className="w-full"
               />
+              {room && (
+                <span aria-hidden data-slot="gloves-formula-under" className={cn(FORMULA_UNDER, room.under)}>
+                  {formula}
+                </span>
+              )}
             </div>
           );
         }
@@ -534,12 +608,39 @@ export default function Capture({
               key={line.row.key}
               data-worked={line.row.key}
               style={at(row, column)}
-              className={cn(CELL, VALUE_CELL, "bg-slate-50 text-foreground", byProduct(line.row) && "italic", edge(row))}
+              className={cn(CELL, VALUE_CELL, "bg-slate-50 text-foreground", edge(row))}
             >
               <span className="sr-only">{line.row.label}: </span>
               <Figure value={computed?.sizes?.[size]?.[line.row.key] ?? null} grouping />
             </div>
           );
+        case "letter": {
+          const stored = data.sizes[size];
+          const letter = stored?.codeLetter ?? null;
+          const path = ["sizes", size, "codeLetter"] as const;
+          return (
+            <CodeLetterCell
+              key={line.row.key}
+              size={size}
+              style={at(row, column)}
+              className={edge(row)}
+              label={line.row.label}
+              letter={letter}
+              reason={stored?.codeLetterReason ?? null}
+              steps={letterSteps(letter, computed?.sizes?.[size]?.codeLetter ?? null)}
+              gloves={stored?.gloves ?? null}
+              glovesAt={(next) => letterSample(next, lot(size))}
+              glovesLabel={label("gloves")}
+              sizeHead={sizeHead(size)}
+              sizeName={sizeName(size)}
+              warnings={issues.filter((issue) => issue.level === "warning" && samePath(issue.path, path)).map((issue) => issue.message)}
+              issuePath={path}
+              readOnly={readOnly}
+              onReduce={(reason) => stepLetter(size, "down", reason)}
+              onRaise={() => stepLetter(size, "up")}
+            />
+          );
+        }
         case "result": {
           const result = evaluation?.result.perSize?.[size];
           return (
@@ -602,16 +703,19 @@ export default function Capture({
           </div>
         );
       case "worked":
-        // The gloves taken and put back add up; the gloves per inner box do not.
+        // The gloves put back add up; the gloves per inner box do not.
         if (line.row.key === "glovesPerInnerBox") {
           return <div key={line.row.key} aria-hidden data-no-total="" style={at(row, totalColumn)} className={cell} />;
         }
         return (
-          <div key={line.row.key} style={at(row, totalColumn)} className={cn(cell, byProduct(line.row) && "italic")}>
+          <div key={line.row.key} style={at(row, totalColumn)} className={cell}>
             <span className="sr-only">{line.row.label}: </span>
             <Figure value={computed?.totals?.[line.row.key] ?? null} grouping />
           </div>
         );
+      case "letter":
+        // Code letters add up to nothing: no total.
+        return <div key={line.row.key} aria-hidden data-no-total="" style={at(row, totalColumn)} className={cell} />;
       case "result":
         return <div key="result" aria-hidden style={at(row, totalColumn)} className={cell} />;
     }
@@ -701,7 +805,8 @@ type RejectedEntry = EntryProblem & { size: string; column: Count };
 
 /**
  * Auto Calculate Sampling. Disabled until every size has its order quantity;
- * asks first when it would change cases or gloves already typed (`replaces`).
+ * asks first when it would change counts already typed or a code letter
+ * (`replaces`, autoSamplingReplaces).
  */
 function AutoCalculateButton({
   cases,
@@ -726,7 +831,7 @@ function AutoCalculateButton({
         title={
           cases === null
             ? "Enter every size's order quantity first."
-            : `Each size's cases: the square root of the order's cases, shared by the size's cases, rounded up${roundUp ? " to the nearest 5 or 10" : ""}. Its gloves: the sample size of its lot's code letter at the inspection level.`
+            : `Each size's cases: the square root of the order's cases, shared by the size's cases, rounded up${roundUp ? " to the nearest 5 or 10" : ""}. Its code letter: its lot's at the inspection level. Its gloves: that letter's sample size.`
         }
         onClick={() => {
           if (cases === null) return;
@@ -742,8 +847,8 @@ function AutoCalculateButton({
           <AlertDialogHeader>
             <AlertDialogTitle>Replace the Counts Entered?</AlertDialogTitle>
             <AlertDialogDescription>
-              Auto Calculate Sampling fills each size&apos;s cases from the order quantities and its gloves from the lot
-              size, in place of the counts already entered.
+              Auto Calculate Sampling fills each size&apos;s cases from the order quantities and its code letter and
+              gloves from the lot size, in place of what is already entered.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -753,6 +858,215 @@ function AutoCalculateButton({
         </AlertDialogContent>
       </AlertDialog>
     </>
+  );
+}
+
+type CodeLetterCellProps = {
+  size: string;
+  style: CSSProperties;
+  className?: string | false;
+  /** "Code Letter". */
+  label: string;
+  /** The size's letter (data); null until Auto Calculate Sampling or a reading puts one in. */
+  letter: CodeLetter | null;
+  /** Why it was lowered, as given on Reduce. */
+  reason: string | null;
+  steps: LetterSteps;
+  /** # of Gloves Sample as it is, and as a letter would make it (letterSample). */
+  gloves: number | null;
+  glovesAt: (letter: CodeLetter) => number;
+  /** "# of Gloves Sample". */
+  glovesLabel: string;
+  /** "S", as the size's column is headed, and "Size S". */
+  sizeHead: string;
+  sizeName: string;
+  /** calc's warnings on the letter: gloves that are not its sample. */
+  warnings: readonly string[];
+  issuePath: IssuePath;
+  readOnly: boolean;
+  onReduce: (reason: string) => void;
+  onRaise: () => void;
+};
+
+/**
+ * A size's Code Letter cell (Kenneth, 27 October 2026): the letter in bold;
+ * an amber dot and "Reduced from N" under it while it is below its lot's, the
+ * reason as the note's title and read after it; and the size's own Reduce
+ * and Raise beside it, under it where the cell is too narrow for both (an
+ * iPad in portrait). Reduce asks why first; Raise needs no reason. Gloves
+ * that are not the letter's sample tint the cell amber, the warning read
+ * with the letter, as a count cell's is, and an issue link lands on the
+ * letter. Read-only: the letter and its note alone.
+ */
+function CodeLetterCell({
+  size,
+  style,
+  className,
+  label,
+  letter,
+  reason,
+  steps,
+  gloves,
+  glovesAt,
+  glovesLabel,
+  sizeHead,
+  sizeName,
+  warnings,
+  issuePath,
+  readOnly,
+  onReduce,
+  onRaise,
+}: CodeLetterCellProps) {
+  const note = steps.reducedFrom === null ? null : `Reduced from ${steps.reducedFrom}`;
+  const reduceTo = steps.reduceTo;
+  const reduceName = `Reduce the code letter for size ${sizeHead}${reduceTo === null ? "" : ` to ${reduceTo}`}`;
+  const raiseName = `Raise the code letter for size ${sizeHead}${steps.raiseTo === null ? "" : ` back to ${steps.raiseTo}`}`;
+  // "N → M: # of Gloves Sample 500 → 315", for the dialog.
+  const change =
+    letter === null || reduceTo === null
+      ? null
+      : `${letter} → ${reduceTo}: ${glovesLabel} ${gloves === null ? "" : `${formatCount(gloves)} → `}${formatCount(glovesAt(reduceTo))}`;
+  return (
+    <div
+      data-code-letter={size}
+      data-reduced={note !== null || undefined}
+      style={style}
+      className={cn(CELL, VALUE_CELL, "touch:px-1", warnings.length > 0 && "bg-warn-tint", className)}
+    >
+      {/* Right to left: the letter at the cell's right edge, as the counts above it are, its buttons before it. */}
+      <div className="flex min-w-0 flex-row-reverse flex-wrap items-center gap-x-0.5 gap-y-2">
+        <span className="flex min-w-0 flex-col items-end">
+          <span {...issueNoticeProps(issuePath)} className="rounded-sm outline-none focus-ring">
+            <span className="sr-only">{`${label}: `}</span>
+            {letter === null ? (
+              <Figure value={null} />
+            ) : (
+              <span data-slot="code-letter" className="text-base font-bold text-foreground touch:text-lg">
+                {letter}
+              </span>
+            )}
+            {warnings.length > 0 && <span className="sr-only">{` ${warnings.join(" ")}`}</span>}
+          </span>
+          {note && (
+            <span
+              data-slot="reduced-from"
+              title={reason === null ? note : `${note}: ${reason}`}
+              className="inline-flex items-center gap-1 text-xs leading-tight text-muted-foreground touch:text-sm"
+            >
+              <span aria-hidden className={MARK} />
+              {note}
+              {reason !== null && <span className="sr-only">{`: ${reason}`}</span>}
+            </span>
+          )}
+        </span>
+        {!readOnly && (
+          <span data-slot="code-letter-steps" className="inline-flex shrink-0 items-center">
+            <ReduceCodeLetter name={reduceName} title={`Reduce Code Letter for ${sizeName}`} change={change} onReduce={onReduce} />
+            <button
+              type="button"
+              disabled={steps.raiseTo === null}
+              aria-label={raiseName}
+              title={raiseName}
+              onClick={onRaise}
+              className={STEP}
+            >
+              <ChevronUpIcon aria-hidden />
+            </button>
+          </span>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Reduce, and the dialog it opens: the change it makes and why. Disabled
+ * while there is no letter to go down to (`change` null: no letter, or A).
+ */
+function ReduceCodeLetter({
+  name,
+  title,
+  change,
+  onReduce,
+}: {
+  name: string;
+  title: string;
+  change: string | null;
+  onReduce: (reason: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <button type="button" disabled={change === null} aria-label={name} title={name} className={STEP}>
+          <ChevronDownIcon aria-hidden />
+        </button>
+      </DialogTrigger>
+      {change !== null && (
+        <DialogContent className="sm:max-w-md">
+          <ReduceCodeLetterForm
+            title={title}
+            change={change}
+            onReduce={(reason) => {
+              onReduce(reason);
+              setOpen(false);
+            }}
+          />
+        </DialogContent>
+      )}
+    </Dialog>
+  );
+}
+
+/**
+ * Why the letter goes down (Kenneth, 27 October 2026: "reducing code letter
+ * go to Audit Log"): a reason of 1 to 500 characters, which Reduce waits for
+ * (codeLetterReason). Cancel writes nothing. The reason starts empty at each
+ * opening: the dialog holds its content only while it is open.
+ */
+function ReduceCodeLetterForm({ title, change, onReduce }: { title: string; change: string; onReduce: (reason: string) => void }) {
+  const ids = useId();
+  const [reason, setReason] = useState("");
+  const kept = codeLetterReason(reason);
+  return (
+    <form
+      noValidate
+      className="grid gap-5"
+      onSubmit={(event) => {
+        event.preventDefault();
+        if (kept !== null) onReduce(kept);
+      }}
+    >
+      <DialogHeader>
+        <DialogTitle className="pr-8 text-lg font-bold">{title}</DialogTitle>
+        <DialogDescription>{change}</DialogDescription>
+      </DialogHeader>
+      <div className="grid gap-1.5">
+        <Label htmlFor={`${ids}-reason`} className="touch:text-base">
+          Reason
+        </Label>
+        <Textarea
+          id={`${ids}-reason`}
+          value={reason}
+          onChange={(event) => setReason(event.target.value)}
+          maxLength={CODE_LETTER_REASON_MAX}
+          rows={3}
+          required
+          autoFocus
+          placeholder="e.g. Consistent high-quality factory"
+        />
+      </div>
+      <DialogFooter>
+        <DialogClose asChild>
+          <Button type="button" variant="outline">
+            Cancel
+          </Button>
+        </DialogClose>
+        <Button type="submit" disabled={kept === null}>
+          Reduce
+        </Button>
+      </DialogFooter>
+    </form>
   );
 }
 
@@ -1377,20 +1691,6 @@ function cellKey(size: string, column: string): string {
 /** The input's id: sizes such as "7.0" are fine in an id, never in a selector built from it. */
 function fieldId(size: string, column: Count): string {
   return `sampling-plan-${size}-${column}`;
-}
-
-/** Auto Calculate Sampling would change a count already entered: one it works out, and not to the same number. */
-/**
- * A worked row that only follows from the others, set in italics: Total Gloves
- * Taken (Kenneth, 27 October 2026: "italic total gloves taken because thats
- * not the important data").
- */
-function byProduct(row: WorkedRow): boolean {
-  return row.key === "totalGlovesTaken";
-}
-
-function wouldReplace(entered: number | null, next: number | undefined): boolean {
-  return entered !== null && next !== undefined && entered !== next;
 }
 
 function samePath(path: readonly (string | number)[], target: readonly (string | number)[]): boolean {

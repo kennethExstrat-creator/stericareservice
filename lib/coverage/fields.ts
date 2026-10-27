@@ -427,9 +427,9 @@ const samplingPlan = defineModule({
   alwaysOn: false,
   title: "Sampling Plan",
   captures:
-    "Per size: sampled cases, inner units (taken per case, and in total) and gloves, with the gloves taken per inner unit and those put back; gloves for watertight and visual, for dimensions and for the physical test; inner units for packaging and dispensing; pouches and dye leak pouches (surgical).",
+    "Per size: sampled cases, inner units (taken per case, and in total) and gloves, with the gloves taken per inner unit and those put back, and the code letter the gloves are taken from, which the inspector may lower with a reason; gloves for watertight and visual, for dimensions and for the physical test; inner units for packaging and dispensing; pouches and dye leak pouches (surgical).",
   result:
-    "warn when a size's watertight and visual sample is below the AQL plan of config inspectionLevel, or its stored innerUnits is not cases × innerUnitsPerCase; info otherwise.",
+    "warn when a size's watertight and visual sample is below the AQL plan of config inspectionLevel, its stored innerUnits is not cases × innerUnitsPerCase, or its gloves are not its codeLetter's sample; info otherwise.",
   rules: [1, 2, 4, 6, 8],
   data: [
     {
@@ -441,7 +441,7 @@ const samplingPlan = defineModule({
       entry: "entered",
       rules: [1, 6],
       notes:
-        "carton_sampling must list exactly this many box/carton numbers (rule 6). The module words it, innerUnitsPerCase, innerUnits, gloves, glovesPerInnerBox and putBack itself, whatever the template says (Kenneth, 27 October 2026).",
+        "carton_sampling must list exactly this many box/carton numbers (rule 6). The module words it, innerUnitsPerCase, innerUnits, gloves, glovesPerInnerBox, putBack and codeLetter itself, whatever the template says (Kenneth, 27 October 2026).",
     },
     {
       key: "innerUnitsPerCase",
@@ -474,7 +474,27 @@ const samplingPlan = defineModule({
       entry: "entered",
       rules: [1],
       notes:
-        "Auto Calculate Sampling fills it: the sample size of the code letter of the size's lot (lotSizeGloves) at the inspection level in force, I when none is set; every glove when that sample is not smaller than the lot (Kenneth, 27 October 2026).",
+        "Auto Calculate Sampling fills it: the sample size of the code letter of the size's lot (lotSizeGloves) at the inspection level in force, I when none is set; every glove when that sample is not smaller than the lot (Kenneth, 27 October 2026). Reduce and Raise on codeLetter work it out again for the new letter, the same way. The capture shows the sum it comes to beside it: (innerUnits × glovesPerInnerBox) − putBack, (15 × 34) − 10 for 500.",
+    },
+    {
+      key: "codeLetter",
+      label: "Code Letter",
+      type: "select",
+      options: CODE_LETTERS,
+      per: ["size"],
+      entry: "entered",
+      rules: [8],
+      notes:
+        "The ISO 2859-1 sample size code letter gloves is taken from (Kenneth, 27 October 2026). Auto Calculate Sampling writes the lot's (Table 1 from order_lots.lotSizeGloves at the inspection level in force), never typed; the inspector may lower it one letter at a time for a factory whose performance is consistent (Reduce, with codeLetterReason) and raise it back as far as the lot's letter (Raise), and gloves becomes the new letter's Table 2-A sample size, never more than the lot. A gloves typed otherwise is the warning code_letter_mismatch on it. Optional: an inspection saved before has none. Steri-AI fills it only from a document that states it. The computed values keep the lot's letter (computed codeLetter) and whether this one is below it (codeLetterReduced, reducedFrom); a complete size's summary ends Code Letter: M (reduced from N).",
+    },
+    {
+      key: "codeLetterReason",
+      label: "Reason for Reduced Code Letter",
+      type: "textarea",
+      per: ["size"],
+      entry: "entered",
+      notes:
+        "Why the inspector lowered codeLetter, 1 to 500 characters, required by Reduce (Kenneth, 27 October 2026: \"reducing code letter go to Audit Log\"). Kept while the letter is below the lot's; Raise or Auto Calculate Sampling back at the lot's letter clears it. A save that changes codeLetter writes the audit row code_letter_changed with it. Never from a document.",
     },
     {
       key: "glovesWatertightVisual",
@@ -485,7 +505,8 @@ const samplingPlan = defineModule({
       per: ["size"],
       entry: "entered",
       rules: [1, 8],
-      notes: "Flows forward as n in watertight and visual (BUILD_SPEC 8). SG prints it under 'Sampling Quantity (WTT & Visual)'.",
+      notes:
+        "Flows forward as n in watertight and visual (BUILD_SPEC 8). SG prints it under 'Sampling Quantity (WTT & Visual)'. Follows gloves whenever gloves changes, typed, by Auto Calculate Sampling, Reduce or Raise, unless the row is switched off (rowsOff); a count typed here holds until gloves next changes (Kenneth, 27 October 2026).",
     },
     {
       key: "glovesDimensions",
@@ -575,17 +596,6 @@ const samplingPlan = defineModule({
       rules: [2],
     },
     {
-      key: "codeLetter",
-      label: "Code Letter",
-      type: "select",
-      options: CODE_LETTERS,
-      per: ["size"],
-      entry: "computed",
-      formula:
-        "ISO 2859-1 Table 1 from order_lots.lotSizeGloves and inspectionLevel, the level in force (lib/aql planFromLotSize); none without a lot size.",
-      rules: [2, 8],
-    },
-    {
       key: "planSampleSize",
       label: "Sample Size by Plan",
       type: "integer",
@@ -593,7 +603,7 @@ const samplingPlan = defineModule({
       per: ["size"],
       entry: "computed",
       formula:
-        "The largest Table 2-A n for codeLetter among the AQLs the inspection checks on the watertight and visual sample (watertight, and visual's classes switched on), arrows followed; Table 1's n when it checks none. A glovesWatertightVisual below it raises the module warning.",
+        "The largest Table 2-A n for the lot's code letter (ISO 2859-1 Table 1 from order_lots.lotSizeGloves and inspectionLevel, kept in the computed values as codeLetter) among the AQLs the inspection checks on the watertight and visual sample (watertight, and visual's classes switched on), arrows followed; Table 1's n when it checks none. A glovesWatertightVisual below it raises no warning (Kenneth, 26 October 2026).",
       rules: [2, 8],
     },
     {
@@ -608,23 +618,14 @@ const samplingPlan = defineModule({
       rules: [2],
     },
     {
-      key: "totalGlovesTaken",
-      label: "Total Gloves Taken",
-      type: "integer",
-      unit: "pcs",
-      per: ["size"],
-      entry: "computed",
-      formula: "glovesPerInnerBox × innerUnits: the gloves taken in all (13 × 25 = 325).",
-      rules: [2],
-    },
-    {
       key: "putBack",
       label: "Put Back",
       type: "integer",
       unit: "pcs",
       per: ["size"],
       entry: "computed",
-      formula: "totalGlovesTaken − gloves: the gloves taken beyond the sample, put back (325 − 315 = 10).",
+      formula:
+        "glovesPerInnerBox × innerUnits − gloves: the gloves taken beyond the sample, put back (13 × 25 − 315 = 10). The gloves taken in all have no field (Kenneth, 27 October 2026: \"remove this row\").",
       rules: [2],
     },
     {
@@ -635,7 +636,7 @@ const samplingPlan = defineModule({
       per: [],
       entry: "computed",
       formula:
-        "Sum over the ordered sizes of each column on (the onsite forms' Total: row), and of totalGlovesTaken and putBack; none for innerUnitsPerCase or glovesPerInnerBox.",
+        "Sum over the ordered sizes of each column on (the onsite forms' Total: row), and of putBack; none for innerUnitsPerCase, glovesPerInnerBox or codeLetter.",
       rules: [2],
     },
   ],
@@ -645,7 +646,7 @@ const samplingPlan = defineModule({
       type: "Record<SamplingColumn, boolean>",
       default: { ...allOn(SAMPLING_COLUMNS), glovesWeight: false, pouches: false, pouchesDyeLeak: false },
       meaning:
-        "Columns on or off (BUILD_SPEC: columns on/off). The surgical pouch columns and glovesWeight are off by default; a template version saved before glovesWeight existed reads it as off. glovesWeight is never shown since 26 October 2026, on or off. innerUnitsPerCase has no switch: it shows with innerUnits and cases, as glovesPerInnerBox and putBack show with gloves and innerUnits.",
+        "Columns on or off (BUILD_SPEC: columns on/off). The surgical pouch columns and glovesWeight are off by default; a template version saved before glovesWeight existed reads it as off. glovesWeight is never shown since 26 October 2026, on or off. innerUnitsPerCase has no switch: it shows with innerUnits and cases, as glovesPerInnerBox and putBack show with gloves and innerUnits, and codeLetter with gloves.",
     },
     {
       key: "inspectionLevel",

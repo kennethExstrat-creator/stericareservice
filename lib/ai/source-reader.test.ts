@@ -53,6 +53,16 @@ describe("the modules' data as the reading gets it (moduleDataJsonSchema)", () =
     expect(size?.required ?? []).toEqual([]);
   });
 
+  it("describes each size's code letter, which a document stating it fills, and never the reason it was lowered (Kenneth, 27 October 2026)", () => {
+    const schema = moduleDataJsonSchema(MODULE_REGISTRY.sampling_plan.dataSchema) as Node;
+    const size = schema.properties?.sizes?.additionalProperties;
+    expect(size?.properties?.codeLetter?.description).toContain("ISO 2859-1 sample size code letter (A to R, no I or O)");
+    expect(size?.properties?.codeLetter?.description).toContain('only where a document states it for the size, such as "Code Letter M"');
+    expect(size?.properties?.codeLetter?.description).toContain("Never work it out from the lot size, the sample size or the inspection level.");
+    expect(size?.properties?.codeLetterReason?.description).toContain("Never set from a document.");
+    expect(size?.required ?? []).toEqual([]);
+  });
+
   it("writes every module's data, so no module is left out of a reading", () => {
     for (const [key, definition] of Object.entries(MODULE_REGISTRY)) expect(moduleDataJsonSchema(definition.dataSchema), key).not.toBeNull();
   });

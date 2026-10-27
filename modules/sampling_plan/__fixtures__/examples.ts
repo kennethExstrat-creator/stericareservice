@@ -25,8 +25,8 @@ function filled<T>(perSize: Readonly<Partial<Record<(typeof REPORT_SIZES)[number
 
 /**
  * The Sampling Plan table, column by column; no gloves for weight (the app
- * shows no such row), and no inner boxes per case: the reports print the
- * inner boxes sampled in all.
+ * shows no such row), no inner boxes per case: the reports print the inner
+ * boxes sampled in all, and no code letter: they print none in the table.
  */
 export function samplingPlanData(example: ExampleReport): SamplingPlanData {
   return {
@@ -38,6 +38,8 @@ export function samplingPlanData(example: ExampleReport): SamplingPlanData {
           innerUnitsPerCase: null,
           innerUnits: row.inners,
           gloves: row.gloves,
+          codeLetter: null,
+          codeLetterReason: null,
           glovesWatertightVisual: row.watertightVisualGloves,
           glovesDimensions: row.dimensionGloves,
           glovesPhysical: row.physicalTestGloves,

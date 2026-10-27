@@ -14,7 +14,7 @@ import type { SamplingPlanComputed } from "./calc";
 import Capture from "./Capture";
 import { SAMPLING_PLAN_DEFAULT_CONFIG, SAMPLING_PLAN_LABELS, type SamplingColumn, type SamplingPlanConfig } from "./config";
 import { definition } from "./index";
-import { emptySamplingPlan, withCount, type SamplingPlanData, type SamplingSize } from "./schema";
+import { emptySamplingPlan, withCodeLetterStep, withCount, withRowOff, type SamplingPlanData, type SamplingSize } from "./schema";
 
 const LEVEL_I: SamplingPlanConfig = { ...SAMPLING_PLAN_DEFAULT_CONFIG, inspectionLevel: "I" };
 const noop = () => {};
@@ -174,17 +174,18 @@ describe("sampling_plan Capture", () => {
       expect(html).toContain(`aria-label="${name}, Size M"`);
     }
     expect(html).toContain(">Gloves Taken per Inner Box<");
-    expect(html).toContain(">Total Gloves Taken<");
     expect(html).toContain(">Put Back<");
-    // Kenneth's order (27 October 2026): per box, taken in all, put back, then the gloves sampled.
-    const order = [">Gloves Taken per Inner Box<", ">Total Gloves Taken<", ">Put Back<", 'aria-label="# of Gloves Sample, Size M"'].map((text) =>
+    expect(html).toContain(">Code Letter<");
+    // Kenneth's order (27 October 2026): per box, put back, the gloves sampled, then the code letter last.
+    const order = [">Gloves Taken per Inner Box<", ">Put Back<", 'aria-label="# of Gloves Sample, Size M"', 'data-code-letter="M"'].map((text) =>
       html.indexOf(text),
     );
+    expect(order.every((at) => at > -1)).toBe(true);
     expect(order).toEqual([...order].sort((a, b) => a - b));
-    // Total Gloves Taken is set in italics, the data that matters in upright type (Kenneth, 27 October 2026).
-    expect(html).toMatch(/<div[^>]*class="[^"]*\bitalic\b[^"]*"[^>]*>Total Gloves Taken</);
-    expect(html).toMatch(/data-worked="totalGlovesTaken"[^>]*class="[^"]*\bitalic\b/);
-    expect(html).not.toMatch(/data-worked="putBack"[^>]*class="[^"]*\bitalic\b/);
+    // Total Gloves Taken is gone, and with it the italics (Kenneth, 27 October 2026: "remove this row").
+    expect(html).not.toContain("Total Gloves Taken");
+    expect(html).not.toContain("totalGlovesTaken");
+    expect(html).not.toMatch(/class="[^"]*\bitalic\b/);
     for (const old of ['aria-label="Case, Size M"', 'aria-label="Inner Box, Size M"', 'aria-label="Gloves, Size M"']) {
       expect(html).not.toContain(old);
     }
@@ -206,9 +207,9 @@ describe("sampling_plan Capture", () => {
     const html = render(props(SAFEDON_EG_EXAMPLE));
     for (const text of ["Order Qty (Case)", "Lot Size (Gloves)"]) expect(html).toContain(text);
     for (const value of ["120,000", "1,700,000", "1,120,000"]) expect(html).toContain(value);
-    // No inspection level, code letter or plan sample size on the card (Kenneth, 26 October 2026).
+    // No inspection level or plan sample size on the card (Kenneth, 26 October 2026). The Code Letter row is data,
+    // each size's own letter (27 October 2026), not the plan's read-only one.
     expect(html).not.toContain("Inspection Level");
-    expect(html).not.toContain("Code Letter");
     expect(html).not.toContain("Sample Size by Plan");
   });
 
@@ -437,16 +438,170 @@ describe("sampling_plan Capture's Sampling Quantity (Kenneth, 27 October 2026)",
     expect(known).not.toContain("Needs the Packing Configuration");
   });
 
-  it("totals the gloves put back, and neither the inner boxes per case nor the gloves per inner box", () => {
+  it("shows # of Gloves Sample's sum at its left: (Total # of Inner Box × Gloves Taken per Inner Box) − Put Back (Kenneth, 27 October 2026)", () => {
+    // 500 gloves from 15 inner boxes is 34 a box, 510 taken, 10 put back.
+    const html = render(props(STD_EG_EXAMPLE, LEVEL_I, SAMPLING_PLAN_LABELS, withQuantity({ cases: 15, innerUnitsPerCase: 1, innerUnits: 15, gloves: 500 })));
+    const cell = cellOf(html, 'id="sampling-plan-M-gloves"');
+    expect(cell).toMatch(/data-slot="gloves-formula"[^>]*>\(15 × 34\) − 10<\/span>/);
+    expect(cell).toContain('title="Total # of Inner Box × Gloves Taken per Inner Box − Put Back"');
+    // Beside the count while the cell has room, under it where it has not; the count stays typed.
+    expect(cell).toMatch(/class="[^"]*@container[^"]*"/);
+    expect(cell).toMatch(/data-slot="gloves-formula" class="[^"]*\bhidden fine:@min-\[8\.5rem\]:flex touch:@min-\[10rem\]:flex/);
+    expect(cell).toMatch(/data-slot="gloves-formula-under" class="[^"]*fine:@min-\[8\.5rem\]:hidden touch:@min-\[10rem\]:hidden/);
+    expect(tagsWith(html, 'id="sampling-plan-M-gloves"')[0]).not.toContain("readOnly");
+  });
+
+  it("shows the product alone when nothing is put back: 300 gloves from 25 inner boxes is 25 × 12", () => {
+    const html = render(props(STD_EG_EXAMPLE, LEVEL_I, SAMPLING_PLAN_LABELS, withQuantity({ cases: 25, innerUnitsPerCase: 1, innerUnits: 25, gloves: 300 })));
+    const cell = cellOf(html, 'id="sampling-plan-M-gloves"');
+    expect(cell).toMatch(/data-slot="gloves-formula"[^>]*>25 × 12<\/span>/);
+    expect(cell).toMatch(/data-slot="gloves-formula" class="[^"]*\bhidden fine:@min-\[6\.5rem\]:flex touch:@min-\[7\.5rem\]:flex/);
+  });
+
+  it("shows no sum while the inner boxes or the gloves are not known", () => {
+    for (const row of [{ innerUnitsPerCase: null, innerUnits: null }, { gloves: null }]) {
+      const html = render(props(STD_EG_EXAMPLE, LEVEL_I, SAMPLING_PLAN_LABELS, withQuantity(row)));
+      expect(html).not.toContain("gloves-formula");
+      expect(html).not.toContain("Gloves Taken per Inner Box − Put Back");
+    }
+  });
+
+  it("totals the gloves put back, and neither the inner boxes per case, the gloves per inner box nor the code letter", () => {
     // SAFEDON_EG's M: 200 gloves from 15 inner packs is 14 a pack, 10 put back; the other sizes divide exactly.
     const html = render(props(SAFEDON_EG_EXAMPLE));
     const totals = html.slice(html.indexOf('role="group" aria-label="Total"'));
     expect(totals).toMatch(figure("Put Back", "10"));
     expect(totals).not.toContain("Gloves Taken per Inner Box");
     expect(totals).not.toContain("Inner Box Taken per Case");
-    expect(tagsWith(totals, "data-no-total")).toHaveLength(2);
+    expect(totals).not.toContain("Code Letter");
+    expect(tagsWith(totals, "data-no-total")).toHaveLength(3);
     // The total of the inner boxes sampled stays: 10 + 25 + 15 + 10.
     expect(totals).toMatch(figure("Total # of Inner Box", "60"));
+  });
+});
+
+describe("sampling_plan Capture's Code Letter (Kenneth, 27 October 2026)", () => {
+  const REASON = "Consistent high-quality factory";
+
+  /**
+   * SAFEDON_EG's sizes at level I with their letters: XS at its lot's L, S at its lot's N, M lowered from N to M with
+   * the reason, L with none yet.
+   */
+  function lettered(rows: Partial<Record<string, Partial<SamplingSize>>> = {}): InspectionData {
+    const plan = samplingPlanData(SAFEDON_EG_EXAMPLE);
+    const sizes = {
+      XS: { ...plan.sizes.XS, codeLetter: "L", gloves: 200 },
+      S: { ...plan.sizes.S, codeLetter: "N", gloves: 500 },
+      M: { ...plan.sizes.M, codeLetter: "M", gloves: 315, codeLetterReason: REASON },
+      L: { ...plan.sizes.L, codeLetter: null },
+    } satisfies Record<string, SamplingSize>;
+    const merged = Object.fromEntries(Object.entries(sizes).map(([size, row]) => [size, { ...row, ...rows[size] }]));
+    return exampleData(SAFEDON_EG_EXAMPLE, { sampling_plan: { sizes: merged } });
+  }
+
+  /** The markup of one size's Code Letter cell. */
+  const letterCell = (html: string, size: string) => {
+    const start = html.indexOf(`data-code-letter="${size}"`);
+    const open = html.lastIndexOf("<div", start);
+    const next = html.indexOf('style="grid-row:', html.indexOf(">", start));
+    return start === -1 ? "" : html.slice(open, html.lastIndexOf("<div", next));
+  };
+
+  /** A button's opening tag, by the start of its accessible name. */
+  const button = (html: string, name: string) => new RegExp(`<button[^>]*aria-label="${name}[^"]*"[^>]*>`).exec(html)?.[0] ?? "";
+
+  it("puts each size's letter right under # of Gloves Sample, the last row of Sampling Quantity, in bold", () => {
+    const html = render(props(SAFEDON_EG_EXAMPLE, LEVEL_I, SAMPLING_PLAN_LABELS, lettered()));
+    for (const size of ["XS", "S", "M"]) {
+      expect(html.indexOf(`data-code-letter="${size}"`)).toBeGreaterThan(html.indexOf(`id="sampling-plan-${size}-gloves"`));
+      expect(html.indexOf(`data-code-letter="${size}"`)).toBeLessThan(html.indexOf(`id="sampling-plan-${size}-glovesWatertightVisual"`));
+    }
+    expect(letterCell(html, "S")).toMatch(/<span data-slot="code-letter" class="[^"]*\bfont-bold\b[^"]*">N<\/span>/);
+    expect(letterCell(html, "S")).toContain('<span class="sr-only">Code Letter: </span>');
+    // No letter yet: a dash.
+    expect(letterCell(html, "L")).toContain("data-empty");
+  });
+
+  it("gives every size its own Reduce and Raise, named with the size and the letter they step to", () => {
+    const html = render(props(SAFEDON_EG_EXAMPLE, LEVEL_I, SAMPLING_PLAN_LABELS, lettered()));
+    expect(tagsWith(html, 'aria-label="Reduce the code letter for size').map((tag) => /aria-label="([^"]+)"/.exec(tag)?.[1])).toEqual([
+      "Reduce the code letter for size XS to K",
+      "Reduce the code letter for size S to M",
+      "Reduce the code letter for size M to L",
+      "Reduce the code letter for size L",
+    ]);
+    expect(tagsWith(html, 'aria-label="Raise the code letter for size').map((tag) => /aria-label="([^"]+)"/.exec(tag)?.[1])).toEqual([
+      "Raise the code letter for size XS",
+      "Raise the code letter for size S",
+      "Raise the code letter for size M back to N",
+      "Raise the code letter for size L",
+    ]);
+    // Each pair sits in its size's own cell.
+    for (const size of ["XS", "S", "M", "L"]) expect(letterCell(html, size).match(/<button\b/g)).toHaveLength(2);
+    expect(button(html, "Reduce the code letter for size S to M")).toContain('aria-haspopup="dialog"');
+  });
+
+  it("disables Reduce without a letter and at A, and Raise at the lot's letter, above it, and while the lot is not known", () => {
+    const disabled = (tag: string) => /\sdisabled(=""|\s|>)/.test(tag);
+    const html = render(props(SAFEDON_EG_EXAMPLE, LEVEL_I, SAMPLING_PLAN_LABELS, lettered()));
+    expect(disabled(button(html, "Reduce the code letter for size S to M"))).toBe(false);
+    expect(disabled(button(html, "Reduce the code letter for size L"))).toBe(true);
+    expect(disabled(button(html, "Raise the code letter for size M back to N"))).toBe(false);
+    expect(disabled(button(html, "Raise the code letter for size S"))).toBe(true);
+    const atA = render(props(SAFEDON_EG_EXAMPLE, LEVEL_I, SAMPLING_PLAN_LABELS, lettered({ XS: { codeLetter: "A", gloves: 2 } })));
+    expect(disabled(button(atA, "Reduce the code letter for size XS"))).toBe(true);
+    // Without the gloves per case no lot is known: nothing to raise back to.
+    const unknown = { ...lettered(), modules: { ...lettered().modules, packing_config: { glovesPerInner: null, innersPerCase: null, glovesPerCase: null } } };
+    const noLot = render(props(SAFEDON_EG_EXAMPLE, LEVEL_I, SAMPLING_PLAN_LABELS, unknown));
+    expect(disabled(button(noLot, "Raise the code letter for size M"))).toBe(true);
+    expect(disabled(button(noLot, "Reduce the code letter for size M to L"))).toBe(false);
+  });
+
+  it("says Reduced from N under a lowered letter, with an amber dot, the reason as its title and read after it", () => {
+    const html = render(props(SAFEDON_EG_EXAMPLE, LEVEL_I, SAMPLING_PLAN_LABELS, lettered()));
+    const lowered = letterCell(html, "M");
+    expect(lowered).toContain('data-reduced="true"');
+    expect(lowered).toMatch(
+      new RegExp(`data-slot="reduced-from" title="Reduced from N: ${REASON}"[^>]*><span aria-hidden="true" class="[^"]*bg-warn-solid[^"]*"></span>Reduced from N<span class="sr-only">: ${REASON}</span>`),
+    );
+    // At its lot's letter, or with none, a letter says nothing more.
+    for (const size of ["XS", "S", "L"]) expect(letterCell(html, size)).not.toContain("reduced-from");
+    // A letter lowered without a reason (a reading's) still says so.
+    const read = render(props(SAFEDON_EG_EXAMPLE, LEVEL_I, SAMPLING_PLAN_LABELS, lettered({ M: { codeLetterReason: null } })));
+    expect(letterCell(read, "M")).toContain('title="Reduced from N"');
+  });
+
+  it("warns on the letter when # of Gloves Sample is not its sample: amber, read with the letter, listed under the table", () => {
+    const html = render(props(SAFEDON_EG_EXAMPLE, LEVEL_I, SAMPLING_PLAN_LABELS, lettered({ M: { gloves: 300 } })));
+    const cell = letterCell(html, "M");
+    expect(cell).toMatch(/data-code-letter="M"[^>]*class="[^"]*\bbg-warn-tint\b/);
+    expect(cell).toContain("Size M, Code Letter: # of Gloves Sample 300 is not code M&#x27;s 315.");
+    // An issue link lands on the letter itself.
+    expect(cell).toContain(`${pathAttribute(["sizes", "M", "codeLetter"])} tabindex="-1"`);
+    expect(html).toMatch(/data-slot="sampling-issues"[\s\S]*Size M, Code Letter: # of Gloves Sample 300 is not code M&#x27;s 315\./);
+    // The size is not blocked: a warning, never a red cell.
+    expect(redCells(html)).toEqual([]);
+    expect(letterCell(render(props(SAFEDON_EG_EXAMPLE, LEVEL_I, SAMPLING_PLAN_LABELS, lettered())), "M")).not.toContain("bg-warn-tint");
+  });
+
+  it("is read-only for an approved inspection: the letter and its note, no buttons", () => {
+    const html = render({ ...props(SAFEDON_EG_EXAMPLE, LEVEL_I, SAMPLING_PLAN_LABELS, lettered()), readOnly: true });
+    expect(html).not.toContain("Reduce the code letter");
+    expect(html).not.toContain("Raise the code letter");
+    expect(letterCell(html, "M")).toContain(">M</span>");
+    expect(letterCell(html, "M")).toContain(">Reduced from N<");
+  });
+
+  it("sizes its buttons 28 px with a mouse and 44 px on any touchscreen, compact in the row (docs/DESIGN.md)", () => {
+    const html = render(props(SAFEDON_EG_EXAMPLE, LEVEL_I, SAMPLING_PLAN_LABELS, lettered()));
+    for (const name of ["Reduce the code letter for size S to M", "Raise the code letter for size M back to N"]) {
+      const tag = button(html, name);
+      expect(tag).toMatch(/\bsize-7\b/);
+      expect(tag).toMatch(/\btouch:size-11\b/);
+      expect(tag).toMatch(/\bfocus-ring-inset\b/);
+    }
+    // Where the cell is too narrow for the letter and both, they go under it.
+    expect(letterCell(html, "S")).toMatch(/class="[^"]*\bflex-row-reverse flex-wrap\b/);
   });
 });
 
@@ -456,7 +611,7 @@ describe("sampling_plan Capture writes (useDataUpdater, docs/CAPTURE_KIT.md)", (
    * and every handler is the one made at the last render, as the Capture's
    * setCount is.
    */
-  function screen(start: SamplingPlanData = emptySamplingPlan()) {
+  function screen(start: SamplingPlanData = emptySamplingPlan(), config: SamplingPlanConfig = LEVEL_I) {
     let data = start;
     const changes: SamplingPlanData[] = [];
     const updater = createDataUpdater(data, (next) => {
@@ -464,9 +619,49 @@ describe("sampling_plan Capture writes (useDataUpdater, docs/CAPTURE_KIT.md)", (
       data = next;
     });
     const setCount = (size: string, column: SamplingColumn, value: number | null) =>
-      updater.update((current) => withCount(current, size, column, value));
-    return { setCount, changes, data: () => data };
+      updater.update((current) => withCount(current, size, column, value, config));
+    // Reduce, as a size's dialog hands it over: the size's lot is code N (STD_EG's 5,800,000 gloves).
+    const reduce = (size: string, reason: string) =>
+      updater.update((current) => withCodeLetterStep(current, size, { direction: "down", lot: 5_800_000, lotLetter: "N", reason }, config));
+    return { setCount, reduce, changes, data: () => data };
   }
+
+  it("writes # of Gloves Sample typed into Watertight & Visual in the same change; one typed there holds until the gloves change", () => {
+    const { setCount, changes, data } = screen();
+    setCount("M", "gloves", 315);
+    expect(changes).toHaveLength(1);
+    expect(data().sizes.M).toMatchObject({ gloves: 315, glovesWatertightVisual: 315 });
+    setCount("M", "glovesWatertightVisual", 200);
+    expect(data().sizes.M).toMatchObject({ gloves: 315, glovesWatertightVisual: 200 });
+    setCount("M", "gloves", 500);
+    expect(data().sizes.M).toMatchObject({ gloves: 500, glovesWatertightVisual: 500 });
+  });
+
+  it("leaves Watertight & Visual alone while it is switched off", () => {
+    const { setCount, data } = screen(withRowOff(emptySamplingPlan(), "glovesWatertightVisual", true));
+    setCount("M", "gloves", 315);
+    expect(data().sizes.M).toMatchObject({ gloves: 315, glovesWatertightVisual: null });
+  });
+
+  it("Reduce on size S changes S alone: its letter, gloves, Watertight & Visual and reason; M stays as it was", () => {
+    const start = withCount(withCount(emptySamplingPlan(), "S", "gloves", 500, LEVEL_I), "M", "gloves", 500, LEVEL_I);
+    const both = {
+      sizes: {
+        S: { ...start.sizes.S, codeLetter: "N" as const },
+        M: { ...start.sizes.M, codeLetter: "N" as const },
+      },
+    };
+    const { reduce, changes, data } = screen(both);
+    reduce("S", "Consistent high-quality factory");
+    expect(changes).toHaveLength(1);
+    expect(data().sizes.S).toMatchObject({
+      codeLetter: "M",
+      gloves: 315,
+      glovesWatertightVisual: 315,
+      codeLetterReason: "Consistent high-quality factory",
+    });
+    expect(data().sizes.M).toEqual(both.sizes.M);
+  });
 
   it("keeps both of two counts entered in one event, before the screen renders again", () => {
     const { setCount, changes, data } = screen();

@@ -1,8 +1,8 @@
 // The sampling plan's labels as this inspection shows them
 // (ModuleDefinition.shownLabels). The Sampling Quantity's rows are worded as
 // Kenneth wants them on every inspection (27 October 2026): # of Case, Inner
-// Box Taken per Case, Total # of Inner Box, Gloves Taken per Inner Box, Total
-// Gloves Taken, Put Back and # of Gloves Sample. There is one standard flow now, so the wording a
+// Box Taken per Case, Total # of Inner Box, Gloves Taken per Inner Box, Put
+// Back, # of Gloves Sample and Code Letter. There is one standard flow now, so the wording a
 // template version stored for them ("Case", "Inner Box" and "Gloves" on
 // STD_EG version 6, "Inner Pack" on SAFEDON_EG) gives way to these on the
 // capture screen, in every message, the review and the export, with nothing

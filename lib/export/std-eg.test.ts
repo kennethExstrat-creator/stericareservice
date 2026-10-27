@@ -266,7 +266,20 @@ describe("the STD_EG example's export, through the real modules", () => {
         ...data,
         modules: {
           ...data.modules,
-          sampling_plan: { sizes: { M: { ...plan.sizes.M, cases: 25, innerUnitsPerCase: 1, innerUnits: 25, gloves: 315 } } },
+          // M's lot (5,800,000 gloves) is code N at level I, lowered to M with the reason (Kenneth, 27 October 2026).
+          sampling_plan: {
+            sizes: {
+              M: {
+                ...plan.sizes.M,
+                cases: 25,
+                innerUnitsPerCase: 1,
+                innerUnits: 25,
+                gloves: 315,
+                codeLetter: "M",
+                codeLetterReason: "Consistent high-quality factory",
+              },
+            },
+          },
         },
       },
     });
@@ -279,16 +292,23 @@ describe("the STD_EG example's export, through the real modules", () => {
       innerUnits: "Total # of Inner Box",
       gloves: "# of Gloves Sample",
       glovesPerInnerBox: "Gloves Taken per Inner Box",
-      totalGlovesTaken: "Total Gloves Taken",
       putBack: "Put Back",
+      codeLetter: "Code Letter",
     });
-    expect(sampling.data.sizes).toMatchObject({ M: { cases: 25, innerUnitsPerCase: 1, innerUnits: 25, gloves: 315 } });
+    expect(sampling.data.sizes).toMatchObject({
+      M: { cases: 25, innerUnitsPerCase: 1, innerUnits: 25, gloves: 315, codeLetter: "M", codeLetterReason: "Consistent high-quality factory" },
+    });
+    // The letter is data; whether it was reduced, and from what, is computed beside the lot's own letter.
     expect(sampling.computed).toMatchObject({
-      sizes: { M: { glovesPerInnerBox: 13, totalGlovesTaken: 325, putBack: 10 } },
-      totals: { innerUnits: 25, totalGlovesTaken: 325, putBack: 10 },
+      sizes: { M: { glovesPerInnerBox: 13, putBack: 10, codeLetter: "N", codeLetterReduced: true, reducedFrom: "N" } },
+      totals: { innerUnits: 25, putBack: 10 },
     });
+    // No gloves taken in all any more (Kenneth, 27 October 2026: "remove this row").
+    expect((sampling.computed.sizes as Record<string, object>).M).not.toHaveProperty("totalGlovesTaken");
+    expect(sampling.computed.totals).not.toHaveProperty("totalGlovesTaken");
     expect(sampling.computed.totals).not.toHaveProperty("innerUnitsPerCase");
-    expect(sampling.result.perSize?.M.summary).toContain("Gloves Taken per Inner Box: 13; Total Gloves Taken: 325; Put Back: 10.");
+    expect(sampling.result.perSize?.M.summary).toContain("Gloves Taken per Inner Box: 13; Put Back: 10; Code Letter: M (reduced from N).");
+    expect(sampling.result.perSize?.M.summary).not.toContain("Total Gloves Taken");
   });
 
   it("lists a module switched off for the inspection, with the reason, instead of exporting it", async () => {

@@ -14,6 +14,10 @@ const shape = (config: SamplingPlanConfig, labels: Record<string, string>) =>
     rows: group.rows.map((row) => (row.kind === "count" ? row.shown : row.label)),
   }));
 
+/** Each row of a group by its kind and key: "count gloves", "worked putBack", "letter codeLetter". */
+const kinds = (group: ReturnType<typeof countGroups>[number]) =>
+  group.rows.map((row) => (row.kind === "count" ? `count ${row.column}` : `${row.kind} ${row.key}`));
+
 const withColumns = (columns: Partial<SamplingPlanConfig["columns"]>): SamplingPlanConfig => ({
   ...SAMPLING_PLAN_DEFAULT_CONFIG,
   columns: { ...SAMPLING_PLAN_DEFAULT_CONFIG.columns, ...columns },
@@ -29,9 +33,9 @@ describe("countGroups (Kenneth, 26 October 2026: design B)", () => {
           "Inner Box Taken per Case",
           "Total # of Inner Box",
           "Gloves Taken per Inner Box",
-          "Total Gloves Taken",
           "Put Back",
           "# of Gloves Sample",
+          "Code Letter",
         ],
       },
       { heading: "# Gloves for Each Test", rows: ["Watertight & Visual", "Dimension", "FAB"] },
@@ -82,27 +86,42 @@ describe("countGroups (Kenneth, 26 October 2026: design B)", () => {
 });
 
 describe("the Sampling Quantity's own rows (Kenneth, 27 October 2026)", () => {
-  it("types the inner boxes per case before the inner boxes in all, and works out the gloves per inner box, taken and put back before the gloves sampled", () => {
+  it("types the inner boxes per case before the inner boxes in all, works out the gloves per inner box and put back before the gloves sampled, and ends on the code letter", () => {
     const [quantity] = countGroups(SAMPLING_PLAN_DEFAULT_CONFIG, labelsOf(SAMPLING_PLAN_LABELS));
-    expect(quantity.rows.map((row) => (row.kind === "count" ? `count ${row.column}` : `worked ${row.key}`))).toEqual([
+    expect(kinds(quantity)).toEqual([
       "count cases",
       "count innerUnitsPerCase",
       "count innerUnits",
       "worked glovesPerInnerBox",
-      "worked totalGlovesTaken",
       "worked putBack",
       "count gloves",
+      "letter codeLetter",
     ]);
   });
 
+  it('has no Total Gloves Taken row any more (Kenneth, 27 October 2026: "remove this row")', () => {
+    const rows = countGroups(SAMPLING_PLAN_DEFAULT_CONFIG, labelsOf(SAMPLING_PLAN_LABELS)).flatMap((group) => group.rows);
+    expect(rows.map((row) => row.label)).not.toContain("Total Gloves Taken");
+    expect(rows.map((row) => (row.kind === "count" ? row.column : row.key))).not.toContain("totalGlovesTaken");
+  });
+
+  it("puts the code letter right under # of Gloves Sample wherever the gloves show, and nowhere without them", () => {
+    for (const columns of [{}, { innerUnits: false }, { cases: false }]) {
+      const quantity = kinds(countGroups(withColumns(columns), labelsOf(SAMPLING_PLAN_LABELS))[0]);
+      expect(quantity.slice(-2)).toEqual(["count gloves", "letter codeLetter"]);
+    }
+    const noGloves = countGroups(withColumns({ gloves: false }), labelsOf(SAMPLING_PLAN_LABELS)).flatMap(kinds);
+    expect(noGloves).not.toContain("letter codeLetter");
+  });
+
   it("shows the inner boxes per case with the inner boxes and the cases, and the worked rows with the gloves and the inner boxes", () => {
-    expect(shape(withColumns({ innerUnits: false }), SAMPLING_PLAN_LABELS)[0].rows).toEqual(["# of Case", "# of Gloves Sample"]);
+    expect(shape(withColumns({ innerUnits: false }), SAMPLING_PLAN_LABELS)[0].rows).toEqual(["# of Case", "# of Gloves Sample", "Code Letter"]);
     expect(shape(withColumns({ cases: false }), SAMPLING_PLAN_LABELS)[0].rows).toEqual([
       "Total # of Inner Box",
       "Gloves Taken per Inner Box",
-      "Total Gloves Taken",
       "Put Back",
       "# of Gloves Sample",
+      "Code Letter",
     ]);
     expect(shape(withColumns({ gloves: false }), SAMPLING_PLAN_LABELS)[0].rows).toEqual([
       "# of Case",

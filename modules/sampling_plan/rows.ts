@@ -10,21 +10,24 @@
 // "# … for …" (the SG form's "# Gloves (FAB)") keeps its wording as it is.
 // Sampling Quantity has four rows no column switch names (Kenneth, 27
 // October 2026): the inner boxes taken per case, typed, before the inner
-// boxes in all; and the gloves taken per inner box, the gloves taken in all
-// and those put back, worked out, before the gloves sampled ("glove taken
-// per box, total gloves taken, put back, # of Gloves Sample").
+// boxes in all; the gloves taken per inner box and those put back, worked
+// out, before the gloves sampled ("glove taken per box, total gloves taken,
+// put back, # of Gloves Sample", until the gloves taken in all went: "remove
+// this row"); and the code letter, right under the gloves sampled ("below
+// number of glove sample (the final), add a row "Code Letter"").
 import {
   columnGroups,
+  showsCodeLetter,
   showsGlovesPerInnerBox,
   showsInnerUnitsPerCase,
   type SamplingPlanConfig,
 } from "./config";
-import type { SamplingSize } from "./schema";
+import type { SamplingCount } from "./schema";
 
 /** A row of whole-number cells, one per size. */
 export type CountRow = {
   kind: "count";
-  column: keyof SamplingSize;
+  column: SamplingCount;
   /** The template's wording, for the cells' names. */
   label: string;
   /** What the row shows under its heading. */
@@ -34,11 +37,18 @@ export type CountRow = {
 /** A row worked out from the counts above it (calc's computed values), never typed. */
 export type WorkedRow = {
   kind: "worked";
-  key: "glovesPerInnerBox" | "totalGlovesTaken" | "putBack";
+  key: "glovesPerInnerBox" | "putBack";
   label: string;
 };
 
-export type PlanRow = CountRow | WorkedRow;
+/** Each size's code letter (data), stepped down or up on screen, never typed (Kenneth, 27 October 2026). */
+export type LetterRow = {
+  kind: "letter";
+  key: "codeLetter";
+  label: string;
+};
+
+export type PlanRow = CountRow | WorkedRow | LetterRow;
 
 export type CountGroup = {
   /** Null for counts whose labels share no "# … for" start: they follow a plain divider. */
@@ -52,13 +62,15 @@ const COUNTED_FOR = /^(#\s*\S.*?)\s+for\s+(\S.*)$/i;
 export function countGroups(config: SamplingPlanConfig, label: (key: string) => string): CountGroup[] {
   const { quantity, tests } = columnGroups(config);
   const groups: CountGroup[] = [];
-  const count = (column: keyof SamplingSize): CountRow => ({ kind: "count", column, label: label(column), shown: label(column) });
+  const count = (column: SamplingCount): CountRow => ({ kind: "count", column, label: label(column), shown: label(column) });
   const worked = (key: WorkedRow["key"]): WorkedRow => ({ kind: "worked", key, label: label(key) });
   if (quantity.length > 0) {
     const rows = quantity.flatMap((column): PlanRow[] => {
       if (column === "innerUnits" && showsInnerUnitsPerCase(config)) return [count("innerUnitsPerCase"), count(column)];
-      if (column === "gloves" && showsGlovesPerInnerBox(config)) {
-        return [worked("glovesPerInnerBox"), worked("totalGlovesTaken"), worked("putBack"), count(column)];
+      if (column === "gloves") {
+        const letter: PlanRow[] = showsCodeLetter(config) ? [{ kind: "letter", key: "codeLetter", label: label("codeLetter") }] : [];
+        const perBox = showsGlovesPerInnerBox(config) ? [worked("glovesPerInnerBox"), worked("putBack")] : [];
+        return [...perBox, count(column), ...letter];
       }
       return [count(column)];
     });

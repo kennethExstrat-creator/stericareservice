@@ -48,8 +48,10 @@ export const SAMPLING_CONTEXT_KEYS = {
  * "add row "Inner Box Taken per Case", then Total # of Inner Box"; and "#
  * of Gloves", with the gloves taken per inner box and those put back; then
  * the gloves rows in this order: "glove taken per box, total gloves taken,
- * put back, # of Gloves Sample"). The sampling plan shows them on every
- * inspection, whatever its template version says (labels.ts).
+ * put back, # of Gloves Sample", until Total Gloves Taken went: "remove this
+ * row"; and below # of Gloves Sample "add a row "Code Letter""). The
+ * sampling plan shows them on every inspection, whatever its template
+ * version says (labels.ts).
  */
 export const SAMPLING_QUANTITY_LABELS = {
   cases: "# of Case",
@@ -57,12 +59,13 @@ export const SAMPLING_QUANTITY_LABELS = {
   innerUnits: "Total # of Inner Box",
   gloves: "# of Gloves Sample",
   glovesPerInnerBox: "Gloves Taken per Inner Box",
-  totalGlovesTaken: "Total Gloves Taken",
   putBack: "Put Back",
+  codeLetter: "Code Letter",
 } as const satisfies Readonly<Record<string, string>>;
 
 export const SAMPLING_PLAN_LABELS = {
   ...SAMPLING_QUANTITY_LABELS,
+  codeLetterReason: "Reason for Reduced Code Letter",
   glovesWatertightVisual: "# Gloves for Watertight & Visual",
   glovesDimensions: "# Gloves for Dimension",
   glovesPhysical: "# Gloves for FAB",
@@ -71,7 +74,6 @@ export const SAMPLING_PLAN_LABELS = {
   innerUnitsDispensing: "# Inner Box for Packaging & Dispensing Inspection",
   pouches: "Pouches",
   pouchesDyeLeak: "# Pouches (Dye Leak Test)",
-  codeLetter: "Code Letter",
   planSampleSize: "Sample Size by Plan",
   totals: "Total:",
   samplingQuantity: "Sampling Quantity",
@@ -165,4 +167,9 @@ export function showsInnerUnitsPerCase(config: SamplingPlanConfig): boolean {
 /** The gloves taken per inner box and those put back show with the gloves and the inner units sampled, worked out from both. */
 export function showsGlovesPerInnerBox(config: SamplingPlanConfig): boolean {
   return config.columns.gloves && config.columns.innerUnits;
+}
+
+/** The code letter shows with the gloves, right under them: the letter they are taken from (Kenneth, 27 October 2026). */
+export function showsCodeLetter(config: SamplingPlanConfig): boolean {
+  return config.columns.gloves;
 }

@@ -174,6 +174,9 @@ function samplingPlanData(): SamplingPlanData {
           innerUnitsPerCase: null,
           innerUnits: row.inners,
           gloves: row.gloves,
+          // The report prints no code letter in its sampling plan.
+          codeLetter: null,
+          codeLetterReason: null,
           glovesWatertightVisual: row.watertightVisualGloves,
           glovesDimensions: row.dimensionGloves,
           glovesPhysical: row.physicalTestGloves,

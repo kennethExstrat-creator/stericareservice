@@ -8,16 +8,18 @@ import { definition } from "./index";
 import { samplingLabels } from "./labels";
 
 describe("the Sampling Quantity in Kenneth's words, whatever the template says (27 October 2026)", () => {
-  it("names the rows # of Case, Inner Box Taken per Case, Total # of Inner Box, Gloves Taken per Inner Box, Total Gloves Taken, Put Back and # of Gloves Sample", () => {
+  it("names the rows # of Case, Inner Box Taken per Case, Total # of Inner Box, Gloves Taken per Inner Box, Put Back, # of Gloves Sample and Code Letter", () => {
     expect(SAMPLING_QUANTITY_LABELS).toEqual({
       cases: "# of Case",
       innerUnitsPerCase: "Inner Box Taken per Case",
       innerUnits: "Total # of Inner Box",
       gloves: "# of Gloves Sample",
       glovesPerInnerBox: "Gloves Taken per Inner Box",
-      totalGlovesTaken: "Total Gloves Taken",
       putBack: "Put Back",
+      codeLetter: "Code Letter",
     });
+    // Total Gloves Taken is gone (Kenneth, 27 October 2026: "remove this row").
+    expect(SAMPLING_PLAN_LABELS).not.toHaveProperty("totalGlovesTaken");
     expect(SAMPLING_PLAN_LABELS).toMatchObject(SAMPLING_QUANTITY_LABELS);
   });
 

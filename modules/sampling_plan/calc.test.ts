@@ -54,7 +54,7 @@ const ROW_M: SamplingSize = {
 };
 
 /** ROW_M's summary once complete: 500 gloves from 50 inner boxes is 10 a box, none put back. */
-const DONE_M = "# of Case: 50; # Gloves for Watertight & Visual: 500; Gloves Taken per Inner Box: 10; Total Gloves Taken: 500; Put Back: 0.";
+const DONE_M = "# of Case: 50; # Gloves for Watertight & Visual: 500; Gloves Taken per Inner Box: 10; Put Back: 0.";
 
 /** Size M ordered: 2,900 cases of 2,000 gloves (STD_EG). */
 function contextM(overrides: Partial<InspectionContext> = {}): InspectionContext {
@@ -122,8 +122,9 @@ describe("sampling_plan", () => {
             sampleCodeLetter: "N",
             belowPlan: false,
             glovesPerInnerBox: 10,
-            totalGlovesTaken: 500,
             putBack: 0,
+            codeLetterReduced: false,
+            reducedFrom: null,
           },
         },
         totals: {
@@ -134,7 +135,6 @@ describe("sampling_plan", () => {
           glovesDimensions: 13,
           glovesPhysical: 13,
           innerUnitsDispensing: 13,
-          totalGlovesTaken: 500,
           putBack: 0,
         },
       },
@@ -246,8 +246,9 @@ describe("sampling_plan", () => {
       sampleCodeLetter: "N",
       belowPlan: false,
       glovesPerInnerBox: 10,
-      totalGlovesTaken: 500,
       putBack: 0,
+      codeLetterReduced: false,
+      reducedFrom: null,
     });
     expect(output.issues).toEqual([]);
   });
@@ -257,7 +258,7 @@ describe("sampling_plan", () => {
     expect(output.result).toMatchObject({
       status: "info",
       perSize: {
-        M: { status: "info", summary: "# of Case: 50; # Gloves for Watertight & Visual: 315; Gloves Taken per Inner Box: 10; Total Gloves Taken: 500; Put Back: 0." },
+        M: { status: "info", summary: "# of Case: 50; # Gloves for Watertight & Visual: 315; Gloves Taken per Inner Box: 10; Put Back: 0." },
       },
     });
     // The plan is still worked out, and says the sample is below it.
@@ -523,10 +524,13 @@ describe("sampling_plan's Sampling Quantity, worked out (Kenneth, 27 October 202
 
   it("takes 13 gloves from each of 25 inner boxes for a sample of 315, never fewer: 325 taken, 10 put back", () => {
     const output = calcSamplingPlan(input({ M: KENNETH }));
-    expect(output.computed.sizes.M).toMatchObject({ glovesPerInnerBox: 13, totalGlovesTaken: 325, putBack: 10 });
+    expect(output.computed.sizes.M).toMatchObject({ glovesPerInnerBox: 13, putBack: 10 });
+    // No gloves taken in all any more (Kenneth, 27 October 2026: "remove this row"): # of Gloves Sample's sum shows them.
+    expect(output.computed.sizes.M).not.toHaveProperty("totalGlovesTaken");
+    expect(output.computed.totals).not.toHaveProperty("totalGlovesTaken");
     expect(output.result.perSize?.M).toEqual({
       status: "info",
-      summary: "# of Case: 25; # Gloves for Watertight & Visual: 500; Gloves Taken per Inner Box: 13; Total Gloves Taken: 325; Put Back: 10.",
+      summary: "# of Case: 25; # Gloves for Watertight & Visual: 500; Gloves Taken per Inner Box: 13; Put Back: 10.",
     });
     expect(output.issues).toEqual([]);
   });
@@ -592,6 +596,89 @@ describe("sampling_plan's Sampling Quantity, worked out (Kenneth, 27 October 202
     expect(calcSamplingPlan(input({ M: { ...KENNETH, cases: 16, innerUnitsPerCase: null, innerUnits: 30 } })).issues).toEqual([]);
     const noCases = { ...SAMPLING_PLAN_DEFAULT_CONFIG, columns: { ...SAMPLING_PLAN_DEFAULT_CONFIG.columns, cases: false } };
     expect(calcSamplingPlan(input({ M: { ...KENNETH, innerUnitsPerCase: 2, innerUnits: 30 } }, noCases)).issues).toEqual([]);
+  });
+});
+
+describe("sampling_plan's code letter (Kenneth, 27 October 2026)", () => {
+  /** STD_EG's M (lot 5,800,000: code N at level I) from 25 inner boxes, with `letter` and the gloves it takes. */
+  const lettered = (letter: SamplingSize["codeLetter"], gloves: number, reason: string | null = null): Partial<SamplingSize> => ({
+    ...ROW_M,
+    cases: 25,
+    innerUnitsPerCase: 1,
+    innerUnits: 25,
+    gloves,
+    codeLetter: letter,
+    codeLetterReason: reason,
+  });
+
+  it("says a letter below its lot's was reduced, and from what, for the review and the export", () => {
+    const output = calcSamplingPlan(input({ M: lettered("M", 315, "Consistent high-quality factory") }));
+    expect(output.computed.sizes.M).toMatchObject({ codeLetter: "N", codeLetterReduced: true, reducedFrom: "N", glovesPerInnerBox: 13, putBack: 10 });
+    expect(output.issues).toEqual([]);
+    // At the lot's letter, or with none of its own, it was not.
+    expect(calcSamplingPlan(input({ M: lettered("N", 500) })).computed.sizes.M).toMatchObject({ codeLetterReduced: false, reducedFrom: null });
+    expect(calcSamplingPlan(input({ M: lettered(null, 500) })).computed.sizes.M).toMatchObject({ codeLetterReduced: false, reducedFrom: null });
+    // Nor while the lot is not known.
+    const unknown = contextM({ packing: { innerUnit: "inner box", glovesPerInner: null, innersPerCase: null, glovesPerCase: null } });
+    expect(calcSamplingPlan(input({ M: lettered("M", 315) }, SAMPLING_PLAN_DEFAULT_CONFIG, unknown)).computed.sizes.M).toMatchObject({
+      codeLetter: null,
+      codeLetterReduced: false,
+      reducedFrom: null,
+    });
+  });
+
+  it("adds the code letter to a complete size's summary, and the lot's while it is lowered", () => {
+    expect(calcSamplingPlan(input({ M: lettered("N", 500) })).result.perSize?.M).toEqual({
+      status: "info",
+      summary: "# of Case: 25; # Gloves for Watertight & Visual: 500; Gloves Taken per Inner Box: 20; Put Back: 0; Code Letter: N.",
+    });
+    expect(calcSamplingPlan(input({ M: lettered("M", 315) })).result.perSize?.M).toEqual({
+      status: "info",
+      summary: "# of Case: 25; # Gloves for Watertight & Visual: 500; Gloves Taken per Inner Box: 13; Put Back: 10; Code Letter: M (reduced from N).",
+    });
+  });
+
+  it("never asks for a code letter: a size without one is complete", () => {
+    expect(calcSamplingPlan(input({ M: lettered(null, 315) })).result.status).toBe("info");
+  });
+
+  it("warns on the letter when # of Gloves Sample is not its sample, typed by hand, without blocking the size", () => {
+    const output = calcSamplingPlan(input({ M: lettered("M", 300) }));
+    expect(output.issues).toEqual([
+      {
+        level: "warning",
+        code: "code_letter_mismatch",
+        message: "Size M, Code Letter: # of Gloves Sample 300 is not code M's 315.",
+        size: "M",
+        path: ["sizes", "M", "codeLetter"],
+      },
+    ]);
+    expect(output.result.perSize?.M).toEqual({ status: "warn", summary: "# of Gloves Sample 300 is not code M's 315." });
+    // The letter's sample, or no letter: nothing to say.
+    expect(calcSamplingPlan(input({ M: lettered("M", 315) })).issues).toEqual([]);
+    expect(calcSamplingPlan(input({ M: lettered(null, 300) })).issues).toEqual([]);
+  });
+
+  it("takes every glove of a lot smaller than the letter's sample as its sample", () => {
+    // 1 case of 200 gloves: code M's 315 is more than the lot holds.
+    const small = contextM({ order: { M: { qtyCases: 1, lotNumbers: [] } }, packing: { innerUnit: "inner box", glovesPerInner: 20, innersPerCase: 10, glovesPerCase: 200 } });
+    const whole = { ...lettered("M", 200), cases: 1, innerUnits: 1 };
+    expect(calcSamplingPlan(input({ M: whole }, SAMPLING_PLAN_DEFAULT_CONFIG, small)).issues).toEqual([]);
+    expect(calcSamplingPlan(input({ M: { ...whole, gloves: 150 } }, SAMPLING_PLAN_DEFAULT_CONFIG, small)).issues.map((issue) => issue.message)).toEqual([
+      "Size M, Code Letter: # of Gloves Sample 150 is not code M's 200, every glove of the lot.",
+    ]);
+  });
+
+  it("checks and shows no letter where the template shows no gloves (STD_SG)", () => {
+    const surgical: SamplingPlanConfig = { ...SAMPLING_PLAN_DEFAULT_CONFIG, columns: { ...SAMPLING_PLAN_DEFAULT_CONFIG.columns, gloves: false } };
+    const output = calcSamplingPlan(input({ M: lettered("M", 300) }, surgical));
+    expect(output.issues).toEqual([]);
+    expect(output.computed.sizes.M).toMatchObject({ codeLetterReduced: false, reducedFrom: null });
+    expect(output.result.perSize?.M.summary).not.toContain("Code Letter");
+  });
+
+  it("totals no code letter", () => {
+    expect(calcSamplingPlan(input({ M: lettered("M", 315) })).computed.totals).not.toHaveProperty("codeLetter");
   });
 });
 
@@ -679,8 +766,9 @@ describe("sampling_plan with the example reports (docs/examples/expected-results
         sampleCodeLetter: "N",
         belowPlan: expected.belowPlan,
         glovesPerInnerBox: 10,
-        totalGlovesTaken: 500,
         putBack: 0,
+        codeLetterReduced: false,
+        reducedFrom: null,
       },
     });
     expect(evaluation.issues).toEqual([]);
