@@ -127,6 +127,12 @@ export interface NewAuthUser {
    * the raw trigger result, and for users created before the migrations run.
    */
   active?: boolean;
+  /**
+   * Made with a password, as a script or sign-up makes an account; without
+   * one (the default), the way an invite makes it (migration 20261027140000).
+   * Any text stands for the hash.
+   */
+  password?: string;
 }
 
 /** Inserts into auth.users the way Supabase Auth does, firing the profile trigger. */
@@ -139,13 +145,13 @@ export async function createAuthUser(db: Db, user: NewAuthUser): Promise<string>
     );
     await tx.query(
       `insert into auth.users (
-         instance_id, id, aud, role, email, raw_app_meta_data, raw_user_meta_data,
+         instance_id, id, aud, role, email, encrypted_password, raw_app_meta_data, raw_user_meta_data,
          email_confirmed_at, created_at, updated_at
        ) values (
-         '00000000-0000-0000-0000-000000000000', $1, 'authenticated', 'authenticated', $2,
+         '00000000-0000-0000-0000-000000000000', $1, 'authenticated', 'authenticated', $2, $4,
          '{"provider": "email", "providers": ["email"]}', $3, now(), now(), now()
        )`,
-      [id, user.email, JSON.stringify(metadata)],
+      [id, user.email, JSON.stringify(metadata), user.password ?? ""],
     );
   });
   if (user.active !== false) {

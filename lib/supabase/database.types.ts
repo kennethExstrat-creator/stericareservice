@@ -651,8 +651,11 @@ export type Database = {
           full_name: string | null
           id: string
           is_lead: boolean
+          joined_at: string | null
           lead_id: string | null
+          phone: string | null
           role: Database["public"]["Enums"]["user_role"]
+          role_id: string
           signature_path: string | null
           uid: string
           updated_at: string
@@ -664,8 +667,11 @@ export type Database = {
           full_name?: string | null
           id: string
           is_lead?: boolean
+          joined_at?: string | null
           lead_id?: string | null
+          phone?: string | null
           role?: Database["public"]["Enums"]["user_role"]
+          role_id?: string
           signature_path?: string | null
           uid?: string
           updated_at?: string
@@ -677,8 +683,11 @@ export type Database = {
           full_name?: string | null
           id?: string
           is_lead?: boolean
+          joined_at?: string | null
           lead_id?: string | null
+          phone?: string | null
           role?: Database["public"]["Enums"]["user_role"]
+          role_id?: string
           signature_path?: string | null
           uid?: string
           updated_at?: string
@@ -691,7 +700,47 @@ export type Database = {
             referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "profiles_role_id_fkey"
+            columns: ["role_id"]
+            isOneToOne: false
+            referencedRelation: "roles"
+            referencedColumns: ["id"]
+          },
         ]
+      }
+      roles: {
+        Row: {
+          access: string
+          built_in: string | null
+          created_at: string
+          description: string | null
+          id: string
+          name: string
+          permissions: string[]
+          updated_at: string
+        }
+        Insert: {
+          access: string
+          built_in?: string | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          name: string
+          permissions?: string[]
+          updated_at?: string
+        }
+        Update: {
+          access?: string
+          built_in?: string | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          name?: string
+          permissions?: string[]
+          updated_at?: string
+        }
+        Relationships: []
       }
       templates: {
         Row: {
@@ -820,7 +869,12 @@ export type Database = {
         }[]
       }
       can_edit_inspection: { Args: { inspection_id: string }; Returns: boolean }
+      builtin_role_id: { Args: { kind: string }; Returns: string }
       can_read_inspection: { Args: { inspection_id: string }; Returns: boolean }
+      complete_account: {
+        Args: { p_full_name: string; p_phone: string }
+        Returns: undefined
+      }
       create_inspection: {
         Args: {
           actor_id: string
@@ -853,6 +907,18 @@ export type Database = {
       log_inspection_event: {
         Args: { action: string; changes?: Json; inspection_id: string }
         Returns: number
+      }
+      has_permission: { Args: { permission: string }; Returns: boolean }
+      is_full_admin: { Args: Record<PropertyKey, never>; Returns: boolean }
+      my_role: {
+        Args: Record<PropertyKey, never>
+        Returns: {
+          access: string
+          built_in: string
+          id: string
+          name: string
+          permissions: string[]
+        }[]
       }
       my_profile_status: {
         Args: Record<PropertyKey, never>

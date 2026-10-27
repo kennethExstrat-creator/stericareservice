@@ -8,7 +8,7 @@ export type TableName = keyof Database["public"]["Tables"];
 // false: no signed-in user may read the table at all (ai_settings: the service
 // role only), so the per-role read checks leave it out; rls-admin.test.ts
 // checks that even an admin is refused. ai_usage is readable by admins only:
-// everyone else reads no rows.
+// everyone else reads no rows. roles: every active user reads them.
 const tableSet: Record<TableName, boolean> = {
   ai_review_actions: true,
   ai_reviews: true,
@@ -22,6 +22,7 @@ const tableSet: Record<TableName, boolean> = {
   inspections: true,
   manufacturers: true,
   profiles: true,
+  roles: true,
   templates: true,
 };
 
