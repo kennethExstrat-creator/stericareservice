@@ -3,6 +3,7 @@
 import { useActionState, useEffect, useRef, useState, type KeyboardEvent } from "react";
 import { Field, FieldDescription, FieldError, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+import { PhoneInput } from "@/components/ui/phone-input";
 import { NAME_MAX_LENGTH, PHONE_HINT, PHONE_MAX_LENGTH } from "@/lib/auth/fields";
 import { INITIAL_CREATE_ACCOUNT_STATE, MESSAGES } from "@/lib/auth/forms";
 import { LOGIN_PATH } from "@/lib/auth/routes";
@@ -106,12 +107,10 @@ export function CreateAccountForm({ fullName, email }: { fullName: string; email
 
       <Field data-invalid={phoneError ? true : undefined}>
         <FieldLabel htmlFor="create-phone">Phone</FieldLabel>
-        <Input
+        <PhoneInput
           ref={phoneRef}
           id="create-phone"
           name="phone"
-          type="tel"
-          inputMode="tel"
           className="text-foreground"
           autoComplete="tel"
           enterKeyHint="next"

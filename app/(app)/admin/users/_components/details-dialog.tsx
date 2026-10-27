@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/dialog";
 import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+import { PhoneInput } from "@/components/ui/phone-input";
 import { Spinner } from "@/components/ui/spinner";
 import { submitAction } from "@/lib/admin/submit";
 import { PHONE_HINT } from "@/lib/auth/fields";
@@ -145,19 +146,17 @@ export function DetailsDialog({
 
             <Field data-invalid={errors.phone ? true : undefined}>
               <FieldLabel htmlFor={`${id}-phone`}>Phone (Optional)</FieldLabel>
-              <Input
+              <PhoneInput
                 ref={phoneRef}
                 id={`${id}-phone`}
                 name="phone"
-                type="tel"
-                inputMode="tel"
                 // Someone else's number: the browser's own would be the wrong one to offer.
                 autoComplete="off"
                 autoCorrect="off"
                 spellCheck={false}
                 value={phone}
-                onChange={(event) => {
-                  setPhone(event.target.value);
+                onValueChange={(next) => {
+                  setPhone(next);
                   clear("phone");
                 }}
                 aria-invalid={errors.phone ? true : undefined}
