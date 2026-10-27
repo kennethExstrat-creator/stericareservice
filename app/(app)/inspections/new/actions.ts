@@ -21,7 +21,7 @@ import {
   type NewInspectionInput,
 } from "@/lib/inspections/create";
 import { applyDocumentFill, checkReading } from "@/lib/inspections/document-fill";
-import { personLabel } from "@/lib/inspections/format";
+import { MANUFACTURER_NAMES_SELECT, manufacturerFullName, manufacturerLabel, personLabel } from "@/lib/inspections/format";
 import { createInspectionRow, serverWriter } from "@/lib/inspections/writes";
 import { DOCUMENT_MAX_BYTES, DocumentFillSchema, type DocumentFill, type DocumentReadResult } from "@/lib/schemas/document-fill";
 import { ResolvedTemplateSchema } from "@/lib/schemas/template";
@@ -98,8 +98,8 @@ async function create(formData: FormData): Promise<CreateInspectionState> {
   const [templates, client, manufacturer, previous] = await Promise.all([
     user.role === "admin" ? templateQuery.neq("status", "retired") : templateQuery.eq("status", "active"),
     input.clientId ? supabase.from("clients").select("id, name").eq("id", input.clientId).maybeSingle() : null,
-    // The address prefills the header (lib/coverage: header.factoryAddress).
-    supabase.from("manufacturers").select("id, name, address").eq("id", input.manufacturerId).maybeSingle(),
+    // The factory with its company and brand, for its label; its address prefills the header (lib/coverage: header.factoryAddress).
+    supabase.from("manufacturers").select(`id, address, ${MANUFACTURER_NAMES_SELECT}` as const).eq("id", input.manufacturerId).maybeSingle(),
     input.previousId
       ? supabase
           .from("inspections")
@@ -179,7 +179,7 @@ async function create(formData: FormData): Promise<CreateInspectionState> {
         inspectionDate,
         inspector: { id: user.id, name: personLabel({ full_name: user.fullName, email: user.email }) ?? "Inspector" },
         client: client?.data ? { id: client.data.id, name: client.data.name } : null,
-        manufacturer: { id: manufacturer.data.id, name: manufacturer.data.name },
+        manufacturer: { id: manufacturer.data.id, name: manufacturerLabel(manufacturer.data) },
       },
     }),
   );
@@ -316,7 +316,7 @@ export async function readDocument(formData: FormData): Promise<DocumentReadResu
     const supabase = await createClient();
     const [clients, manufacturers] = await Promise.all([
       supabase.from("clients").select("id, name"),
-      supabase.from("manufacturers").select("id, name, factory_name"),
+      supabase.from("manufacturers").select(`id, ${MANUFACTURER_NAMES_SELECT}` as const),
     ]);
     if (clients.error || manufacturers.error) {
       console.error("[inspections/new] reading the lists failed", clients.error?.message ?? manufacturers.error?.message);
@@ -324,10 +324,8 @@ export async function readDocument(formData: FormData): Promise<DocumentReadResu
     }
     const lists = {
       clients: clients.data,
-      manufacturers: manufacturers.data.map((entry) => ({
-        id: entry.id,
-        name: entry.factory_name ? `${entry.name} (${entry.factory_name})` : entry.name,
-      })),
+      // Each factory by every name a document may print for it: brand, company and factory.
+      manufacturers: manufacturers.data.map((entry) => ({ id: entry.id, name: manufacturerFullName(entry) })),
     };
 
     const outcome = await readOrderDocument(

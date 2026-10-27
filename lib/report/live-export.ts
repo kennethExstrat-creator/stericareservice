@@ -67,7 +67,7 @@ export function liveReportExport(input: LiveExportInput): InspectionExport | nul
     // The template row's id never goes out with the export.
     template: { id: "", ...input.template, sourceFilePath: null },
     client: meta.client ? { id: meta.client.id, name: meta.client.name, logoPath: null } : null,
-    manufacturer: manufacturer ? { id: manufacturer.id, name: manufacturer.name, factoryName: null } : null,
+    manufacturer: manufacturer ? { id: manufacturer.id, name: manufacturer.name } : null,
     inspectorId: inspector.id,
     inspector: { id: inspector.id, fullName: inspector.name, email: null },
     photos: photos.map((photo) => ({

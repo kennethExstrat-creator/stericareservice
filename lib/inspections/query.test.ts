@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { Database } from "@/lib/supabase/database.types";
+import { MANUFACTURER_NAMES_SELECT } from "./format";
 import { inspectionSearchFilter } from "./postgrest";
 import {
   countInspections,
@@ -71,7 +72,7 @@ const ROW = {
   result: "pass" as const,
   inspector_id: "7c2d4e1a-0b3f-4a5c-9d8e-1f2a3b4c5d6e",
   client: { name: "Client A" },
-  manufacturer: { name: "Manufacturer B", factory_name: "Factory 1" },
+  manufacturer: { factory_name: "Factory 1", company: { name: "Company B", brand: { name: "Manufacturer B" } } },
   inspector: { full_name: "Test Inspector", email: "inspector@test.local" },
 };
 
@@ -99,7 +100,7 @@ describe("listInspections", () => {
       ],
     ]);
     expect(INSPECTION_LIST_SELECT).toContain("client:clients(name)");
-    expect(INSPECTION_LIST_SELECT).toContain("manufacturer:manufacturers(name, factory_name)");
+    expect(INSPECTION_LIST_SELECT).toContain(`manufacturer:manufacturers(${MANUFACTURER_NAMES_SELECT})`);
     expect(INSPECTION_LIST_SELECT).toContain("inspector:profiles!inspections_inspector_id_fkey(full_name, email)");
     // Whose it is, for every role: the row actions compare it with the signed-in user.
     expect(INSPECTION_LIST_SELECT).toMatch(/(^|, )inspector_id(,|$)/);
@@ -500,13 +501,13 @@ describe("monthOf", () => {
 });
 
 describe("loadFilterOptions", () => {
-  it("lists clients and manufacturers by name", async () => {
+  it("lists clients by name and each factory by its label, in the labels' order", async () => {
     const { supabase, queries } = fakeSupabase(
       { data: [{ id: CLIENT, name: "Client A" }] },
       {
         data: [
-          { id: MANUFACTURER, name: "Manufacturer B", factory_name: "Factory 1" },
-          { id: "10000000-0000-4000-8000-000000000001", name: "Manufacturer C", factory_name: null },
+          { id: MANUFACTURER, factory_name: "Factory 1", company: { name: "Company B", brand: { name: "Manufacturer B" } } },
+          { id: "10000000-0000-4000-8000-000000000001", factory_name: null, company: { name: "Manufacturer A Sdn. Bhd.", brand: { name: "Manufacturer A" } } },
         ],
       },
     );
@@ -514,8 +515,8 @@ describe("loadFilterOptions", () => {
       ok: true,
       clients: [{ id: CLIENT, label: "Client A" }],
       manufacturers: [
+        { id: "10000000-0000-4000-8000-000000000001", label: "Manufacturer A Sdn. Bhd." },
         { id: MANUFACTURER, label: "Manufacturer B · Factory 1" },
-        { id: "10000000-0000-4000-8000-000000000001", label: "Manufacturer C" },
       ],
     });
     expect(queries).toEqual([
@@ -526,9 +527,7 @@ describe("loadFilterOptions", () => {
       ],
       [
         ["from", "manufacturers"],
-        ["select", "id, name, factory_name"],
-        ["order", "name"],
-        ["order", "factory_name", { nullsFirst: true }],
+        ["select", `id, ${MANUFACTURER_NAMES_SELECT}`],
       ],
     ]);
   });

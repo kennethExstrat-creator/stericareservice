@@ -49,8 +49,6 @@ async function signInAs(context: BrowserContext, baseURL: string, account: Accou
 const START_HINT = "Start one with New Inspection.";
 /** Opening the capture screen or a review: a dev server compiles it on first use, which can take longer than 5 s. */
 const OPENS = { timeout: 30_000 };
-/** B's seeded manufacturer, with the factory that tells the company's plants apart. */
-const TERANG_NUSA_LABEL = "Terang Nusa Sdn. Bhd. · TG Factory 40";
 
 function isTouch() {
   return Boolean(test.info().project.use.hasTouch);
@@ -317,7 +315,7 @@ test.describe("with inspections", () => {
     await expect(row(page, refs.B)).toContainText("3 Oct 2026", { useInnerText: true });
     // Every value in its own column at every size (the list scrolls sideways for them).
     await expect(row(page, refs.A)).toContainText("Nitrile examination gloves, blue", { useInnerText: true });
-    await expect(row(page, refs.A)).toContainText("Hartalega NGC", { useInnerText: true });
+    await expect(row(page, refs.A)).toContainText(fixture.manufacturerLabels.hartalega, { useInnerText: true });
     await expect(row(page, refs.A)).toContainText("E2E-LIST-PO-100", { useInnerText: true });
     await expect(row(page, refs.A)).toContainText("1 Oct 2026", { useInnerText: true });
     // A draft just started: a dash where nothing is chosen or typed yet, and the words for screen readers
@@ -337,9 +335,9 @@ test.describe("with inspections", () => {
     // Names show whole on one line, a long manufacturer with its factory included, at every size.
     await expectNamesWhole([
       [row(page, refs.A), FIXTURE_CLIENT_NAME],
-      [row(page, refs.A), "Hartalega NGC"],
+      [row(page, refs.A), fixture.manufacturerLabels.hartalega],
       [row(page, refs.D), "Polyco Healthline"],
-      [row(page, refs.B), TERANG_NUSA_LABEL],
+      [row(page, refs.B), fixture.manufacturerLabels.terangNusa],
     ]);
     await expectOneLineRows(page);
     for (const action of [mainAction(page, refs.A, "Continue"), deleteButton(page, refs.A), mainAction(page, refs.D, "View")]) {
@@ -391,7 +389,7 @@ test.describe("with inspections", () => {
     await expect(row(page, refs.C)).toContainText("Safedon nitrile examination gloves", { useInnerText: true });
     await expectNamesWhole([
       [row(page, refs.D), "Polyco Healthline"],
-      [row(page, refs.D), "Hartalega NGC"],
+      [row(page, refs.D), fixture.manufacturerLabels.hartalega],
       [row(page, refs.A), "Test Inspector"],
       [row(page, refs.C), "Safedon nitrile examination gloves"],
     ]);
@@ -524,7 +522,7 @@ test.describe("with inspections", () => {
     await expect(row(page, refs.A)).toHaveCount(0);
     await expect(row(page, refs.C)).toHaveCount(0);
     await expect(page.getByRole("combobox", { name: "Client" })).toHaveText(FIXTURE_CLIENT_NAME);
-    await expect(page.getByRole("combobox", { name: "Manufacturer" })).toHaveText(/Terang Nusa/);
+    await expect(page.getByRole("combobox", { name: "Manufacturer" })).toHaveText(fixture.manufacturerLabels.terangNusa);
     await shot(page, "admin-filtered");
 
     await press(page.getByRole("link", { name: "Clear Filters" }));

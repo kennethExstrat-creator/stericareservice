@@ -1,4 +1,5 @@
 import { expect, test, type Locator, type Page } from "@playwright/test";
+import { MANUFACTURER_NAMES_SELECT, manufacturerOptions } from "../../lib/inspections/format";
 import { createTestAdminClient } from "../support/admin";
 import { sessionCookies, TEST_ACCOUNTS } from "../support/session";
 
@@ -60,7 +61,7 @@ async function findOrder(): Promise<{ adminId: string; order: Order }> {
   const [profile, clients, manufacturers, inspections] = await Promise.all([
     admin.from("profiles").select("id").eq("email", TEST_ACCOUNTS.admin).single(),
     admin.from("clients").select("id, name").order("name"),
-    admin.from("manufacturers").select("id, name, factory_name").order("name"),
+    admin.from("manufacturers").select(`id, ${MANUFACTURER_NAMES_SELECT}` as const),
     admin
       .from("inspections")
       .select("id, client_id, manufacturer_id, product_name, status, template:templates(code, product_type)")
@@ -72,11 +73,13 @@ async function findOrder(): Promise<{ adminId: string; order: Order }> {
   for (const result of [profile, clients, manufacturers, inspections]) {
     if (result.error) throw new Error(`Reading the new inspection's choices failed: ${result.error.message}`);
   }
-  // As lib/inspections/format.ts manufacturerLabel.
-  const label = (entry: { name: string; factory_name: string | null }) =>
-    entry.factory_name?.trim() ? `${entry.name} · ${entry.factory_name.trim()}` : entry.name;
   const stableClients = clients.data!.filter((client) => !temporary(client.name));
-  const stableManufacturers = manufacturers.data!.filter((manufacturer) => !temporary(manufacturer.name));
+  // Each factory as the picker names and orders it: by its label (brand, then factory), not another spec's.
+  const stableManufacturers = manufacturerOptions(
+    manufacturers.data!.filter(
+      (factory) => ![factory.company?.brand?.name, factory.company?.name, factory.factory_name].some((name) => temporary(name)),
+    ),
+  );
   const candidates: { order: Order; named: boolean; kept: boolean }[] = [];
   const seen = new Set<string>();
   for (const row of inspections.data!) {
@@ -89,7 +92,7 @@ async function findOrder(): Promise<{ adminId: string; order: Order }> {
     const manufacturer = stableManufacturers.find((entry) => entry.id === row.manufacturer_id);
     if (client === undefined || !manufacturer) continue;
     candidates.push({
-      order: { client, manufacturer: label(manufacturer), productType: row.template.product_type, previousId: row.id },
+      order: { client, manufacturer: manufacturer.label, productType: row.template.product_type, previousId: row.id },
       named: Boolean(row.product_name?.trim()),
       // Only drafts can be deleted: a submitted or approved one cannot vanish while the test runs.
       kept: row.status !== "draft",
@@ -105,7 +108,7 @@ async function findOrder(): Promise<{ adminId: string; order: Order }> {
   if (!manufacturer) throw new Error("No manufacturers yet: the form cannot be filled in.");
   return {
     adminId: profile.data!.id,
-    order: { client: stableClients[0]?.name ?? "No Client", manufacturer: label(manufacturer), productType: "examination", previousId: null },
+    order: { client: stableClients[0]?.name ?? "No Client", manufacturer: manufacturer.label, productType: "examination", previousId: null },
   };
 }
 

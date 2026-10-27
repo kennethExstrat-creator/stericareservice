@@ -1,7 +1,7 @@
 import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { todayInMalaysia } from "@/lib/inspections/create";
-import { manufacturerLabel, personLabel } from "@/lib/inspections/format";
+import { MANUFACTURER_NAMES_SELECT, manufacturerLabel, personLabel } from "@/lib/inspections/format";
 import type { Database } from "@/lib/supabase/database.types";
 import { readFrom, summariseDashboard, type DashboardPeriod, type DashboardRow, type DashboardSummary } from "./dashboard";
 
@@ -25,8 +25,9 @@ const PAGE = 1000;
 /** A stop well past any real count (100,000 inspections), so a fault can never loop. */
 const MAX_PAGES = 100;
 
+// The manufacturer is a factory, counted on its own and named by its label (manufacturerLabel).
 const ROW_SELECT =
-  "id, inspection_date, status, result, inspector_id, client:clients(id, name), manufacturer:manufacturers(id, name, factory_name), inspector:profiles!inspections_inspector_id_fkey(full_name, email)";
+  `id, inspection_date, status, result, inspector_id, client:clients(id, name), manufacturer:manufacturers(id, ${MANUFACTURER_NAMES_SELECT}), inspector:profiles!inspections_inspector_id_fkey(full_name, email)` as const;
 
 function logFailure(what: string, error: { code?: string; message: string }) {
   console.error(`Admin dashboard: reading ${what} failed`, { code: error.code, message: error.message });

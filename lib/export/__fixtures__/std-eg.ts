@@ -12,6 +12,7 @@
 // The report prints only the force-at-break median and the weight average,
 // so 13 readings with that median and 13 gloves of that average stand in for
 // them, as the modules' own tests do.
+import { manufacturerLabel, type ManufacturerNames } from "@/lib/inspections/format";
 import { lookupFrom } from "@/lib/templates";
 import { STD_EG_REPORT_SEED } from "@/lib/templates/definitions";
 import type { ResolvedTemplate } from "@/lib/schemas/template";
@@ -388,6 +389,16 @@ export const STD_EG_GLOVE_TYPE = "Nitrile, powder free";
 
 const IDS = STD_EG_IDS;
 
+/**
+ * The example's manufacturer as brand, operating company and factory
+ * (placeholders): named "Manufacturer A · Factory A1" (manufacturerLabel),
+ * the manufacturer and factory the report prints.
+ */
+const STD_EG_FACTORY: ManufacturerNames = {
+  factory_name: EXAMPLE.header.factory ?? null,
+  company: { name: "Company A", brand: { name: EXAMPLE.header.manufacturer } },
+};
+
 const photoPath = (id: string, extension = "jpg") => `${IDS.inspection}/${id}.${extension}`;
 const thumbPath = (id: string) => `${IDS.inspection}/thumbs/${id}.jpg`;
 
@@ -490,7 +501,7 @@ export function stdEgRecord(overrides: Partial<InspectionRecord> = {}): Inspecti
       sourceFilePath: null,
     },
     client: null,
-    manufacturer: { id: IDS.manufacturer, name: EXAMPLE.header.manufacturer, factoryName: EXAMPLE.header.factory ?? null },
+    manufacturer: { id: IDS.manufacturer, name: manufacturerLabel(STD_EG_FACTORY) },
     inspectorId: IDS.inspector,
     inspector: { id: IDS.inspector, fullName: TEST_INSPECTOR.name, email: "inspector@test.local" },
     photos: stdEgPhotos(),
@@ -504,6 +515,15 @@ export function stdEgRecord(overrides: Partial<InspectionRecord> = {}): Inspecti
  * ------------------------------------------------------------------ */
 
 type Row = Record<string, unknown>;
+
+/**
+ * The factory row, with its company and brand, that the record's manufacturer
+ * reads back from: the example's own, else a company of that name alone.
+ */
+function factoryRow({ id, name }: { id: string; name: string }): { id: string } & ManufacturerNames {
+  if (name === manufacturerLabel(STD_EG_FACTORY)) return { id, ...STD_EG_FACTORY };
+  return { id, factory_name: null, company: { name, brand: null } };
+}
 
 /** The inspection, its photos and files as tables, as INSPECTION_RECORD_SELECT and the photo and file reads return them. */
 export function stdEgTables(record: InspectionRecord = stdEgRecord()): Record<string, Row[]> {
@@ -536,11 +556,7 @@ export function stdEgTables(record: InspectionRecord = stdEgRecord()): Record<st
           source_file_path: template.sourceFilePath,
         },
         client: record.client && { id: record.client.id, name: record.client.name, logo_path: record.client.logoPath },
-        manufacturer: record.manufacturer && {
-          id: record.manufacturer.id,
-          name: record.manufacturer.name,
-          factory_name: record.manufacturer.factoryName,
-        },
+        manufacturer: record.manufacturer && factoryRow(record.manufacturer),
         inspector: record.inspector && {
           id: record.inspector.id,
           full_name: record.inspector.fullName,

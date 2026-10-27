@@ -25,10 +25,69 @@ export function formatInspectionDate(isoDate: string): string {
   return DATE_FORMAT.format(new Date(Date.UTC(Number(year), Number(month) - 1, Number(day))));
 }
 
-/** A manufacturer by company and, when it has several plants, factory. */
-export function manufacturerLabel(manufacturer: { name: string; factory_name: string | null }): string {
-  const factory = manufacturer.factory_name?.trim();
-  return factory ? `${manufacturer.name} · ${factory}` : manufacturer.name;
+/** A factory row as the selects embed it: its own name, its company and the company's brand. */
+export type ManufacturerNames = { factory_name: string | null; company: { name: string; brand: { name: string } | null } | null };
+
+/**
+ * What a select embeds of a factory (a manufacturers row) for ManufacturerNames,
+ * after its own columns: `manufacturer:manufacturers(id, ${MANUFACTURER_NAMES_SELECT})`.
+ * manufacturers.name only repeats the company's name for code written before
+ * the brands (migration 20261027163000): never read it.
+ */
+export const MANUFACTURER_NAMES_SELECT = "factory_name, company:manufacturer_companies(name, brand:manufacturer_brands(name))";
+
+/** A letter (its accents too) or digit: the brand must end where a word does (startsWithWords). */
+const WORD_CHARACTER = /[\p{L}\p{M}\p{N}]/u;
+
+/** `text` starts with `words` as whole words, ignoring case: "Hartalega NGC" with "Hartalega", not "Hartalegas". */
+function startsWithWords(text: string, words: string): boolean {
+  if (words === "" || text.slice(0, words.length).toLowerCase() !== words.toLowerCase()) return false;
+  const next = text.charAt(words.length);
+  return next === "" || !WORD_CHARACTER.test(next) || !WORD_CHARACTER.test(words.charAt(words.length - 1));
+}
+
+/**
+ * A manufacturer as the app names it everywhere (Kenneth's report design:
+ * "Manufacturer / Supplier: Top Glove F-35"): the brand, then the factory,
+ * "Top Glove · TG-F40". A factory without a name goes by its company. The
+ * brand is left out when that part already starts with it ("Hartalega NGC",
+ * not "Hartalega · Hartalega NGC").
+ */
+export function manufacturerLabel(manufacturer: ManufacturerNames): string {
+  const brand = manufacturer.company?.brand?.name.trim() ?? "";
+  const place = manufacturer.factory_name?.trim() || manufacturer.company?.name.trim() || "";
+  if (brand === "") return place;
+  if (place === "") return brand;
+  return startsWithWords(place, brand) ? place : `${brand} · ${place}`;
+}
+
+/**
+ * Every name a document may print for the factory, for Steri-AI to match it
+ * by: brand, company and factory, each once ("Top Glove · Terang Nusa Sdn.
+ * Bhd. · TG-F40", "Hartalega · Hartalega NGC").
+ */
+export function manufacturerFullName(manufacturer: ManufacturerNames): string {
+  const parts: string[] = [];
+  for (const name of [manufacturer.company?.brand?.name, manufacturer.company?.name, manufacturer.factory_name]) {
+    const part = name?.trim() ?? "";
+    if (part !== "" && !parts.some((kept) => kept.toLowerCase() === part.toLowerCase())) parts.push(part);
+  }
+  return parts.join(" · ");
+}
+
+// As people read a list: case aside, numbers by value ("TG-F9" before "TG-F40").
+const BY_LABEL = new Intl.Collator("en-GB", { sensitivity: "base", numeric: true });
+
+/**
+ * The pickers' manufacturers: each factory by its label, in the labels'
+ * order. Two with the same label (one brand's companies with a factory of
+ * the same name) come in their companies' order.
+ */
+export function manufacturerOptions(manufacturers: readonly (ManufacturerNames & { id: string })[]): { id: string; label: string }[] {
+  return manufacturers
+    .map((manufacturer) => ({ id: manufacturer.id, label: manufacturerLabel(manufacturer), fullName: manufacturerFullName(manufacturer) }))
+    .sort((a, b) => BY_LABEL.compare(a.label, b.label) || BY_LABEL.compare(a.fullName, b.fullName) || a.id.localeCompare(b.id))
+    .map(({ id, label }) => ({ id, label }));
 }
 
 /** A person by name, falling back to their email address. */

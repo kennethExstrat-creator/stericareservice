@@ -13,10 +13,23 @@ vi.mock("@/lib/auth/session", async (importOriginal) => ({
 vi.mock("@/lib/supabase/server", () => ({ createClient: vi.fn() }));
 // Without the key (the default here) the user's own client inserts.
 vi.mock("@/lib/supabase/admin", () => ({ createAdminClient: vi.fn(), isAdminClientConfigured: vi.fn() }));
+// Steri-AI is never called: a test that reads a document says what it answers.
+vi.mock("@/lib/ai/document-reader", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/ai/document-reader")>()),
+  readOrderDocument: vi.fn(),
+}));
+vi.mock("@/lib/ai/settings", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/ai/settings")>()),
+  loadAiEnv: vi.fn(),
+  loadGlossary: vi.fn(),
+}));
 
+import { readOrderDocument } from "@/lib/ai/document-reader";
+import { loadAiEnv, loadGlossary } from "@/lib/ai/settings";
 import { authorizeAction } from "@/lib/auth/session";
 import { evaluateCapture } from "@/lib/inspections/capture/evaluate";
 import { mirroredColumns } from "@/lib/inspections/capture/mirror";
+import { MANUFACTURER_NAMES_SELECT } from "@/lib/inspections/format";
 import { ResolvedTemplateSchema } from "@/lib/schemas/template";
 import { createAdminClient, isAdminClientConfigured } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
@@ -30,6 +43,8 @@ const ADMIN = "0a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d";
 const CLIENT = "20000000-0000-4000-8000-000000000001";
 const OTHER_CLIENT = "20000000-0000-4000-8000-000000000002";
 const MANUFACTURER = "10000000-0000-4000-8000-000000000001";
+/** The factory as the select embeds it, with its company and brand: "Manufacturer A · Factory 1". */
+const FACTORY = { factory_name: "Factory 1", company: { name: "Company A", brand: { name: "Manufacturer A" } } };
 const NEW_ID = "5f6e7d8c-9b0a-4c1d-8e2f-3a4b5c6d7e8f";
 const PREVIOUS_ID = "6a7b8c9d-0e1f-4a2b-8c3d-4e5f6a7b8c9d";
 const ADDRESS = "Lot 1, Placeholder Industrial Park";
@@ -125,7 +140,7 @@ function world({ templates, client = true, address = ADDRESS, previous = null, i
       return { data: visible, error: null };
     }
     if (query.table === "clients") return { data: client ? { id: CLIENT, name: "Client A" } : null, error: null };
-    if (query.table === "manufacturers") return { data: { id: MANUFACTURER, name: "Manufacturer A", address }, error: null };
+    if (query.table === "manufacturers") return { data: { id: MANUFACTURER, address, ...FACTORY }, error: null };
     if (query.table === "inspections" && argOf(query, "insert")) return insert ?? { data: { id: NEW_ID }, error: null };
     if (query.table === "inspections") return { data: previous, error: null };
     return { data: null, error: null };
@@ -298,8 +313,9 @@ describe("the template (BUILD_SPEC 4.4)", () => {
     for (const [key, value] of Object.entries(data.modules)) {
       expect(MODULE_REGISTRY[key as keyof typeof MODULE_REGISTRY].dataSchema.safeParse(value).success, key).toBe(true);
     }
+    // The factory with its company and brand, never the old name column.
     const manufacturer = db.queries.find((query) => query.table === "manufacturers");
-    expect(argOf(manufacturer, "select")).toBe("id, name, address");
+    expect(argOf(manufacturer, "select")).toBe(`id, address, ${MANUFACTURER_NAMES_SELECT}`);
     // An inspector reads active templates only.
     expect(db.queries.some((query) => query.table === "templates" && has(query, "eq", "status", "active"))).toBe(true);
     expect(db.rpcs).toEqual([]);
@@ -524,6 +540,38 @@ describe("Source Documents read on the form (docs/AI.md)", () => {
         { inspection_id: NEW_ID, action: "filled_from_document", changes: { file: fill.fileName, filled: ["header.poNo"], by: INSPECTOR } },
       ],
     ]);
+  });
+
+  it("gives Steri-AI every name a document may print for each factory: brand, company and factory", async () => {
+    const OTHER = "10000000-0000-4000-8000-000000000002";
+    use(
+      fakeClient((query) =>
+        query.table === "clients"
+          ? { data: [{ id: CLIENT, name: "Client A" }], error: null }
+          : {
+              data: [
+                { id: MANUFACTURER, ...FACTORY },
+                { id: OTHER, factory_name: null, company: { name: "Manufacturer B Sdn. Bhd.", brand: { name: "Manufacturer B" } } },
+              ],
+              error: null,
+            },
+      ),
+    );
+    vi.mocked(loadAiEnv).mockResolvedValue({});
+    vi.mocked(loadGlossary).mockResolvedValue([]);
+    vi.mocked(readOrderDocument).mockResolvedValue({ ok: false, reason: "not_connected", message: "Steri-AI is not connected yet." });
+    const document = new FormData();
+    document.set("document", new File(["%PDF-1.7"], "PO 0001.pdf", { type: "application/pdf" }));
+
+    expect(await readDocument(document)).toEqual({ status: "error", message: "Steri-AI is not connected yet." });
+    expect(argOf(db.queries.find((query) => query.table === "manufacturers"), "select")).toBe(`id, ${MANUFACTURER_NAMES_SELECT}`);
+    expect(vi.mocked(readOrderDocument).mock.calls[0][1]).toMatchObject({
+      clients: [{ id: CLIENT, name: "Client A" }],
+      manufacturers: [
+        { id: MANUFACTURER, name: "Manufacturer A · Company A · Factory 1" },
+        { id: OTHER, name: "Manufacturer B · Manufacturer B Sdn. Bhd." },
+      ],
+    });
   });
 
   // Fill From a Document is the role's Steri-AI Reading, on a page only Create Inspections opens.

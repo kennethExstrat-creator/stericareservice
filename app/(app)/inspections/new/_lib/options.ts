@@ -1,7 +1,7 @@
 import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { copiedFieldsOff } from "@/lib/inspections/create";
-import { manufacturerLabel } from "@/lib/inspections/format";
+import { MANUFACTURER_NAMES_SELECT, manufacturerOptions } from "@/lib/inspections/format";
 import { ResolvedTemplateSchema } from "@/lib/schemas/template";
 import type { Database } from "@/lib/supabase/database.types";
 import { templateCandidateFromRow } from "@/lib/templates/select";
@@ -63,15 +63,15 @@ function logFailure(what: string, error: { code?: string; message: string }) {
 }
 
 /**
- * Clients, manufacturers and the templates the user may start from (active
- * ones; drafts as well for an admin, who can choose one). Null when any of it
- * cannot be read.
+ * Clients, manufacturers (each factory by its label, as the inspection names
+ * it) and the templates the user may start from (active ones; drafts as well
+ * for an admin, who can choose one). Null when any of it cannot be read.
  */
 export async function loadNewInspectionOptions(supabase: Client, role: UserRole): Promise<NewInspectionOptions | null> {
   const templates = supabase.from("templates").select(TEMPLATE_SELECT).order("code").order("version", { ascending: false });
   const [clients, manufacturers, templateRows] = await Promise.all([
     supabase.from("clients").select("id, name").order("name"),
-    supabase.from("manufacturers").select("id, name, factory_name").order("name").order("factory_name", { nullsFirst: true }),
+    supabase.from("manufacturers").select(`id, ${MANUFACTURER_NAMES_SELECT}` as const),
     role === "admin" ? templates.neq("status", "retired") : templates.eq("status", "active"),
   ]);
   if (clients.error) {
@@ -89,7 +89,7 @@ export async function loadNewInspectionOptions(supabase: Client, role: UserRole)
 
   return {
     clients: clients.data.map((client) => ({ id: client.id, label: client.name })),
-    manufacturers: manufacturers.data.map((manufacturer) => ({ id: manufacturer.id, label: manufacturerLabel(manufacturer) })),
+    manufacturers: manufacturerOptions(manufacturers.data),
     templates: templateRows.data.flatMap((row) => toTemplateOption(row) ?? []),
   };
 }

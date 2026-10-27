@@ -143,7 +143,8 @@ export function makeInspectionRow(overrides: Row = {}, template: Row = {}): Row 
       ...template,
     },
     client: { id: IDS.client, name: "Client A", logo_path: PATHS.logo },
-    manufacturer: { id: IDS.manufacturer, name: "Manufacturer A", factory_name: "Factory 1" },
+    // The factory with its company and brand, as INSPECTION_RECORD_SELECT embeds it: "Manufacturer A · Factory 1".
+    manufacturer: { id: IDS.manufacturer, factory_name: "Factory 1", company: { name: "Company A", brand: { name: "Manufacturer A" } } },
     inspector: { id: IDS.inspector, full_name: "Inspector A", email: "inspector@test.local" },
     ...overrides,
   };

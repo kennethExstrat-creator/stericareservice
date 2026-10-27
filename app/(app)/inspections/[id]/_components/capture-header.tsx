@@ -15,7 +15,7 @@ export type CaptureHeading = {
   templateVersion: number;
   clientName: string | null;
   manufacturerLabel: string | null;
-  /** The manufacturer's name without its factory, for the header line. */
+  /** The manufacturer as the inspection names it (meta.manufacturer.name: its label, brand and factory), for the header line. */
   manufacturerName?: string | null;
   inspectionDate: string;
   inspectorName: string;

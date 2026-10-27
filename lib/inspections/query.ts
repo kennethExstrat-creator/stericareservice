@@ -4,7 +4,7 @@ import { seesTeamInspections } from "@/lib/auth/org";
 import { InspectionStatusSchema, type InspectionResult, type InspectionStatus } from "@/lib/schemas/common";
 import type { Database } from "@/lib/supabase/database.types";
 import { todayInMalaysia } from "./create";
-import { manufacturerLabel, personLabel } from "./format";
+import { MANUFACTURER_NAMES_SELECT, manufacturerLabel, manufacturerOptions, personLabel, type ManufacturerNames } from "./format";
 import { arrayLiteral, inspectionSearchFilter, quoteFilterValue } from "./postgrest";
 import { PAGE_SIZE, type FilterOption, type InspectionListFilters } from "./search-params";
 
@@ -27,7 +27,7 @@ type ListReader = { role: UserRole; isLead?: boolean };
  * profiles.
  */
 export const INSPECTION_LIST_SELECT =
-  "id, ref_no, inspection_date, po_no, product_name, status, result, inspector_id, client:clients(name), manufacturer:manufacturers(name, factory_name), inspector:profiles!inspections_inspector_id_fkey(full_name, email)";
+  `id, ref_no, inspection_date, po_no, product_name, status, result, inspector_id, client:clients(name), manufacturer:manufacturers(${MANUFACTURER_NAMES_SELECT}), inspector:profiles!inspections_inspector_id_fkey(full_name, email)` as const;
 
 /** PostgREST's answer to a page past the last row. */
 const RANGE_NOT_SATISFIABLE = "PGRST103";
@@ -74,7 +74,7 @@ type ListQueryRow = {
   result: InspectionResult | null;
   inspector_id: string;
   client: { name: string } | null;
-  manufacturer: { name: string; factory_name: string | null } | null;
+  manufacturer: ManufacturerNames | null;
   inspector: { full_name: string | null; email: string | null } | null;
 };
 
@@ -297,15 +297,11 @@ export type FilterOptionsResult =
   | { ok: true; clients: FilterOption[]; manufacturers: FilterOption[] }
   | { ok: false };
 
-/** Every client and manufacturer, by name, for the filter bar. */
+/** Every client by name and every manufacturer (factory) by its label, for the filter bar. */
 export async function loadFilterOptions(supabase: Client): Promise<FilterOptionsResult> {
   const [clients, manufacturers] = await Promise.all([
     supabase.from("clients").select("id, name").order("name"),
-    supabase
-      .from("manufacturers")
-      .select("id, name, factory_name")
-      .order("name")
-      .order("factory_name", { nullsFirst: true }),
+    supabase.from("manufacturers").select(`id, ${MANUFACTURER_NAMES_SELECT}` as const),
   ]);
   if (clients.error) {
     logFailure("clients", clients.error);
@@ -318,9 +314,6 @@ export async function loadFilterOptions(supabase: Client): Promise<FilterOptions
   return {
     ok: true,
     clients: clients.data.map((client) => ({ id: client.id, label: client.name })),
-    manufacturers: manufacturers.data.map((manufacturer) => ({
-      id: manufacturer.id,
-      label: manufacturerLabel(manufacturer),
-    })),
+    manufacturers: manufacturerOptions(manufacturers.data),
   };
 }

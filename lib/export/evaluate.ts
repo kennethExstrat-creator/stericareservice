@@ -2,7 +2,7 @@ import type { EntityRef } from "@/lib/schemas/common";
 import { ResolvedTemplateSchema, type ResolvedTemplate } from "@/lib/schemas/template";
 import { applyModuleOverrides, parseModuleOverrides } from "@/lib/templates";
 import { validateInspection, type ValidationReport } from "@/lib/validation";
-import { manufacturerLabel, personLabel } from "@/lib/inspections/format";
+import { personLabel } from "@/lib/inspections/format";
 import {
   buildInspectionView,
   InspectionDataSchema,
@@ -60,9 +60,7 @@ export function evaluateRecord(record: InspectionRecord, registry: ModuleRegistr
   const effective = applyModuleOverrides(resolved.data, parseModuleOverrides(record.moduleOverrides));
   const inspector = inspectorRef(record);
   const client = record.client ? { id: record.client.id, name: record.client.name } : null;
-  const manufacturer = record.manufacturer
-    ? { id: record.manufacturer.id, name: manufacturerLabel({ name: record.manufacturer.name, factory_name: record.manufacturer.factoryName }) }
-    : null;
+  const manufacturer = record.manufacturer ? { id: record.manufacturer.id, name: record.manufacturer.name } : null;
   const meta = inspectionMeta({ refNo: record.refNo, inspectionDate: record.inspectionDate, inspector, client, manufacturer }, record.files);
   const { template, context } = buildInspectionView({ template: effective, data: data.data, meta }, registry);
   const report = validateInspection(data.data, template, context, registry);

@@ -1,7 +1,7 @@
 import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { fileRef } from "@/lib/export/evaluate";
-import { manufacturerLabel, personLabel } from "@/lib/inspections/format";
+import { MANUFACTURER_NAMES_SELECT, manufacturerLabel, personLabel } from "@/lib/inspections/format";
 import { PHOTO_BUCKET } from "@/lib/photos/paths";
 import type { InspectionResult, InspectionStatus } from "@/lib/schemas/common";
 import type { ModuleKey } from "@/lib/schemas/module-result";
@@ -30,7 +30,7 @@ export const PHOTO_URL_SECONDS = 60 * 60;
 
 /** The inspector embed names its foreign key: approved_by also points at profiles. */
 export const REVIEW_INSPECTION_SELECT =
-  "id, ref_no, status, inspection_date, po_no, product_name, lot_numbers, data, module_overrides, result, remarks, suggested_result, created_at, updated_at, submitted_at, approved_at, approved_by, inspector_id, client:clients(id, name), manufacturer:manufacturers(id, name, factory_name), inspector:profiles!inspections_inspector_id_fkey(id, full_name, email), approver:profiles!inspections_approved_by_fkey(id, full_name, email), template:templates(id, code, version, resolved)";
+  `id, ref_no, status, inspection_date, po_no, product_name, lot_numbers, data, module_overrides, result, remarks, suggested_result, created_at, updated_at, submitted_at, approved_at, approved_by, inspector_id, client:clients(id, name), manufacturer:manufacturers(id, ${MANUFACTURER_NAMES_SELECT}), inspector:profiles!inspections_inspector_id_fkey(id, full_name, email), approver:profiles!inspections_approved_by_fkey(id, full_name, email), template:templates(id, code, version, resolved)` as const;
 
 const PHOTO_SELECT = "id, module_key, target, caption, storage_path, thumb_path, taken_at, flagged";
 const AUDIT_SELECT = "id, action, changes, at, actor_id, actor:profiles(full_name, email)";
@@ -118,6 +118,7 @@ export async function loadReview(supabase: Client, inspectionId: string, viewer:
   const found = row.data;
 
   const inspectorName = personLabel(found.inspector) ?? "Unknown inspector";
+  const manufacturer = found.manufacturer ? { id: found.manufacturer.id, name: manufacturerLabel(found.manufacturer) } : null;
   const people: KnownPeople = {
     viewerId: viewer.id,
     viewerName: viewer.name,
@@ -132,7 +133,7 @@ export async function loadReview(supabase: Client, inspectionId: string, viewer:
     resolved: found.template?.resolved ?? null,
     inspector: { id: found.inspector_id, name: inspectorName },
     client: found.client ? { id: found.client.id, name: found.client.name } : null,
-    manufacturer: found.manufacturer ? { id: found.manufacturer.id, name: found.manufacturer.name } : null,
+    manufacturer,
     files: inspectionFiles(fileRows),
   });
   const header = evaluation.ok ? evaluation.context.header : null;
@@ -149,7 +150,7 @@ export async function loadReview(supabase: Client, inspectionId: string, viewer:
     productName: found.product_name ?? header?.productName ?? null,
     lotNumbers: found.lot_numbers,
     client: found.client?.name ?? null,
-    manufacturer: found.manufacturer ? manufacturerLabel(found.manufacturer) : null,
+    manufacturer: manufacturer?.name ?? null,
     inspector: { id: found.inspector_id, name: inspectorName },
     createdAt: found.created_at,
     submittedAt: found.submitted_at,

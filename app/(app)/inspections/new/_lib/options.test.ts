@@ -2,6 +2,7 @@
 // pickers' lists and the templates the user may start from, no earlier
 // inspections; and the wording the form's parts share.
 import { describe, expect, it } from "vitest";
+import { MANUFACTURER_NAMES_SELECT } from "@/lib/inspections/format";
 import { buildSeedBundle, SEED_TEMPLATES } from "@/lib/templates/definitions";
 import { FORCE_AT_BREAK_TITLE } from "@/modules/force_at_break/config";
 import { MODULE_REGISTRY } from "@/modules/registry";
@@ -102,10 +103,11 @@ function fakeClient(answers: Partial<Record<string, Answer>>) {
 }
 
 const CLIENTS: Answer = { data: [{ id: "c1", name: "Polyco Healthline" }], error: null };
+/** Factories as the select embeds them (supabase/seed.sql), in no particular order: the page sorts them by label. */
 const MANUFACTURERS: Answer = {
   data: [
-    { id: "m1", name: "Hartalega NGC", factory_name: null },
-    { id: "m2", name: "Terang Nusa Sdn. Bhd.", factory_name: "TG Factory 40" },
+    { id: "m2", factory_name: "TG Factory 40", company: { name: "Terang Nusa Sdn. Bhd.", brand: { name: "Top Glove" } } },
+    { id: "m1", factory_name: null, company: { name: "Hartalega NGC", brand: { name: "Hartalega" } } },
   ],
   error: null,
 };
@@ -119,12 +121,14 @@ describe("loading the page's lists", () => {
     const options = await loadNewInspectionOptions(client, "inspector");
     expect(options).toEqual({
       clients: [{ id: "c1", label: "Polyco Healthline" }],
+      // Each factory by its label, brand and factory (or company), in the labels' order.
       manufacturers: [
         { id: "m1", label: "Hartalega NGC" },
-        { id: "m2", label: "Terang Nusa Sdn. Bhd. · TG Factory 40" },
+        { id: "m2", label: "Top Glove · TG Factory 40" },
       ],
       templates: [expect.objectContaining({ code: "STD_EG" })],
     });
+    expect(queries.find((query) => query.table === "manufacturers")!.calls).toEqual([["select", [`id, ${MANUFACTURER_NAMES_SELECT}`]]]);
 
     const templates = queries.find((query) => query.table === "templates")!;
     expect(templates.calls).toContainEqual(["eq", ["status", "active"]]);

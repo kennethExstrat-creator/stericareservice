@@ -36,7 +36,8 @@ function source({ status = "submitted", without = [] }: { status?: InspectionSta
     template: { code: "STD_EG", version: 1, standard: "EN455", productType: "examination", resolved: record.template.resolved as ResolvedTemplate },
     evaluation: { template, context, report: { ...report, modules: report.modules.filter((module) => !without.includes(module.key)) } },
     data,
-    meta: { refNo: record.refNo, inspectionDate: record.inspectionDate, inspector, client, manufacturer: { id: STD_EG_IDS.manufacturer, name: "Manufacturer A" } },
+    // The screen names the manufacturer by its label, as the export does.
+    meta: { refNo: record.refNo, inspectionDate: record.inspectionDate, inspector, client, manufacturer },
     manufacturerLabel: manufacturer?.name ?? null,
   };
 }

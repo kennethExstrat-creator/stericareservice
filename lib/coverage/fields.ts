@@ -79,7 +79,7 @@ const header = defineModule({
       entry: "entered",
       column: "inspections.manufacturer_id",
       notes:
-        "Picked on /inspections/new, where it resolves the template (BUILD_SPEC 4.4). Shown as the manufacturer's name with the factory name in brackets, as the reports print it (manufacturers.name, factory_name).",
+        "Picked on /inspections/new, where it resolves the template (BUILD_SPEC 4.4): a factory (manufacturers.factory_name) of an operating company (manufacturer_companies) of a brand (manufacturer_brands). Shown as the brand and the factory, \"Top Glove · TG-F40\" (manufacturerLabel, lib/inspections/format.ts): a factory without a name goes by its company, and the brand is left out when that already starts with it (\"Hartalega NGC\").",
     },
     {
       key: "factoryAddress",

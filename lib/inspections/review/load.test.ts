@@ -42,7 +42,11 @@ function inspectionRow(overrides: Record<string, unknown> = {}) {
     approved_by: OTHER_ADMIN,
     inspector_id: INSPECTOR_ID,
     client: { id: "20000000-0000-4000-8000-0000000000c1", name: "Client A" },
-    manufacturer: { id: "10000000-0000-4000-8000-0000000000f1", name: "Manufacturer A", factory_name: "Plant 1" },
+    manufacturer: {
+      id: "10000000-0000-4000-8000-0000000000f1",
+      factory_name: "Plant 1",
+      company: { name: "Company A", brand: { name: "Manufacturer A" } },
+    },
     inspector: { id: INSPECTOR_ID, full_name: "Inspector A", email: "inspector@example.com" },
     approver: { id: OTHER_ADMIN, full_name: "Admin B", email: "admin-b@example.com" },
     template: { id: "40000000-0000-4000-8000-000000000001", code: "TEST_EG", version: 3, resolved: reviewTemplate() },
@@ -186,6 +190,11 @@ describe("loadReview", () => {
       name: "Test examination gloves",
     });
     expect(loaded.review.evaluation.ok).toBe(true);
+    // The modules read the same name: the header's Manufacturer / Supplier says what the facts say.
+    expect(loaded.review.evaluation.ok && loaded.review.evaluation.context.inspection.manufacturer).toEqual({
+      id: "10000000-0000-4000-8000-0000000000f1",
+      name: "Manufacturer A · Plant 1",
+    });
   });
 
   it("takes the final result and remark from the conclusion while the row's columns are empty", async () => {

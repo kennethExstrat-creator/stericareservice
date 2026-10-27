@@ -1,6 +1,7 @@
 import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { z } from "zod";
+import { MANUFACTURER_NAMES_SELECT, manufacturerLabel } from "@/lib/inspections/format";
 import type { InspectionResult, InspectionStatus, ProductType, Standard } from "@/lib/schemas/common";
 import type { Database } from "@/lib/supabase/database.types";
 
@@ -16,7 +17,7 @@ export type ExportClient = SupabaseClient<Database>;
 
 /** The inspection, its template version and the names the export shows, in one request. */
 export const INSPECTION_RECORD_SELECT =
-  "id, ref_no, status, inspection_date, inspector_id, data, module_overrides, result, suggested_result, remarks, report_url, created_at, updated_at, submitted_at, approved_at, template:templates(id, code, version, standard, product_type, resolved, source_file_path), client:clients(id, name, logo_path), manufacturer:manufacturers(id, name, factory_name), inspector:profiles!inspections_inspector_id_fkey(id, full_name, email)";
+  `id, ref_no, status, inspection_date, inspector_id, data, module_overrides, result, suggested_result, remarks, report_url, created_at, updated_at, submitted_at, approved_at, template:templates(id, code, version, standard, product_type, resolved, source_file_path), client:clients(id, name, logo_path), manufacturer:manufacturers(id, ${MANUFACTURER_NAMES_SELECT}), inspector:profiles!inspections_inspector_id_fkey(id, full_name, email)` as const;
 
 const PHOTO_SELECT =
   "id, module_key, target, storage_path, thumb_path, caption, taken_at, include_in_report, flagged, created_at";
@@ -71,7 +72,8 @@ export type InspectionRecord = {
     sourceFilePath: string | null;
   } | null;
   client: { id: string; name: string; logoPath: string | null } | null;
-  manufacturer: { id: string; name: string; factoryName: string | null } | null;
+  /** The factory, named by its label (manufacturerLabel): "Top Glove · TG-F40". */
+  manufacturer: { id: string; name: string } | null;
   /** Always set (6.2 rule 11); `inspector` holds the profile when it could be read. */
   inspectorId: string;
   inspector: { id: string; fullName: string | null; email: string | null } | null;
@@ -145,9 +147,7 @@ export async function loadInspectionRecord(client: ExportClient, inspectionId: s
           }
         : null,
       client: clientRow ? { id: clientRow.id, name: clientRow.name, logoPath: clientRow.logo_path } : null,
-      manufacturer: manufacturer
-        ? { id: manufacturer.id, name: manufacturer.name, factoryName: manufacturer.factory_name }
-        : null,
+      manufacturer: manufacturer ? { id: manufacturer.id, name: manufacturerLabel(manufacturer) } : null,
       inspectorId: inspection.inspector_id,
       inspector: inspector ? { id: inspector.id, fullName: inspector.full_name, email: inspector.email } : null,
       photos: photos.data.map((photo) => ({

@@ -1,12 +1,14 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
+import { manufacturerLabel } from "../../lib/inspections/format";
 import type { Database, Json } from "../../lib/supabase/database.types";
 import { createTestAdminClient, deleteTestInspection } from "../support/admin";
 import { TEST_ACCOUNTS } from "../support/session";
 
 /**
  * Temporary rows for the /inspections/new specs (e2e/README.md): a client
- * and two manufacturers of their own, one active template for each level of
+ * and two manufacturers of their own (factories A and B of one company of one
+ * brand, all three named for the run), one active template for each level of
  * the most specific rule (BUILD_SPEC 4.4), and one earlier inspection by the
  * test inspector to start from. Every template is scoped to the fixture's
  * client or to its manufacturer A, so it only ever applies to picks of the
@@ -32,9 +34,11 @@ import { TEST_ACCOUNTS } from "../support/session";
  * so the page shows real templates: their modules, sizes and titles.
  * Everything is deleted afterwards: inspections through
  * deleteTestInspection(), then the templates, the client and the
- * manufacturers. A run that died half way is cleaned up by the next,
- * including one of this spec's earlier version, whose templates were E2E_NEW
- * and whose client had the same name.
+ * manufacturers: the factories, then their company, then its brand. A run
+ * that died half way is cleaned up by the next, including one of this spec's
+ * earlier version, whose templates were E2E_NEW and whose client had the same
+ * name, and one from before the brands (migration 20261027163000), whose
+ * manufacturers became companies and brands of their own names.
  */
 
 type AdminClient = ReturnType<typeof createTestAdminClient>;
@@ -52,6 +56,7 @@ export const LEVEL_TEMPLATES = {
 const EARLIER_CODES = ["E2E_NEW", "E2E_NEW_CM", "E2E_NEW_C", "E2E_NEW_M"];
 const FIXTURE_CODES = [FIXTURE_TEMPLATE_CODE, ...Object.values(LEVEL_TEMPLATES).map((entry) => entry.code), ...EARLIER_CODES];
 export const FIXTURE_CLIENT_PREFIX = "E2E new client (temporary)";
+/** Starts the fixture's brand and company names: cleanup finds them, and the factories of the companies, by it. */
 export const FIXTURE_MANUFACTURER_PREFIX = "E2E new manufacturer";
 /** Hartalega NGC, from supabase/seed.sql (fixed id). */
 export const HARTALEGA = { id: "10000000-0000-4000-8000-000000000001", label: "Hartalega NGC" } as const;
@@ -197,8 +202,21 @@ async function removeFixtureRows(admin: AdminClient) {
   }
   const clients = await admin.from("clients").delete().like("name", `${FIXTURE_CLIENT_PREFIX}%`);
   if (clients.error) fail("deleting the fixture client", clients.error);
-  const manufacturers = await admin.from("manufacturers").delete().like("name", `${FIXTURE_MANUFACTURER_PREFIX}%`);
-  if (manufacturers.error) fail("deleting the fixture manufacturers", manufacturers.error);
+  // The factories, then their companies, then the brands: each refers to the one after it.
+  const { data: companies, error: companiesError } = await admin
+    .from("manufacturer_companies")
+    .select("id")
+    .like("name", `${FIXTURE_MANUFACTURER_PREFIX}%`);
+  if (companiesError) fail("finding the fixture companies", companiesError);
+  const companyIds = companies.map((company) => company.id);
+  if (companyIds.length > 0) {
+    const factories = await admin.from("manufacturers").delete().in("company_id", companyIds);
+    if (factories.error) fail("deleting the fixture factories", factories.error);
+    const removed = await admin.from("manufacturer_companies").delete().in("id", companyIds);
+    if (removed.error) fail("deleting the fixture companies", removed.error);
+  }
+  const brands = await admin.from("manufacturer_brands").delete().like("name", `${FIXTURE_MANUFACTURER_PREFIX}%`);
+  if (brands.error) fail("deleting the fixture brands", brands.error);
 }
 
 /** Inspections the specs created through the page: deleted with the rest, found by their template. */
@@ -284,14 +302,30 @@ async function insertFixtureRows(admin: AdminClient): Promise<NewFixture> {
     .single();
   if (clientError) fail("creating the fixture client", clientError);
 
+  // The manufacturers are two factories of one company of one brand.
+  const { data: brand, error: brandError } = await admin
+    .from("manufacturer_brands")
+    .insert({ name: `${FIXTURE_MANUFACTURER_PREFIX} brand (temporary) ${run}` })
+    .select("id, name")
+    .single();
+  if (brandError) fail("creating the fixture brand", brandError);
+  const { data: company, error: companyError } = await admin
+    .from("manufacturer_companies")
+    .insert({ brand_id: brand.id, name: `${FIXTURE_MANUFACTURER_PREFIX} company (temporary) ${run}` })
+    .select("id, name")
+    .single();
+  if (companyError) fail("creating the fixture company", companyError);
+
   const manufacturer = async (letter: "A" | "B", address: string | null): Promise<FixtureManufacturer> => {
-    const label = `${FIXTURE_MANUFACTURER_PREFIX} ${letter} (temporary) ${run}`;
+    const factoryName = `Factory ${letter}`;
     const { data, error } = await admin
       .from("manufacturers")
-      .insert({ name: label, address, notes: "Created and deleted by e2e/new. Safe to delete." })
+      .insert({ company_id: company.id, factory_name: factoryName, address, notes: "Created and deleted by e2e/new. Safe to delete." })
       .select("id")
       .single();
     if (error) fail(`creating manufacturer ${letter}`, error);
+    // As the pickers name it: the brand, then the factory.
+    const label = manufacturerLabel({ factory_name: factoryName, company: { name: company.name, brand: { name: brand.name } } });
     return { id: data.id, label, address };
   };
   const manufacturerA = await manufacturer("A", `E2E factory address ${run}, temporary`);

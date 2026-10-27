@@ -1,3 +1,4 @@
+import { MANUFACTURER_NAMES_SELECT, manufacturerLabel } from "@/lib/inspections/format";
 import { lookupFrom, templateRowFields } from "@/lib/templates";
 import { TemplateDefinitionSchema } from "@/lib/schemas/template";
 import { resolveTemplate } from "@/modules";
@@ -64,6 +65,12 @@ export type ListFixture = {
   ids: Record<FixtureKey, string>;
   clientId: string;
   manufacturers: typeof SEED;
+  /**
+   * The seed factories as the app names them (manufacturerLabel), read from
+   * the database: Hartalega NGC, and Terang Nusa's factory after its brand,
+   * "Top Glove · TG-F40", which tells the brand's plants apart.
+   */
+  manufacturerLabels: { hartalega: string; terangNusa: string };
   /** The fixture template and the inspector, for drafts a test makes of its own. */
   templateId: string;
   inspectorId: string;
@@ -146,6 +153,16 @@ async function insertFixtureRows(admin: AdminClient): Promise<ListFixture> {
   const idOf = (email: string) => people.find((person) => person.email === email)?.id ?? fail(`finding ${email}`, null);
   const inspectorId = idOf(TEST_ACCOUNTS.inspector);
   const adminId = idOf(TEST_ACCOUNTS.admin);
+
+  const { data: factories, error: factoriesError } = await admin
+    .from("manufacturers")
+    .select(`id, ${MANUFACTURER_NAMES_SELECT}` as const)
+    .in("id", [SEED.hartalega, SEED.terangNusa]);
+  if (factoriesError) fail("reading the seed manufacturers", factoriesError);
+  const labelOf = (id: string) => {
+    const factory = factories.find((entry) => entry.id === id) ?? fail(`finding manufacturer ${id}`, null);
+    return manufacturerLabel(factory);
+  };
 
   const { data: client, error: clientError } = await admin
     .from("clients")
@@ -267,6 +284,7 @@ async function insertFixtureRows(admin: AdminClient): Promise<ListFixture> {
     ids: { A: byKey.A.id, B: byKey.B.id, C: byKey.C.id, D: byKey.D.id, E: byKey.E.id },
     clientId: client.id,
     manufacturers: SEED,
+    manufacturerLabels: { hartalega: labelOf(SEED.hartalega), terangNusa: labelOf(SEED.terangNusa) },
     templateId: template.id,
     inspectorId,
     cleanup: () => removeFixtureRows(admin),

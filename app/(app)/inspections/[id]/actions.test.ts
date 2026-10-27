@@ -130,7 +130,11 @@ function row(overrides: Record<string, unknown> = {}) {
     result: null,
     template: { id: "t1", code: "TEST_EG", version: 1, resolved: template() },
     client: { id: "20000000-0000-4000-8000-0000000000c1", name: "Client A" },
-    manufacturer: { id: "10000000-0000-4000-8000-0000000000f1", name: "Manufacturer A", factory_name: null },
+    manufacturer: {
+      id: "10000000-0000-4000-8000-0000000000f1",
+      factory_name: null,
+      company: { name: "Company A", brand: { name: "Manufacturer A" } },
+    },
     inspector: { id: INSPECTOR, full_name: "Inspector A", email: "inspector@test.local" },
     ...overrides,
   };

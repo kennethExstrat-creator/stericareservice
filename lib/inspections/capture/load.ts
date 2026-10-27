@@ -6,7 +6,7 @@ import { aiReviewOnSubmit, ResolvedTemplateSchema, type ModuleOverrides, type Re
 import type { Database } from "@/lib/supabase/database.types";
 import { parseModuleOverrides } from "@/lib/templates";
 import type { InspectionData, InspectionFileRef } from "@/modules/_framework";
-import { manufacturerLabel, personLabel } from "../format";
+import { MANUFACTURER_NAMES_SELECT, manufacturerLabel, personLabel, type ManufacturerNames } from "../format";
 import type { CaptureMeta } from "./evaluate";
 
 /**
@@ -25,7 +25,7 @@ type Client = SupabaseClient<Database>;
  * page's preview, which builds an export from the screen's copy.
  */
 export const CAPTURE_SELECT =
-  "id, ref_no, status, data, module_overrides, updated_at, inspection_date, inspector_id, submitted_at, result, template:templates(id, code, version, standard, product_type, resolved), client:clients(id, name), manufacturer:manufacturers(id, name, factory_name), inspector:profiles!inspections_inspector_id_fkey(id, full_name, email)";
+  `id, ref_no, status, data, module_overrides, updated_at, inspection_date, inspector_id, submitted_at, result, template:templates(id, code, version, standard, product_type, resolved), client:clients(id, name), manufacturer:manufacturers(id, ${MANUFACTURER_NAMES_SELECT}), inspector:profiles!inspections_inspector_id_fkey(id, full_name, email)` as const;
 
 type CaptureRow = {
   id: string;
@@ -40,7 +40,7 @@ type CaptureRow = {
   result: InspectionResult | null;
   template: { id: string; code: string; version: number; standard: Standard; product_type: ProductType; resolved: unknown } | null;
   client: { id: string; name: string } | null;
-  manufacturer: { id: string; name: string; factory_name: string | null } | null;
+  manufacturer: ({ id: string } & ManufacturerNames) | null;
   inspector: { id: string; full_name: string | null; email: string | null } | null;
 };
 
@@ -66,9 +66,9 @@ export type CaptureInspection = {
     /** The template asks for the AI second opinion when an inspection is submitted (BUILD_SPEC 9.2). */
     aiReviewOnSubmit: boolean;
   };
-  /** For the context: ref, date, inspector, client and manufacturer. */
+  /** For the context: ref, date, inspector, client and manufacturer (named by its label, as manufacturerLabel). */
   meta: CaptureMeta;
-  /** "Terang Nusa Sdn. Bhd. · TG Factory 40". */
+  /** "Top Glove · TG-F40" (manufacturerLabel): the same as `meta.manufacturer.name`. */
   manufacturerLabel: string | null;
 };
 
@@ -132,6 +132,7 @@ export function toCaptureLoad(row: CaptureRow): CaptureLoad {
   }
 
   const inspectorName = personLabel(row.inspector) ?? "Inspector";
+  const manufacturer = row.manufacturer ? { id: row.manufacturer.id, name: manufacturerLabel(row.manufacturer) } : null;
   return {
     kind: "found",
     inspection: {
@@ -159,9 +160,9 @@ export function toCaptureLoad(row: CaptureRow): CaptureLoad {
         inspectionDate: row.inspection_date,
         inspector: { id: row.inspector_id, name: inspectorName },
         client: row.client ? { id: row.client.id, name: row.client.name } : null,
-        manufacturer: row.manufacturer ? { id: row.manufacturer.id, name: row.manufacturer.name } : null,
+        manufacturer,
       },
-      manufacturerLabel: row.manufacturer ? manufacturerLabel(row.manufacturer) : null,
+      manufacturerLabel: manufacturer?.name ?? null,
     },
   };
 }

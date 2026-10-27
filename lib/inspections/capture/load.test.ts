@@ -28,7 +28,11 @@ function row(overrides: Record<string, unknown> = {}) {
     result: null,
     template: { id: "t1", code: "TEST_EG", version: 4, standard: "EN455" as const, product_type: "examination" as const, resolved: testTemplate() },
     client: { id: "20000000-0000-4000-8000-0000000000c1", name: "Client A" },
-    manufacturer: { id: "10000000-0000-4000-8000-0000000000f1", name: "Manufacturer A", factory_name: "Factory 1" },
+    manufacturer: {
+      id: "10000000-0000-4000-8000-0000000000f1",
+      factory_name: "Factory 1",
+      company: { name: "Company A", brand: { name: "Manufacturer A" } },
+    },
     inspector: { id: INSPECTOR, full_name: null, email: "inspector@test.local" },
     ...overrides,
   };
@@ -57,8 +61,21 @@ describe("toCaptureLoad", () => {
       // No name on the profile: the email.
       inspector: { id: INSPECTOR, name: "inspector@test.local" },
       client: { id: "20000000-0000-4000-8000-0000000000c1", name: "Client A" },
-      manufacturer: { id: "10000000-0000-4000-8000-0000000000f1", name: "Manufacturer A" },
+      // By its label, brand and factory, as everywhere: the header's Manufacturer / Supplier, the export and the report.
+      manufacturer: { id: "10000000-0000-4000-8000-0000000000f1", name: "Manufacturer A · Factory 1" },
     });
+  });
+
+  it("names a factory without a name by its company, the brand left out where the company starts with it", () => {
+    const named = (company: { name: string; brand: { name: string } }) => {
+      const loaded = toCaptureLoad(row({ manufacturer: { id: "10000000-0000-4000-8000-0000000000f1", factory_name: null, company } }));
+      return loaded.kind === "found" ? [loaded.inspection.meta.manufacturer?.name, loaded.inspection.manufacturerLabel] : [];
+    };
+    expect(named({ name: "Manufacturer A Sdn. Bhd.", brand: { name: "Manufacturer A" } })).toEqual([
+      "Manufacturer A Sdn. Bhd.",
+      "Manufacturer A Sdn. Bhd.",
+    ]);
+    expect(named({ name: "Company B", brand: { name: "Manufacturer B" } })).toEqual(["Manufacturer B · Company B", "Manufacturer B · Company B"]);
   });
 
   it("still records the inspector when their profile cannot be read", () => {
