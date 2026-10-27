@@ -390,7 +390,7 @@ export async function enterPacking(page: Page): Promise<void> {
 const SAMPLING_COLUMNS = [
   ["# of Case", "cases"],
   ["Total # of Inner Box", "inners"],
-  ["# of Gloves", "gloves"],
+  ["# of Gloves Sample", "gloves"],
   ["# Gloves for Watertight & Visual", "watertightVisualGloves"],
   ["# Gloves for Dimension", "dimensionGloves"],
   ["# Gloves for Tensile", "physicalTestGloves"],

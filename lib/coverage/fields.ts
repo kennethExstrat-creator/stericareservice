@@ -467,7 +467,7 @@ const samplingPlan = defineModule({
     },
     {
       key: "gloves",
-      label: "# of Gloves",
+      label: "# of Gloves Sample",
       type: "integer",
       unit: "pcs",
       per: ["size"],
@@ -608,13 +608,23 @@ const samplingPlan = defineModule({
       rules: [2],
     },
     {
+      key: "totalGlovesTaken",
+      label: "Total Gloves Taken",
+      type: "integer",
+      unit: "pcs",
+      per: ["size"],
+      entry: "computed",
+      formula: "glovesPerInnerBox × innerUnits: the gloves taken in all (13 × 25 = 325).",
+      rules: [2],
+    },
+    {
       key: "putBack",
       label: "Put Back",
       type: "integer",
       unit: "pcs",
       per: ["size"],
       entry: "computed",
-      formula: "glovesPerInnerBox × innerUnits − gloves: the gloves taken beyond the sample, put back (13 × 25 − 315 = 10).",
+      formula: "totalGlovesTaken − gloves: the gloves taken beyond the sample, put back (325 − 315 = 10).",
       rules: [2],
     },
     {
@@ -625,7 +635,7 @@ const samplingPlan = defineModule({
       per: [],
       entry: "computed",
       formula:
-        "Sum over the ordered sizes of each column on (the onsite forms' Total: row), and of putBack; none for innerUnitsPerCase or glovesPerInnerBox.",
+        "Sum over the ordered sizes of each column on (the onsite forms' Total: row), and of totalGlovesTaken and putBack; none for innerUnitsPerCase or glovesPerInnerBox.",
       rules: [2],
     },
   ],

@@ -215,7 +215,7 @@ Report module. Captures: Per size: sampled cases, inner units (taken per case, a
 | `cases` | # of Case |  | integer |  | size | entered | 1, 6 | Counts cases. carton_sampling must list exactly this many box/carton numbers (rule 6). The module words it, innerUnitsPerCase, innerUnits, gloves, glovesPerInnerBox and putBack itself, whatever the template says (Kenneth, 27 October 2026). |
 | `innerUnitsPerCase` | Inner Box Taken per Case |  | integer |  | size | entered | 1 | Counts inner units. Inner units taken from each sampled case, from 1 (Kenneth, 27 October 2026). Optional: entered, innerUnits is cases × this; empty (an inspection saved before, a document that gives only the total), innerUnits is typed. Shown with innerUnits and cases, with no config switch of its own; never totalled. |
 | `innerUnits` | Total # of Inner Box |  | integer |  | size | entered | 1 | Counts inner units. The inner units sampled in all. While innerUnitsPerCase is entered, the app works it out as cases × innerUnitsPerCase and stores it here, read-only on screen; one stored otherwise is a warning. Typed while innerUnitsPerCase is empty. |
-| `gloves` | # of Gloves |  | integer | pcs | size | entered | 1 | Auto Calculate Sampling fills it: the sample size of the code letter of the size's lot (lotSizeGloves) at the inspection level in force, I when none is set; every glove when that sample is not smaller than the lot (Kenneth, 27 October 2026). |
+| `gloves` | # of Gloves Sample |  | integer | pcs | size | entered | 1 | Auto Calculate Sampling fills it: the sample size of the code letter of the size's lot (lotSizeGloves) at the inspection level in force, I when none is set; every glove when that sample is not smaller than the lot (Kenneth, 27 October 2026). |
 | `glovesWatertightVisual` | # Gloves for Watertight & Visual | STD_SG: # Gloves | integer | pcs | size | entered | 1, 8 | Flows forward as n in watertight and visual (BUILD_SPEC 8). SG prints it under 'Sampling Quantity (WTT & Visual)'. |
 | `glovesDimensions` | # Gloves for Dimension | STD_SG: # Gloves Dimension | integer | pcs | size | entered | 1 | Flows forward as the dimension rows. |
 | `glovesPhysical` | # Gloves for FAB | SAFEDON_EG: # Gloves for Tensile<br>STD_SG: # Gloves (FAB) | integer | pcs | size | entered | 1 | Gloves for the physical test: force at break (EN 455) or tensile (ASTM D6319). |
@@ -228,8 +228,9 @@ Report module. Captures: Per size: sampled cases, inner units (taken per case, a
 | `codeLetter` | Code Letter |  | select |  | size | **computed** | 2, 8 | ISO 2859-1 Table 1 from order_lots.lotSizeGloves and inspectionLevel, the level in force (lib/aql planFromLotSize); none without a lot size. Values: A, B, C, D, E, F, G, H, J, K, L, M, N, P, Q, R. |
 | `planSampleSize` | Sample Size by Plan |  | integer | pcs | size | **computed** | 2, 8 | The largest Table 2-A n for codeLetter among the AQLs the inspection checks on the watertight and visual sample (watertight, and visual's classes switched on), arrows followed; Table 1's n when it checks none. A glovesWatertightVisual below it raises the module warning. |
 | `glovesPerInnerBox` | Gloves Taken per Inner Box |  | integer | pcs | size | **computed** | 2 | ⌈gloves ÷ innerUnits⌉: never under, so the gloves taken reach the sample (Kenneth, 27 October 2026: 315 gloves from 25 inner boxes is 13 a box). None while either is missing, or with innerUnits 0. |
-| `putBack` | Put Back |  | integer | pcs | size | **computed** | 2 | glovesPerInnerBox × innerUnits − gloves: the gloves taken beyond the sample, put back (13 × 25 − 315 = 10). |
-| `totals` | Total: |  | count_map |  | inspection | **computed** | 2 | Sum over the ordered sizes of each column on (the onsite forms' Total: row), and of putBack; none for innerUnitsPerCase or glovesPerInnerBox. Map keyed by sampling column. |
+| `totalGlovesTaken` | Total Gloves Taken |  | integer | pcs | size | **computed** | 2 | glovesPerInnerBox × innerUnits: the gloves taken in all (13 × 25 = 325). |
+| `putBack` | Put Back |  | integer | pcs | size | **computed** | 2 | totalGlovesTaken − gloves: the gloves taken beyond the sample, put back (325 − 315 = 10). |
+| `totals` | Total: |  | count_map |  | inspection | **computed** | 2 | Sum over the ordered sizes of each column on (the onsite forms' Total: row), and of totalGlovesTaken and putBack; none for innerUnitsPerCase or glovesPerInnerBox. Map keyed by sampling column. |
 
 | Config key | Type | Default | Meaning |
 |---|---|---|---|
@@ -1084,7 +1085,7 @@ module field; `template` a template property; `layout` is drawn by the AI report
 | Page 1 > Sampling Plan | Sampling Quantity | Sampling Quantity | label | caption `sampling_plan.samplingQuantity` |  |
 | Page 1 > Sampling Plan | Case | # of Case | number | `sampling_plan.cases` | The app says "# of Case". Kenneth, 27 October 2026. |
 | Page 1 > Sampling Plan | Inner Box | Total # of Inner Box | number | `sampling_plan.innerUnits` | The inner units sampled in all: the app says "Total # of Inner Box", under its "Inner Box Taken per Case". Kenneth, 27 October 2026. |
-| Page 1 > Sampling Plan | Gloves | # of Gloves | number | `sampling_plan.gloves` | The app says "# of Gloves". Kenneth, 27 October 2026. |
+| Page 1 > Sampling Plan | Gloves | # of Gloves Sample | number | `sampling_plan.gloves` | The app says "# of Gloves Sample". Kenneth, 27 October 2026. |
 | Page 1 > Sampling Plan | # gloves for watertight & Visual | # Gloves for Watertight & Visual | number | `sampling_plan.glovesWatertightVisual` |  |
 | Page 1 > Sampling Plan | # gloves for dimension | # Gloves for Dimension | number | `sampling_plan.glovesDimensions` |  |
 | Page 1 > Sampling Plan | # gloves for FAB | # Gloves for FAB | number | `sampling_plan.glovesPhysical` |  |
@@ -1240,7 +1241,7 @@ module field; `template` a template property; `layout` is drawn by the AI report
 | Page 1 > Sampling Plan | Sampling Quantity | Sampling Quantity | label | caption `sampling_plan.samplingQuantity` |  |
 | Page 1 > Sampling Plan | Case | # of Case | number | `sampling_plan.cases` | The app says "# of Case". Kenneth, 27 October 2026. |
 | Page 1 > Sampling Plan | Inner pack | Total # of Inner Box | number | `sampling_plan.innerUnits` | The inner units sampled in all: the app says "Total # of Inner Box", under its "Inner Box Taken per Case". Kenneth, 27 October 2026. |
-| Page 1 > Sampling Plan | Gloves | # of Gloves | number | `sampling_plan.gloves` | The app says "# of Gloves". Kenneth, 27 October 2026. |
+| Page 1 > Sampling Plan | Gloves | # of Gloves Sample | number | `sampling_plan.gloves` | The app says "# of Gloves Sample". Kenneth, 27 October 2026. |
 | Page 1 > Sampling Plan | # gloves for watertight & Visual | # Gloves for Watertight & Visual | number | `sampling_plan.glovesWatertightVisual` |  |
 | Page 1 > Sampling Plan | # gloves for dimension | # Gloves for Dimension | number | `sampling_plan.glovesDimensions` |  |
 | Page 1 > Sampling Plan | # gloves for Tensile | # Gloves for Tensile | number | `sampling_plan.glovesPhysical` |  |
@@ -1387,7 +1388,7 @@ module field; `template` a template property; `layout` is drawn by the AI report
 | 3. PO Info / Sampling Plan | Sampling Quantity | Sampling Quantity | label | caption `sampling_plan.samplingQuantity` |  |
 | 3. PO Info / Sampling Plan | Case | # of Case | number | `sampling_plan.cases` | The app says "# of Case". Kenneth, 27 October 2026. |
 | 3. PO Info / Sampling Plan | Inner | Total # of Inner Box | number | `sampling_plan.innerUnits` | The inner units sampled in all: the app says "Total # of Inner Box", under its "Inner Box Taken per Case". Kenneth, 27 October 2026. |
-| 3. PO Info / Sampling Plan | Gloves | # of Gloves | number | `sampling_plan.gloves` | The app says "# of Gloves". Kenneth, 27 October 2026. |
+| 3. PO Info / Sampling Plan | Gloves | # of Gloves Sample | number | `sampling_plan.gloves` | The app says "# of Gloves Sample". Kenneth, 27 October 2026. |
 | 3. PO Info / Sampling Plan | # Gloves for WTT & Visual | # Gloves for Watertight & Visual | number | `sampling_plan.glovesWatertightVisual` |  |
 | 3. PO Info / Sampling Plan | # Gloves dimension | # Gloves for Dimension | number | `sampling_plan.glovesDimensions` |  |
 | 3. PO Info / Sampling Plan | # Gloves for FAB | # Gloves for FAB | number | `sampling_plan.glovesPhysical` |  |
@@ -1482,7 +1483,7 @@ module field; `template` a template property; `layout` is drawn by the AI report
 | 3. PO Info / Sampling Plan | Sampling Quantity | Sampling Quantity | label | caption `sampling_plan.samplingQuantity` |  |
 | 3. PO Info / Sampling Plan | Case | # of Case | number | `sampling_plan.cases` | The app says "# of Case". Kenneth, 27 October 2026. |
 | 3. PO Info / Sampling Plan | Inner | Total # of Inner Box | number | `sampling_plan.innerUnits` | The inner units sampled in all: the app says "Total # of Inner Box", under its "Inner Box Taken per Case". Kenneth, 27 October 2026. |
-| 3. PO Info / Sampling Plan | Gloves | # of Gloves | number | `sampling_plan.gloves` | The app says "# of Gloves". Kenneth, 27 October 2026. |
+| 3. PO Info / Sampling Plan | Gloves | # of Gloves Sample | number | `sampling_plan.gloves` | The app says "# of Gloves Sample". Kenneth, 27 October 2026. |
 | 3. PO Info / Sampling Plan | # Gloves for WTT & Visual | # Gloves for Watertight & Visual | number | `sampling_plan.glovesWatertightVisual` |  |
 | 3. PO Info / Sampling Plan | # Gloves dimension | # Gloves for Dimension | number | `sampling_plan.glovesDimensions` |  |
 | 3. PO Info / Sampling Plan | # Gloves for FAB | # Gloves for Tensile | number | `sampling_plan.glovesPhysical` |  |

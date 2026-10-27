@@ -54,7 +54,7 @@ const ROW_M: SamplingSize = {
 };
 
 /** ROW_M's summary once complete: 500 gloves from 50 inner boxes is 10 a box, none put back. */
-const DONE_M = "# of Case: 50; # Gloves for Watertight & Visual: 500; Gloves Taken per Inner Box: 10; Put Back: 0.";
+const DONE_M = "# of Case: 50; # Gloves for Watertight & Visual: 500; Gloves Taken per Inner Box: 10; Total Gloves Taken: 500; Put Back: 0.";
 
 /** Size M ordered: 2,900 cases of 2,000 gloves (STD_EG). */
 function contextM(overrides: Partial<InspectionContext> = {}): InspectionContext {
@@ -122,6 +122,7 @@ describe("sampling_plan", () => {
             sampleCodeLetter: "N",
             belowPlan: false,
             glovesPerInnerBox: 10,
+            totalGlovesTaken: 500,
             putBack: 0,
           },
         },
@@ -133,6 +134,7 @@ describe("sampling_plan", () => {
           glovesDimensions: 13,
           glovesPhysical: 13,
           innerUnitsDispensing: 13,
+          totalGlovesTaken: 500,
           putBack: 0,
         },
       },
@@ -150,7 +152,7 @@ describe("sampling_plan", () => {
     expect(output.issues).toEqual([]);
     // The inner boxes per case are never asked for: the total is, typed or worked out.
     expect(calcSamplingPlan(input({ M: { cases: 50 } })).result.perSize?.M.summary).toBe(
-      "Missing: Total # of Inner Box, # of Gloves, # Gloves for Watertight & Visual, # Gloves for Dimension, # Gloves for FAB, # Inner Box for Packaging & Dispensing Inspection.",
+      "Missing: Total # of Inner Box, # of Gloves Sample, # Gloves for Watertight & Visual, # Gloves for Dimension, # Gloves for FAB, # Inner Box for Packaging & Dispensing Inspection.",
     );
   });
 
@@ -180,7 +182,7 @@ describe("sampling_plan", () => {
       "Size XS, S, M, L: Not started.",
     );
     const some = calcSamplingPlan(input({ XS: ROW_M, M: { ...ROW_M, gloves: null } }, SAMPLING_PLAN_DEFAULT_CONFIG, context));
-    expect(some.result.summary).toBe("Size S, L: Not started. Size M: Missing: # of Gloves.");
+    expect(some.result.summary).toBe("Size S, L: Not started. Size M: Missing: # of Gloves Sample.");
   });
 
   it("never asks for the gloves for weight, even where the template switches the row on (Kenneth, 26 October 2026)", () => {
@@ -244,6 +246,7 @@ describe("sampling_plan", () => {
       sampleCodeLetter: "N",
       belowPlan: false,
       glovesPerInnerBox: 10,
+      totalGlovesTaken: 500,
       putBack: 0,
     });
     expect(output.issues).toEqual([]);
@@ -254,7 +257,7 @@ describe("sampling_plan", () => {
     expect(output.result).toMatchObject({
       status: "info",
       perSize: {
-        M: { status: "info", summary: "# of Case: 50; # Gloves for Watertight & Visual: 315; Gloves Taken per Inner Box: 10; Put Back: 0." },
+        M: { status: "info", summary: "# of Case: 50; # Gloves for Watertight & Visual: 315; Gloves Taken per Inner Box: 10; Total Gloves Taken: 500; Put Back: 0." },
       },
     });
     // The plan is still worked out, and says the sample is below it.
@@ -518,12 +521,12 @@ describe("sampling_plan's Sampling Quantity, worked out (Kenneth, 27 October 202
   /** Kenneth's example: 25 inner boxes sampled, one from each of 25 cases, and code M's 315 gloves. */
   const KENNETH: Partial<SamplingSize> = { ...ROW_M, cases: 25, innerUnitsPerCase: 1, innerUnits: 25, gloves: 315 };
 
-  it("takes 13 gloves from each of 25 inner boxes for a sample of 315, never fewer, and puts 10 back", () => {
+  it("takes 13 gloves from each of 25 inner boxes for a sample of 315, never fewer: 325 taken, 10 put back", () => {
     const output = calcSamplingPlan(input({ M: KENNETH }));
-    expect(output.computed.sizes.M).toMatchObject({ glovesPerInnerBox: 13, putBack: 10 });
+    expect(output.computed.sizes.M).toMatchObject({ glovesPerInnerBox: 13, totalGlovesTaken: 325, putBack: 10 });
     expect(output.result.perSize?.M).toEqual({
       status: "info",
-      summary: "# of Case: 25; # Gloves for Watertight & Visual: 500; Gloves Taken per Inner Box: 13; Put Back: 10.",
+      summary: "# of Case: 25; # Gloves for Watertight & Visual: 500; Gloves Taken per Inner Box: 13; Total Gloves Taken: 325; Put Back: 10.",
     });
     expect(output.issues).toEqual([]);
   });
@@ -676,6 +679,7 @@ describe("sampling_plan with the example reports (docs/examples/expected-results
         sampleCodeLetter: "N",
         belowPlan: expected.belowPlan,
         glovesPerInnerBox: 10,
+        totalGlovesTaken: 500,
         putBack: 0,
       },
     });

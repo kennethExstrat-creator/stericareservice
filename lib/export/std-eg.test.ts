@@ -277,14 +277,18 @@ describe("the STD_EG example's export, through the real modules", () => {
       cases: "# of Case",
       innerUnitsPerCase: "Inner Box Taken per Case",
       innerUnits: "Total # of Inner Box",
-      gloves: "# of Gloves",
+      gloves: "# of Gloves Sample",
       glovesPerInnerBox: "Gloves Taken per Inner Box",
+      totalGlovesTaken: "Total Gloves Taken",
       putBack: "Put Back",
     });
     expect(sampling.data.sizes).toMatchObject({ M: { cases: 25, innerUnitsPerCase: 1, innerUnits: 25, gloves: 315 } });
-    expect(sampling.computed).toMatchObject({ sizes: { M: { glovesPerInnerBox: 13, putBack: 10 } }, totals: { innerUnits: 25, putBack: 10 } });
+    expect(sampling.computed).toMatchObject({
+      sizes: { M: { glovesPerInnerBox: 13, totalGlovesTaken: 325, putBack: 10 } },
+      totals: { innerUnits: 25, totalGlovesTaken: 325, putBack: 10 },
+    });
     expect(sampling.computed.totals).not.toHaveProperty("innerUnitsPerCase");
-    expect(sampling.result.perSize?.M.summary).toContain("Gloves Taken per Inner Box: 13; Put Back: 10.");
+    expect(sampling.result.perSize?.M.summary).toContain("Gloves Taken per Inner Box: 13; Total Gloves Taken: 325; Put Back: 10.");
   });
 
   it("lists a module switched off for the inspection, with the reason, instead of exporting it", async () => {

@@ -8,13 +8,14 @@ import { definition } from "./index";
 import { samplingLabels } from "./labels";
 
 describe("the Sampling Quantity in Kenneth's words, whatever the template says (27 October 2026)", () => {
-  it("names the rows # of Case, Inner Box Taken per Case, Total # of Inner Box, # of Gloves, Gloves Taken per Inner Box and Put Back", () => {
+  it("names the rows # of Case, Inner Box Taken per Case, Total # of Inner Box, Gloves Taken per Inner Box, Total Gloves Taken, Put Back and # of Gloves Sample", () => {
     expect(SAMPLING_QUANTITY_LABELS).toEqual({
       cases: "# of Case",
       innerUnitsPerCase: "Inner Box Taken per Case",
       innerUnits: "Total # of Inner Box",
-      gloves: "# of Gloves",
+      gloves: "# of Gloves Sample",
       glovesPerInnerBox: "Gloves Taken per Inner Box",
+      totalGlovesTaken: "Total Gloves Taken",
       putBack: "Put Back",
     });
     expect(SAMPLING_PLAN_LABELS).toMatchObject(SAMPLING_QUANTITY_LABELS);

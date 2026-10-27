@@ -147,10 +147,10 @@ describe("sampling_plan Sampling Settings (Kenneth, 27 October 2026)", () => {
     expect(own).toMatch(/<button[^>]*type="button"[^>]*>Use Default<\/button>/);
   });
 
-  it("says, under the level, that Auto Calculate takes it for # of Gloves; without a Case row there is no Auto Calculate", () => {
+  it("says, under the level, that Auto Calculate takes it for # of Gloves Sample; without a Case row there is no Auto Calculate", () => {
     const html = render();
     const level = html.indexOf('data-slot="level-source"');
-    const note = html.indexOf("Auto Calculate uses this level for # of Gloves.");
+    const note = html.indexOf("Auto Calculate uses this level for # of Gloves Sample.");
     expect(note).toBeGreaterThan(level);
     expect(note).toBeLessThan(html.indexOf("View Code Letter Table"));
     const noCases = render({ config: { ...LEVEL_I, columns: { ...LEVEL_I.columns, cases: false } } });

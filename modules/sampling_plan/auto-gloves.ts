@@ -44,8 +44,8 @@ export type AutoCalculateNotice = {
 /**
  * What Auto Calculate Sampling says once it has filled the plan: the title
  * alone, or with one line naming the sizes whose # of Gloves it left for want
- * of a lot size: "# of Gloves needs the lot size for S, XL: enter the packing
- * configuration on the Order page."
+ * of a lot size: "# of Gloves Sample needs the lot size for S, XL: enter the
+ * packing configuration on the Order page."
  */
 export function autoCalculateNotice({
   unknownLot,
@@ -55,7 +55,7 @@ export function autoCalculateNotice({
 }: {
   unknownLot: readonly string[];
   sizeName: (size: string) => string;
-  /** The gloves row's label ("# of Gloves"). */
+  /** The gloves row's label ("# of Gloves Sample"). */
   glovesLabel: string;
   /** The capture page that holds the packing configuration: the order's ("Order"). */
   orderPage: string;

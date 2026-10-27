@@ -103,7 +103,7 @@ const PAGE_NUMBER = layout("Page number: Steri-AI's report numbers its own pages
 const SAMPLING_QUANTITY_WORDING = {
   cases: 'The app says "# of Case".',
   innerUnits: 'The inner units sampled in all: the app says "Total # of Inner Box", under its "Inner Box Taken per Case".',
-  gloves: 'The app says "# of Gloves".',
+  gloves: 'The app says "# of Gloves Sample".',
 } as const;
 
 /** A Sampling Quantity row of a form, which the sampling plan words its own way (modules/sampling_plan/labels.ts). */

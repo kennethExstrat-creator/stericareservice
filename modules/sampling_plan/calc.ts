@@ -52,7 +52,7 @@ import {
   type SamplingColumn,
   type SamplingPlanConfig,
 } from "./config";
-import { glovesPerInnerBox, glovesPutBack } from "./inner-boxes";
+import { glovesPerInnerBox, glovesPutBack, glovesTaken } from "./inner-boxes";
 import { emptySamplingSize, rowsOff, type SamplingPlanData, type SamplingSize } from "./schema";
 
 /** One size's lot at the inspection level, and its watertight and visual sample against it. */
@@ -78,7 +78,9 @@ export type SizePlan = {
    * missing, and where the template shows no gloves or no inner units.
    */
   glovesPerInnerBox: number | null;
-  /** The gloves taken beyond the sample, to put back: glovesPerInnerBox × inner units − gloves; null with it. */
+  /** The gloves taken in all: glovesPerInnerBox × inner units; null with it. */
+  totalGlovesTaken: number | null;
+  /** The gloves taken beyond the sample, to put back: totalGlovesTaken − gloves; null with it. */
   putBack: number | null;
 };
 
@@ -89,8 +91,9 @@ export type SamplingPlanComputed = {
   sizes: Record<string, SizePlan>;
   /**
    * Each shown column summed over the ordered sizes (the onsite forms' Total:
-   * row), and the gloves put back (`putBack`) where they show; null while none
-   * is entered. Never the inner units per case or the gloves per inner box.
+   * row), and the gloves taken in all and put back (`totalGlovesTaken`,
+   * `putBack`) where they show; null while none is entered. Never the inner
+   * units per case or the gloves per inner box.
    */
   totals: Record<string, number | null>;
 };
@@ -327,6 +330,7 @@ function checkSize({ size, row, config, level, labels, context }: SizeCheckInput
     sampleCodeLetter,
     belowPlan: required === null || sample === null ? null : sample < required,
     glovesPerInnerBox: glovesPerInnerBox(gloves, innerUnits),
+    totalGlovesTaken: glovesTaken(gloves, innerUnits),
     putBack: glovesPutBack(gloves, innerUnits),
   };
   return { plan: sizePlan, issues, result: sizeResult({ row, config, findings, label, plan: sizePlan }) };
@@ -337,8 +341,8 @@ type SizeResultInput = {
   config: SamplingPlanConfig;
   findings: readonly Finding[];
   label: (key: string) => string;
-  /** The size's computed values: the gloves per inner box and those put back join a complete size's summary. */
-  plan: Pick<SizePlan, "glovesPerInnerBox" | "putBack">;
+  /** The size's computed values: the gloves per inner box, taken in all and put back join a complete size's summary. */
+  plan: Pick<SizePlan, "glovesPerInnerBox" | "totalGlovesTaken" | "putBack">;
 };
 
 function sizeResult({ row, config, findings, label, plan }: SizeResultInput): PerSizeResult {
@@ -358,7 +362,7 @@ function sizeResult({ row, config, findings, label, plan }: SizeResultInput): Pe
     .filter((column) => config.columns[column])
     .map((column) => `${label(column)}: ${formatCount(row[column] ?? 0)}`);
   // What the inspector takes from each inner box and puts back: the review and the export read it here too.
-  for (const key of ["glovesPerInnerBox", "putBack"] as const) {
+  for (const key of ["glovesPerInnerBox", "totalGlovesTaken", "putBack"] as const) {
     const count = plan[key];
     if (count !== null) parts.push(`${label(key)}: ${formatCount(count)}`);
   }
@@ -399,8 +403,11 @@ function totalsOf(
   const totals: Record<string, number | null> = Object.fromEntries(
     shownColumns(config).map((column) => [column, sumOf(sizes.map((size) => data.sizes[size]?.[column] ?? null))]),
   );
-  // The gloves put back add up; the inner units per case and the gloves per inner box do not, and have no total.
-  if (showsGlovesPerInnerBox(config)) totals.putBack = sumOf(sizes.map((size) => plans[size]?.putBack ?? null));
+  // The gloves taken and put back add up; the inner units per case and the gloves per inner box do not, and have no total.
+  if (showsGlovesPerInnerBox(config)) {
+    totals.totalGlovesTaken = sumOf(sizes.map((size) => plans[size]?.totalGlovesTaken ?? null));
+    totals.putBack = sumOf(sizes.map((size) => plans[size]?.putBack ?? null));
+  }
   return totals;
 }
 

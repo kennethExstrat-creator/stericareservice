@@ -24,8 +24,14 @@ export function glovesPerInnerBox(gloves: number | null, innerUnits: number | nu
   return gloves === null || innerUnits === null || innerUnits <= 0 ? null : Math.ceil(gloves / innerUnits);
 }
 
-/** The gloves taken beyond the sample, to put back: per box × inner boxes − gloves; null as glovesPerInnerBox is. */
-export function glovesPutBack(gloves: number | null, innerUnits: number | null): number | null {
+/** The gloves taken in all: per box × inner boxes; null as glovesPerInnerBox is. */
+export function glovesTaken(gloves: number | null, innerUnits: number | null): number | null {
   const perBox = glovesPerInnerBox(gloves, innerUnits);
-  return perBox === null || gloves === null || innerUnits === null ? null : perBox * innerUnits - gloves;
+  return perBox === null || innerUnits === null ? null : perBox * innerUnits;
+}
+
+/** The gloves taken beyond the sample, to put back: the gloves taken − gloves; null as glovesPerInnerBox is. */
+export function glovesPutBack(gloves: number | null, innerUnits: number | null): number | null {
+  const taken = glovesTaken(gloves, innerUnits);
+  return taken === null || gloves === null ? null : taken - gloves;
 }

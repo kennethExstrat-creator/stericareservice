@@ -24,7 +24,15 @@ describe("countGroups (Kenneth, 26 October 2026: design B)", () => {
     expect(shape(SAMPLING_PLAN_DEFAULT_CONFIG, SAMPLING_PLAN_LABELS)).toEqual([
       {
         heading: "Sampling Quantity",
-        rows: ["# of Case", "Inner Box Taken per Case", "Total # of Inner Box", "# of Gloves", "Gloves Taken per Inner Box", "Put Back"],
+        rows: [
+          "# of Case",
+          "Inner Box Taken per Case",
+          "Total # of Inner Box",
+          "Gloves Taken per Inner Box",
+          "Total Gloves Taken",
+          "Put Back",
+          "# of Gloves Sample",
+        ],
       },
       { heading: "# Gloves for Each Test", rows: ["Watertight & Visual", "Dimension", "FAB"] },
       { heading: "# Inner Box", rows: ["Packaging & Dispensing Inspection"] },
@@ -74,25 +82,27 @@ describe("countGroups (Kenneth, 26 October 2026: design B)", () => {
 });
 
 describe("the Sampling Quantity's own rows (Kenneth, 27 October 2026)", () => {
-  it("types the inner boxes per case before the inner boxes in all, and works out the gloves per inner box and put back after the gloves", () => {
+  it("types the inner boxes per case before the inner boxes in all, and works out the gloves per inner box, taken and put back before the gloves sampled", () => {
     const [quantity] = countGroups(SAMPLING_PLAN_DEFAULT_CONFIG, labelsOf(SAMPLING_PLAN_LABELS));
     expect(quantity.rows.map((row) => (row.kind === "count" ? `count ${row.column}` : `worked ${row.key}`))).toEqual([
       "count cases",
       "count innerUnitsPerCase",
       "count innerUnits",
-      "count gloves",
       "worked glovesPerInnerBox",
+      "worked totalGlovesTaken",
       "worked putBack",
+      "count gloves",
     ]);
   });
 
   it("shows the inner boxes per case with the inner boxes and the cases, and the worked rows with the gloves and the inner boxes", () => {
-    expect(shape(withColumns({ innerUnits: false }), SAMPLING_PLAN_LABELS)[0].rows).toEqual(["# of Case", "# of Gloves"]);
+    expect(shape(withColumns({ innerUnits: false }), SAMPLING_PLAN_LABELS)[0].rows).toEqual(["# of Case", "# of Gloves Sample"]);
     expect(shape(withColumns({ cases: false }), SAMPLING_PLAN_LABELS)[0].rows).toEqual([
       "Total # of Inner Box",
-      "# of Gloves",
       "Gloves Taken per Inner Box",
+      "Total Gloves Taken",
       "Put Back",
+      "# of Gloves Sample",
     ]);
     expect(shape(withColumns({ gloves: false }), SAMPLING_PLAN_LABELS)[0].rows).toEqual([
       "# of Case",

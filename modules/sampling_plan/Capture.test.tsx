@@ -170,11 +170,17 @@ describe("sampling_plan Capture", () => {
   it("names the Sampling Quantity's rows in Kenneth's words on a STD_EG version 6 inspection, whatever it stored (27 October 2026)", () => {
     const labels = effectiveLabels(definition, { labels: STD_EG_V6_LABELS });
     const html = render(props(STD_EG_EXAMPLE, LEVEL_I, labels));
-    for (const name of ["# of Case", "Inner Box Taken per Case", "Total # of Inner Box", "# of Gloves"]) {
+    for (const name of ["# of Case", "Inner Box Taken per Case", "Total # of Inner Box", "# of Gloves Sample"]) {
       expect(html).toContain(`aria-label="${name}, Size M"`);
     }
     expect(html).toContain(">Gloves Taken per Inner Box<");
+    expect(html).toContain(">Total Gloves Taken<");
     expect(html).toContain(">Put Back<");
+    // Kenneth's order (27 October 2026): per box, taken in all, put back, then the gloves sampled.
+    const order = [">Gloves Taken per Inner Box<", ">Total Gloves Taken<", ">Put Back<", 'aria-label="# of Gloves Sample, Size M"'].map((text) =>
+      html.indexOf(text),
+    );
+    expect(order).toEqual([...order].sort((a, b) => a - b));
     for (const old of ['aria-label="Case, Size M"', 'aria-label="Inner Box, Size M"', 'aria-label="Gloves, Size M"']) {
       expect(html).not.toContain(old);
     }

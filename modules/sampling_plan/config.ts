@@ -46,16 +46,18 @@ export const SAMPLING_CONTEXT_KEYS = {
  * The Sampling Quantity's rows in Kenneth's words (27 October 2026: "case
  * change to # of Case, Inner Box change to # of Inner Box per Case", then
  * "add row "Inner Box Taken per Case", then Total # of Inner Box"; and "#
- * of Gloves", with the gloves taken per inner box and those put back). The
- * sampling plan shows them on every inspection, whatever its template
- * version says (labels.ts).
+ * of Gloves", with the gloves taken per inner box and those put back; then
+ * the gloves rows in this order: "glove taken per box, total gloves taken,
+ * put back, # of Gloves Sample"). The sampling plan shows them on every
+ * inspection, whatever its template version says (labels.ts).
  */
 export const SAMPLING_QUANTITY_LABELS = {
   cases: "# of Case",
   innerUnitsPerCase: "Inner Box Taken per Case",
   innerUnits: "Total # of Inner Box",
-  gloves: "# of Gloves",
+  gloves: "# of Gloves Sample",
   glovesPerInnerBox: "Gloves Taken per Inner Box",
+  totalGlovesTaken: "Total Gloves Taken",
   putBack: "Put Back",
 } as const satisfies Readonly<Record<string, string>>;
 

@@ -43,11 +43,11 @@
 // the level picked, each size marked; Back to Settings returns.
 //
 // Sampling Quantity (Kenneth, 27 October 2026): # of Case, Inner Box Taken
-// per Case, Total # of Inner Box, then # of Gloves, Gloves Taken per Inner
-// Box and Put Back. While a size's inner boxes per case are entered, its
+// per Case, Total # of Inner Box, then Gloves Taken per Inner Box, Total
+// Gloves Taken, Put Back and # of Gloves Sample. While a size's inner boxes per case are entered, its
 // total is worked out from its cases (withCount): read-only on grey, the sum
-// at its left ("16 × 1"); empty, the total is typed. The gloves per inner box
-// and those put back are calc's, read-only on grey. The Total column sums
+// at its left ("16 × 1"); empty, the total is typed. The gloves per inner box,
+// taken in all and put back are calc's, read-only on grey. The Total column sums
 // neither the inner boxes per case nor the gloves per inner box.
 //
 // Each test row (watertight and visual, dimension, the physical test,
@@ -598,7 +598,7 @@ export default function Capture({
           </div>
         );
       case "worked":
-        // The gloves put back add up; the gloves per inner box do not.
+        // The gloves taken and put back add up; the gloves per inner box do not.
         if (line.row.key === "glovesPerInnerBox") {
           return <div key={line.row.key} aria-hidden data-no-total="" style={at(row, totalColumn)} className={cell} />;
         }
@@ -869,7 +869,7 @@ function SamplingSettingsForm({ saved, fallback, autoCalculate, lots, aql, sizeN
             )}
           </div>
           {autoCalculate && (
-            <p className="text-sm text-muted-foreground touch:text-base">Auto Calculate uses this level for # of Gloves.</p>
+            <p className="text-sm text-muted-foreground touch:text-base">Auto Calculate uses this level for # of Gloves Sample.</p>
           )}
           <div className="flex flex-wrap gap-2">
             <CodeLetterTableDialog level={shown} lots={lots} sizeName={sizeName} label={label} />

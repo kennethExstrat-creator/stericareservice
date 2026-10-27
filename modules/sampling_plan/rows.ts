@@ -8,10 +8,11 @@
 // Inspection" becomes "Packaging & Dispensing Inspection" under "# Inner Box".
 // The template's whole wording stays the cells' names. A label not worded
 // "# … for …" (the SG form's "# Gloves (FAB)") keeps its wording as it is.
-// Sampling Quantity has three rows no column switch names (Kenneth, 27
+// Sampling Quantity has four rows no column switch names (Kenneth, 27
 // October 2026): the inner boxes taken per case, typed, before the inner
-// boxes in all, and the gloves taken per inner box and those put back,
-// worked out, after the gloves.
+// boxes in all; and the gloves taken per inner box, the gloves taken in all
+// and those put back, worked out, before the gloves sampled ("glove taken
+// per box, total gloves taken, put back, # of Gloves Sample").
 import {
   columnGroups,
   showsGlovesPerInnerBox,
@@ -33,7 +34,7 @@ export type CountRow = {
 /** A row worked out from the counts above it (calc's computed values), never typed. */
 export type WorkedRow = {
   kind: "worked";
-  key: "glovesPerInnerBox" | "putBack";
+  key: "glovesPerInnerBox" | "totalGlovesTaken" | "putBack";
   label: string;
 };
 
@@ -56,7 +57,9 @@ export function countGroups(config: SamplingPlanConfig, label: (key: string) => 
   if (quantity.length > 0) {
     const rows = quantity.flatMap((column): PlanRow[] => {
       if (column === "innerUnits" && showsInnerUnitsPerCase(config)) return [count("innerUnitsPerCase"), count(column)];
-      if (column === "gloves" && showsGlovesPerInnerBox(config)) return [count(column), worked("glovesPerInnerBox"), worked("putBack")];
+      if (column === "gloves" && showsGlovesPerInnerBox(config)) {
+        return [worked("glovesPerInnerBox"), worked("totalGlovesTaken"), worked("putBack"), count(column)];
+      }
       return [count(column)];
     });
     groups.push({ heading: label("samplingQuantity"), rows });
