@@ -1,49 +1,83 @@
-// Every included module's computed result, in the template's order, beside
-// the inspector's comment on it (BUILD_SPEC 4.2 rule 7, 9.2). Custom modules
-// sit after the module they follow, with their values. Each module lists its
-// errors and warnings; "not done" is its own result, so the framework's
-// not-done warning is not repeated under it. Nor is a sentence twice: a
-// summary that only strings the per-size lines together stays out, and the
-// conclusion's HOLD reads "On Hold", as the final result does
-// (lib/inspections/review/results.ts). The header is General Information, as
-// on the capture screen (lib/design/screen-names.ts). A size's summary may
-// run to more than one line (the packing check's aged sample has its own,
-// 26 October 2026): each shows on its own line.
-//
-// Desktop (from 1024 px): one row per module in three columns under a
-// header row. iPad portrait: each module stacks, and the comment is labelled.
+// Every included module's computed result, in the template's order (BUILD_SPEC
+// 4.2 rule 7, 9.2), as one-line rows that open (layout A, Kenneth, 27 October
+// 2026; ModuleRows). Open, a module shows its sizes side by side, built from
+// what its calc computed (lib/inspections/review/size-table.ts), its errors
+// and warnings as one short line each, and the inspector's comment when
+// there is one. A module with no table shows its result's summary, or its
+// per-size lines. Custom modules sit after the module they follow, with
+// their values. "Not done" is a module's own result, so the framework's
+// not-done warning is not repeated under it, and the conclusion's HOLD
+// reads "On Hold", as the final result does (lib/inspections/review/results.ts).
+// The header is General Information, as on the capture screen
+// (lib/design/screen-names.ts).
 import type { ReactNode } from "react";
 import { CircleXIcon, TriangleAlertIcon } from "lucide-react";
 import { StatusPill } from "@/components/qc";
+import type { Status } from "@/lib/design/status";
 import { screenTitle } from "@/lib/design/screen-names";
 import { formatNumber, formatSize } from "@/lib/format";
 import { formatInspectionDate } from "@/lib/inspections/format";
+import { attentionItems, type AttentionItem } from "@/lib/inspections/review/attention";
 import { isListedIssue, type ReviewEvaluation } from "@/lib/inspections/review/evaluate";
 import { plural } from "@/lib/inspections/review/format";
 import { moduleSummary, shownStatus, sizeResults } from "@/lib/inspections/review/results";
+import { sizeTable } from "@/lib/inspections/review/size-table";
 import type { CustomModule, Field } from "@/lib/schemas/template";
 import { templateSections } from "@/lib/templates";
 import type { ValidationIssue } from "@/lib/validation";
 import { cn } from "@/lib/utils";
 import type { CustomModuleEvaluation, InspectionContext, ModuleEvaluation } from "@/modules/_framework";
-import { Missing, Panel, ReviewSection } from "./review-section";
+import { sizesText } from "./attention";
+import { ModuleRows, type ModuleRowModel } from "./module-rows";
+import { Missing, Panel } from "./review-section";
+import { SizeTableView, type SizeColumn } from "./size-table-view";
 
-/** Module, result, comment. The module column fits the longest report headings on two lines. */
-const COLUMNS = "lg:grid-cols-[minmax(0,15rem)_minmax(0,1fr)_minmax(0,18rem)] xl:grid-cols-[minmax(0,17rem)_minmax(0,1fr)_minmax(0,20rem)]";
 const TEXT = "text-base fine:text-sm";
+
+/** A module's row id, which links from elsewhere on the page land on. */
+export function moduleAnchor(key: string, custom = false): string {
+  return custom ? `custom-${key}` : `module-${key}`;
+}
 
 export function ModuleResults({ evaluation }: { evaluation: ReviewEvaluation }) {
   if (!evaluation.ok) {
     return (
-      <ReviewSection id="modules" title="Module Results">
-        <Panel className="flex gap-3 border-l-4 border-l-warn-border p-5">
+      <section id="modules" aria-labelledby="modules-heading" className="space-y-3">
+        <h2 id="modules-heading" className="text-lg font-bold text-foreground">
+          Module Results
+        </h2>
+        <Panel className="flex gap-3 p-5">
           <TriangleAlertIcon aria-hidden className="mt-0.5 size-5 shrink-0 text-warn" />
           <p className={cn("text-foreground", TEXT)}>{evaluation.message}</p>
         </Panel>
-      </ReviewSection>
+      </section>
     );
   }
 
+  const { rows, elsewhere } = moduleRowsOf(evaluation);
+  const { context } = evaluation;
+  const sizeLabel = (size: string) => formatSize(size, { sizes: context.templateSizes });
+
+  return (
+    <ModuleRows rows={rows}>
+      {elsewhere.length > 0 && (
+        <div className="border-t border-border px-5 py-4">
+          <h3 className="mb-2 text-base font-bold text-foreground">Other Issues</h3>
+          <IssueLines items={attentionItems(elsewhere, context.sizes)} sizeLabel={sizeLabel} />
+        </div>
+      )}
+    </ModuleRows>
+  );
+}
+
+/**
+ * The rows in the template's order, each with its body rendered, and the
+ * issues of modules no row shows.
+ */
+export function moduleRowsOf(evaluation: Extract<ReviewEvaluation, { ok: true }>): {
+  rows: ModuleRowModel[];
+  elsewhere: ValidationIssue[];
+} {
   const { report, template, context } = evaluation;
   const listed = report.issues.filter(isListedIssue);
   const issuesOf = (key: string) => listed.filter((issue) => issue.moduleKey === key);
@@ -51,188 +85,159 @@ export function ModuleResults({ evaluation }: { evaluation: ReviewEvaluation }) 
   const custom = new Map(report.custom.map((entry) => [entry.custom.key, entry]));
   const sections = templateSections(template);
   const shown = new Set(sections.map((section) => section.key));
-  const elsewhere = listed.filter((issue) => !shown.has(issue.moduleKey));
 
-  return (
-    <ReviewSection
-      id="modules"
-      title="Module Results"
-      description="In the template's order, worked out from the saved data with the template version this inspection uses."
-    >
-      <Panel className="overflow-hidden">
-        <div
-          aria-hidden
-          className={cn(
-            "hidden gap-x-6 border-b border-border bg-slate-50 px-5 py-2 text-sm font-medium text-muted-foreground lg:grid",
-            COLUMNS,
-          )}
-        >
-          <span>Module</span>
-          <span>Result</span>
-          <span>Inspector Comment</span>
-        </div>
-        <ol className="divide-y divide-border">
-          {sections.map((section) => {
-            if (section.kind === "module") {
-              const entry = modules.get(section.key);
-              return entry ? (
-                <ModuleRow key={section.key} entry={entry} issues={issuesOf(section.key)} context={context} />
-              ) : null;
-            }
-            const entry = custom.get(section.key);
-            return entry ? (
-              <CustomRow key={section.key} entry={entry} issues={issuesOf(section.key)} context={context} />
-            ) : null;
-          })}
-        </ol>
-        {elsewhere.length > 0 && (
-          <div className="border-t border-border px-5 py-4">
-            <h3 className="mb-2 text-base font-bold text-foreground">Other Issues</h3>
-            <IssueList title="Other Issues" issues={elsewhere} />
-          </div>
-        )}
-      </Panel>
-    </ReviewSection>
-  );
+  const rows = sections.flatMap((section): ModuleRowModel[] => {
+    if (section.kind === "module") {
+      const entry = modules.get(section.key);
+      return entry ? [moduleRow(entry, issuesOf(section.key), context)] : [];
+    }
+    const entry = custom.get(section.key);
+    return entry ? [customRow(entry, issuesOf(section.key), context)] : [];
+  });
+  return { rows, elsewhere: listed.filter((issue) => !shown.has(issue.moduleKey)) };
 }
 
-function Row({
-  id,
-  dataAttributes,
-  heading,
-  badge,
-  result,
-  comment,
-}: {
-  id: string;
-  dataAttributes: Record<string, string>;
-  heading: string;
-  badge: ReactNode;
-  result: ReactNode;
-  comment: string | null;
-}) {
-  return (
-    <li id={id} {...dataAttributes} className={cn("grid gap-x-6 gap-y-3 px-5 py-4", COLUMNS)}>
-      <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 lg:flex-col lg:items-start lg:justify-start">
-        <h3 className="text-base leading-snug font-bold text-balance text-foreground">{heading}</h3>
-        {badge}
-      </div>
-      <div className="min-w-0 space-y-3">{result}</div>
-      {/* relative: anchors the screen-reader labels (docs/DESIGN.md). */}
-      <div className="relative min-w-0 space-y-1">
-        {comment ? (
-          <>
-            <p className="text-sm font-medium text-muted-foreground lg:sr-only">Inspector Comment</p>
-            <blockquote
-              className={cn("border-l-2 border-brand-300 pl-3 whitespace-pre-line text-foreground [overflow-wrap:anywhere]", TEXT)}
-            >
-              {comment}
-            </blockquote>
-          </>
-        ) : (
-          <p className={cn("text-muted-foreground", TEXT)}>
-            <span className="lg:hidden">No comment from the inspector</span>
-            <span className="hidden lg:inline">
-              <span className="sr-only">Inspector Comment: </span>No comment
-            </span>
-          </p>
-        )}
-      </div>
-    </li>
-  );
+function counts(issues: readonly ValidationIssue[]): { errors: number; warnings: number } {
+  return {
+    errors: issues.filter((issue) => issue.level === "error").length,
+    warnings: issues.filter((issue) => issue.level === "warning").length,
+  };
 }
 
-function ModuleRow({ entry, issues, context }: { entry: ModuleEvaluation; issues: ValidationIssue[]; context: InspectionContext }) {
+function moduleRow(entry: ModuleEvaluation, issues: ValidationIssue[], context: InspectionContext): ModuleRowModel {
   // The conclusion's HOLD reads "On Hold", as the final result does.
   const status = shownStatus(entry);
-  const sizes = sizeResults(entry, context);
-  // Without the sentences the per-size lines below repeat.
-  const summary = moduleSummary(entry, context);
   const title = screenTitle(entry.key, entry.title);
-  return (
-    <Row
-      id={`module-${entry.key}`}
-      dataAttributes={{ "data-module": entry.key, "data-status": status }}
-      heading={title}
-      badge={<StatusPill status={status} size="sm" />}
-      comment={entry.comment}
-      result={
-        <>
-          {summary && <p className={cn("text-foreground", TEXT)}>{summary}</p>}
-          {sizes.length > 0 && (
-            <ul aria-label={`${title}: result per size`} className="grid gap-1.5">
-              {sizes.map((own) => (
-                <li key={own.size} data-size={own.size} className="flex flex-wrap items-center gap-x-3 gap-y-1">
-                  {/* Spaces between the parts for screen readers; the gap spaces them on screen. */}
-                  <span className={cn("min-w-18 font-medium text-foreground", TEXT)}>
-                    {formatSize(own.size, { sizes: context.templateSizes, prefix: true })}
-                  </span>{" "}
-                  <StatusPill status={own.status} size="sm" />{" "}
-                  {/* Each line of a size's summary on its own line: the packing check's aged sample after its boxes. */}
-                  {own.summary && <span className={cn("whitespace-pre-line text-muted-foreground", TEXT)}>{own.summary}</span>}
-                </li>
-              ))}
-            </ul>
-          )}
-          {issues.length > 0 && <IssueList title={title} issues={issues} />}
-        </>
-      }
-    />
-  );
+  const sizes = sizeResults(entry, context);
+  const judged = sizes.some((own) => own.status !== "info");
+  return {
+    key: entry.key,
+    anchor: moduleAnchor(entry.key),
+    title,
+    group: status === "info" ? "info" : "result",
+    status,
+    // Size by size only where sizes are judged: an Info module's sizes are all Info.
+    sizes: judged ? sizes.map((own) => ({ size: own.size, label: own.label, status: own.status })) : [],
+    ...counts(issues),
+    body: <ModuleBody entry={entry} title={title} issues={issues} context={context} />,
+  };
 }
 
-function CustomRow({
+function ModuleBody({
   entry,
+  title,
   issues,
   context,
 }: {
-  entry: CustomModuleEvaluation;
+  entry: ModuleEvaluation;
+  title: string;
   issues: ValidationIssue[];
   context: InspectionContext;
 }) {
+  const sizeLabel = (size: string) => formatSize(size, { sizes: context.templateSizes });
+  const table = sizeTable(entry, context);
+  const sizes = sizeResults(entry, context);
+  const columns: SizeColumn[] = context.sizes.map((size) => ({ size, label: sizeLabel(size) }));
+  const perSize = entry.result.perSize ?? {};
+  const results = columns.map((column) => (perSize[column.size]?.status as Status | undefined) ?? null);
+  const judged = results.some((status) => status !== null && status !== "info");
+  // What the summary says beyond its sizes: shown with a table only where it holds facts no size has
+  // (MODULE_FACTS), or why a module has not passed; with size lines, always, as above them before.
+  const beyond = moduleSummary(entry, context);
+  const facts =
+    beyond !== null && (!table || MODULE_FACTS.has(entry.key) || (entry.result.status !== "pass" && entry.result.status !== "info"));
   return (
-    <Row
-      id={`custom-${entry.custom.key}`}
-      dataAttributes={{ "data-custom": entry.custom.key }}
-      heading={entry.custom.title}
-      badge={
-        // A pill's size, without a result's colour: extra fields have no verdict.
-        <span className="inline-flex h-6 items-center rounded-full border border-slate-300 bg-card px-2 text-xs font-semibold text-slate-700 touch:h-8 touch:px-3 touch:text-base">
-          Extra Fields
-        </span>
-      }
-      comment={entry.comment}
-      result={
-        <>
-          <CustomValues custom={entry.custom} values={entry.values} context={context} />
-          {issues.length > 0 && <IssueList title={entry.custom.title} issues={issues} />}
-        </>
-      }
-    />
+    <div className="space-y-3">
+      {facts && <p className={cn("text-foreground", TEXT)}>{beyond}</p>}
+      {table ? (
+        <SizeTableView title={title} table={table} sizes={columns} results={judged ? results : undefined} />
+      ) : sizes.length > 0 ? (
+        <ul aria-label={`${title}: result per size`} className="grid gap-1.5">
+          {sizes.map((own) => (
+            <li key={own.size} data-size={own.size} className="flex flex-wrap items-center gap-x-3 gap-y-1">
+              {/* Spaces between the parts for screen readers; the gap spaces them on screen. */}
+              <span className={cn("min-w-10 font-medium text-foreground", TEXT)}>{own.label}</span>{" "}
+              <StatusPill status={own.status} size="sm" />{" "}
+              {own.summary && <span className={cn("whitespace-pre-line text-muted-foreground", TEXT)}>{own.summary}</span>}
+            </li>
+          ))}
+        </ul>
+      ) : (
+        !facts && <p className={cn("text-foreground", TEXT)}>{entry.result.summary}</p>
+      )}
+      {issues.length > 0 && <IssueLines items={attentionItems(issues, context.sizes)} sizeLabel={sizeLabel} />}
+      {entry.comment && <Comment text={entry.comment} />}
+    </div>
   );
 }
 
-function IssueList({ title, issues }: { title: string; issues: readonly ValidationIssue[] }) {
+/**
+ * Modules whose summary holds facts no size has, which their table cannot
+ * show: the order's and the sampling plan's totals, a lab report missing.
+ */
+const MODULE_FACTS: ReadonlySet<string> = new Set(["order_lots", "sampling_plan", "tensile", "dye_leak"]);
+
+function customRow(entry: CustomModuleEvaluation, issues: ValidationIssue[], context: InspectionContext): ModuleRowModel {
+  const sizeLabel = (size: string) => formatSize(size, { sizes: context.templateSizes });
+  return {
+    key: entry.custom.key,
+    anchor: moduleAnchor(entry.custom.key, true),
+    title: entry.custom.title,
+    group: "info",
+    status: null,
+    // A pill's place, without a result's colour: extra fields have no verdict.
+    badge: "Extra Fields",
+    sizes: [],
+    ...counts(issues),
+    body: (
+      <div className="space-y-3">
+        <CustomValues custom={entry.custom} values={entry.values} context={context} />
+        {issues.length > 0 && <IssueLines items={attentionItems(issues, context.sizes)} sizeLabel={sizeLabel} />}
+        {entry.comment && <Comment text={entry.comment} />}
+      </div>
+    ),
+  };
+}
+
+/** A module's errors and warnings, one short line per problem with its sizes. */
+function IssueLines({ items, sizeLabel }: { items: readonly AttentionItem[]; sizeLabel: (size: string) => string }) {
   return (
-    <ul aria-label={`Issues: ${title}`} className="grid gap-1.5">
-      {issues.map((issue, index) => {
-        const error = issue.level === "error";
+    <ul className="grid gap-1.5">
+      {items.map((item) => {
+        const error = item.level === "error";
         const Icon = error ? CircleXIcon : TriangleAlertIcon;
+        const sizes = sizesText(item, sizeLabel);
         return (
           <li
-            key={`${issue.code}-${index}`}
-            data-issue={issue.code}
-            data-level={issue.level}
+            key={item.key}
+            data-issue={item.code}
+            data-level={item.level}
             className={cn("flex gap-2", TEXT, error ? "text-fail" : "text-warn")}
           >
             <Icon aria-hidden className="mt-0.5 size-4 shrink-0" />
             <span className="[overflow-wrap:anywhere]">
-              <span className="font-semibold">{error ? "Error:" : "Warning:"}</span> {issue.message}
+              <span className="sr-only">{error ? "Error:" : "Warning:"} </span>
+              {item.text}
+              {sizes && <span className="font-semibold">{`: ${sizes}`}</span>}
             </span>
           </li>
         );
       })}
     </ul>
+  );
+}
+
+function Comment({ text }: { text: string }): ReactNode {
+  return (
+    // relative: anchors the screen-reader label (docs/DESIGN.md).
+    <div className="relative">
+      <p className="sr-only">Inspector Comment</p>
+      <blockquote
+        className={cn("border-l-2 border-brand-300 pl-3 whitespace-pre-line text-foreground [overflow-wrap:anywhere]", TEXT)}
+      >
+        {text}
+      </blockquote>
+    </div>
   );
 }
 

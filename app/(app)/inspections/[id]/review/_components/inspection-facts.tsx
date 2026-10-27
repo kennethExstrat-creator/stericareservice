@@ -1,23 +1,19 @@
 // The header facts: what was inspected, for whom, by whom and when, and the
-// exact template version the results come from.
+// exact template version the results come from. When it was submitted or
+// approved is in the page's header, beside its status.
 import type { ReactNode } from "react";
 import { formatInspectionDate } from "@/lib/inspections/format";
 import { actorText } from "@/lib/inspections/review/actor";
-import { formatDateTime } from "@/lib/inspections/review/format";
 import type { ReviewInspection, ReviewTemplate } from "@/lib/inspections/review/load";
-import { Missing, Panel } from "./review-section";
+import { CardSection, Missing } from "./review-section";
 
-function Fact({ label, children, wide = false }: { label: string; children: ReactNode; wide?: boolean }) {
+function Fact({ label, children }: { label: string; children: ReactNode }) {
   return (
-    <div className={wide ? "sm:col-span-2" : undefined}>
+    <div>
       <dt className="text-sm text-muted-foreground">{label}</dt>
       <dd className="mt-0.5 text-base font-medium text-foreground [overflow-wrap:anywhere] fine:text-sm">{children}</dd>
     </div>
   );
-}
-
-function When({ iso }: { iso: string }) {
-  return <time dateTime={iso}>{formatDateTime(iso)}</time>;
 }
 
 export function InspectionFacts({
@@ -28,8 +24,8 @@ export function InspectionFacts({
   template: ReviewTemplate | null;
 }) {
   return (
-    <Panel>
-      <dl data-slot="inspection-facts" className="grid gap-x-8 gap-y-4 p-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+    <CardSection id="details" title="Inspection Details">
+      <dl data-slot="inspection-facts" className="grid gap-x-8 gap-y-4 px-5 pb-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
         <Fact label="Client">{inspection.client ?? <Missing label="No Client" />}</Fact>
         <Fact label="Manufacturer">{inspection.manufacturer ?? <Missing label="No manufacturer" />}</Fact>
         <Fact label="PO">{inspection.poNo ?? <Missing label="No PO yet" />}</Fact>
@@ -41,37 +37,19 @@ export function InspectionFacts({
         <Fact label="Inspection Date">
           <time dateTime={inspection.inspectionDate}>{formatInspectionDate(inspection.inspectionDate)}</time>
         </Fact>
-        <Fact label="Submitted">
-          {inspection.submittedAt ? <When iso={inspection.submittedAt} /> : <Missing label="Not submitted yet" />}
-        </Fact>
-        {inspection.status === "approved" && inspection.approvedAt && (
-          <Fact label="Approved">
-            <When iso={inspection.approvedAt} />
-            {/* Spaces before the second lines, so the words stay apart when read out or copied. */}
-            {inspection.approver && (
-              <>
-                {" "}
-                <span className="block font-normal text-muted-foreground">by {actorText(inspection.approver)}</span>
-              </>
-            )}
-          </Fact>
-        )}
         <Fact label="Template">
           {template ? (
-            <>
+            <span title={template.name ?? undefined}>
               {template.code} Version {template.version}
-              {template.name && (
-                <>
-                  {" "}
-                  <span className="block font-normal text-muted-foreground">{template.name}</span>
-                </>
-              )}
-            </>
+            </span>
           ) : (
             <Missing label="Template not readable" />
           )}
         </Fact>
+        {inspection.status === "approved" && inspection.approver && (
+          <Fact label="Approved By">{actorText(inspection.approver, { start: true })}</Fact>
+        )}
       </dl>
-    </Panel>
+    </CardSection>
   );
 }

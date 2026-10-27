@@ -52,34 +52,26 @@ function moduleRow(page: Page, key: string): Locator {
   return page.getByRole("region", { name: "Module Results" }).locator(`li[data-module=${key}]`);
 }
 
-/** How often `sentence` occurs in the element's text. */
-async function occurrences(locator: Locator, sentence: string): Promise<number> {
-  const text = (await locator.textContent()) ?? "";
-  return text.split(sentence).length - 1;
-}
-
-test("each module's result says a sentence once, and the inspector's HOLD reads On Hold", async ({ page, context, baseURL }) => {
+test("each module's result shows its sizes side by side, and the inspector's HOLD reads On Hold", async ({ page, context, baseURL }) => {
   const hydration = watchConsole(page);
   await as.signIn(context, baseURL!, "admin");
   await page.goto(reviewPath(fixture.inspectionId));
   await expect(page.getByRole("heading", { level: 1, name: fixture.refNo })).toBeVisible();
+  // Rows open on demand (layout A, 27 October 2026): open every one.
+  await page.getByRole("region", { name: "Module Results" }).getByRole("button", { name: "Expand All" }).click();
 
-  for (const [key, sentence] of [
-    ["watertight", "1 / 500 (Finger 1), Defect Limit 14 / 15: Passed"],
-    ["dispensing_packing", "Layering 88.3% (min. 70%), Dispensing 90.3% (min. 80%), Stickiness A: Passed"],
-    ["carton_sampling", "50 box/carton numbers, unique and between 1 and 2,900"],
-    ["sampling_plan", "inspection level I needs 500 (code N)"],
+  // Each module's table, size M's column: the figures its summary used to say in a sentence.
+  for (const [key, figures] of [
+    ["watertight", ["1 / 500", "14 / 15"]],
+    ["dispensing_packing", ["88.3%", "90.3%"]],
+    ["carton_sampling", ["1 and 2,900"]],
+    ["force_at_break", ["6.537", "≥ 6"]],
   ] as const) {
-    const row = moduleRow(page, key);
-    await expect(row.locator("li[data-size=M]")).toContainText(sentence);
-    expect(await occurrences(row, sentence), `${key} says it once`).toBe(1);
+    const table = moduleRow(page, key).locator("table");
+    for (const figure of figures) await expect(table).toContainText(figure);
   }
-  // What a summary adds to its sizes' lines stays: force at break's spec, once, above the median.
-  const force = moduleRow(page, "force_at_break");
-  await expect(force).toContainText("Spec. ≥ 6 N.");
-  expect(await occurrences(force, "Median 6.537 N")).toBe(1);
-  // A headline of its own stays whole, above the size's own line.
-  await expect(moduleRow(page, "weight").locator("p").first()).toHaveText(/^Average: M 2\.90 g \(17\.1% below the indicative 3\.5 g/);
+  // The weight's warning, once, as one short line under its table.
+  await expect(moduleRow(page, "weight").locator("[data-issue]")).toHaveCount(1);
 
   // The conclusion's pill matches the final result: On Hold, the pause icon, the hold tint.
   const conclusion = moduleRow(page, "conclusion");

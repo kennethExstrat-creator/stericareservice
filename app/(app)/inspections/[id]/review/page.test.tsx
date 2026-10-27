@@ -98,12 +98,16 @@ describe("/inspections/[id]/review", () => {
     expect(loadReview).not.toHaveBeenCalled();
   });
 
-  it("gives an admin Approve and Reopen on a submitted inspection", async () => {
+  it("gives an admin Approve and Reopen on a submitted inspection, and the report to download", async () => {
     const html = await render(reviewData());
     expect(button(html, "Approve")).toBe(true);
     expect(button(html, "Reopen")).toBe(true);
     expect(link(html, "Open Inspection")).toBe(true);
-    expect(html).toContain("Waiting for Your Review");
+    expect(html).toMatch(new RegExp(`<a[^>]*href="/inspections/${INSPECTION_ID}/report/print\\?print=1"[^>]*>(?:(?!</a>).)*Download PDF</a>`));
+    expect(html).toContain('id="client-report"');
+    // The buttons say it waits for them: no notice.
+    expect(html).not.toContain("Waiting for Your Review");
+    expect(html).not.toContain('id="review-status"');
   });
 
   it.each(["approved", "reopened", "draft"] as const)("gives an admin no decision on a %s inspection", async (status) => {
@@ -151,6 +155,9 @@ describe("/inspections/[id]/review", () => {
       expect(link(html, "Continue Inspection")).toBe(false);
       expect(link(html, "Make Changes")).toBe(false);
       expect(html).not.toContain('data-testid="ai-panel"');
+      // The export's rule: only the inspector and admins download the report.
+      expect(link(html, "Download PDF")).toBe(false);
+      expect(html).not.toContain('id="client-report"');
       if (status === "submitted") expect(html).toContain("An admin checks it next, and only an admin can reopen it for changes.");
     },
   );
@@ -169,20 +176,40 @@ describe("/inspections/[id]/review", () => {
     expect(link(html, "Open Inspection")).toBe(false);
   });
 
-  it("keeps the status apart from the client and product when read out", async () => {
+  it("keeps the status, when it was submitted, and the client and product apart when read out", async () => {
     const html = await render(reviewData());
     // As textContent reads it: tags dropped without adding spaces.
     const plain = html.replace(/<[^>]+>/g, "").replace(/\s+/g, " ");
-    expect(plain).toContain("Submitted Client A · Product A");
+    expect(plain).toContain("INS-2026-0001 Submitted 5 Oct 2026, 14:30 Client A · Product A");
   });
 
-  it("lays out every part of the review in order, the AI second opinion after the result", async () => {
+  it("lays out every part of the review in order (layout A), with an index of them", async () => {
     const html = await render(reviewData());
-    const order = ["review-status", "inspection-facts", 'id="result"', 'data-testid="ai-panel"', 'id="modules"', 'id="photos"', 'id="history"'].map(
-      (marker) => html.indexOf(marker),
-    );
+    const order = [
+      'aria-label="On This Page"',
+      'id="result"',
+      'id="attention"',
+      'id="client-report"',
+      "inspection-facts",
+      'data-testid="ai-panel"',
+      'id="modules"',
+      'id="photos"',
+      'id="history"',
+    ].map((marker) => html.indexOf(marker));
     expect(order.every((position) => position >= 0)).toBe(true);
     expect([...order].sort((a, b) => a - b)).toEqual(order);
+    const index = /<nav aria-label="On This Page"[\s\S]*?<\/nav>/.exec(html)?.[0] ?? "";
+    expect([...index.matchAll(/href="#([a-z-]+)"/g)].map((match) => match[1])).toEqual([
+      "result",
+      "attention",
+      "client-report",
+      "details",
+      "summary",
+      "steri-ai",
+      "modules",
+      "photos",
+      "history",
+    ]);
     // Inside the shell: no <main> of its own.
     expect(html).not.toContain("<main");
   });

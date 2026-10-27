@@ -67,8 +67,8 @@ test.describe("reviewing inspections", () => {
 
     await expect(page).toHaveTitle(`Review ${fixture.A.refNo} · SteriCare QC`);
     await expect(page.getByRole("heading", { level: 1, name: fixture.A.refNo })).toBeVisible();
-    await expect(page.getByRole("heading", { name: "Waiting for Your Review" })).toBeVisible();
-    await expect(page.getByText("Test Inspector submitted it on")).toBeVisible();
+    // Waiting for this admin: the header says Submitted, with Approve beside it (layout A: no notice).
+    await expect(page.locator("[data-slot=review-header] [data-slot=inspection-status]")).toHaveText("Submitted");
 
     const facts = page.locator("[data-slot=inspection-facts]");
     await expect(facts).toContainText("Polyco Healthline");
@@ -86,6 +86,8 @@ test.describe("reviewing inspections", () => {
 
     // Every included module's computed result, in template order, with its comment.
     const modules = page.getByRole("region", { name: "Module Results" });
+    // Rows open on demand (layout A): open them all to read every comment.
+    await modules.getByRole("button", { name: "Expand All" }).click();
     const gloveInfo = modules.locator("[data-module=glove_info]");
     await expect(gloveInfo.getByRole("heading", { name: "Glove Information" })).toBeVisible();
     await expect(gloveInfo).toHaveAttribute("data-status", "info");
@@ -102,12 +104,12 @@ test.describe("reviewing inspections", () => {
     // Weight is switched off for this inspection, with the reason.
     const switchedOff = page.getByRole("region", { name: "Switched Off for This Inspection" });
     await expect(switchedOff).toContainText(WEIGHT_OFF_REASON);
-    await expect(switchedOff).toContainText("Switched off by Test Admin");
+    await expect(switchedOff).toContainText("Test Admin");
     await expect(modules.locator("[data-module=weight]")).toHaveCount(0);
 
     // Report photos through signed links, and the way to all of them.
     const photos = page.getByRole("region", { name: "Report Photos" });
-    await expect(photos.getByText("2 of 3 photos marked for the report.")).toBeVisible();
+    await expect(photos.getByText("2 of 3", { exact: true })).toBeVisible();
     await expect(photos.locator("li[data-photo]")).toHaveCount(2);
     await expect(photos.getByText(PHOTO_CAPTION)).toBeVisible();
     await expect(photos.getByRole("link", { name: "All Photos (3)" })).toHaveAttribute(
@@ -197,10 +199,9 @@ test.describe("reviewing inspections", () => {
     await expect(page.getByRole("button", { name: "Reopen" })).toHaveCount(0);
     await expect(page.getByRole("link", { name: "Make Changes" })).toHaveCount(0);
     await expect(page.getByRole("link", { name: "Open Inspection" })).toBeVisible();
+    await page.getByRole("region", { name: "Module Results" }).getByRole("button", { name: "Expand All" }).click();
     await expect(page.getByText(GLOVE_INFO_COMMENT)).toBeVisible();
-    await expect(page.getByRole("region", { name: "Switched Off for This Inspection" })).toContainText(
-      "Switched off by an admin",
-    );
+    await expect(page.getByRole("region", { name: "Switched Off for This Inspection" })).toContainText("an admin");
     await expect(page.getByRole("region", { name: "Report Photos" }).locator("li[data-photo]")).toHaveCount(2);
     await expectNoPageScroll(page);
     await shot(page, "inspector-approved");
@@ -228,7 +229,8 @@ test.describe("reviewing inspections", () => {
   test("a version the admin has not seen is not approved", async ({ page, context, baseURL }) => {
     await as.signIn(context, baseURL!, "admin");
     await page.goto(reviewPath(fixture.B.id));
-    await expect(page.getByRole("heading", { name: "Waiting for Your Review" })).toBeVisible();
+    // Waiting for this admin: the header says Submitted, with Approve beside it (layout A: no notice).
+    await expect(page.locator("[data-slot=review-header] [data-slot=inspection-status]")).toHaveText("Submitted");
 
     // Someone changes B while this admin looks at the old version.
     await fixture.touchB();
@@ -240,7 +242,8 @@ test.describe("reviewing inspections", () => {
     await expect(dialog).toBeHidden();
     // The page now shows the latest version, still waiting for review.
     await expect(page.getByText("Updated by another admin.")).toBeVisible();
-    await expect(page.getByRole("heading", { name: "Waiting for Your Review" })).toBeVisible();
+    // Waiting for this admin: the header says Submitted, with Approve beside it (layout A: no notice).
+    await expect(page.locator("[data-slot=review-header] [data-slot=inspection-status]")).toHaveText("Submitted");
     await viewShot(page, "admin-stale-version");
     const { data: row } = await createTestAdminClient().from("inspections").select("status").eq("id", fixture.B.id).single();
     expect(row?.status).toBe("submitted");
@@ -329,8 +332,8 @@ test.describe("reviewing inspections", () => {
 
     await as.signIn(context, baseURL!, "admin");
     await page.goto(reviewPath(fixture.B.id));
-    await expect(page.getByRole("heading", { name: "Waiting for Your Review" })).toBeVisible();
-    await expect(page.getByText("Test Inspector submitted it on")).toBeVisible();
+    // Waiting for this admin: the header says Submitted, with Approve beside it (layout A: no notice).
+    await expect(page.locator("[data-slot=review-header] [data-slot=inspection-status]")).toHaveText("Submitted");
     await expect(page.getByRole("button", { name: "Approve" })).toBeVisible();
     await expect(page.getByRole("button", { name: "Reopen" })).toBeVisible();
     // The history keeps the reopen and its reason, then the new submit.
@@ -345,7 +348,8 @@ test.describe("reviewing inspections", () => {
     await as.signIn(context, baseURL!, "admin");
     await page.goto(reviewPath(fixture.D.id));
 
-    await expect(page.getByRole("heading", { name: "Waiting for Your Review" })).toBeVisible();
+    // Waiting for this admin: the header says Submitted, with Approve beside it (layout A: no notice).
+    await expect(page.locator("[data-slot=review-header] [data-slot=inspection-status]")).toHaveText("Submitted");
     await expect(page.getByText("The template version this inspection uses could not be read").first()).toBeVisible();
 
     // The AI hand-offs need the results: a quiet note in the panel's place, not an error. The checks above say why.
