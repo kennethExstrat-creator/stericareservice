@@ -3,13 +3,27 @@
 -- are created through the Auth admin API (docs/DATABASE.md). Templates arrive
 -- in Phase 2. Fixed ids let later seeds refer to these rows.
 
--- Manufacturers: names and factory addresses as printed on the example reports.
-insert into public.manufacturers (id, name, factory_name, address, country)
+-- Manufacturers: the brand, its operating company, then the company's
+-- factories, named and addressed as printed on the example reports.
+-- manufacturers.name is filled from the company (migration 20261027163000).
+insert into public.manufacturer_brands (id, name)
 values
-  ('10000000-0000-4000-8000-000000000001', 'Hartalega NGC', null,
+  ('11000000-0000-4000-8000-000000000001', 'Hartalega'),
+  ('11000000-0000-4000-8000-000000000002', 'Top Glove')
+on conflict do nothing;
+
+insert into public.manufacturer_companies (id, brand_id, name)
+values
+  ('12000000-0000-4000-8000-000000000001', '11000000-0000-4000-8000-000000000001', 'Hartalega NGC'),
+  ('12000000-0000-4000-8000-000000000002', '11000000-0000-4000-8000-000000000002', 'Terang Nusa Sdn. Bhd.')
+on conflict do nothing;
+
+insert into public.manufacturers (id, company_id, factory_name, address, country)
+values
+  ('10000000-0000-4000-8000-000000000001', '12000000-0000-4000-8000-000000000001', null,
     'No. 1, Persiaran Tanjung, Kawasan Perindustrian Tanjung, 43900 Sepang, Selangor',
     'Malaysia'),
-  ('10000000-0000-4000-8000-000000000002', 'Terang Nusa Sdn. Bhd.', 'TG Factory 40',
+  ('10000000-0000-4000-8000-000000000002', '12000000-0000-4000-8000-000000000002', 'TG Factory 40',
     'Lot 67330, Lorong Bougainvillae/KU8, Kawasan Perindustrian Meru Timur, 41050 Klang, Selangor',
     'Malaysia')
 on conflict do nothing;

@@ -215,8 +215,8 @@ describe("timestamps", { timeout: 30_000 }, () => {
     type Manufacturer = Tables<"manufacturers">;
     const made = await asUser(db, people.admin, (tx) =>
       tx.query<Manufacturer>(
-        `insert into public.manufacturers (name, created_at, updated_at)
-         values ('Backdated Gloves', '2000-01-01', '2000-01-01') returning *`,
+        `insert into public.manufacturers (company_id, factory_name, created_at, updated_at)
+         values ('12000000-0000-4000-8000-000000000002', 'Backdated Plant', '2000-01-01', '2000-01-01') returning *`,
       ),
     );
     const row = made.rows[0];

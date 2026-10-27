@@ -28,7 +28,7 @@ describe("schema guards", { timeout: 30_000 }, () => {
     expect(unprotected).toEqual([]);
   });
 
-  it("has the eleven tables of BUILD_SPEC 5, the AI settings, the AI usage and the roles", async () => {
+  it("has the eleven tables of BUILD_SPEC 5, the AI settings, the AI usage, the roles and the manufacturers' brands and companies", async () => {
     const tables = await asOwner(db, (tx) =>
       column<string>(
         tx,
@@ -47,6 +47,8 @@ describe("schema guards", { timeout: 30_000 }, () => {
       "inspection_files",
       "inspection_photos",
       "inspections",
+      "manufacturer_brands",
+      "manufacturer_companies",
       "manufacturers",
       "profiles",
       "roles",

@@ -94,7 +94,15 @@ describe("RLS: inspector", { timeout: 30_000 }, () => {
   });
 
   it.each([
-    ["manufacturers", "insert into public.manufacturers (name) values ('Rogue Gloves')"],
+    ["manufacturer_brands", "insert into public.manufacturer_brands (name) values ('Rogue Brand')"],
+    [
+      "manufacturer_companies",
+      "insert into public.manufacturer_companies (brand_id, name) values ('11000000-0000-4000-8000-000000000001', 'Rogue Gloves')",
+    ],
+    [
+      "manufacturers",
+      "insert into public.manufacturers (company_id, factory_name) values ('12000000-0000-4000-8000-000000000001', 'Rogue Plant')",
+    ],
     ["clients", "insert into public.clients (name) values ('Rogue Client')"],
     ["defect_codes", "insert into public.defect_codes (code, name) values ('rogue', 'Rogue')"],
     [
@@ -110,11 +118,13 @@ describe("RLS: inspector", { timeout: 30_000 }, () => {
   it("cannot change or delete reference rows", async () => {
     const changed = await asUser(db, people.inspector, async (tx) => [
       (await tx.query("update public.manufacturers set notes = 'x'")).affectedRows,
+      (await tx.query("update public.manufacturer_companies set name = name || ' x'")).affectedRows,
+      (await tx.query("delete from public.manufacturer_brands")).affectedRows,
       (await tx.query("update public.defect_codes set active = false")).affectedRows,
       (await tx.query("delete from public.clients")).affectedRows,
       (await tx.query("delete from public.templates")).affectedRows,
     ]);
-    expect(changed).toEqual([0, 0, 0, 0]);
+    expect(changed).toEqual([0, 0, 0, 0, 0, 0]);
   });
 
   it("cannot create an inspection for another inspector", async () => {

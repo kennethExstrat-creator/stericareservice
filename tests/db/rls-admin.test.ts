@@ -137,26 +137,46 @@ describe("RLS: admin", { timeout: 30_000 }, () => {
 
   it("manages reference data", async () => {
     const result = await asUser(db, people.admin, async (tx) => {
+      const brand = await tx.query<{ id: string }>("insert into public.manufacturer_brands (name) values ('Acme') returning id");
+      const company = await tx.query<{ id: string }>(
+        "insert into public.manufacturer_companies (brand_id, name) values ($1, 'Acme Gloves') returning id",
+        [brand.rows[0].id],
+      );
       const made = await tx.query<{ id: string }>(
-        "insert into public.manufacturers (name, factory_name, country) values ('Acme Gloves', 'Plant 2', 'Malaysia') returning id",
+        "insert into public.manufacturers (company_id, factory_name, country) values ($1, 'Plant 2', 'Malaysia') returning id",
+        [company.rows[0].id],
       );
       const id = made.rows[0].id;
       await tx.query("update public.manufacturers set notes = 'audited' where id = $1", [id]);
+      await tx.query("update public.manufacturer_companies set name = 'Acme Gloves Sdn. Bhd.' where id = $1", [company.rows[0].id]);
+      await tx.query("update public.manufacturer_brands set name = 'Acme Group' where id = $1", [brand.rows[0].id]);
       await tx.query("insert into public.clients (name) values ('Acme Health')");
       await tx.query("insert into public.defect_codes (code, name) values ('pinhole_test', 'Pinhole test')");
       await tx.query("update public.defect_codes set active = false where code = 'pinhole_test'");
-      return (await tx.query("delete from public.manufacturers where id = $1", [id])).affectedRows;
+      return [
+        (await tx.query("delete from public.manufacturers where id = $1", [id])).affectedRows,
+        (await tx.query("delete from public.manufacturer_companies where id = $1", [company.rows[0].id])).affectedRows,
+        (await tx.query("delete from public.manufacturer_brands where id = $1", [brand.rows[0].id])).affectedRows,
+      ];
     });
-    expect(result).toBe(1);
+    expect(result).toEqual([1, 1, 1]);
   });
 
   it("rejects a second manufacturer row for the same factory, whatever the case", async () => {
-    const error = await pgError(
-      asUser(db, people.admin, (tx) =>
-        tx.query("insert into public.manufacturers (name) values ('HARTALEGA ngc')"),
-      ),
-    );
-    expect(error.code).toBe("23505");
+    const terangNusa = "12000000-0000-4000-8000-000000000002";
+    const hartalegaNgc = "12000000-0000-4000-8000-000000000001";
+    for (const [companyId, factory] of [
+      [terangNusa, "tg FACTORY 40"],
+      // Hartalega NGC's one factory has no name of its own: a second one without a name is the same.
+      [hartalegaNgc, null],
+    ]) {
+      const error = await pgError(
+        asUser(db, people.admin, (tx) =>
+          tx.query("insert into public.manufacturers (company_id, factory_name) values ($1, $2)", [companyId, factory]),
+        ),
+      );
+      expect(error.code, String(factory)).toBe("23505");
+    }
   });
 
   it("cannot rename a defect code that templates refer to", async () => {

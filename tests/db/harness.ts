@@ -48,6 +48,7 @@ export async function applyAsOwner(db: Db, file: SqlFile): Promise<void> {
 }
 
 export interface TestDbOptions {
+  /** supabase/seed.sql, written for the latest schema: by default only when every migration runs. */
   seed?: boolean;
   /** Runs after the shim, before the first migration (e.g. pre-existing auth users). */
   beforeMigrations?: (db: Db) => Promise<void>;
@@ -55,7 +56,7 @@ export interface TestDbOptions {
   until?: string;
 }
 
-export async function createTestDb({ seed = true, beforeMigrations, until }: TestDbOptions = {}): Promise<Db> {
+export async function createTestDb({ until, seed = until === undefined, beforeMigrations }: TestDbOptions = {}): Promise<Db> {
   const migrations = await readMigrations();
   const last = until === undefined ? migrations.length - 1 : migrations.findIndex((file) => file.name === until);
   if (last < 0) throw new Error(`no migration named ${until}`);

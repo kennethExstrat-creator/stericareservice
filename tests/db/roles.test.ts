@@ -244,8 +244,13 @@ describe("roles", { timeout: 60_000 }, () => {
       const person = await createAuthUser(db, { email: "desk@test.local" });
       await giveRole(db, person, office, lead);
       await asUser(db, person, (tx) => tx.query("insert into public.clients (name) values ('Glove Buyer')"));
-      const maker = await pgError(asUser(db, person, (tx) => tx.query("insert into public.manufacturers (name) values ('Factory')")));
-      expect(maker.code).toBe("42501");
+      for (const sql of [
+        "insert into public.manufacturer_brands (name) values ('Brand')",
+        "insert into public.manufacturer_companies (brand_id, name) values ('11000000-0000-4000-8000-000000000001', 'Company')",
+        "insert into public.manufacturers (company_id, factory_name) values ('12000000-0000-4000-8000-000000000001', 'Factory')",
+      ]) {
+        expect((await pgError(asUser(db, person, (tx) => tx.query(sql)))).code, sql).toBe("42501");
+      }
     });
 
     it("refuse an admin-level role what it does not allow: approving, switching steps, deciding on Steri-AI", async () => {

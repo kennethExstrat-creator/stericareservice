@@ -42,6 +42,8 @@ const SECTION_11_CODES = [
 
 async function counts(db: Db) {
   return asOwner(db, async (tx) => ({
+    brands: (await column<string>(tx, "select id from public.manufacturer_brands")).length,
+    companies: (await column<string>(tx, "select id from public.manufacturer_companies")).length,
     manufacturers: (await column<string>(tx, "select id from public.manufacturers")).length,
     clients: (await column<string>(tx, "select id from public.clients")).length,
     defectCodes: (await column<string>(tx, "select code from public.defect_codes")).length,
@@ -72,19 +74,29 @@ describe("seed.sql", { timeout: 30_000 }, () => {
     }
   });
 
-  it("adds the two manufacturers and the SAFEDON_EG client, and no users or templates", async () => {
+  it("adds the two manufacturers, each a factory of a company of a brand, and the SAFEDON_EG client, and no users or templates", async () => {
     const rows = await asOwner(db, async (tx) => ({
       manufacturers: (
-        await tx.query<Pick<Tables<"manufacturers">, "name" | "factory_name" | "country">>(
-          "select name, factory_name, country from public.manufacturers order by name",
+        await tx.query<{ brand: string; company: string; name: string; factory_name: string | null; country: string | null }>(
+          `select b.name as brand, c.name as company, m.name, m.factory_name, m.country
+             from public.manufacturers m
+             join public.manufacturer_companies c on c.id = m.company_id
+             join public.manufacturer_brands b on b.id = c.brand_id
+            order by b.name`,
         )
       ).rows,
       clients: (await tx.query<Pick<Tables<"clients">, "name" | "notes">>("select name, notes from public.clients"))
         .rows,
     }));
     expect(rows.manufacturers).toEqual([
-      { name: "Hartalega NGC", factory_name: null, country: "Malaysia" },
-      { name: "Terang Nusa Sdn. Bhd.", factory_name: "TG Factory 40", country: "Malaysia" },
+      { brand: "Hartalega", company: "Hartalega NGC", name: "Hartalega NGC", factory_name: null, country: "Malaysia" },
+      {
+        brand: "Top Glove",
+        company: "Terang Nusa Sdn. Bhd.",
+        name: "Terang Nusa Sdn. Bhd.",
+        factory_name: "TG Factory 40",
+        country: "Malaysia",
+      },
     ]);
     expect(rows.clients).toEqual([
       { name: "Polyco Healthline", notes: "Client to confirm, BUILD_SPEC section 13" },

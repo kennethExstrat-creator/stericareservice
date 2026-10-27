@@ -20,6 +20,8 @@ const tableSet: Record<TableName, boolean> = {
   inspection_files: true,
   inspection_photos: true,
   inspections: true,
+  manufacturer_brands: true,
+  manufacturer_companies: true,
   manufacturers: true,
   profiles: true,
   roles: true,

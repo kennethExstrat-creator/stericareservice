@@ -610,9 +610,63 @@ export type Database = {
           },
         ]
       }
+      manufacturer_brands: {
+        Row: {
+          created_at: string
+          id: string
+          name: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          name: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          name?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      manufacturer_companies: {
+        Row: {
+          brand_id: string
+          created_at: string
+          id: string
+          name: string
+          updated_at: string
+        }
+        Insert: {
+          brand_id: string
+          created_at?: string
+          id?: string
+          name: string
+          updated_at?: string
+        }
+        Update: {
+          brand_id?: string
+          created_at?: string
+          id?: string
+          name?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "manufacturer_companies_brand_id_fkey"
+            columns: ["brand_id"]
+            isOneToOne: false
+            referencedRelation: "manufacturer_brands"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       manufacturers: {
         Row: {
           address: string | null
+          company_id: string
           country: string | null
           created_at: string
           factory_name: string | null
@@ -623,16 +677,7 @@ export type Database = {
         }
         Insert: {
           address?: string | null
-          country?: string | null
-          created_at?: string
-          factory_name?: string | null
-          id?: string
-          name: string
-          notes?: string | null
-          updated_at?: string
-        }
-        Update: {
-          address?: string | null
+          company_id: string
           country?: string | null
           created_at?: string
           factory_name?: string | null
@@ -641,7 +686,26 @@ export type Database = {
           notes?: string | null
           updated_at?: string
         }
-        Relationships: []
+        Update: {
+          address?: string | null
+          company_id?: string
+          country?: string | null
+          created_at?: string
+          factory_name?: string | null
+          id?: string
+          name?: string
+          notes?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "manufacturers_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "manufacturer_companies"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       profiles: {
         Row: {

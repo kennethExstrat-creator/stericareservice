@@ -805,10 +805,8 @@ describe("save_inspection_with_events()", { timeout: 30_000 }, () => {
     try {
       const earlierPeople = await createPeople(earlier);
       const earlierTemplate = await createTemplate(earlier);
-      const draft = await createInspection(earlier, earlierPeople.inspector, earlierTemplate, {
-        client_id: POLYCO,
-        manufacturer_id: HARTALEGA,
-      });
+      // No seed at an earlier migration (createTestDb), so no client or manufacturer either.
+      const draft = await createInspection(earlier, earlierPeople.inspector, earlierTemplate);
       const error = await pgError(
         saveOn(earlier, earlierPeople.inspector, draft.id, draft.updated_at, [{ action: "code_letter_changed", changes: REDUCED }], SAMPLED),
       );
