@@ -477,20 +477,8 @@ export default function Capture({
         );
       case "fact":
         return (
-          <div key={line.key} style={at(row, 1)} className={cn(CELL, LABEL_CELL, "gap-1 text-muted-foreground")}>
-            <span className="min-w-0 flex-1">{factLabel(line.key)}</span>
-            {line.key === "orderQty" && (
-              <button
-                type="button"
-                aria-pressed={orderShare}
-                aria-label={orderShare ? `Show ${label("orderQty")}` : `Show ${ORDER_SHARE_LABEL}`}
-                title={orderShare ? `Show ${label("orderQty")}` : `Show ${ORDER_SHARE_LABEL}`}
-                onClick={() => setOrderShare((shown) => !shown)}
-                className={STEP}
-              >
-                <ArrowLeftRightIcon aria-hidden />
-              </button>
-            )}
+          <div key={line.key} style={at(row, 1)} className={cn(CELL, LABEL_CELL, "text-muted-foreground")}>
+            {factLabel(line.key)}
           </div>
         );
       case "note":
@@ -813,6 +801,36 @@ export default function Capture({
     );
   });
 
+  // The Order Qty row's label with its swap, in the label column: reachable, over the label beneath it, as the switches
+  // are. A view, so it works on a read-only inspection too.
+  const swapCells = lines.map((line, index): ReactNode => {
+    if (line.kind !== "fact" || line.key !== "orderQty") return null;
+    const row = index + 1;
+    const name = orderShare ? `Show ${label("orderQty")}` : `Show ${ORDER_SHARE_LABEL}`;
+    return (
+      <div
+        key="order-share"
+        data-slot="order-share-swap"
+        style={at(row, 1)}
+        className={cn(CELL, LABEL_CELL, "gap-1 text-muted-foreground")}
+      >
+        <span aria-hidden className="min-w-0 flex-1">
+          {factLabel(line.key)}
+        </span>
+        <button
+          type="button"
+          aria-pressed={orderShare}
+          aria-label={name}
+          title={name}
+          onClick={() => setOrderShare((shown) => !shown)}
+          className={STEP}
+        >
+          <ArrowLeftRightIcon aria-hidden />
+        </button>
+      </div>
+    );
+  });
+
   return (
     <div ref={root} className="space-y-3">
       {headerActions}
@@ -825,6 +843,8 @@ export default function Capture({
                 {labelCells}
               </div>
               {/* The test rows' switches, with their labels. */}
+              {/* The Order Qty row's swap, with its label. */}
+              {swapCells}
               <div role="group" aria-label="Tests counted" className="contents">
                 {switchCells}
               </div>
