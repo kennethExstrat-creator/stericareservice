@@ -1,10 +1,11 @@
 // Sampling Settings (Kenneth, 27 October 2026), drawn on the server with its
 // dialogs in place (a portal draws nothing on the server; the mock keeps
-// each part's classes): the level for the inspection and where it comes
-// from, Use Default, the rounding of Auto Calculate Sampling, read-only, and
-// ISO 2859-1 Tables 1 and 2-A over it. Taps are the browser's, checked by
-// the integrator; what Save hands the data updater is withSamplingSettings,
-// run here as the Capture runs it.
+// each part's classes): the general and the special level for the
+// inspection, where each comes from, Use Default, what each is for, the
+// rounding of Auto Calculate Sampling, read-only, and ISO 2859-1 Tables 1
+// and 2-A over it. Taps are the browser's, checked by the integrator; what
+// Save hands the data updater is withSamplingSettings, run here as the
+// Capture runs it.
 import type { ReactNode } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
@@ -39,7 +40,7 @@ const LEVEL_I: SamplingPlanConfig = { ...SAMPLING_PLAN_DEFAULT_CONFIG, inspectio
 type Setup = {
   config?: SamplingPlanConfig;
   /** Saved beside SAFEDON_EG's counts. */
-  settings?: Partial<Pick<SamplingPlanData, "inspectionLevel" | "roundCasesTo">>;
+  settings?: Partial<Pick<SamplingPlanData, "inspectionLevel" | "specialInspectionLevel" | "roundCasesTo">>;
   aqlDefaults?: Partial<AqlDefaults>;
   /** Watertight and visual in the template, so their AQLs are in use. */
   checks?: boolean;
@@ -70,7 +71,7 @@ function render({ config = LEVEL_I, settings = {}, aqlDefaults, checks = false, 
 }
 
 const GENERAL = 'aria-labelledby="[^"]*-level"';
-const SPECIAL = 'aria-label="Special Inspection Level"';
+const SPECIAL = 'aria-labelledby="[^"]*-special"';
 
 /** The toggle group whose opening tag matches `name`, with its buttons. */
 function group(html: string, name: string): string {
@@ -97,7 +98,7 @@ function table(html: string, slot: string): string {
 const tagWith = (html: string, attribute: string) => new RegExp(`<[^>]*${attribute}[^>]*>`).exec(html)?.[0] ?? "";
 
 describe("sampling_plan Sampling Settings (Kenneth, 27 October 2026)", () => {
-  it("offers I, II and III under General Inspection Level, and S-1 to S-4 under Special, the level in force on", () => {
+  it("offers I, II and III under General Inspection Level and S-1 to S-4 under Special Inspection Level, each level in force on", () => {
     const html = render();
     expect(html).toContain(">Sampling Settings</div>");
     expect(html).toMatch(/<h3 id="[^"]*-level"[^>]*>General Inspection Level<\/h3>/);
@@ -106,18 +107,22 @@ describe("sampling_plan Sampling Settings (Kenneth, 27 October 2026)", () => {
       ["II", false],
       ["III", false],
     ]);
-    expect(html).toMatch(/<p aria-hidden="true"[^>]*>Special<\/p>/);
+    // Kenneth: "for dimension and FAB, use Special Inspection Level S2": S-2 unless the template or the inspection sets one.
+    expect(html).toMatch(/<h3 id="[^"]*-special"[^>]*>Special Inspection Level<\/h3>/);
     expect(choices(html, SPECIAL)).toEqual([
       ["S-1", false],
-      ["S-2", false],
+      ["S-2", true],
       ["S-3", false],
       ["S-4", false],
     ]);
-    // 44 px on any touchscreen.
-    for (const button of group(html, GENERAL).match(/<button[^>]*>/g) ?? []) expect(button).toContain("touch:h-11");
+    // The general level first, each under its own heading; 44 px on any touchscreen.
+    expect(html.indexOf("General Inspection Level</h3>")).toBeLessThan(html.indexOf("Special Inspection Level</h3>"));
+    for (const name of [GENERAL, SPECIAL]) {
+      for (const button of group(html, name).match(/<button[^>]*>/g) ?? []) expect(button).toContain("touch:h-11");
+    }
   });
 
-  it("says where the level comes from: the template's, the client's, I by default, or the inspection's own with Use Default", () => {
+  it("says where the general level comes from: the template's, the client's, I by default, or the inspection's own with Use Default", () => {
     const fromTemplate = render();
     expect(textOf(fromTemplate, "level-source")).toBe("Template default: I.");
     expect(fromTemplate).not.toContain("Use Default");
@@ -135,31 +140,65 @@ describe("sampling_plan Sampling Settings (Kenneth, 27 October 2026)", () => {
     expect(textOf(none, "level-source")).toBe("Default: I.");
     expect(choices(none, GENERAL)[0]).toEqual(["I", true]);
 
-    const own = render({ settings: { inspectionLevel: "S-3" } });
+    const own = render({ settings: { inspectionLevel: "III" } });
     expect(textOf(own, "level-source")).toBe("Set for this inspection. Template default: I.");
+    expect(choices(own, GENERAL)).toEqual([
+      ["I", false],
+      ["II", false],
+      ["III", true],
+    ]);
+    // Use Default for the general level alone, named by its heading.
+    expect(own.match(/>Use Default<\/button>/g)).toHaveLength(1);
+    expect(own).toMatch(/<button[^>]*type="button"[^>]*aria-describedby="[^"]*-level"[^>]*>Use Default<\/button>/);
+  });
+
+  it("says where the special level comes from: the template's, S-2 by default, or the inspection's own with its Use Default", () => {
+    expect(textOf(render(), "special-level-source")).toBe("Default: S-2.");
+    const fromTemplate = render({ config: { ...LEVEL_I, specialInspectionLevel: "S-3" } });
+    expect(textOf(fromTemplate, "special-level-source")).toBe("Template default: S-3.");
+    expect(choices(fromTemplate, SPECIAL).find(([, on]) => on)).toEqual(["S-3", true]);
+    expect(fromTemplate).not.toContain("Use Default");
+
+    const own = render({ settings: { specialInspectionLevel: "S-4" } });
+    expect(textOf(own, "special-level-source")).toBe("Set for this inspection. Default: S-2.");
     expect(choices(own, SPECIAL)).toEqual([
       ["S-1", false],
       ["S-2", false],
-      ["S-3", true],
-      ["S-4", false],
+      ["S-3", false],
+      ["S-4", true],
     ]);
-    expect(choices(own, GENERAL).some(([, on]) => on)).toBe(false);
-    expect(own).toMatch(/<button[^>]*type="button"[^>]*>Use Default<\/button>/);
+    // The general level stays as it was: the template's I.
+    expect(textOf(own, "level-source")).toBe("Template default: I.");
+    expect(own.match(/>Use Default<\/button>/g)).toHaveLength(1);
+    expect(own).toMatch(/<button[^>]*type="button"[^>]*aria-describedby="[^"]*-special"[^>]*>Use Default<\/button>/);
   });
 
-  it("says, under the level, that Auto Calculate takes it for # of Gloves Sample; without a Case row there is no Auto Calculate", () => {
+  it("reads a special level saved as the one level, before the special level had its own, as no general level: the default is on", () => {
+    const html = render({ settings: { inspectionLevel: "S-3" } });
+    expect(textOf(html, "level-source")).toBe("Template default: I.");
+    expect(choices(html, GENERAL)[0]).toEqual(["I", true]);
+    expect(textOf(html, "special-level-source")).toBe("Default: S-2.");
+    expect(html).not.toContain("Use Default");
+  });
+
+  it("says in two lines under the levels what each is for, before the tables, with or without Auto Calculate", () => {
     const html = render();
-    const level = html.indexOf('data-slot="level-source"');
-    const note = html.indexOf("Auto Calculate uses this level for # of Gloves Sample.");
-    expect(note).toBeGreaterThan(level);
-    expect(note).toBeLessThan(html.indexOf("View Code Letter Table"));
+    const uses = /<div data-slot="level-uses"[^>]*>([\s\S]*?)<\/div>/.exec(html)?.[1] ?? "";
+    expect(Array.from(uses.matchAll(/<p>([^<]*)<\/p>/g), (match) => match[1].replaceAll("&amp;", "&"))).toEqual([
+      "General: # of Gloves Sample and its code letter.",
+      "Special: Dimension, FAB and Packaging & Dispensing.",
+    ]);
+    expect(html.indexOf('data-slot="level-uses"')).toBeGreaterThan(html.indexOf('data-slot="special-level-source"'));
+    expect(html.indexOf('data-slot="level-uses"')).toBeLessThan(html.indexOf("View Code Letter Table"));
+    // The one line it replaces is gone.
+    expect(html).not.toContain("Auto Calculate uses this level");
     const noCases = render({ config: { ...LEVEL_I, columns: { ...LEVEL_I.columns, cases: false } } });
     expect(noCases).toContain('aria-label="Sampling Settings"');
-    expect(noCases).not.toContain("Auto Calculate uses this level");
+    expect(noCases).toContain('data-slot="level-uses"');
     expect(noCases).not.toContain("Round Up Cases to the Nearest 5 or 10");
   });
 
-  it("writes the level and the rounding through the data updater on Save, Cancel leaving both", () => {
+  it("writes both levels and the rounding through the data updater on Save, Cancel leaving them", () => {
     const html = render();
     expect(html).toMatch(/<button[^>]*type="submit"[^>]*>Save<\/button>/);
     expect(html).toMatch(/<button[^>]*type="button"[^>]*>Cancel<\/button>/);
@@ -171,19 +210,20 @@ describe("sampling_plan Sampling Settings (Kenneth, 27 October 2026)", () => {
       changes.push(next);
       data = next;
     });
-    updater.update((current) => withSamplingSettings(current, { inspectionLevel: "II", roundCases: true }));
-    expect(data).toEqual({ ...counts, inspectionLevel: "II", roundCasesTo: 5 });
-    // Use Default, then Save: the inspection's own level goes, the rounding stays.
-    updater.update((current) => withSamplingSettings(current, { inspectionLevel: null, roundCases: true }));
+    updater.update((current) => withSamplingSettings(current, { inspectionLevel: "II", specialInspectionLevel: "S-3", roundCases: true }));
+    expect(data).toEqual({ ...counts, inspectionLevel: "II", specialInspectionLevel: "S-3", roundCasesTo: 5 });
+    // Use Default on both, then Save: the inspection's own levels go, the rounding stays.
+    updater.update((current) => withSamplingSettings(current, { inspectionLevel: null, specialInspectionLevel: null, roundCases: true }));
     expect(data).toEqual({ ...counts, roundCasesTo: 5 });
     expect(changes).toHaveLength(2);
     // The dialog opens on what was saved.
-    const reopened = render({ settings: { inspectionLevel: "II", roundCasesTo: 5 } });
+    const reopened = render({ settings: { inspectionLevel: "II", specialInspectionLevel: "S-3", roundCasesTo: 5 } });
     expect(choices(reopened, GENERAL)).toEqual([
       ["I", false],
       ["II", true],
       ["III", false],
     ]);
+    expect(choices(reopened, SPECIAL).find(([, on]) => on)).toEqual(["S-3", true]);
     expect(tagWith(reopened, 'id="[^"]*-round"')).toContain('aria-checked="true"');
   });
 
@@ -206,13 +246,16 @@ describe("sampling_plan Sampling Settings (Kenneth, 27 October 2026)", () => {
     expect(off).not.toContain("to the nearest 5 or 10.");
   });
 
-  it("shows a read-only inspection's level and rounding as saved, with nothing to change and only Close", () => {
+  it("shows a read-only inspection's levels and rounding as saved, with nothing to change and only Close", () => {
     const html = render({ readOnly: true, settings: { inspectionLevel: "II", roundCasesTo: 5 } });
     expect(html).toContain('aria-label="Sampling Settings"');
     expect(html).not.toContain('role="radiogroup"');
     expect(html).not.toMatch(/id="[^"]*-round"/);
     expect(textOf(html, "level-shown")).toBe("II");
     expect(textOf(html, "level-source")).toBe("Set for this inspection. Template default: I.");
+    expect(textOf(html, "special-level-shown")).toBe("S-2");
+    expect(textOf(html, "special-level-source")).toBe("Default: S-2.");
+    expect(textOf(render({ readOnly: true, settings: { specialInspectionLevel: "S-1" } }), "special-level-shown")).toBe("S-1");
     expect(textOf(html, "rounding-shown")).toBe("On");
     expect(html).not.toMatch(/>Save<\/button>/);
     expect(html).not.toContain("Use Default");
@@ -235,7 +278,7 @@ describe("sampling_plan Sampling Settings (Kenneth, 27 October 2026)", () => {
 describe("sampling_plan Sampling Settings' Code Letter Table (ISO 2859-1 Table 1)", () => {
   it("draws Table 1 from lib/aql, every row and level", () => {
     const html = table(render(), "code-letter-table");
-    const rows = Array.from(html.matchAll(/<tr(?: data-sizes="[^"]*")?(?: class="[^"]*")?><th scope="row"[^>]*>([^<]*)<\/th>([\s\S]*?)<\/tr>/g));
+    const rows = Array.from(html.matchAll(/<tr(?: data-[a-z-]+="[^"]*")*(?: class="[^"]*")?><th scope="row"[^>]*>([^<]*)<\/th>([\s\S]*?)<\/tr>/g));
     expect(rows).toHaveLength(TABLE_1.length);
     rows.forEach((row, index) => {
       expect(Array.from(row[2].matchAll(/<td[^>]*>([A-R])<\/td>/g), (match) => match[1])).toEqual(TABLE_1[index].slice(2));
@@ -244,31 +287,81 @@ describe("sampling_plan Sampling Settings' Code Letter Table (ISO 2859-1 Table 1
     expect(rows.at(-1)?.[1]).toBe("500,001 and over");
   });
 
-  it("highlights the level's column and names each size in the row of its lot, the level's letter filled there", () => {
+  /** The levels whose column a cell or header of the table marks in use, as `data-chosen` says. */
+  const inUse = (html: string, tag: "th" | "td") =>
+    Array.from(html.matchAll(new RegExp(`<${tag}[^>]*?(?:data-level="([^"]+)" )?data-chosen="(general|special)"`, "g")), (match) => [
+      match[1],
+      match[2],
+    ]);
+  /** A row of Table 1, from its lot sizes to its end. */
+  const rowOf = (html: string, lots: string) => new RegExp(`${lots}</th>((?:(?!</tr>)[\\s\\S])*)</tr>`).exec(html)?.[1] ?? "";
+
+  it("highlights both levels' columns, the general one's and the special one's (Kenneth, 27 October 2026)", () => {
     const html = table(render(), "code-letter-table");
-    expect(Array.from(html.matchAll(/<th scope="col" data-level="([^"]+)" data-chosen="true"/g), (match) => match[1])).toEqual(["I"]);
-    expect(html.match(/<td data-chosen="true"/g)).toHaveLength(TABLE_1.length);
-    expect(Array.from(html.matchAll(/<tr data-sizes="([^"]+)"/g), (match) => match[1])).toEqual(["XS L", "S M"]);
-    expect(html).toMatch(/35,001 to 150,000<\/th>(?:(?!<\/tr>)[\s\S])*<td data-chosen="true" class="[^"]*bg-primary[^"]*">L<\/td>(?:(?!<\/tr>)[\s\S])*>XS, L<\/td>/);
-    expect(html).toMatch(/500,001 and over<\/th>(?:(?!<\/tr>)[\s\S])*<td data-chosen="true" class="[^"]*bg-primary[^"]*">N<\/td>/);
-    // The level picked for the inspection moves the highlight: S-3 puts XS and L at G, S and M at H.
-    const own = table(render({ settings: { inspectionLevel: "S-3" } }), "code-letter-table");
-    expect(Array.from(own.matchAll(/data-level="([^"]+)" data-chosen="true"/g), (match) => match[1])).toEqual(["S-3"]);
-    expect(own).toMatch(/35,001 to 150,000<\/th>(?:(?!<\/tr>)[\s\S])*<td data-chosen="true" class="[^"]*bg-primary[^"]*">G<\/td>/);
+    expect(inUse(html, "th")).toEqual([
+      ["S-2", "special"],
+      ["I", "general"],
+    ]);
+    expect(html).toMatch(/data-level="S-2" data-chosen="special" class="[^"]*bg-secondary[^"]*">S-2<span class="sr-only"> \(Special Level in Use\)<\/span>/);
+    expect(html).toMatch(/data-level="I" data-chosen="general" class="[^"]*bg-secondary[^"]*">I<span class="sr-only"> \(General Level in Use\)<\/span>/);
+    // Every row's cell of each column in use is highlighted.
+    expect(html.match(/<td data-chosen="general"/g)).toHaveLength(TABLE_1.length);
+    expect(html.match(/<td data-chosen="special"/g)).toHaveLength(TABLE_1.length);
+    // The levels picked for the inspection move the highlights: II and S-4.
+    const own = table(render({ settings: { inspectionLevel: "II", specialInspectionLevel: "S-4" } }), "code-letter-table");
+    expect(inUse(own, "th")).toEqual([
+      ["S-4", "special"],
+      ["II", "general"],
+    ]);
   });
 
-  it("gives each size's lot, code letter and sample size at the level under the table", () => {
+  it("names each size in the row of its lot in gloves, both levels' letters filled there, and in the row of its lot in inner boxes", () => {
+    const html = table(render(), "code-letter-table");
+    // SAFEDON_EG: XS and L 120,000 gloves, S and M over 500,000; 16 plastic packs a case, so XS and L 960, M 8,960, S 13,600.
+    expect(Array.from(html.matchAll(/<tr data-sizes="([^"]+)"/g), (match) => match[1])).toEqual(["XS L", "S M"]);
+    expect(Array.from(html.matchAll(/data-inner-box-sizes="([^"]+)"/g), (match) => match[1])).toEqual(["XS L", "M", "S"]);
+    const gloves = rowOf(html, "35,001 to 150,000");
+    expect(gloves).toMatch(/<td data-chosen="special" class="[^"]*bg-primary[^"]*">E<\/td>/);
+    expect(gloves).toMatch(/<td data-chosen="general" class="[^"]*bg-primary[^"]*">L<\/td>/);
+    expect(gloves).toContain('<span class="block">XS, L</span>');
+    expect(rowOf(html, "500,001 and over")).toMatch(/<td data-chosen="general" class="[^"]*bg-primary[^"]*">N<\/td>/);
+    // A lot in inner boxes is read at the special level only: Packaging & Dispensing's.
+    const innerBoxes = rowOf(html, "501 to 1,200");
+    expect(innerBoxes).toMatch(/<td data-chosen="special" class="[^"]*bg-primary[^"]*">C<\/td>/);
+    expect(innerBoxes).toMatch(/<td data-chosen="general" class="[^"]*bg-accent[^"]*">G<\/td>/);
+    expect(innerBoxes).toContain(">XS, L (Inner Boxes)</span>");
+    expect(rowOf(html, "10,001 to 35,000")).toMatch(/<td data-chosen="special" class="[^"]*bg-primary[^"]*">D<\/td>/);
+    // A row no lot falls in keeps the columns' highlight, unfilled.
+    expect(rowOf(html, "2 to 8")).toMatch(/<td data-chosen="special" class="[^"]*bg-accent[^"]*">A<\/td>/);
+  });
+
+  it("lists each size under the table: its lot in gloves at the general level, the same at the special level, its lot in inner boxes at the special level", () => {
     const html = render();
-    expect(html).toContain(">Each Size at Level I</h3>");
-    const rows = Array.from(table(html, "size-code-letters").matchAll(/<tr data-size="([^"]+)">([\s\S]*?)<\/tr>/g), (match) =>
-      match[2].replace(/<[^>]+>/g, " ").trim().split(/\s+/),
-    );
-    expect(rows).toEqual([
-      ["XS", "120,000", "L", "200"],
-      ["S", "1,700,000", "N", "500"],
-      ["M", "1,120,000", "N", "500"],
-      ["L", "120,000", "L", "200"],
+    expect(html).toContain(">Each Size at Levels I and S-2</h3>");
+    const sizes = Array.from(table(html, "size-code-letters").matchAll(/<tbody data-size="([^"]+)">([\s\S]*?)<\/tbody>/g));
+    expect(sizes.map((match) => match[1])).toEqual(["XS", "S", "M", "L"]);
+    const lines = (body: string) =>
+      Array.from(body.matchAll(/<tr data-use="([^"]+)">([\s\S]*?)<\/tr>/g), ([, use, cells]) => [
+        use,
+        ...Array.from(cells.matchAll(/<td[^>]*>([\s\S]*?)<\/td>/g), (cell) =>
+          cell[1].replace(/<span class="sr-only">[^<]*<\/span>/g, "").replace(/<[^>]+>/g, "").replaceAll("&amp;", "&").trim(),
+        ),
+      ]);
+    expect(lines(sizes[0][2])).toEqual([
+      ["gloves", "# of Gloves Sample", "120,000 gloves", "I", "L", "200"],
+      ["gloves-tests", "Dimension, FAB", "120,000 gloves", "S-2", "E", "13"],
+      ["inner-box-tests", "Packaging & Dispensing", "960 inner boxes", "S-2", "C", "5"],
     ]);
+    expect(lines(sizes[1][2])).toEqual([
+      ["gloves", "# of Gloves Sample", "1,700,000 gloves", "I", "N", "500"],
+      ["gloves-tests", "Dimension, FAB", "1,700,000 gloves", "S-2", "E", "13"],
+      ["inner-box-tests", "Packaging & Dispensing", "13,600 inner boxes", "S-2", "D", "8"],
+    ]);
+    // The size heads its three lines.
+    expect(sizes[2][2]).toMatch(/<th scope="rowgroup" rowSpan="3"[^>]*>M<\/th>/);
+    // At the levels picked for the inspection.
+    const own = render({ settings: { inspectionLevel: "II", specialInspectionLevel: "S-4" } });
+    expect(own).toContain(">Each Size at Levels II and S-4</h3>");
   });
 
   it("scrolls inside its dialog (an iPad in portrait), with a 44 px way back to Settings", () => {

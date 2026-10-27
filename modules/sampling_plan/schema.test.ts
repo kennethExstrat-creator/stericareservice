@@ -33,9 +33,12 @@ import {
   codeLetterReason,
   emptySamplingPlan,
   emptySamplingSize,
+  generalLevel,
   samplingSettings,
   SamplingPlanDataSchema,
+  SPECIAL_ROWS,
   watertightVisualFollows,
+  withAutoSampling,
   withCodeLetterStep,
   withCount,
   withRowOff,
@@ -128,61 +131,107 @@ describe("sampling_plan data", () => {
 });
 
 describe("sampling_plan Sampling Settings (Kenneth, 27 October 2026)", () => {
-  it("reads data saved before the settings as the default level and no rounding", () => {
+  /** No level of the inspection's own and no rounding: what data saved before the settings reads as. */
+  const DEFAULTS = { inspectionLevel: null, specialInspectionLevel: null, roundCases: false } as const;
+
+  it("reads data saved before the settings as the default levels and no rounding", () => {
     const saved = SamplingPlanDataSchema.parse({ sizes: { M: FILLED_M }, rowsOff: ["glovesDimensions"] });
     expect(saved).not.toHaveProperty("inspectionLevel");
+    expect(saved).not.toHaveProperty("specialInspectionLevel");
     expect(saved).not.toHaveProperty("roundCasesTo");
-    expect(samplingSettings(saved)).toEqual({ inspectionLevel: null, roundCases: false });
+    expect(samplingSettings(saved)).toEqual(DEFAULTS);
     expect(emptySamplingPlan()).toEqual({ sizes: {} });
   });
 
-  it("keeps an ISO 2859-1 level and the rounding, for the whole inspection, nothing else", () => {
-    expect(SamplingPlanDataSchema.parse({ sizes: {}, inspectionLevel: "S-3", roundCasesTo: 5 })).toEqual({
+  it("keeps a general level, a special level and the rounding, for the whole inspection, nothing else", () => {
+    expect(SamplingPlanDataSchema.parse({ sizes: {}, inspectionLevel: "II", specialInspectionLevel: "S-3", roundCasesTo: 5 })).toEqual({
       sizes: {},
-      inspectionLevel: "S-3",
+      inspectionLevel: "II",
+      specialInspectionLevel: "S-3",
       roundCasesTo: 5,
     });
     for (const bad of ["IV", "ii", "", null, 2]) {
       expect(SamplingPlanDataSchema.safeParse({ sizes: {}, inspectionLevel: bad }).success, String(bad)).toBe(false);
     }
+    // The special level takes S-1 to S-4 only.
+    for (const bad of ["I", "III", "S-5", "S2", "", null]) {
+      expect(SamplingPlanDataSchema.safeParse({ sizes: {}, specialInspectionLevel: bad }).success, String(bad)).toBe(false);
+    }
     for (const bad of [0, 1, 2, 20, "5", null]) {
       expect(SamplingPlanDataSchema.safeParse({ sizes: {}, roundCasesTo: bad }).success, String(bad)).toBe(false);
     }
     expect(SamplingPlanDataSchema.safeParse({ sizes: { M: { inspectionLevel: "II" } } }).success).toBe(false);
+    expect(SamplingPlanDataSchema.safeParse({ sizes: { M: { specialInspectionLevel: "S-2" } } }).success).toBe(false);
+  });
+
+  it("still loads a special level saved as the one level, before the special level had its own, and reads it as no general level", () => {
+    // Saved while Sampling Settings had one level for everything (27 October 2026): kept as saved, read as the default.
+    const saved = SamplingPlanDataSchema.parse({ sizes: { M: FILLED_M }, inspectionLevel: "S-3" });
+    expect(saved.inspectionLevel).toBe("S-3");
+    expect(samplingSettings(saved)).toEqual(DEFAULTS);
+    expect(generalLevel("S-3")).toBeNull();
+    expect(generalLevel("II")).toBe("II");
+    expect(generalLevel(null)).toBeNull();
+    expect(generalLevel(undefined)).toBeNull();
+    // Saved again as it is, nothing changes; any change of the settings takes it away.
+    expect(withSamplingSettings(saved, DEFAULTS)).toBe(saved);
+    expect(withSamplingSettings(saved, { ...DEFAULTS, specialInspectionLevel: "S-3" })).toEqual({
+      sizes: saved.sizes,
+      specialInspectionLevel: "S-3",
+    });
   });
 
   it("saves the settings beside the counts, the rounding switched on as 5, and takes them back out; the same data when nothing changes", () => {
     const data = withCount(emptySamplingPlan(), "M", "cases", 50);
-    const set = withSamplingSettings(data, { inspectionLevel: "II", roundCases: true });
-    expect(set).toEqual({ sizes: data.sizes, inspectionLevel: "II", roundCasesTo: 5 });
+    const set = withSamplingSettings(data, { inspectionLevel: "II", specialInspectionLevel: "S-3", roundCases: true });
+    expect(set).toEqual({ sizes: data.sizes, inspectionLevel: "II", specialInspectionLevel: "S-3", roundCasesTo: 5 });
     expect(SamplingPlanDataSchema.parse(set)).toEqual(set);
-    expect(withSamplingSettings(set, { inspectionLevel: "II", roundCases: true })).toBe(set);
-    // Use Default, and the rounding switched off: back to the data without them.
-    const cleared = withSamplingSettings(set, { inspectionLevel: null, roundCases: false });
+    expect(withSamplingSettings(set, { inspectionLevel: "II", specialInspectionLevel: "S-3", roundCases: true })).toBe(set);
+    // Use Default on each, and the rounding switched off: back to the data without them.
+    const cleared = withSamplingSettings(set, DEFAULTS);
     expect(cleared).toEqual(data);
     expect(cleared).not.toHaveProperty("inspectionLevel");
-    expect(withSamplingSettings(set, { inspectionLevel: "S-1", roundCases: true })).toEqual({ ...set, inspectionLevel: "S-1" });
+    expect(cleared).not.toHaveProperty("specialInspectionLevel");
+    // One level at a time: Use Default on the special one keeps the general one.
+    expect(withSamplingSettings(set, { inspectionLevel: "II", specialInspectionLevel: null, roundCases: true })).toEqual({
+      sizes: data.sizes,
+      inspectionLevel: "II",
+      roundCasesTo: 5,
+    });
+    expect(withSamplingSettings(set, { inspectionLevel: "III", specialInspectionLevel: "S-1", roundCases: true })).toEqual({
+      ...set,
+      inspectionLevel: "III",
+      specialInspectionLevel: "S-1",
+    });
   });
 
   it("reads a rounding to 10 saved before the one switch (Kenneth, 27 October 2026: \"not either 5 or 10\") as switched on", () => {
     const saved = SamplingPlanDataSchema.parse({ sizes: {}, roundCasesTo: 10 });
     expect(saved.roundCasesTo).toBe(10);
-    expect(samplingSettings(saved)).toEqual({ inspectionLevel: null, roundCases: true });
+    expect(samplingSettings(saved)).toEqual({ ...DEFAULTS, roundCases: true });
     // Left on, nothing changes; switched off, it goes; saved again on, it is 5.
-    expect(withSamplingSettings(saved, { inspectionLevel: null, roundCases: true })).toBe(saved);
-    expect(withSamplingSettings(saved, { inspectionLevel: null, roundCases: false })).toEqual({ sizes: {} });
-    expect(withSamplingSettings(saved, { inspectionLevel: "II", roundCases: true })).toEqual({ sizes: {}, inspectionLevel: "II", roundCasesTo: 5 });
+    expect(withSamplingSettings(saved, { ...DEFAULTS, roundCases: true })).toBe(saved);
+    expect(withSamplingSettings(saved, DEFAULTS)).toEqual({ sizes: {} });
+    expect(withSamplingSettings(saved, { ...DEFAULTS, inspectionLevel: "II", roundCases: true })).toEqual({
+      sizes: {},
+      inspectionLevel: "II",
+      roundCasesTo: 5,
+    });
   });
 
-  it("tells Steri-AI to take the level only from a document that states it, never to work it out, and never the rounding", () => {
+  it("tells Steri-AI to take either level only from a document that states it, never to work it out, and never the rounding", () => {
     const schema = z.toJSONSchema(SamplingPlanDataSchema, { io: "input" }) as {
       properties: Record<string, { description?: string }>;
       required?: string[];
     };
     expect(schema.properties.inspectionLevel.description).toContain('"General Inspection Level II"');
     expect(schema.properties.inspectionLevel.description).toContain("never work it out from code letters");
+    expect(schema.properties.inspectionLevel.description).toContain("A special level goes in specialInspectionLevel.");
+    expect(schema.properties.specialInspectionLevel.description).toContain('"Special Inspection Level S-3"');
+    expect(schema.properties.specialInspectionLevel.description).toContain("never work it out from code letters");
     expect(schema.properties.roundCasesTo.description).toContain("Never set from a document");
     expect(schema.required ?? []).not.toContain("inspectionLevel");
+    expect(schema.required ?? []).not.toContain("specialInspectionLevel");
   });
 
   it("takes a level a document states only where the inspection has none, as every reading fills (applyProposals)", () => {
@@ -430,6 +479,44 @@ describe("autoSamplingReplaces: Auto Calculate Sampling asks before replacing wh
     expect(autoSamplingReplaces(typedTotal, ["S", "M"], auto({ perCase: 1 }), SAMPLING_PLAN_DEFAULT_CONFIG)).toBe(true);
     expect(autoSamplingReplaces(typedTotal, ["S", "M"], auto(), SAMPLING_PLAN_DEFAULT_CONFIG)).toBe(false);
   });
+
+  it("counts a Dimension, FAB or Packaging & Dispensing count it would fill at the special level otherwise (Kenneth, 27 October 2026)", () => {
+    // S-2: 13 gloves for Dimension and FAB, 8 inner boxes for Packaging & Dispensing.
+    const tests = { glovesDimensions: { S: 13, M: 13 }, glovesPhysical: { S: 13, M: 13 }, innerUnitsDispensing: { S: 8, M: 8 } };
+    const filled = lettered({
+      S: { glovesDimensions: 13, glovesPhysical: 13, innerUnitsDispensing: 8 },
+      M: { glovesDimensions: 13, glovesPhysical: 13, innerUnitsDispensing: 8 },
+    });
+    expect(autoSamplingReplaces(filled, ["S", "M"], auto({ tests }), SAMPLING_PLAN_DEFAULT_CONFIG)).toBe(false);
+    // Empty rows are filled without asking.
+    expect(autoSamplingReplaces(lettered(), ["S", "M"], auto({ tests }), SAMPLING_PLAN_DEFAULT_CONFIG)).toBe(false);
+    for (const column of SPECIAL_ROWS) {
+      const typed = lettered({ M: { [column]: 20 } });
+      expect(autoSamplingReplaces(typed, ["S", "M"], auto({ tests }), SAMPLING_PLAN_DEFAULT_CONFIG), column).toBe(true);
+      // A row it does not fill (switched off, not shown, or its lot not known) asks nothing.
+      const without = { ...tests, [column]: { S: tests[column].S } };
+      expect(autoSamplingReplaces(typed, ["S", "M"], auto({ tests: without }), SAMPLING_PLAN_DEFAULT_CONFIG), column).toBe(false);
+    }
+  });
+});
+
+describe("withAutoSampling: the tests at the special level (Kenneth, 27 October 2026)", () => {
+  const auto = (tests: AutoSampling["tests"]): AutoSampling => ({ cases: { S: 25, M: 20 }, gloves: {}, letters: {}, perCase: null, tests });
+
+  it("writes each size's Dimension, FAB and Packaging & Dispensing count it worked out, over one typed", () => {
+    const typed = withCount(emptySamplingPlan(), "M", "innerUnitsDispensing", 20);
+    const next = withAutoSampling(typed, ["S", "M"], auto({ glovesDimensions: { S: 13, M: 13 }, glovesPhysical: { S: 13 }, innerUnitsDispensing: { S: 5, M: 8 } }));
+    expect(next.sizes.S).toMatchObject({ cases: 25, glovesDimensions: 13, glovesPhysical: 13, innerUnitsDispensing: 5 });
+    // M's FAB was not worked out (its lot is not known): it keeps its own, empty here.
+    expect(next.sizes.M).toMatchObject({ cases: 20, glovesDimensions: 13, glovesPhysical: null, innerUnitsDispensing: 8 });
+  });
+
+  it("leaves every test count as it is without them, and never touches the general level's gloves or letter with them", () => {
+    const typed = withCount(withCount(emptySamplingPlan(), "S", "glovesDimensions", 20), "S", "gloves", 315);
+    const next = withAutoSampling(typed, ["S"], auto(undefined));
+    expect(next.sizes.S).toMatchObject({ cases: 25, gloves: 315, glovesDimensions: 20, codeLetter: null });
+    expect(withAutoSampling(typed, ["S"], auto({ glovesDimensions: { S: 13 } })).sizes.S).toMatchObject({ gloves: 315, glovesDimensions: 13 });
+  });
 });
 
 describe("sampling_plan config", () => {
@@ -439,7 +526,7 @@ describe("sampling_plan config", () => {
     expect({ ...SAMPLING_PLAN_LABELS }).toEqual(defaultLabels("sampling_plan"));
   });
 
-  it("shows the examination columns with no inspection level by default", () => {
+  it("shows the examination columns with no inspection level of either kind by default", () => {
     expect(SamplingPlanConfigSchema.parse(SAMPLING_PLAN_DEFAULT_CONFIG)).toEqual({
       columns: {
         cases: true,
@@ -454,7 +541,25 @@ describe("sampling_plan config", () => {
         pouchesDyeLeak: false,
       },
       inspectionLevel: null,
+      specialInspectionLevel: null,
     });
+  });
+
+  it("reads a template version saved before the special level (27 October 2026) as without one, so S-2; takes S-1 to S-4 only", () => {
+    const { specialInspectionLevel, ...before } = SAMPLING_PLAN_DEFAULT_CONFIG;
+    expect(specialInspectionLevel).toBeNull();
+    expect(SamplingPlanConfigSchema.parse({ ...before, inspectionLevel: "I" })).toEqual({
+      ...SAMPLING_PLAN_DEFAULT_CONFIG,
+      inspectionLevel: "I",
+    });
+    for (const level of ["S-1", "S-2", "S-3", "S-4", null]) {
+      expect(SamplingPlanConfigSchema.safeParse({ ...SAMPLING_PLAN_DEFAULT_CONFIG, specialInspectionLevel: level }).success, String(level)).toBe(
+        true,
+      );
+    }
+    for (const level of ["I", "II", "III", "S-5", ""]) {
+      expect(SamplingPlanConfigSchema.safeParse({ ...SAMPLING_PLAN_DEFAULT_CONFIG, specialInspectionLevel: level }).success, level).toBe(false);
+    }
   });
 
   it("accepts # Gloves for Weight as each template stores it (STD_EG on), and never shows it (Kenneth, 26 October 2026)", () => {
@@ -515,7 +620,9 @@ describe("sampling_plan config", () => {
   it("becomes JSON Schema with descriptions, for the template editor's form", () => {
     const schema = z.toJSONSchema(SamplingPlanConfigSchema) as { properties: Record<string, { description?: string }> };
     expect(schema.properties.columns.description).toContain("Columns shown");
-    expect(schema.properties.inspectionLevel.description).toContain("ISO 2859-1 inspection level");
+    expect(schema.properties.inspectionLevel.description).toContain("ISO 2859-1 general inspection level");
+    expect(schema.properties.specialInspectionLevel.description).toContain("ISO 2859-1 special inspection level");
+    expect(schema.properties.specialInspectionLevel.description).toContain("None: S-2.");
   });
 
   it("groups the columns as the forms print them: EG's Sampling Quantity, SG's with the watertight and visual gloves", () => {

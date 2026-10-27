@@ -2,9 +2,10 @@
 // "give a button to view code letter sampling table", "but also table II A
 // simple sampling plan for normal inspection too"): Table 1 and Table 2-A as
 // lib/aql holds them, never typed out again. Table 1's rows carry the ordered
-// sizes whose lot falls in them; Table 2-A's the sizes whose lot takes their
-// code letter at a level, with the AQL columns the inspection applies and
-// the plans its arrows lead to.
+// sizes whose lot falls in them, in gloves and, for Packaging & Dispensing at
+// the special level, in inner boxes (Kenneth, 27 October 2026); Table 2-A's
+// the sizes whose lot takes their code letter at a level, with the AQL
+// columns the inspection applies and the plans its arrows lead to.
 import {
   CODE_LETTERS,
   formatCount,
@@ -22,8 +23,12 @@ import {
   type TablePlan,
 } from "@/lib/aql";
 import { AQL_CHECKS, type AqlCheck, type AqlSettings } from "@/modules/_framework";
+import { letterSample } from "./letter-steps";
 
-/** An ordered size and its lot in gloves; null until the order quantity and the gloves per case are known. */
+/**
+ * An ordered size and its lot: in gloves (the order quantity × the gloves per
+ * case), or in inner boxes (× the inner boxes per case); null until known.
+ */
 export type SizeLot = { size: string; lot: number | null };
 
 /** One row of Table 1. */
@@ -33,12 +38,19 @@ export type CodeLetterRow = {
   to: number;
   /** The code letter at each level. */
   letters: Readonly<Record<InspectionLevel, CodeLetter>>;
-  /** The ordered sizes whose lot falls in the row, in order. */
+  /** The ordered sizes whose lot in gloves falls in the row, in order. */
   sizes: string[];
+  /** The ordered sizes whose lot in inner boxes falls in the row, in order: Packaging & Dispensing's, at the special level. */
+  innerBoxSizes: string[];
 };
 
-/** Table 1, row by row, with the sizes whose lot falls in each. A size whose lot is not known falls in none. */
-export function codeLetterRows(lots: readonly SizeLot[]): CodeLetterRow[] {
+/**
+ * Table 1, row by row, with the sizes whose lot falls in each, in gloves and
+ * in inner boxes. A size whose lot is not known falls in none.
+ */
+export function codeLetterRows(lots: readonly SizeLot[], innerBoxLots: readonly SizeLot[] = []): CodeLetterRow[] {
+  const within = (from: number, to: number, entries: readonly SizeLot[]) =>
+    entries.filter(({ lot }) => lot !== null && lot >= from && lot <= to).map(({ size }) => size);
   return TABLE_1.map(([from, to, ...letters]) => ({
     from,
     to,
@@ -46,7 +58,8 @@ export function codeLetterRows(lots: readonly SizeLot[]): CodeLetterRow[] {
       InspectionLevel,
       CodeLetter
     >,
-    sizes: lots.filter(({ lot }) => lot !== null && lot >= from && lot <= to).map(({ size }) => size),
+    sizes: within(from, to, lots),
+    innerBoxSizes: within(from, to, innerBoxLots),
   }));
 }
 
@@ -61,6 +74,26 @@ export function sizeCodeLetters(lots: readonly SizeLot[], level: InspectionLevel
       ? { size, lot, codeLetter: plan.plan.codeLetter, sampleSize: plan.plan.n }
       : { size, lot, codeLetter: null, sampleSize: null };
   });
+}
+
+/** Each size's sample at a level, for the sizes whose lot is known, and the others in order. */
+export type LevelSamples = { counts: Record<string, number>; unknownLot: string[] };
+
+/**
+ * Each size's sample at the level, what Auto Calculate Sampling fills for
+ * the tests at the special level (auto-special.ts): the sample size of its
+ * lot's code letter, never more than the lot (letterSample, docs/AQL.md rule
+ * 8). A size whose lot is not known, or holds no Table 1 lot (fewer than 2),
+ * has none.
+ */
+export function samplesAtLevel(lots: readonly SizeLot[], level: InspectionLevel): LevelSamples {
+  const counts: Record<string, number> = {};
+  const unknownLot: string[] = [];
+  for (const { size, lot, codeLetter } of sizeCodeLetters(lots, level)) {
+    if (lot === null || codeLetter === null) unknownLot.push(size);
+    else counts[size] = letterSample(codeLetter, lot);
+  }
+  return { counts, unknownLot };
 }
 
 /** "2 to 8", "500,001 and over": a row's lot sizes as ISO 2859-1 words them. */

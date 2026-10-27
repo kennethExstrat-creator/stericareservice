@@ -66,6 +66,7 @@ describe("countGroups (Kenneth, 26 October 2026: design B)", () => {
   it("leaves labels not worded '# … for …' as they are, after a plain divider (the SG form)", () => {
     const config: SamplingPlanConfig = {
       inspectionLevel: null,
+      specialInspectionLevel: null,
       columns: { ...SAMPLING_PLAN_DEFAULT_CONFIG.columns, gloves: false, innerUnitsDispensing: false, pouches: true, pouchesDyeLeak: true },
     };
     const sg = {

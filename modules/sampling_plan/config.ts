@@ -1,8 +1,10 @@
 // Defaults a template can override: the heading, the column labels (STD_EG's
 // wording; the Sampling Quantity's rows are the module's own, labels.ts) and
-// the config (BUILD_SPEC 6.1: columns on/off, inspection level).
+// the config (BUILD_SPEC 6.1: columns on/off, inspection level; since 27
+// October 2026 a special inspection level too, for Dimension, FAB and
+// Packaging & Dispensing).
 import { z } from "zod";
-import { InspectionLevelSchema } from "@/lib/aql";
+import { InspectionLevelSchema, SpecialInspectionLevelSchema } from "@/lib/aql";
 import type { SamplingValues } from "@/modules/_framework";
 
 export const SAMPLING_PLAN_TITLE = "Sampling Plan";
@@ -81,6 +83,7 @@ export const SAMPLING_PLAN_LABELS = {
   // Captions of the capture screen that the reports do not print.
   gloveSize: "Glove Size",
   inspectionLevel: "Inspection Level",
+  specialInspectionLevel: "Special Inspection Level",
   lotSizeGloves: "Lot Size (Gloves)",
 } as const satisfies Readonly<Record<string, string>>;
 
@@ -104,9 +107,16 @@ export const SamplingPlanConfigSchema = z.strictObject({
       pouchesDyeLeak: z.boolean(),
     })
     .describe("Columns shown on this template. The surgical pouch columns are off by default; # Gloves for Weight is never shown."),
+  // A special level here (S-1 to S-4) is no general level: the client's, else I, stands in (calc's generalLevel).
   inspectionLevel: InspectionLevelSchema.nullable().describe(
-    "ISO 2859-1 inspection level each inspection starts with; Sampling Settings on the capture screen can set another for one inspection. The plan for each size's lot (cases ordered x gloves per case) is worked out at it. None: the client's level, else I.",
+    "ISO 2859-1 general inspection level (I, II or III) each inspection starts with, for # of Gloves Sample and its code letter; Sampling Settings on the capture screen can set another for one inspection. The plan for each size's lot (cases ordered x gloves per case) is worked out at it. None: the client's level, else I.",
   ),
+  // Added 27 October 2026: a template version saved before it reads it as none, so S-2.
+  specialInspectionLevel: SpecialInspectionLevelSchema.nullable()
+    .default(null)
+    .describe(
+      "ISO 2859-1 special inspection level (S-1 to S-4) each inspection starts with, for Dimension, FAB and Packaging & Dispensing: Auto Calculate Sampling fills their counts at it. Sampling Settings on the capture screen can set another for one inspection. None: S-2.",
+    ),
 });
 export type SamplingPlanConfig = z.infer<typeof SamplingPlanConfigSchema>;
 
@@ -124,6 +134,7 @@ export const SAMPLING_PLAN_DEFAULT_CONFIG: SamplingPlanConfig = {
     pouchesDyeLeak: false,
   },
   inspectionLevel: null,
+  specialInspectionLevel: null,
 };
 
 /**

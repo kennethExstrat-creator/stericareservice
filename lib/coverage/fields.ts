@@ -18,12 +18,13 @@ import {
 import {
   CODE_LETTERS,
   DOCUMENT_ITEMS,
+  GENERAL_INSPECTION_LEVELS,
   GLOVE_INFO_FIELDS,
   HEADER_FIELDS,
-  INSPECTION_LEVELS,
   LOADING_FIELDS,
   MEASURES,
   SAMPLING_COLUMNS,
+  SPECIAL_INSPECTION_LEVELS,
 } from "./keys";
 import type { DataFieldSpec, Entry, LabelSpec, ModuleSpec, RuleNumber, TemplateCode } from "./types";
 
@@ -474,7 +475,7 @@ const samplingPlan = defineModule({
       entry: "entered",
       rules: [1],
       notes:
-        "Auto Calculate Sampling fills it: the sample size of the code letter of the size's lot (lotSizeGloves) at the inspection level in force, I when none is set; every glove when that sample is not smaller than the lot (Kenneth, 27 October 2026). Reduce and Raise on codeLetter work it out again for the new letter, the same way. The capture shows the sum it comes to beside it: (innerUnits × glovesPerInnerBox) − putBack, (15 × 34) − 10 for 500.",
+        "Auto Calculate Sampling fills it: the sample size of the code letter of the size's lot (lotSizeGloves) at the general inspection level in force (inspectionLevel), I when none is set; every glove when that sample is not smaller than the lot (Kenneth, 27 October 2026). Reduce and Raise on codeLetter work it out again for the new letter, the same way. The capture shows the sum it comes to beside it: (innerUnits × glovesPerInnerBox) − putBack, (15 × 34) − 10 for 500.",
     },
     {
       key: "codeLetter",
@@ -485,7 +486,7 @@ const samplingPlan = defineModule({
       entry: "entered",
       rules: [8],
       notes:
-        "The ISO 2859-1 sample size code letter gloves is taken from (Kenneth, 27 October 2026). Auto Calculate Sampling writes the lot's (Table 1 from order_lots.lotSizeGloves at the inspection level in force), never typed; the inspector may lower it one letter at a time for a factory whose performance is consistent (Reduce, with codeLetterReason) and raise it back as far as the lot's letter (Raise), and gloves becomes the new letter's Table 2-A sample size, never more than the lot. A gloves typed otherwise is the warning code_letter_mismatch on it. Optional: an inspection saved before has none. Steri-AI fills it only from a document that states it. The computed values keep the lot's letter (computed codeLetter) and whether this one is below it (codeLetterReduced, reducedFrom); a complete size's summary ends Code Letter: M (reduced from N).",
+        "The ISO 2859-1 sample size code letter gloves is taken from (Kenneth, 27 October 2026). Auto Calculate Sampling writes the lot's (Table 1 from order_lots.lotSizeGloves at the general inspection level in force, inspectionLevel; never the special level), never typed; the inspector may lower it one letter at a time for a factory whose performance is consistent (Reduce, with codeLetterReason) and raise it back as far as the lot's letter (Raise), and gloves becomes the new letter's Table 2-A sample size, never more than the lot. A gloves typed otherwise is the warning code_letter_mismatch on it. Optional: an inspection saved before has none. Steri-AI fills it only from a document that states it. The computed values keep the lot's letter (computed codeLetter) and whether this one is below it (codeLetterReduced, reducedFrom); a complete size's summary ends Code Letter: M (reduced from N).",
     },
     {
       key: "codeLetterReason",
@@ -517,7 +518,8 @@ const samplingPlan = defineModule({
       per: ["size"],
       entry: "entered",
       rules: [1],
-      notes: "Flows forward as the dimension rows.",
+      notes:
+        'Flows forward as the dimension rows. Auto Calculate Sampling fills it, where the template shows it and it is switched on: the sample size of the code letter of the size\'s lot (lotSizeGloves) at the special inspection level in force (specialInspectionLevel), S-2 when none is set, never more than the lot; a lot over 35,000 gloves at S-2 is code E, 13 (Kenneth, 27 October 2026: "for dimension and FAB, use Special Inspection Level S2").',
     },
     {
       key: "glovesPhysical",
@@ -528,7 +530,8 @@ const samplingPlan = defineModule({
       per: ["size"],
       entry: "entered",
       rules: [1],
-      notes: "Gloves for the physical test: force at break (EN 455) or tensile (ASTM D6319).",
+      notes:
+        "Gloves for the physical test: force at break (EN 455) or tensile (ASTM D6319). Auto Calculate Sampling fills it as glovesDimensions, at the special inspection level in force (Kenneth, 27 October 2026).",
     },
     {
       key: "glovesWeight",
@@ -550,7 +553,8 @@ const samplingPlan = defineModule({
       per: ["size"],
       entry: "entered",
       rules: [1],
-      notes: "Printed 'packaing' [sic]. Flows forward as the box rows of dispensing_packing or dispensing_safedon.",
+      notes:
+        'Printed \'packaing\' [sic]. Flows forward as the box rows of dispensing_packing or dispensing_safedon. Auto Calculate Sampling fills it, where the template shows it and it is switched on: the sample size of the code letter of the size\'s lot in inner units (order_lots.qtyCases × packing_config.innersPerCase) at the special inspection level in force (specialInspectionLevel), S-2 when none is set, never more than the lot; 1,180 cases of 10 is 11,800, code D, 8 (Kenneth, 27 October 2026: "for packaging and inspection, number of inner box sampled is also Level S2, based on total innerbox of that size"). Without innersPerCase it is left, and the notice says so.',
     },
     {
       key: "pouches",
@@ -576,14 +580,27 @@ const samplingPlan = defineModule({
       key: "inspectionLevel",
       label: "Inspection Level",
       type: "select",
-      options: INSPECTION_LEVELS,
+      options: GENERAL_INSPECTION_LEVELS,
       per: [],
       entry: "computed",
       formula:
-        "The inspection's own (data inspectionLevel, set in Sampling Settings), else config inspectionLevel, else the client's, else I. The level the plans are worked out at.",
+        "The general level: the inspection's own (data inspectionLevel, set in Sampling Settings), else config inspectionLevel, else the client's, else I. A special level in any of them is none, so the next stands in: data saved while Sampling Settings had one level for everything may hold one. The level the plans, gloves and codeLetter are worked out at.",
       rules: [2, 8],
       notes:
-        "Sampling Settings, beside Auto Calculate Sampling (Kenneth, 27 October 2026), sets it for one inspection; Use Default takes the inspection's own away. No count changes with it.",
+        "Sampling Settings, beside Auto Calculate Sampling (Kenneth, 27 October 2026), sets it for one inspection, as General Inspection Level (I, II, III); Use Default takes the inspection's own away. No count changes with it.",
+    },
+    {
+      key: "specialInspectionLevel",
+      label: "Special Inspection Level",
+      type: "select",
+      options: SPECIAL_INSPECTION_LEVELS,
+      per: [],
+      entry: "computed",
+      formula:
+        "The special level: the inspection's own (data specialInspectionLevel, set in Sampling Settings), else config specialInspectionLevel, else S-2. The level Auto Calculate Sampling fills glovesDimensions, glovesPhysical and innerUnitsDispensing at.",
+      rules: [2],
+      notes:
+        'Kenneth, 27 October 2026: "for dimension and FAB, use Special Inspection Level S2, based on total lot size of each size, so both general inspection and special inspection is in use". Sampling Settings sets it for one inspection, as Special Inspection Level (S-1 to S-4); Use Default takes the inspection\'s own away. Nothing is checked at it, and no count changes with it until Auto Calculate Sampling runs.',
     },
     {
       key: "lotSizeGloves",
@@ -653,7 +670,14 @@ const samplingPlan = defineModule({
       type: '"S-1" | "S-2" | "S-3" | "S-4" | "I" | "II" | "III" | null',
       default: null,
       meaning:
-        "ISO 2859-1 level each inspection starts with: the plan per size is worked out from the lot size at it, unless the inspection sets its own in Sampling Settings (data inspectionLevel). null: the client's level, else I.",
+        "ISO 2859-1 general level each inspection starts with: the plan, gloves and codeLetter per size are worked out from the lot size at it, unless the inspection sets its own in Sampling Settings (data inspectionLevel). null: the client's level, else I. A special level here is no general level: the client's, else I, stands in.",
+    },
+    {
+      key: "specialInspectionLevel",
+      type: '"S-1" | "S-2" | "S-3" | "S-4" | null',
+      default: null,
+      meaning:
+        "ISO 2859-1 special level each inspection starts with, for Dimension, FAB and Packaging & Dispensing: Auto Calculate Sampling fills glovesDimensions, glovesPhysical and innerUnitsDispensing at it, unless the inspection sets its own in Sampling Settings (data specialInspectionLevel). null: S-2. A template version saved before 27 October 2026 has none, and a seed leaves it out, so S-2.",
     },
   ],
   labels: [

@@ -8,10 +8,12 @@ import {
   AqlSchema,
   CodeLetterSchema,
   DecisionSchema,
+  GeneralInspectionLevelSchema,
   InspectionLevelSchema,
   LotSizePlanShape,
   SampleSizePlanShape,
   singleSamplingCheck,
+  SpecialInspectionLevelSchema,
   StandardSampleSizeSchema,
 } from "./schema";
 import { TABLE_2A_AQLS } from "./tables";
@@ -40,6 +42,13 @@ describe("InspectionLevelSchema", () => {
   it("accepts the seven levels of Table 1 only", () => {
     for (const level of ["S-1", "S-2", "S-3", "S-4", "I", "II", "III"]) expect(accepts(InspectionLevelSchema, level)).toBe(true);
     for (const level of ["IV", "i", "S1", "S-5", ""]) expect(accepts(InspectionLevelSchema, level)).toBe(false);
+  });
+
+  it("has a schema for the general levels and one for the special levels, each taking its own only", () => {
+    for (const level of ["I", "II", "III"]) expect(accepts(GeneralInspectionLevelSchema, level)).toBe(true);
+    for (const level of ["S-1", "S-4", "IV", "", null]) expect(accepts(GeneralInspectionLevelSchema, level)).toBe(false);
+    for (const level of ["S-1", "S-2", "S-3", "S-4"]) expect(accepts(SpecialInspectionLevelSchema, level)).toBe(true);
+    for (const level of ["I", "III", "S-5", "S2", null]) expect(accepts(SpecialInspectionLevelSchema, level)).toBe(false);
   });
 });
 

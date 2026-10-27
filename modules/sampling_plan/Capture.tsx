@@ -24,24 +24,30 @@
 // Auto Calculate Sampling, top right of the card (Kenneth, 26 October 2026),
 // fills each size's cases from the order (auto-cases.ts) and, since 27
 // October 2026, its Code Letter and # of Gloves from its lot's code letter
-// (auto-gloves.ts): one of three ways the plan comes in, beside typing it and
-// Steri-AI reading a photo of the written table on Source Documents. Counts
-// already typed, and a letter it would change, are replaced only after a
-// yes. It says "Sampling Plan Calculation Completed", with a line under it
-// for a size whose lot size it lacked.
+// at the general level (auto-gloves.ts), and Dimension, FAB and Packaging &
+// Dispensing at the special level (auto-special.ts: "for dimension and FAB,
+// use Special Inspection Level S2 ... for packaging and inspection, number of
+// inner box sampled is also Level S2, based on total innerbox of that size"),
+// the rows the template shows and are switched on: one of three ways the plan
+// comes in, beside typing it and Steri-AI reading a photo of the written table
+// on Source Documents. Counts already typed, and a letter it would change, are
+// replaced only after a yes. It says "Sampling Plan Calculation Completed",
+// with a line under it for the rows of a size whose lot it lacked.
 //
 // Sampling Settings, the button beside it (Kenneth, 27 October 2026: "put a
 // setting beside the auto calculation sampling, that is to set general
-// inspection level"), opens a dialog: the inspection level for this
-// inspection (General I, II, III; Special S-1 to S-4), a line saying where
-// the level comes from (set for this inspection, the template's, the
-// client's, else I) with Use Default to go back to it, and one switch for
-// whether Auto Calculate Sampling rounds each size's cases up to the nearest
-// 5 or 10 ("72 round to 75, 78 round to 80, not either 5 or 10"). Save
-// writes both through the data updater; no count in the table changes with
-// them. Read-only, the dialog only shows them. View Code Letter Table and
-// View Table II-A open ISO 2859-1 Tables 1 and 2-A over it, from lib/aql, at
-// the level picked, each size marked; Back to Settings returns.
+// inspection level"), opens a dialog: the General Inspection Level for this
+// inspection (I, II, III) and the Special Inspection Level (S-1 to S-4),
+// each with a line saying where it comes from (set for this inspection, the
+// template's, the client's for the general one, else I and S-2) and Use
+// Default to go back to it, two lines saying what each level is for, and
+// one switch for whether Auto Calculate Sampling rounds each size's cases
+// up to the nearest 5 or 10 ("72 round to 75, 78 round to 80, not either 5
+// or 10"). Save writes them through the data updater; no count in the table
+// changes with them. Read-only, the dialog only shows them. View Code Letter
+// Table and View Table II-A open ISO 2859-1 Tables 1 and 2-A over it, from
+// lib/aql, each size marked: Table 1 with both levels picked highlighted,
+// Table 2-A at the general one; Back to Settings returns.
 //
 // Sampling Quantity (Kenneth, 27 October 2026): # of Case, Inner Box Taken
 // per Case, Total # of Inner Box, then Gloves Taken per Inner Box, Put Back,
@@ -117,10 +123,11 @@ import {
   formatAql,
   formatCount,
   INSPECTION_LEVELS,
-  InspectionLevelSchema,
   TABLE_2A_AQLS,
   type CodeLetter,
+  type GeneralInspectionLevel,
   type InspectionLevel,
+  type SpecialInspectionLevel,
   type Table2ACell,
 } from "@/lib/aql";
 import { formatSize } from "@/lib/format";
@@ -130,7 +137,15 @@ import { ModuleHeaderActions } from "@/modules/_framework/header-actions";
 import { useReportShownSize } from "@/modules/_framework/shown-size";
 import { autoSampleCases } from "./auto-cases";
 import { autoCalculateNotice, autoSampleGloves, type AutoGloves } from "./auto-gloves";
-import { defaultInspectionLevel, resolveInspectionLevel, type SamplingPlanComputed, type SourcedLevel } from "./calc";
+import { autoSampleSpecial, leftSpecialRows, lotSizeInnerBoxes, NO_SPECIAL_SAMPLES, specialRowsToFill } from "./auto-special";
+import {
+  defaultInspectionLevel,
+  defaultSpecialInspectionLevel,
+  resolveInspectionLevel,
+  resolveSpecialInspectionLevel,
+  type SamplingPlanComputed,
+  type SourcedLevel,
+} from "./calc";
 import {
   AQL_CHECK_NAMES,
   aqlColumnsInUse,
@@ -164,7 +179,7 @@ import {
   type SamplingPlanData,
   type SamplingSettings,
 } from "./schema";
-import { GENERAL_LEVELS, levelSourceText, SPECIAL_LEVELS } from "./settings";
+import { GENERAL_LEVELS, LEVEL_USES, levelSourceText, SPECIAL_LEVELS } from "./settings";
 
 /** The rows of the grid, top to bottom. */
 type Line =
@@ -277,9 +292,10 @@ export default function Capture({
   const off = rowsOff(data);
   const setRowOff = (column: RowSwitch, switchedOff: boolean) => update((current) => withRowOff(current, column, switchedOff));
 
-  // Sampling Settings: the inspection's own level and rounding, the level it has without one of its own.
+  // Sampling Settings: the inspection's own levels and rounding, the levels it has without its own.
   const settings = samplingSettings(data);
   const fallback = defaultInspectionLevel(data, config, context);
+  const specialFallback = defaultSpecialInspectionLevel(config);
   const saveSettings = (next: SamplingSettings) => {
     if (withSamplingSettings(data, next) === data) return;
     update((current) => withSamplingSettings(current, next));
@@ -287,6 +303,8 @@ export default function Capture({
   };
   const lot = (size: string) => computed?.sizes?.[size]?.lotSizeGloves ?? lotSizeGloves(context, size);
   const lots: SizeLot[] = sizes.map((size) => ({ size, lot: lot(size) }));
+  // Packaging & Dispensing's lot: the size's order cases × the packing configuration's inner boxes per case.
+  const innerBoxLots: SizeLot[] = sizes.map((size) => ({ size, lot: lotSizeInnerBoxes(context, size) }));
 
   // Each size's own Reduce and Raise (Kenneth, 27 October 2026: "each size should have their own reduction control
   // button"): the size's letter a step down or up from the latest data, and only that size's gloves worked out again.
@@ -297,19 +315,29 @@ export default function Capture({
 
   // Auto Calculate Sampling, where the template has a Case row: null until every size has its order quantity. It
   // fills # of Gloves and the Code Letter too, where the template has the row: each size's lot's code letter at the
-  // inspection level in force and its sample size (auto-gloves.ts), and 1 inner box per case where a size has none
-  // and the template shows that row, so the total inner boxes, the gloves per inner box and the put back follow.
+  // general level in force and its sample size (auto-gloves.ts), and 1 inner box per case where a size has none and
+  // the template shows that row, so the total inner boxes, the gloves per inner box and the put back follow.
+  // Dimension, FAB and Packaging & Dispensing, where the template shows them and they are switched on, take their
+  // lot's sample at the special level (auto-special.ts).
   const hasCases = countRows.some((row) => row.column === "cases");
   const hasGloves = countRows.some((row) => row.column === "gloves");
   const autoCases = hasCases
     ? autoSampleCases(sizes, (size) => context.order[size]?.qtyCases ?? null, settings.roundCases)
     : null;
   const autoGloves = hasGloves ? autoSampleGloves(lots, resolveInspectionLevel(data, config, context).level) : NO_GLOVES;
+  const autoSpecial = hasCases
+    ? autoSampleSpecial(
+        sizes.map((size, index) => ({ size, gloves: lots[index].lot, innerBoxes: innerBoxLots[index].lot })),
+        resolveSpecialInspectionLevel(data, config).level,
+        specialRowsToFill(config, data),
+      )
+    : NO_SPECIAL_SAMPLES;
   const autoSampling = (cases: Readonly<Record<string, number>>): AutoSampling => ({
     cases,
     gloves: autoGloves.gloves,
     letters: autoGloves.letters,
     perCase: perCaseShown ? AUTO_INNER_UNITS_PER_CASE : null,
+    tests: autoSpecial.counts,
   });
   const replacesEntered = autoCases !== null && autoSamplingReplaces(data, sizes, autoSampling(autoCases), config);
   const applyAutoCases = (cases: Readonly<Record<string, number>>) => {
@@ -319,6 +347,8 @@ export default function Capture({
       sizeName: sizeHead,
       glovesLabel: label("gloves"),
       orderPage: moduleShortTitle(context, "order_lots"),
+      // The test rows it left for want of a lot, worded as the table shows them ("Packaging & Dispensing Inspection").
+      rows: leftSpecialRows(autoSpecial.unknownLot, (column) => countRows.find((row) => row.column === column)?.shown ?? label(column)),
     });
     toast.success(notice.title, notice.description === null ? undefined : { description: notice.description });
   };
@@ -330,8 +360,10 @@ export default function Capture({
       <SamplingSettingsButton
         saved={settings}
         fallback={fallback}
+        specialFallback={specialFallback}
         autoCalculate={hasCases}
         lots={lots}
+        innerBoxLots={innerBoxLots}
         aql={context.aql}
         sizeName={sizeHead}
         label={label}
@@ -805,8 +837,9 @@ type RejectedEntry = EntryProblem & { size: string; column: Count };
 
 /**
  * Auto Calculate Sampling. Disabled until every size has its order quantity;
- * asks first when it would change counts already typed or a code letter
- * (`replaces`, autoSamplingReplaces).
+ * asks first when it would change what is already entered (`replaces`,
+ * autoSamplingReplaces): a count typed, a test's count it fills at the
+ * special level included, or a code letter.
  */
 function AutoCalculateButton({
   cases,
@@ -831,7 +864,7 @@ function AutoCalculateButton({
         title={
           cases === null
             ? "Enter every size's order quantity first."
-            : `Each size's cases: the square root of the order's cases, shared by the size's cases, rounded up${roundUp ? " to the nearest 5 or 10" : ""}. Its code letter: its lot's at the inspection level. Its gloves: that letter's sample size.`
+            : `Each size's cases: the square root of the order's cases, shared by the size's cases, rounded up${roundUp ? " to the nearest 5 or 10" : ""}. Its code letter: its lot's at the general inspection level. Its gloves: that letter's sample size. Dimension, FAB and Packaging & Dispensing: the sample size of their lot's code letter at the special inspection level, Packaging & Dispensing's lot in inner boxes.`
         }
         onClick={() => {
           if (cases === null) return;
@@ -847,8 +880,8 @@ function AutoCalculateButton({
           <AlertDialogHeader>
             <AlertDialogTitle>Replace the Counts Entered?</AlertDialogTitle>
             <AlertDialogDescription>
-              Auto Calculate Sampling fills each size&apos;s cases from the order quantities and its code letter and
-              gloves from the lot size, in place of what is already entered.
+              Auto Calculate Sampling fills each size&apos;s cases from the order quantities, and its code letter,
+              gloves and the tests&apos; counts from its lot, in place of what is already entered.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -1076,12 +1109,16 @@ const PICKED = "data-[state=on]:bg-primary data-[state=on]:text-primary-foregrou
 type SettingsProps = {
   /** The settings the inspection keeps. */
   saved: SamplingSettings;
-  /** The level the inspection has without one of its own, which Use Default goes back to. */
-  fallback: SourcedLevel;
-  /** Auto Calculate Sampling is offered (the template counts cases): its rounding and its note go with it. */
+  /** The general level the inspection has without one of its own, which its Use Default goes back to. */
+  fallback: SourcedLevel<GeneralInspectionLevel>;
+  /** The special level the inspection has without one of its own, which its Use Default goes back to. */
+  specialFallback: SourcedLevel<SpecialInspectionLevel>;
+  /** Auto Calculate Sampling is offered (the template counts cases): its rounding goes with it. */
   autoCalculate: boolean;
   /** Each ordered size's lot in gloves, for the tables. */
   lots: readonly SizeLot[];
+  /** Each ordered size's lot in inner boxes, for Table 1: Packaging & Dispensing's, at the special level. */
+  innerBoxLots: readonly SizeLot[];
   /** The AQLs the inspection's checks apply, for Table II-A. */
   aql: AqlSettings;
   /** "M", as a size's column is headed. */
@@ -1121,31 +1158,40 @@ function SamplingSettingsButton({ onSave, ...props }: SettingsProps) {
 }
 
 /**
- * The level for this inspection, the general levels first and the special
- * ones under Special, with where it comes from; the rounding of Auto
- * Calculate Sampling, its multiple picked only while it is switched on.
- * Nothing is written until Save; Use Default puts the level back to the
- * default in the draft. Read-only, both are shown as saved.
+ * The two levels for this inspection, the general one and the special one
+ * (Kenneth, 27 October 2026), each with where it comes from and Use
+ * Default, then what each is for; the rounding of Auto Calculate Sampling.
+ * Nothing is written until Save; Use Default puts a level back to its
+ * default in the draft. Read-only, all are shown as saved.
  */
-function SamplingSettingsForm({ saved, fallback, autoCalculate, lots, aql, sizeName, label, readOnly, onSave }: SettingsProps) {
+function SamplingSettingsForm({
+  saved,
+  fallback,
+  specialFallback,
+  autoCalculate,
+  lots,
+  innerBoxLots,
+  aql,
+  sizeName,
+  label,
+  readOnly,
+  onSave,
+}: SettingsProps) {
   const ids = useId();
-  // Drafts until Save: the level picked for the inspection (null: the default), and the rounding.
-  const [level, setLevel] = useState<InspectionLevel | null>(saved.inspectionLevel);
+  // Drafts until Save: the levels picked for the inspection (null: the default), and the rounding.
+  const [level, setLevel] = useState<GeneralInspectionLevel | null>(saved.inspectionLevel);
+  const [special, setSpecial] = useState<SpecialInspectionLevel | null>(saved.specialInspectionLevel);
   const [rounding, setRounding] = useState(saved.roundCases);
-  // The level in force once saved, which the tables show.
+  // The levels in force once saved, which the tables show.
   const shown = level ?? fallback.level;
-  const pick = (next: string) => {
-    // A tap on the level already on answers "": the choice stays.
-    const parsed = InspectionLevelSchema.safeParse(next);
-    if (parsed.success) setLevel(parsed.data);
-  };
+  const shownSpecial = special ?? specialFallback.level;
   return (
     <form
       noValidate
       className="flex min-h-0 flex-1 flex-col"
       onSubmit={(event) => {
         event.preventDefault();
-        if (!readOnly) onSave({ inspectionLevel: level, roundCases: rounding });
+        if (!readOnly) onSave({ inspectionLevel: level, specialInspectionLevel: special, roundCases: rounding });
       }}
     >
       <DialogHeader className="border-b border-border px-6 pt-6 pb-5">
@@ -1157,43 +1203,45 @@ function SamplingSettingsForm({ saved, fallback, autoCalculate, lots, aql, sizeN
         </DialogDescription>
       </DialogHeader>
       <div className="relative flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto px-6 py-5">
-        <section aria-labelledby={`${ids}-level`} className="space-y-3">
-          <h3 id={`${ids}-level`} className="text-sm font-semibold text-foreground touch:text-base">
-            General Inspection Level
-          </h3>
-          {readOnly ? (
-            <p data-slot="level-shown" className="text-lg font-bold text-foreground">
-              {shown}
-            </p>
-          ) : (
-            <>
-              <LevelChoice levels={GENERAL_LEVELS} value={shown} onPick={pick} aria-labelledby={`${ids}-level`} />
-              <div className="space-y-1.5">
-                <p aria-hidden className="text-sm text-muted-foreground touch:text-base">
-                  Special
-                </p>
-                <LevelChoice levels={SPECIAL_LEVELS} value={shown} onPick={pick} aria-label="Special Inspection Level" />
-              </div>
-            </>
-          )}
-          <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-            <p data-slot="level-source" className="text-sm text-muted-foreground touch:text-base">
-              {levelSourceText(level, fallback)}
-            </p>
-            {!readOnly && level !== null && (
-              <Button type="button" variant="ghost" size="sm" onClick={() => setLevel(null)}>
-                Use Default
-              </Button>
-            )}
+        <div className="space-y-5">
+          <LevelSetting
+            id={`${ids}-level`}
+            title="General Inspection Level"
+            slot="level"
+            levels={GENERAL_LEVELS}
+            chosen={level}
+            fallback={fallback}
+            readOnly={readOnly}
+            onChange={setLevel}
+          />
+          <LevelSetting
+            id={`${ids}-special`}
+            title="Special Inspection Level"
+            slot="special-level"
+            levels={SPECIAL_LEVELS}
+            chosen={special}
+            fallback={specialFallback}
+            readOnly={readOnly}
+            onChange={setSpecial}
+          />
+          {/* What each level is for (Kenneth, 27 October 2026). */}
+          <div data-slot="level-uses" className="space-y-1 text-sm text-muted-foreground touch:text-base">
+            {LEVEL_USES.map((line) => (
+              <p key={line}>{line}</p>
+            ))}
           </div>
-          {autoCalculate && (
-            <p className="text-sm text-muted-foreground touch:text-base">Auto Calculate uses this level for # of Gloves Sample.</p>
-          )}
           <div className="flex flex-wrap gap-2">
-            <CodeLetterTableDialog level={shown} lots={lots} sizeName={sizeName} label={label} />
+            <CodeLetterTableDialog
+              general={shown}
+              special={shownSpecial}
+              lots={lots}
+              innerBoxLots={innerBoxLots}
+              sizeName={sizeName}
+              label={label}
+            />
             <MasterTableDialog level={shown} letters={sizeCodeLetters(lots, shown)} aql={aql} sizeName={sizeName} />
           </div>
-        </section>
+        </div>
         {autoCalculate && (
           <section aria-labelledby={`${ids}-rounding`} className="space-y-3 border-t border-border pt-5">
             {readOnly ? (
@@ -1251,19 +1299,91 @@ function SamplingSettingsForm({ saved, fallback, autoCalculate, lots, aql, sizeN
   );
 }
 
-/** One group of levels as a segmented control; with a level of the other group picked, none of it is on. */
+/**
+ * One level of Sampling Settings under its heading: its choices (the level
+ * as text when read-only), the line saying where it comes from, and Use
+ * Default while the inspection has its own.
+ */
+function LevelSetting<Level extends InspectionLevel>({
+  id,
+  title,
+  slot,
+  levels,
+  chosen,
+  fallback,
+  readOnly,
+  onChange,
+}: {
+  /** The heading's id, which names the choices. */
+  id: string;
+  title: string;
+  /** How its words are found: "level" marks them level-shown and level-source. */
+  slot: string;
+  levels: readonly Level[];
+  /** The level picked for the inspection; null while it takes the default (`fallback`). */
+  chosen: Level | null;
+  fallback: SourcedLevel<Level>;
+  readOnly: boolean;
+  /** A level picked, or null for Use Default. */
+  onChange: (level: Level | null) => void;
+}) {
+  const shown = chosen ?? fallback.level;
+  return (
+    <section aria-labelledby={id} className="space-y-3">
+      <h3 id={id} className="text-sm font-semibold text-foreground touch:text-base">
+        {title}
+      </h3>
+      {readOnly ? (
+        <p data-slot={`${slot}-shown`} className="text-lg font-bold text-foreground">
+          {shown}
+        </p>
+      ) : (
+        <LevelChoice
+          levels={levels}
+          value={shown}
+          onPick={(next) => {
+            // A tap on the level already on answers "": the choice stays.
+            const picked = levels.find((entry) => entry === next);
+            if (picked !== undefined) onChange(picked);
+          }}
+          labelledBy={id}
+        />
+      )}
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+        <p data-slot={`${slot}-source`} className="text-sm text-muted-foreground touch:text-base">
+          {levelSourceText(chosen, fallback)}
+        </p>
+        {!readOnly && chosen !== null && (
+          <Button type="button" variant="ghost" size="sm" aria-describedby={id} onClick={() => onChange(null)}>
+            Use Default
+          </Button>
+        )}
+      </div>
+    </section>
+  );
+}
+
+/** One group of levels as a segmented control, named by its heading. */
 function LevelChoice({
   levels,
   value,
   onPick,
-  ...name
+  labelledBy,
 }: {
   levels: readonly InspectionLevel[];
   value: InspectionLevel;
   onPick: (next: string) => void;
-} & ({ "aria-label": string } | { "aria-labelledby": string })) {
+  labelledBy: string;
+}) {
   return (
-    <ToggleGroup type="single" variant="outline" spacing={0} value={levels.includes(value) ? value : ""} onValueChange={onPick} {...name}>
+    <ToggleGroup
+      type="single"
+      variant="outline"
+      spacing={0}
+      value={levels.includes(value) ? value : ""}
+      onValueChange={onPick}
+      aria-labelledby={labelledBy}
+    >
       {levels.map((level) => (
         <ToggleGroupItem key={level} value={level} className={cn("min-w-12 px-4 touch:min-w-14", PICKED)}>
           {level}
@@ -1277,25 +1397,36 @@ function LevelChoice({
 const TABLE_HEAD = "border-b border-border bg-slate-50 px-2.5 py-2 font-semibold text-muted-foreground";
 const TABLE_CELL = "border-t border-border px-2.5 py-1.5 touch:py-2";
 
+/** Which level a Table 1 column is in use as, if either. */
+type LevelInUse = "general" | "special";
+
 /**
- * ISO 2859-1 Table 1 (ANSI/ASQ Z1.4 Table I) over the settings: the level
- * picked highlighted, each size named in the row its lot falls in, and below
- * it each size's lot, code letter and sample size at that level. The dialog
- * scrolls inside itself (an iPad in portrait), the table sideways in its box
- * where it does not fit.
+ * ISO 2859-1 Table 1 (ANSI/ASQ Z1.4 Table I) over the settings: both levels
+ * picked highlighted, the general one's and the special one's (Kenneth, 27
+ * October 2026), each size named in the row its lot in gloves falls in, and
+ * in the row of its lot in inner boxes, which only the special level reads
+ * (Packaging & Dispensing). Below it, each size's lots, code letters and
+ * sample sizes at the two levels. The dialog scrolls inside itself (an iPad
+ * in portrait), the table sideways in its box where it does not fit.
  */
 function CodeLetterTableDialog({
-  level,
+  general,
+  special,
   lots,
+  innerBoxLots,
   sizeName,
   label,
 }: {
-  level: InspectionLevel;
+  general: GeneralInspectionLevel;
+  special: SpecialInspectionLevel;
   lots: readonly SizeLot[];
+  innerBoxLots: readonly SizeLot[];
   sizeName: (size: string) => string;
   label: (key: string) => string;
 }) {
-  const rows = codeLetterRows(lots);
+  const rows = codeLetterRows(lots, innerBoxLots);
+  const inUse = (entry: InspectionLevel): LevelInUse | undefined =>
+    entry === general ? "general" : entry === special ? "special" : undefined;
   return (
     <Dialog>
       <DialogTrigger asChild>
@@ -1308,7 +1439,7 @@ function CodeLetterTableDialog({
         <DialogHeader className="border-b border-border px-6 pt-6 pb-5">
           <DialogTitle className="pr-8 text-lg font-bold">Code Letter Table</DialogTitle>
           <DialogDescription>
-            {`ISO 2859-1 Table 1 (ANSI/ASQ Z1.4 Table I), sample size code letters. Level ${level} is highlighted, and each size is named in the row of its lot.`}
+            {`ISO 2859-1 Table 1 (ANSI/ASQ Z1.4 Table I), sample size code letters. The levels in use are highlighted, General ${general} and Special ${special}, and each size is named in the row of its lot in gloves, and of its lot in inner boxes for Packaging & Dispensing.`}
           </DialogDescription>
         </DialogHeader>
         <div
@@ -1336,50 +1467,79 @@ function CodeLetterTableDialog({
                   </th>
                 </tr>
                 <tr>
-                  {INSPECTION_LEVELS.map((entry) => (
-                    <th
-                      key={entry}
-                      scope="col"
-                      data-level={entry}
-                      data-chosen={entry === level || undefined}
-                      className={cn(TABLE_HEAD, "border-l text-center", entry === level && "bg-secondary text-secondary-foreground")}
-                    >
-                      {entry}
-                      {entry === level && <span className="sr-only"> (Chosen)</span>}
-                    </th>
-                  ))}
+                  {INSPECTION_LEVELS.map((entry) => {
+                    const use = inUse(entry);
+                    return (
+                      <th
+                        key={entry}
+                        scope="col"
+                        data-level={entry}
+                        data-chosen={use}
+                        className={cn(TABLE_HEAD, "border-l text-center", use && "bg-secondary text-secondary-foreground")}
+                      >
+                        {entry}
+                        {use && <span className="sr-only">{use === "general" ? " (General Level in Use)" : " (Special Level in Use)"}</span>}
+                      </th>
+                    );
+                  })}
                 </tr>
               </thead>
               <tbody>
                 {rows.map((row) => {
-                  const marked = row.sizes.length > 0;
+                  const gloves = row.sizes.length > 0;
+                  const innerBoxes = row.innerBoxSizes.length > 0;
+                  const marked = gloves || innerBoxes;
                   return (
-                    <tr key={row.from} data-sizes={marked ? row.sizes.join(" ") : undefined} className={marked ? "bg-slate-100" : undefined}>
+                    <tr
+                      key={row.from}
+                      data-sizes={gloves ? row.sizes.join(" ") : undefined}
+                      data-inner-box-sizes={innerBoxes ? row.innerBoxSizes.join(" ") : undefined}
+                      className={marked ? "bg-slate-100" : undefined}
+                    >
                       <th scope="row" className={cn(TABLE_CELL, "text-left font-normal whitespace-nowrap")}>
                         {lotRange(row.from, row.to)}
                       </th>
-                      {INSPECTION_LEVELS.map((entry) => (
-                        <td
-                          key={entry}
-                          data-chosen={entry === level || undefined}
-                          className={cn(
-                            TABLE_CELL,
-                            "border-l text-center",
-                            entry === level &&
-                              (marked ? "bg-primary font-bold text-primary-foreground" : "bg-accent font-semibold text-accent-foreground"),
-                          )}
-                        >
-                          {row.letters[entry]}
-                        </td>
-                      ))}
-                      <td className={cn(TABLE_CELL, "border-l font-semibold")}>{row.sizes.map(sizeName).join(", ")}</td>
+                      {INSPECTION_LEVELS.map((entry) => {
+                        const use = inUse(entry);
+                        // The general level reads the lots in gloves; the special one those in inner boxes too.
+                        const filled = use === "general" ? gloves : use === "special" && marked;
+                        return (
+                          <td
+                            key={entry}
+                            data-chosen={use}
+                            className={cn(
+                              TABLE_CELL,
+                              "border-l text-center",
+                              use &&
+                                (filled ? "bg-primary font-bold text-primary-foreground" : "bg-accent font-semibold text-accent-foreground"),
+                            )}
+                          >
+                            {row.letters[entry]}
+                          </td>
+                        );
+                      })}
+                      <td className={cn(TABLE_CELL, "border-l font-semibold")}>
+                        {gloves && <span className="block">{row.sizes.map(sizeName).join(", ")}</span>}
+                        {innerBoxes && (
+                          <span data-slot="inner-box-sizes" className="block font-normal text-muted-foreground">
+                            {`${row.innerBoxSizes.map(sizeName).join(", ")} (Inner Boxes)`}
+                          </span>
+                        )}
+                      </td>
                     </tr>
                   );
                 })}
               </tbody>
             </table>
           </div>
-          <SizeCodeLetterTable level={level} letters={sizeCodeLetters(lots, level)} sizeName={sizeName} label={label} />
+          <SizeLevelsTable
+            general={general}
+            special={special}
+            lots={lots}
+            innerBoxLots={innerBoxLots}
+            sizeName={sizeName}
+            label={label}
+          />
         </div>
         <DialogFooter className="border-t border-border px-6 py-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
           <DialogClose asChild>
@@ -1393,36 +1553,74 @@ function CodeLetterTableDialog({
   );
 }
 
-/** Each size's lot, the lot's code letter and that letter's sample size at the level, under Table 1. */
-function SizeCodeLetterTable({
-  level,
-  letters,
+/** What a line of a size under Table 1 is for, and how it is marked (`data-use`). */
+type LevelLine = {
+  use: "gloves" | "gloves-tests" | "inner-box-tests";
+  /** What the line's sample is for: "# of Gloves Sample", "Dimension, FAB", "Packaging & Dispensing". */
+  name: string;
+  level: InspectionLevel;
+  /** The unit of its lot. */
+  unit: "gloves" | "inner boxes";
+  /** Each size's lot, code letter and sample size at the line's level, in size order. */
+  letters: readonly SizeCodeLetter[];
+};
+
+/**
+ * Under Table 1, three lines a size (Kenneth, 27 October 2026): its lot in
+ * gloves, the general level's code letter and sample, for # of Gloves
+ * Sample; the same lot at the special level, for Dimension and FAB; its lot
+ * in inner boxes at the special level, for Packaging & Dispensing.
+ */
+function SizeLevelsTable({
+  general,
+  special,
+  lots,
+  innerBoxLots,
   sizeName,
   label,
 }: {
-  level: InspectionLevel;
-  letters: readonly SizeCodeLetter[];
+  general: GeneralInspectionLevel;
+  special: SpecialInspectionLevel;
+  lots: readonly SizeLot[];
+  innerBoxLots: readonly SizeLot[];
   sizeName: (size: string) => string;
   label: (key: string) => string;
 }) {
   const ids = useId();
+  const lines: readonly LevelLine[] = [
+    { use: "gloves", name: label("gloves"), level: general, unit: "gloves", letters: sizeCodeLetters(lots, general) },
+    { use: "gloves-tests", name: "Dimension, FAB", level: special, unit: "gloves", letters: sizeCodeLetters(lots, special) },
+    {
+      use: "inner-box-tests",
+      name: "Packaging & Dispensing",
+      level: special,
+      unit: "inner boxes",
+      letters: sizeCodeLetters(innerBoxLots, special),
+    },
+  ];
   return (
     <section aria-labelledby={`${ids}-heading`} className="space-y-2">
       <h3 id={`${ids}-heading`} className="text-sm font-semibold text-foreground touch:text-base">
-        {`Each Size at Level ${level}`}
+        {`Each Size at Levels ${general} and ${special}`}
       </h3>
-      {letters.length === 0 ? (
+      {lots.length === 0 ? (
         <p className="text-sm text-muted-foreground touch:text-base">No sizes ordered yet.</p>
       ) : (
         <div className="relative overflow-x-auto rounded-lg border border-border">
-          <table data-slot="size-code-letters" className="w-full min-w-[26rem] border-collapse text-sm tabular-nums touch:text-base">
+          <table data-slot="size-code-letters" className="w-full min-w-[38rem] border-collapse text-sm tabular-nums touch:text-base">
             <thead>
               <tr>
                 <th scope="col" className={cn(TABLE_HEAD, "text-left")}>
                   {label("gloveSize")}
                 </th>
+                <th scope="col" className={cn(TABLE_HEAD, "border-l text-left")}>
+                  For
+                </th>
                 <th scope="col" className={cn(TABLE_HEAD, "border-l text-right")}>
-                  {label("lotSizeGloves")}
+                  Lot Size
+                </th>
+                <th scope="col" className={cn(TABLE_HEAD, "border-l text-center")}>
+                  Level
                 </th>
                 <th scope="col" className={cn(TABLE_HEAD, "border-l text-center")}>
                   {label("codeLetter")}
@@ -1432,30 +1630,40 @@ function SizeCodeLetterTable({
                 </th>
               </tr>
             </thead>
-            <tbody>
-              {letters.map((entry) => (
-                <tr key={entry.size} data-size={entry.size}>
-                  <th scope="row" className={cn(TABLE_CELL, "text-left font-semibold")}>
-                    {sizeName(entry.size)}
-                  </th>
-                  <td className={cn(TABLE_CELL, "border-l text-right")}>
-                    <Figure value={entry.lot} grouping />
-                  </td>
-                  <td className={cn(TABLE_CELL, "border-l text-center font-semibold")}>
-                    {entry.codeLetter ?? <Figure value={null} />}
-                  </td>
-                  <td className={cn(TABLE_CELL, "border-l text-right")}>
-                    <Figure value={entry.sampleSize} grouping />
-                  </td>
-                </tr>
-              ))}
-            </tbody>
+            {lots.map(({ size }, index) => (
+              <tbody key={size} data-size={size}>
+                {lines.map((line, at) => {
+                  const entry = line.letters[index];
+                  return (
+                    <tr key={line.use} data-use={line.use}>
+                      {at === 0 && (
+                        <th scope="rowgroup" rowSpan={lines.length} className={cn(TABLE_CELL, "text-left align-top font-semibold")}>
+                          {sizeName(size)}
+                        </th>
+                      )}
+                      <td className={cn(TABLE_CELL, "border-l text-left")}>{line.name}</td>
+                      <td className={cn(TABLE_CELL, "border-l text-right")}>
+                        <Figure value={entry?.lot ?? null} grouping unit={line.unit} />
+                      </td>
+                      <td className={cn(TABLE_CELL, "border-l text-center")}>{line.level}</td>
+                      <td className={cn(TABLE_CELL, "border-l text-center font-semibold")}>
+                        {entry?.codeLetter ?? <Figure value={null} />}
+                      </td>
+                      <td className={cn(TABLE_CELL, "border-l text-right")}>
+                        <Figure value={entry?.sampleSize ?? null} grouping />
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            ))}
           </table>
         </div>
       )}
-      {letters.some((entry) => entry.lot === null) && (
+      {lines.some((line) => line.letters.some((entry) => entry.lot === null)) && (
         <p className="text-sm text-muted-foreground touch:text-base">
-          A size&apos;s lot is known once its order quantity and the gloves per case are entered.
+          A size&apos;s lot is known once its order quantity and the gloves per case are entered, its lot in inner boxes once
+          the inner boxes per case are.
         </p>
       )}
     </section>

@@ -178,7 +178,7 @@ function configSummary(module: TemplateModule): string {
     case "packing_config":
       return `inner unit ${module.config.innerUnit}; packing mode text ${module.config.fields.packingMode ? "on" : "off"}`;
     case "sampling_plan":
-      return `columns off: ${onOff(samplingColumnSwitches(module.config.columns), false).join(", ") || "none"}; inspection level ${module.config.inspectionLevel ?? "none (to confirm)"}`;
+      return `columns off: ${onOff(samplingColumnSwitches(module.config.columns), false).join(", ") || "none"}; general inspection level ${module.config.inspectionLevel ?? "none (to confirm)"}; special inspection level ${module.config.specialInspectionLevel ?? "none (S-2)"}`;
     case "dimensions": {
       const decimals = module.config.measures.map((measure) => `${measure} ${module.config.decimals[measure]}`).join(", ");
       return `${module.config.statistic} of ${module.config.rows} gloves; measures ${module.config.measures.join(", ")}; decimals ${decimals}; specs ${module.config.specs.length ? `for ${module.config.specs.map((row) => row.size).join(", ")}, below` : "none"}`;

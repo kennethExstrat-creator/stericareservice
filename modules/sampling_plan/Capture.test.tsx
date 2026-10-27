@@ -323,6 +323,7 @@ describe("sampling_plan Capture", () => {
   it("groups the surgical columns as the SG form does, under Sampling Quantity (WTT & Visual)", () => {
     const config: SamplingPlanConfig = {
       inspectionLevel: null,
+      specialInspectionLevel: null,
       columns: {
         ...SAMPLING_PLAN_DEFAULT_CONFIG.columns,
         gloves: false,

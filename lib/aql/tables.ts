@@ -38,6 +38,14 @@ export type SampleSize = (typeof SAMPLE_SIZES)[CodeLetter];
 export const INSPECTION_LEVELS = ["S-1", "S-2", "S-3", "S-4", "I", "II", "III"] as const;
 export type InspectionLevel = (typeof INSPECTION_LEVELS)[number];
 
+/** Table 1's special levels, S-1 to S-4: small samples, where larger sampling risks can be tolerated (ISO 2859-1 10.1). */
+export const SPECIAL_INSPECTION_LEVELS = ["S-1", "S-2", "S-3", "S-4"] as const satisfies readonly InspectionLevel[];
+export type SpecialInspectionLevel = (typeof SPECIAL_INSPECTION_LEVELS)[number];
+
+/** Table 1's general levels, I, II and III. */
+export const GENERAL_INSPECTION_LEVELS = ["I", "II", "III"] as const satisfies readonly InspectionLevel[];
+export type GeneralInspectionLevel = (typeof GENERAL_INSPECTION_LEVELS)[number];
+
 /** Table 1 row: lot sizes `from` to `to` (inclusive), then one code letter per level in INSPECTION_LEVELS order. */
 export type Table1Row = readonly [from: number, to: number, ...letters: Tuple<CodeLetter, 7>];
 

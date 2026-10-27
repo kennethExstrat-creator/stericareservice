@@ -191,6 +191,25 @@ describe("the STD_EG example's export, through the real modules", () => {
     });
   });
 
+  it("exports both inspection levels in force with the sampling plan: the general one and the special one, S-2 by default (Kenneth, 27 October 2026)", async () => {
+    // The STD_EG version sets I and no special level, as every version saved before 27 October 2026.
+    const sampling = moduleOf((await exportOf()).doc, "sampling_plan");
+    expect(sampling.computed).toMatchObject({ inspectionLevel: "I", specialInspectionLevel: "S-2" });
+    expect(sampling.labels).toMatchObject({ inspectionLevel: "Inspection Level", specialInspectionLevel: "Special Inspection Level" });
+
+    // Set for the inspection in Sampling Settings: the data keeps it, the computed values carry it.
+    const data = stdEgInspectionData({ labReportFileId: STD_EG_IDS.fileLabReport });
+    const plan = data.modules.sampling_plan as Record<string, unknown>;
+    const record = stdEgRecord({
+      data: { ...data, modules: { ...data.modules, sampling_plan: { ...plan, inspectionLevel: "II", specialInspectionLevel: "S-3" } } },
+    });
+    const { doc } = await exportOf(stdEgTables(record), stdEgObjects(record));
+    expect(ExportSchema.safeParse(doc).success).toBe(true);
+    const own = moduleOf(doc, "sampling_plan");
+    expect(own.data).toMatchObject({ inspectionLevel: "II", specialInspectionLevel: "S-3" });
+    expect(own.computed).toMatchObject({ inspectionLevel: "II", specialInspectionLevel: "S-3" });
+  });
+
   it("sends the report's drawn signature, and none once the report is to be signed by hand after export", async () => {
     const signed = await exportOf();
     expect(signed.doc.conclusion.signAfterExport).toBe(false);

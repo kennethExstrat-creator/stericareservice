@@ -1,5 +1,12 @@
 import { z } from "zod";
-import { CODE_LETTERS, INSPECTION_LEVELS, SAMPLE_SIZES, TABLE_2A_AQLS } from "./tables";
+import {
+  CODE_LETTERS,
+  GENERAL_INSPECTION_LEVELS,
+  INSPECTION_LEVELS,
+  SAMPLE_SIZES,
+  SPECIAL_INSPECTION_LEVELS,
+  TABLE_2A_AQLS,
+} from "./tables";
 
 /* ------------------------------------------------------------------ *
  * AQL engine schemas (BUILD_SPEC 7)
@@ -10,6 +17,8 @@ import { CODE_LETTERS, INSPECTION_LEVELS, SAMPLE_SIZES, TABLE_2A_AQLS } from "./
 
 export const CodeLetterSchema = z.enum(CODE_LETTERS);
 export const InspectionLevelSchema = z.enum(INSPECTION_LEVELS);
+export const GeneralInspectionLevelSchema = z.enum(GENERAL_INSPECTION_LEVELS);
+export const SpecialInspectionLevelSchema = z.enum(SPECIAL_INSPECTION_LEVELS);
 
 /** An AQL a template can set: 0 for critical defects (Accept 0 / Reject 1 whatever n), or a Table 2-A column. */
 export const AqlSchema = z.literal([0, ...TABLE_2A_AQLS]);

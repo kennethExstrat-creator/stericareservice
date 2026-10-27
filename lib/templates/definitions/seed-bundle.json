@@ -650,8 +650,9 @@
               "innerUnits": "Total # of Inner Box",
               "gloves": "# of Gloves Sample",
               "glovesPerInnerBox": "Gloves Taken per Inner Box",
-              "totalGlovesTaken": "Total Gloves Taken",
               "putBack": "Put Back",
+              "codeLetter": "Code Letter",
+              "codeLetterReason": "Reason for Reduced Code Letter",
               "glovesWatertightVisual": "# Gloves for Watertight & Visual",
               "glovesDimensions": "# Gloves for Dimension",
               "glovesPhysical": "# Gloves for FAB",
@@ -659,13 +660,13 @@
               "innerUnitsDispensing": "# Inner Box for Packaging & Dispensing Inspection",
               "pouches": "Pouches",
               "pouchesDyeLeak": "# Pouches (Dye Leak Test)",
-              "codeLetter": "Code Letter",
               "planSampleSize": "Sample Size by Plan",
               "totals": "Total:",
               "samplingQuantity": "Sampling Quantity",
               "orderQty": "Order Qty (Case)",
               "gloveSize": "Glove Size",
               "inspectionLevel": "Inspection Level",
+              "specialInspectionLevel": "Special Inspection Level",
               "lotSizeGloves": "Lot Size (Gloves)"
             },
             "config": {
@@ -681,7 +682,8 @@
                 "pouches": false,
                 "pouchesDyeLeak": false
               },
-              "inspectionLevel": "I"
+              "inspectionLevel": "I",
+              "specialInspectionLevel": null
             }
           },
           {
@@ -1872,8 +1874,9 @@
               "innerUnits": "Total # of Inner Box",
               "gloves": "# of Gloves Sample",
               "glovesPerInnerBox": "Gloves Taken per Inner Box",
-              "totalGlovesTaken": "Total Gloves Taken",
               "putBack": "Put Back",
+              "codeLetter": "Code Letter",
+              "codeLetterReason": "Reason for Reduced Code Letter",
               "glovesWatertightVisual": "# Gloves for Watertight & Visual",
               "glovesDimensions": "# Gloves for Dimension",
               "glovesPhysical": "# Gloves for Tensile",
@@ -1881,13 +1884,13 @@
               "innerUnitsDispensing": "# Inner Packs for Packaging & Dispensing Inspection",
               "pouches": "Pouches",
               "pouchesDyeLeak": "# Pouches (Dye Leak Test)",
-              "codeLetter": "Code Letter",
               "planSampleSize": "Sample Size by Plan",
               "totals": "Total:",
               "samplingQuantity": "Sampling Quantity",
               "orderQty": "Order Qty (Case)",
               "gloveSize": "Glove Size",
               "inspectionLevel": "Inspection Level",
+              "specialInspectionLevel": "Special Inspection Level",
               "lotSizeGloves": "Lot Size (Gloves)"
             },
             "config": {
@@ -1903,7 +1906,8 @@
                 "pouches": false,
                 "pouchesDyeLeak": false
               },
-              "inspectionLevel": "I"
+              "inspectionLevel": "I",
+              "specialInspectionLevel": null
             }
           },
           {
@@ -3000,8 +3004,9 @@
               "innerUnits": "Total # of Inner Box",
               "gloves": "# of Gloves Sample",
               "glovesPerInnerBox": "Gloves Taken per Inner Box",
-              "totalGlovesTaken": "Total Gloves Taken",
               "putBack": "Put Back",
+              "codeLetter": "Code Letter",
+              "codeLetterReason": "Reason for Reduced Code Letter",
               "glovesWatertightVisual": "# Gloves",
               "glovesDimensions": "# Gloves Dimension",
               "glovesPhysical": "# Gloves (FAB)",
@@ -3009,13 +3014,13 @@
               "innerUnitsDispensing": "# Inner Box for Packaging & Dispensing Inspection",
               "pouches": "Pouches",
               "pouchesDyeLeak": "# Pouches (Dye Leak Test)",
-              "codeLetter": "Code Letter",
               "planSampleSize": "Sample Size by Plan",
               "totals": "Total:",
               "samplingQuantity": "Sampling Quantity (WTT & Visual)",
               "orderQty": "Qty (Case)",
               "gloveSize": "Glove Size",
               "inspectionLevel": "Inspection Level",
+              "specialInspectionLevel": "Special Inspection Level",
               "lotSizeGloves": "Lot Size (Gloves)"
             },
             "config": {
@@ -3031,7 +3036,8 @@
                 "pouches": true,
                 "pouchesDyeLeak": true
               },
-              "inspectionLevel": null
+              "inspectionLevel": null,
+              "specialInspectionLevel": null
             }
           },
           {

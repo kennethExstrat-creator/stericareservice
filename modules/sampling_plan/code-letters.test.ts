@@ -10,7 +10,7 @@ import {
   sizeCodeLetters,
   type SizeLot,
 } from "./code-letters";
-import { defaultLevelText, GENERAL_LEVELS, levelSourceText, SPECIAL_LEVELS } from "./settings";
+import { defaultLevelText, GENERAL_LEVELS, LEVEL_USES, levelSourceText, SPECIAL_LEVELS } from "./settings";
 
 /** SAFEDON_EG's lots: XS and L 120,000 gloves, S 1,700,000, M 1,120,000. */
 const LOTS: readonly SizeLot[] = [
@@ -47,6 +47,29 @@ describe("Sampling Settings' Table 1 (Kenneth, 27 October 2026: \"give a button 
     ]);
     expect(ends.find((row) => row.to === 150_000)?.sizes).toEqual(["S"]);
     expect(ends.find((row) => row.from === 150_001)?.sizes).toEqual(["M"]);
+  });
+
+  it("names each size in the row of its lot in inner boxes too, apart from its lot in gloves (Kenneth, 27 October 2026)", () => {
+    // SAFEDON_EG's 16 plastic packs a case: XS and L 960, S 13,600, M 8,960, XL not known.
+    const innerBoxes: SizeLot[] = [
+      { size: "XS", lot: 960 },
+      { size: "S", lot: 13_600 },
+      { size: "M", lot: 8_960 },
+      { size: "L", lot: 960 },
+      { size: "XL", lot: null },
+    ];
+    const rows = codeLetterRows(LOTS, innerBoxes);
+    expect(rows.filter((row) => row.innerBoxSizes.length > 0).map((row) => [lotRange(row.from, row.to), row.innerBoxSizes])).toEqual([
+      ["501 to 1,200", ["XS", "L"]],
+      ["3,201 to 10,000", ["M"]],
+      ["10,001 to 35,000", ["S"]],
+    ]);
+    // The lots in gloves fall where they did; without the lots in inner boxes, no row names one.
+    expect(rows.filter((row) => row.sizes.length > 0).map((row) => row.sizes)).toEqual([
+      ["XS", "L"],
+      ["S", "M"],
+    ]);
+    expect(codeLetterRows(LOTS).every((row) => row.innerBoxSizes.length === 0)).toBe(true);
   });
 
   it("gives each size's code letter and its sample size at a level", () => {
@@ -134,16 +157,24 @@ describe("Sampling Settings' Table 2-A (Kenneth, 27 October 2026: \"table II A s
 });
 
 describe("Sampling Settings' words (Kenneth, 27 October 2026)", () => {
-  it("offers the general levels first and the special ones under Special, every level once", () => {
+  it("offers the general levels under General Inspection Level and the special ones under Special Inspection Level, every level once", () => {
     expect(GENERAL_LEVELS).toEqual(["I", "II", "III"]);
     expect(SPECIAL_LEVELS).toEqual(["S-1", "S-2", "S-3", "S-4"]);
     expect([...SPECIAL_LEVELS, ...GENERAL_LEVELS]).toEqual([...INSPECTION_LEVELS]);
   });
 
-  it("says where the level comes from, naming the default even while the inspection sets its own", () => {
+  it("says where a level comes from, naming the default even while the inspection sets its own", () => {
     expect(defaultLevelText({ level: "II", source: "template" })).toBe("Template default: II.");
     expect(levelSourceText(null, { level: "II", source: "client" })).toBe("Client default: II.");
     expect(levelSourceText(null, { level: "I", source: "default" })).toBe("Default: I.");
     expect(levelSourceText("III", { level: "I", source: "template" })).toBe("Set for this inspection. Template default: I.");
+    // The special level, the same way: S-2 by default.
+    expect(levelSourceText(null, { level: "S-2", source: "default" })).toBe("Default: S-2.");
+    expect(levelSourceText(null, { level: "S-3", source: "template" })).toBe("Template default: S-3.");
+    expect(levelSourceText("S-4", { level: "S-2", source: "default" })).toBe("Set for this inspection. Default: S-2.");
+  });
+
+  it("says in two lines what each level is for", () => {
+    expect(LEVEL_USES).toEqual(["General: # of Gloves Sample and its code letter.", "Special: Dimension, FAB and Packaging & Dispensing."]);
   });
 });

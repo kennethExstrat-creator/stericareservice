@@ -2,8 +2,10 @@ import { describe, expect, it } from "vitest";
 import { lookupPlan } from "./lookup";
 import {
   CODE_LETTERS,
+  GENERAL_INSPECTION_LEVELS,
   INSPECTION_LEVELS,
   SAMPLE_SIZES,
+  SPECIAL_INSPECTION_LEVELS,
   TABLE_1,
   TABLE_2A,
   TABLE_2A_AQLS,
@@ -97,6 +99,12 @@ describe("Table 1", () => {
 
   it("matches the AQLSchemes reproduction cell for cell", () => {
     expect(TABLE_1.map(([, , ...letters]) => letters.join(""))).toEqual(TABLE_1_BY_AQLSCHEMES);
+  });
+
+  it("groups its levels as it prints them: the special levels' columns, then the general levels'", () => {
+    expect(SPECIAL_INSPECTION_LEVELS).toEqual(["S-1", "S-2", "S-3", "S-4"]);
+    expect(GENERAL_INSPECTION_LEVELS).toEqual(["I", "II", "III"]);
+    expect([...SPECIAL_INSPECTION_LEVELS, ...GENERAL_INSPECTION_LEVELS]).toEqual([...INSPECTION_LEVELS]);
   });
 });
 

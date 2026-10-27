@@ -65,6 +65,13 @@ export type InnerUnit = (typeof INNER_UNITS)[number];
 export const INSPECTION_LEVELS = ["S-1", "S-2", "S-3", "S-4", "I", "II", "III"] as const;
 export type InspectionLevel = (typeof INSPECTION_LEVELS)[number];
 
+/** The special levels, for Dimension, FAB and Packaging & Dispensing (Kenneth, 27 October 2026). */
+export const SPECIAL_INSPECTION_LEVELS = ["S-1", "S-2", "S-3", "S-4"] as const satisfies readonly InspectionLevel[];
+export type SpecialInspectionLevel = (typeof SPECIAL_INSPECTION_LEVELS)[number];
+
+/** The general levels, for # of Gloves Sample and its code letter. */
+export const GENERAL_INSPECTION_LEVELS = ["I", "II", "III"] as const satisfies readonly InspectionLevel[];
+
 /** ISO 2859-1 code letters (BUILD_SPEC 7): no I or O. */
 export const CODE_LETTERS = ["A", "B", "C", "D", "E", "F", "G", "H", "J", "K", "L", "M", "N", "P", "Q", "R"] as const;
 

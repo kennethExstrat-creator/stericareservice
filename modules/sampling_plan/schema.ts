@@ -5,13 +5,22 @@
 // gloves taken per inner box and those put back (calc.ts). The inner units
 // sampled in all are worked out from the cases while the inner units per case
 // are entered (withCount; Kenneth, 27 October 2026). Sampling Settings
-// (Kenneth, 27 October 2026) keep two choices for the inspection beside the
-// sizes: its inspection level and how Auto Calculate Sampling rounds the
-// cases. Each size keeps the code letter its # of Gloves Sample is taken
-// from, which the inspector may lower with a reason (Kenneth, 27 October
-// 2026), and its Watertight & Visual follows its # of Gloves Sample.
+// (Kenneth, 27 October 2026) keep three choices for the inspection beside the
+// sizes: its general inspection level, its special inspection level and how
+// Auto Calculate Sampling rounds the cases. Each size keeps the code letter
+// its # of Gloves Sample is taken from, at the general level, which the
+// inspector may lower with a reason (Kenneth, 27 October 2026), and its
+// Watertight & Visual follows its # of Gloves Sample.
 import { z } from "zod";
-import { CodeLetterSchema, InspectionLevelSchema, type CodeLetter, type InspectionLevel } from "@/lib/aql";
+import {
+  CodeLetterSchema,
+  GeneralInspectionLevelSchema,
+  InspectionLevelSchema,
+  SpecialInspectionLevelSchema,
+  type CodeLetter,
+  type GeneralInspectionLevel,
+  type SpecialInspectionLevel,
+} from "@/lib/aql";
 import { CountCellSchema, perSizeData } from "@/modules/_framework";
 import type { SamplingPlanConfig } from "./config";
 import { innerUnitsFromCases } from "./inner-boxes";
@@ -109,6 +118,16 @@ export const ROW_SWITCHES = [
 export type RowSwitch = (typeof ROW_SWITCHES)[number];
 
 /**
+ * The test rows Auto Calculate Sampling fills at the special inspection
+ * level (Kenneth, 27 October 2026: "for dimension and FAB, use Special
+ * Inspection Level S2 ... for packaging and inspection, number of inner box
+ * sampled is also Level S2"): Dimension, FAB and Packaging & Dispensing, in
+ * table order (auto-special.ts).
+ */
+export const SPECIAL_ROWS = ["glovesDimensions", "glovesPhysical", "innerUnitsDispensing"] as const satisfies readonly RowSwitch[];
+export type SpecialRow = (typeof SPECIAL_ROWS)[number];
+
+/**
  * What Auto Calculate Sampling rounds each size's cases up to while Sampling
  * Settings say so (Kenneth, 27 October 2026: "round up to nearest 5 or 10,
  * which means 72 round to 75, 78 round to 80, not either 5 or 10"): the next
@@ -128,9 +147,14 @@ export const SamplingPlanDataSchema = perSizeData(SamplingSizeSchema).extend({
     .array(z.enum(ROW_SWITCHES))
     .optional()
     .describe("Test rows the inspector switched off on screen. Never set from a document."),
-  // Saved before Sampling Settings (27 October 2026), the data has neither: the default level, no rounding.
+  // Saved before Sampling Settings (27 October 2026), the data has none of these: the default levels, no rounding.
+  // A special level saved here while Sampling Settings had one level for everything still loads, as no general
+  // level of the inspection's own (calc's generalLevel).
   inspectionLevel: InspectionLevelSchema.optional().describe(
-    'The ISO 2859-1 inspection level set for this inspection, in place of the template\'s or the client\'s. Fill it only from a document that states the level in words, such as "General Inspection Level II" (II) or "Special Inspection Level S-3" (S-3); never work it out from code letters, sample sizes or lot sizes.',
+    'The ISO 2859-1 general inspection level (I, II or III) set for this inspection, in place of the template\'s or the client\'s. Fill it only from a document that states the level in words, such as "General Inspection Level II" (II); never work it out from code letters, sample sizes or lot sizes. A special level goes in specialInspectionLevel.',
+  ),
+  specialInspectionLevel: SpecialInspectionLevelSchema.optional().describe(
+    'The ISO 2859-1 special inspection level (S-1 to S-4) set for this inspection, for Dimension, FAB and Packaging & Dispensing, in place of the template\'s. Fill it only from a document that states the level in words, such as "Special Inspection Level S-3" (S-3); never work it out from code letters, sample sizes or lot sizes.',
   ),
   roundCasesTo: z
     .literal(SAVED_ROUNDINGS)
@@ -141,31 +165,59 @@ export const SamplingPlanDataSchema = perSizeData(SamplingSizeSchema).extend({
 });
 export type SamplingPlanData = z.infer<typeof SamplingPlanDataSchema>;
 
+/**
+ * A general level (I, II or III), else null. A special level is no general
+ * level: one saved as the inspection's level while Sampling Settings had one
+ * level for everything (27 October 2026, before the special level had its
+ * own), or written in a template's `inspectionLevel`, leaves the general
+ * level to its default.
+ */
+export function generalLevel(level: string | null | undefined): GeneralInspectionLevel | null {
+  const parsed = GeneralInspectionLevelSchema.safeParse(level);
+  return parsed.success ? parsed.data : null;
+}
+
 /** The inspection's Sampling Settings (Kenneth, 27 October 2026). */
 export type SamplingSettings = {
-  /** The level set for this inspection; null for the default (calc's resolveInspectionLevel). */
-  inspectionLevel: InspectionLevel | null;
+  /** The general level set for this inspection; null for the default (calc's resolveInspectionLevel). */
+  inspectionLevel: GeneralInspectionLevel | null;
+  /** The special level set for this inspection; null for the default (calc's resolveSpecialInspectionLevel). */
+  specialInspectionLevel: SpecialInspectionLevel | null;
   /** Auto Calculate Sampling rounds each size's cases up to the nearest 5 or 10 (CASE_ROUNDING). */
   roundCases: boolean;
 };
 
+/** The settings saved: a special level in `inspectionLevel` reads as no general level set (generalLevel). */
 export function samplingSettings(data: SamplingPlanData): SamplingSettings {
-  return { inspectionLevel: data.inspectionLevel ?? null, roundCases: data.roundCasesTo !== undefined };
+  return {
+    inspectionLevel: generalLevel(data.inspectionLevel),
+    specialInspectionLevel: data.specialInspectionLevel ?? null,
+    roundCases: data.roundCasesTo !== undefined,
+  };
 }
 
 /**
  * `data` with the settings saved: a level that is null leaves the data, so
- * the inspection is back on the default level; the rounding switched on is
- * saved as `roundCasesTo` 5, switched off it leaves the data. The counts
- * stay as they are. The same `data` when nothing changes.
+ * the inspection is back on that default level; the rounding switched on is
+ * saved as `roundCasesTo` 5, switched off it leaves the data. A special
+ * level an earlier save holds in `inspectionLevel` goes with any change.
+ * The counts stay as they are. The same `data` when nothing changes.
  */
 export function withSamplingSettings(data: SamplingPlanData, settings: SamplingSettings): SamplingPlanData {
   const current = samplingSettings(data);
-  if (current.inspectionLevel === settings.inspectionLevel && current.roundCases === settings.roundCases) return data;
+  if (
+    current.inspectionLevel === settings.inspectionLevel &&
+    current.specialInspectionLevel === settings.specialInspectionLevel &&
+    current.roundCases === settings.roundCases
+  ) {
+    return data;
+  }
   const next: SamplingPlanData = { ...data };
   delete next.inspectionLevel;
+  delete next.specialInspectionLevel;
   delete next.roundCasesTo;
   if (settings.inspectionLevel !== null) next.inspectionLevel = settings.inspectionLevel;
+  if (settings.specialInspectionLevel !== null) next.specialInspectionLevel = settings.specialInspectionLevel;
   if (settings.roundCases) next.roundCasesTo = CASE_ROUNDING;
   return next;
 }
@@ -271,6 +323,12 @@ export type AutoSampling = {
   letters: Readonly<Record<string, CodeLetter>>;
   /** The inner units per case where a size has none (AUTO_INNER_UNITS_PER_CASE); null where the template shows no such row. */
   perCase: number | null;
+  /**
+   * The counts of the test rows filled at the special level (auto-special.ts),
+   * per row, for each size whose lot is known; a row or a size left out keeps
+   * its own. None without it.
+   */
+  tests?: Readonly<Partial<Record<SpecialRow, Readonly<Record<string, number>>>>>;
 };
 
 /**
@@ -278,7 +336,8 @@ export type AutoSampling = {
  * cases, its inner units per case where it has none and `auto.perCase` is
  * given, then its code letter and gloves where its lot is known (a size whose
  * lot is not known keeps both). The letter is the lot's own, so a reason
- * kept for a lower one goes (Kenneth, 27 October 2026). Through withCount,
+ * kept for a lower one goes (Kenneth, 27 October 2026). Then the counts of
+ * the tests filled at the special level (`auto.tests`). Through withCount,
  * so a total of inner units worked out from the cases follows them, and
  * Watertight & Visual takes the gloves where it follows.
  */
@@ -297,7 +356,11 @@ export function withAutoSampling(
     const letter = auto.letters[size];
     const withLot = letter === undefined ? withPerCase : withLetter(withPerCase, size, letter, null);
     const gloves = auto.gloves[size];
-    return gloves === undefined ? withLot : withSample(withLot, size, gloves, config);
+    const withGloves = gloves === undefined ? withLot : withSample(withLot, size, gloves, config);
+    return SPECIAL_ROWS.reduce((row, column) => {
+      const count = auto.tests?.[column]?.[size];
+      return count === undefined ? row : withCount(row, size, column, count);
+    }, withGloves);
   }, data);
 }
 
@@ -305,8 +368,9 @@ export function withAutoSampling(
  * Auto Calculate Sampling would change something already entered, so the
  * capture screen asks first ("Replace the Counts Entered?"): a size's cases,
  * gloves or code letter, its total of inner units where it puts in the
- * inner units per case, or its Watertight & Visual where that follows the
- * gloves; each only where it holds a value and the new one differs.
+ * inner units per case, its Watertight & Visual where that follows the
+ * gloves, or a test's count it fills at the special level; each only where
+ * it holds a value and the new one differs.
  */
 export function autoSamplingReplaces(
   data: SamplingPlanData,
@@ -327,7 +391,8 @@ export function autoSamplingReplaces(
       replaces(row.gloves, gloves) ||
       replaces(row.innerUnits, total) ||
       replaces(row.codeLetter, auto.letters[size]) ||
-      (follows && replaces(row.glovesWatertightVisual, gloves))
+      (follows && replaces(row.glovesWatertightVisual, gloves)) ||
+      SPECIAL_ROWS.some((column) => replaces(row[column], auto.tests?.[column]?.[size]))
     );
   });
 }

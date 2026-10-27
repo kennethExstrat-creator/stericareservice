@@ -16,6 +16,7 @@ import {
   templateModuleKeys,
   templateOfSource,
   TEMPLATES,
+  writtenConfig,
   type DimensionSpecRow,
 } from "./templates";
 import { SOURCE_IDS, TEMPLATE_CODES, TEMPLATE_PROPERTIES, type TemplateCode } from "./types";
@@ -133,12 +134,18 @@ describe("module order (BUILD_SPEC 11)", () => {
 });
 
 describe("config values use the dictionary's keys", () => {
-  it("sets only config keys fields.ts defines", () => {
+  it("sets only config keys fields.ts defines, every one of them as the module reads the config", () => {
     for (const code of TEMPLATE_CODES) {
       for (const { key, config } of TEMPLATES[code].modules) {
         const defined = moduleSpec(key).config.map((field) => field.key);
-        expect(Object.keys(config).sort(), `${code} ${key}`).toEqual([...defined].sort());
+        for (const written of Object.keys(config)) expect(defined, `${code} ${key}`).toContain(written);
+        expect(Object.keys(moduleConfig(code, key) ?? {}).sort(), `${code} ${key}`).toEqual([...defined].sort());
       }
+    }
+    // The sampling plan's special level, added 27 October 2026, is left out of every seed and read as none (S-2).
+    for (const code of TEMPLATE_CODES) {
+      expect(writtenConfig(code, "sampling_plan"), code).not.toHaveProperty("specialInspectionLevel");
+      expect(moduleConfig(code, "sampling_plan")?.specialInspectionLevel, code).toBeNull();
     }
   });
 

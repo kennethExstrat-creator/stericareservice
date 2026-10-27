@@ -50,6 +50,7 @@ import {
   type LoadingField,
   type Measure,
   type SamplingColumn,
+  type SpecialInspectionLevel,
 } from "./keys";
 import { configDiff, type ConfigObject } from "./merge";
 import type { FieldTarget, SourceId, TemplateCode } from "./types";
@@ -102,6 +103,12 @@ export type ModuleConfigValues = {
   readonly sampling_plan: {
     readonly columns: SamplingColumns;
     readonly inspectionLevel: InspectionLevel | null;
+    /**
+     * May be left out: the module's schema reads a missing level as none, so
+     * S-2, as in a template version saved before it existed (27 October
+     * 2026). The seeds leave it out, so their definitions stay the live ones.
+     */
+    readonly specialInspectionLevel?: SpecialInspectionLevel | null;
   };
   readonly carton_sampling: EmptyConfig;
   readonly dimensions: {
@@ -152,10 +159,17 @@ export type ModuleConfigValues = {
   readonly loading: { readonly fields: Readonly<Record<LoadingField, boolean>> };
 };
 
-/** A module's config as the module reads it (`moduleConfig`): every sampling column switched on or off. */
+/**
+ * A module's config as the module reads it (`moduleConfig`): every sampling
+ * column switched on or off, and the sampling plan's special level, none
+ * where the template leaves it out.
+ */
 export type ReadConfigValues = {
   readonly [M in ModuleKey]: M extends "sampling_plan"
-    ? Omit<ModuleConfigValues[M], "columns"> & { readonly columns: Readonly<Record<SamplingColumn, boolean>> }
+    ? Omit<ModuleConfigValues[M], "columns" | "specialInspectionLevel"> & {
+        readonly columns: Readonly<Record<SamplingColumn, boolean>>;
+        readonly specialInspectionLevel: SpecialInspectionLevel | null;
+      }
     : ModuleConfigValues[M];
 };
 
@@ -712,13 +726,18 @@ export function writtenConfig<M extends ModuleKey>(template: TemplateCode, key: 
 
 /**
  * A module's config as the module reads it: what the template writes, with
- * a sampling plan's glovesWeight left out read as off (`SamplingColumns`).
+ * a sampling plan's glovesWeight left out read as off (`SamplingColumns`)
+ * and its special level left out read as none.
  */
 export function moduleConfig<M extends ModuleKey>(template: TemplateCode, key: M): ReadConfigValues[M] | undefined {
   const written = writtenConfig(template, key);
   if (written === undefined || key !== "sampling_plan") return written as ReadConfigValues[M] | undefined;
   const sampling = written as ModuleConfigValues["sampling_plan"];
-  return { ...sampling, columns: samplingColumnSwitches(sampling.columns) } as ReadConfigValues[M];
+  return {
+    ...sampling,
+    columns: samplingColumnSwitches(sampling.columns),
+    specialInspectionLevel: sampling.specialInspectionLevel ?? null,
+  } as ReadConfigValues[M];
 }
 
 /** The template a source document seeds (BUILD_SPEC 11, "Built from"). */

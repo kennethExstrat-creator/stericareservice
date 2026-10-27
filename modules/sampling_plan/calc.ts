@@ -8,11 +8,15 @@
 // asked for. Each size's gloves taken per inner box and those put back are
 // worked out here (Kenneth, 27 October 2026), never typed, and so is whether
 // its code letter is below its lot's. The samples flow forward to the
-// modules that test them through the context (BUILD_SPEC 8).
-// The inspection level is resolved here and nowhere else
-// (resolveInspectionLevel): the one set for the inspection in Sampling
-// Settings, else the template's, else the client's, else I (Kenneth, 27
-// October 2026).
+// modules that test them through the context (BUILD_SPEC 8). Both inspection
+// levels are resolved here and nowhere else (Kenneth, 27 October 2026: "for
+// dimension and FAB, use Special Inspection Level S2 ... so both general
+// inspection and special inspection is in use"). The general level, for #
+// of Gloves Sample and its code letter (resolveInspectionLevel): the one set
+// for the inspection in Sampling Settings, else the template's, else the
+// client's, else I. The special level, for Dimension, FAB and Packaging &
+// Dispensing (resolveSpecialInspectionLevel): the one set for the
+// inspection, else the template's, else S-2.
 import {
   AqlSchema,
   codeLetterForSampleSize,
@@ -21,8 +25,10 @@ import {
   planFromLotSize,
   SAMPLE_SIZES,
   type CodeLetter,
+  type GeneralInspectionLevel,
   type InspectionLevel,
   type LotSizePlan,
+  type SpecialInspectionLevel,
 } from "@/lib/aql";
 import type { PerSizeResult } from "@/lib/schemas";
 import {
@@ -57,16 +63,16 @@ import {
 } from "./config";
 import { glovesPerInnerBox, glovesPutBack } from "./inner-boxes";
 import { letterSample, letterSteps } from "./letter-steps";
-import { emptySamplingSize, rowsOff, type SamplingPlanData, type SamplingSize } from "./schema";
+import { emptySamplingSize, generalLevel, rowsOff, type SamplingPlanData, type SamplingSize } from "./schema";
 
-/** One size's lot at the inspection level, and its watertight and visual sample against it. */
+/** One size's lot at the general inspection level, and its watertight and visual sample against it. */
 export type SizePlan = {
   /** Gloves in the lot: cases ordered x gloves per case; null until both are entered. */
   lotSizeGloves: number | null;
   /**
-   * ISO 2859-1 Table 1 code letter of the lot at the inspection level; null
-   * without a lot size. The letter the size's gloves are taken from, which
-   * the inspector may lower, is data (SamplingSize.codeLetter).
+   * ISO 2859-1 Table 1 code letter of the lot at the general inspection
+   * level; null without a lot size. The letter the size's gloves are taken
+   * from, which the inspector may lower, is data (SamplingSize.codeLetter).
    */
   codeLetter: CodeLetter | null;
   /**
@@ -99,8 +105,10 @@ export type SizePlan = {
 };
 
 export type SamplingPlanComputed = {
-  /** The level the plans are computed at (resolveInspectionLevel). */
-  inspectionLevel: InspectionLevel;
+  /** The general level the plans are computed at (resolveInspectionLevel). */
+  inspectionLevel: GeneralInspectionLevel;
+  /** The special level of Dimension, FAB and Packaging & Dispensing (resolveSpecialInspectionLevel). */
+  specialInspectionLevel: SpecialInspectionLevel;
   /** Per ordered size. */
   sizes: Record<string, SizePlan>;
   /**
@@ -115,44 +123,80 @@ export type SamplingPlanComputed = {
 /** Watertight and visual need at least this sample: Table 2-A starts at n 2 (code A). */
 const MIN_SAMPLE = 2;
 
-/** The level when neither the inspection, its template nor its client sets one (Kenneth, 27 October 2026). */
-export const DEFAULT_INSPECTION_LEVEL: InspectionLevel = "I";
-
-/** Where the inspection level comes from: set for the inspection, the template's, the client's, or the default. */
-export type LevelSource = "inspection" | "template" | "client" | "default";
-export type SourcedLevel = { level: InspectionLevel; source: LevelSource };
+/** The general level when neither the inspection, its template nor its client sets one (Kenneth, 27 October 2026). */
+export const DEFAULT_INSPECTION_LEVEL: GeneralInspectionLevel = "I";
 
 /**
- * The inspection level the plans are worked out at, and where it comes from:
- * the one set for this inspection in Sampling Settings, else the template's,
- * else the client's, else I. The one place it is resolved: whatever needs
- * the level asks here, or reads calc's `computed.inspectionLevel`.
+ * The special level when neither the inspection nor its template sets one
+ * (Kenneth, 27 October 2026: "for dimension and FAB, use Special Inspection
+ * Level S2").
+ */
+export const DEFAULT_SPECIAL_INSPECTION_LEVEL: SpecialInspectionLevel = "S-2";
+
+/** Where a level comes from: set for the inspection, the template's, the client's (the general level only), or the default. */
+export type LevelSource = "inspection" | "template" | "client" | "default";
+export type SourcedLevel<Level extends InspectionLevel = InspectionLevel> = { level: Level; source: LevelSource };
+
+/**
+ * The general level the plans and # of Gloves Sample are worked out at, and
+ * where it comes from: the one set for this inspection in Sampling Settings,
+ * else the template's, else the client's, else I. A special level in any of
+ * them is no general level (generalLevel), so the next one stands in: data
+ * saved while Sampling Settings had one level for everything may hold S-3,
+ * and reads as no level of its own. The one place it is resolved: whatever
+ * needs the level asks here, or reads calc's `computed.inspectionLevel`.
  */
 export function resolveInspectionLevel(
   data: Pick<SamplingPlanData, "inspectionLevel">,
   config: Pick<SamplingPlanConfig, "inspectionLevel">,
   context: Pick<InspectionContext, "aql">,
-): SourcedLevel {
-  if (data.inspectionLevel) return { level: data.inspectionLevel, source: "inspection" };
+): SourcedLevel<GeneralInspectionLevel> {
+  const own = generalLevel(data.inspectionLevel);
+  if (own !== null) return { level: own, source: "inspection" };
   return defaultInspectionLevel(data, config, context);
 }
 
 /**
- * The level the inspection has without one of its own, which Use Default
- * goes back to: the template's, else the client's, else I. The context
- * holds the client's only while the inspection sets no level, since the
- * sampling plan puts the level it sets there (contributeSamplingPlan); with
- * one set, I stands in for the client's: no client sets a level yet
+ * The general level the inspection has without one of its own, which Use
+ * Default goes back to: the template's, else the client's, else I. The
+ * context holds the client's only while the inspection sets no level, since
+ * the sampling plan puts the level it sets there (contributeSamplingPlan);
+ * with one set, I stands in for the client's: no client sets a level yet
  * (BUILD_SPEC 13).
  */
 export function defaultInspectionLevel(
   data: Pick<SamplingPlanData, "inspectionLevel">,
   config: Pick<SamplingPlanConfig, "inspectionLevel">,
   context: Pick<InspectionContext, "aql">,
-): SourcedLevel {
-  if (config.inspectionLevel !== null) return { level: config.inspectionLevel, source: "template" };
-  const client = data.inspectionLevel ? null : context.aql.inspectionLevel;
+): SourcedLevel<GeneralInspectionLevel> {
+  const template = generalLevel(config.inspectionLevel);
+  if (template !== null) return { level: template, source: "template" };
+  const client = generalLevel(data.inspectionLevel) === null ? generalLevel(context.aql.inspectionLevel) : null;
   return client === null ? { level: DEFAULT_INSPECTION_LEVEL, source: "default" } : { level: client, source: "client" };
+}
+
+/**
+ * The special level Dimension, FAB and Packaging & Dispensing are sampled at
+ * (Auto Calculate Sampling, auto-special.ts), and where it comes from: the
+ * one set for this inspection in Sampling Settings, else the template's,
+ * else S-2. No client sets one. The one place it is resolved: whatever needs
+ * it asks here, or reads calc's `computed.specialInspectionLevel`.
+ */
+export function resolveSpecialInspectionLevel(
+  data: Pick<SamplingPlanData, "specialInspectionLevel">,
+  config: Pick<SamplingPlanConfig, "specialInspectionLevel">,
+): SourcedLevel<SpecialInspectionLevel> {
+  if (data.specialInspectionLevel) return { level: data.specialInspectionLevel, source: "inspection" };
+  return defaultSpecialInspectionLevel(config);
+}
+
+/** The special level the inspection has without one of its own, which Use Default goes back to: the template's, else S-2. */
+export function defaultSpecialInspectionLevel(
+  config: Pick<SamplingPlanConfig, "specialInspectionLevel">,
+): SourcedLevel<SpecialInspectionLevel> {
+  // A template version saved before the setting has none (the config schema's default).
+  const template = config.specialInspectionLevel ?? null;
+  return template === null ? { level: DEFAULT_SPECIAL_INSPECTION_LEVEL, source: "default" } : { level: template, source: "template" };
 }
 
 export function calcSamplingPlan({
@@ -177,7 +221,14 @@ export function calcSamplingPlan({
   });
   return {
     result: resultFromSizes(perSize, summarise(perSize, context)),
-    computed: { inspectionLevel: level, sizes, totals: totalsOf(data, config, context.sizes, sizes) },
+    computed: {
+      inspectionLevel: level,
+      // Nothing is checked at it: Auto Calculate Sampling fills Dimension, FAB and Packaging & Dispensing at it, and
+      // the export carries it beside the general level.
+      specialInspectionLevel: resolveSpecialInspectionLevel(data, config).level,
+      sizes,
+      totals: totalsOf(data, config, context.sizes, sizes),
+    },
     issues,
   };
 }
@@ -189,10 +240,10 @@ export function contributeSamplingPlan({
   const sampling = Object.fromEntries(
     Object.entries(data.sizes).map(([size, row]) => [size, samplingValues(row, config)]),
   );
-  // The level set for this inspection in Sampling Settings, else the template's, for every reader of
+  // The general level set for this inspection in Sampling Settings, else the template's, for every reader of
   // `context.aql`. Neither leaves the client's level, if any, in place; with none at all, a reader takes
-  // the default I, as resolveInspectionLevel does.
-  const level = data.inspectionLevel ?? config.inspectionLevel;
+  // the default I, as resolveInspectionLevel does. A special level in either is none (generalLevel).
+  const level = generalLevel(data.inspectionLevel) ?? generalLevel(config.inspectionLevel);
   if (level === null) return { sampling };
   return { sampling, aql: { inspectionLevel: level } };
 }

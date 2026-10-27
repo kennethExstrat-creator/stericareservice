@@ -24,9 +24,12 @@ import { resolveSeed } from "./__fixtures__/seeds";
 import {
   calcSamplingPlan,
   contributeSamplingPlan,
+  DEFAULT_SPECIAL_INSPECTION_LEVEL,
   defaultInspectionLevel,
+  defaultSpecialInspectionLevel,
   lotPlan,
   resolveInspectionLevel,
+  resolveSpecialInspectionLevel,
   samplingValues,
   type SamplingPlanComputed,
 } from "./calc";
@@ -95,7 +98,11 @@ function evaluate(example: ExampleReport, config: SamplingPlanConfig, data = exa
 function templateConfig(code: "STD_EG" | "SAFEDON_EG"): SamplingPlanConfig {
   const config = moduleConfig(code, "sampling_plan");
   if (!config) throw new Error(`${code} has no sampling plan`);
-  return { columns: { ...config.columns }, inspectionLevel: config.inspectionLevel };
+  return {
+    columns: { ...config.columns },
+    inspectionLevel: config.inspectionLevel,
+    specialInspectionLevel: config.specialInspectionLevel,
+  };
 }
 
 describe("sampling_plan", () => {
@@ -111,8 +118,10 @@ describe("sampling_plan", () => {
         perSize: { M: { status: "info", summary: DONE_M } },
       },
       computed: {
-        // Neither the inspection, the template nor the client sets a level: I (Kenneth, 27 October 2026).
+        // Neither the inspection, the template nor the client sets a level: I, and S-2 for the special one (Kenneth,
+        // 27 October 2026).
         inspectionLevel: "I",
+        specialInspectionLevel: "S-2",
         sizes: {
           M: {
             lotSizeGloves: 5_800_000,
@@ -443,10 +452,31 @@ describe("sampling_plan's inspection level, set for the inspection in Sampling S
   const NONE = { aql: makeTestContext().aql };
 
   it("resolves the inspection's own first, then the template's, then the client's, then I, saying which", () => {
-    expect(resolveInspectionLevel({ inspectionLevel: "S-3" }, LEVEL_I, CLIENT_II)).toEqual({ level: "S-3", source: "inspection" });
+    expect(resolveInspectionLevel({ inspectionLevel: "III" }, LEVEL_I, CLIENT_II)).toEqual({ level: "III", source: "inspection" });
     expect(resolveInspectionLevel({}, LEVEL_I, CLIENT_II)).toEqual({ level: "I", source: "template" });
     expect(resolveInspectionLevel({}, SAMPLING_PLAN_DEFAULT_CONFIG, CLIENT_II)).toEqual({ level: "II", source: "client" });
     expect(resolveInspectionLevel({}, SAMPLING_PLAN_DEFAULT_CONFIG, NONE)).toEqual({ level: "I", source: "default" });
+  });
+
+  it("reads a special level saved as the one level, before the special level had its own, as no general level of the inspection's", () => {
+    // Data saved while Sampling Settings had one level for everything (27 October 2026) may hold S-3: the default stands in.
+    expect(resolveInspectionLevel({ inspectionLevel: "S-3" }, LEVEL_I, CLIENT_II)).toEqual({ level: "I", source: "template" });
+    expect(resolveInspectionLevel({ inspectionLevel: "S-3" }, SAMPLING_PLAN_DEFAULT_CONFIG, CLIENT_II)).toEqual({
+      level: "II",
+      source: "client",
+    });
+    expect(resolveInspectionLevel({ inspectionLevel: "S-3" }, SAMPLING_PLAN_DEFAULT_CONFIG, NONE)).toEqual({ level: "I", source: "default" });
+    // Nor is it the special level: that is the inspection's own specialInspectionLevel, else the template's, else S-2.
+    expect(resolveSpecialInspectionLevel({}, SAMPLING_PLAN_DEFAULT_CONFIG)).toEqual({ level: "S-2", source: "default" });
+    // A template's special level in its general setting is none either: the client's, else I.
+    const templateS4 = { ...SAMPLING_PLAN_DEFAULT_CONFIG, inspectionLevel: "S-4" as const };
+    expect(resolveInspectionLevel({}, templateS4, CLIENT_II)).toEqual({ level: "II", source: "client" });
+    expect(resolveInspectionLevel({}, templateS4, NONE)).toEqual({ level: "I", source: "default" });
+    // The plans are worked out at that default: lot 5,800,000 at I is code N, as with nothing saved.
+    const base = input({ M: ROW_M }, LEVEL_I);
+    const old = calcSamplingPlan({ ...base, data: { ...base.data, inspectionLevel: "S-3" } });
+    expect(old.computed).toMatchObject({ inspectionLevel: "I", specialInspectionLevel: "S-2", sizes: { M: { codeLetter: "N" } } });
+    expect(old.computed).toEqual(calcSamplingPlan(base).computed);
   });
 
   it("knows the level Use Default goes back to: the template's, else the client's while the context still holds it, else I", () => {
@@ -463,9 +493,9 @@ describe("sampling_plan's inspection level, set for the inspection in Sampling S
       const base = input({ M: ROW_M }, LEVEL_I, context);
       return calcSamplingPlan({ ...base, data: { ...base.data, inspectionLevel } }).computed;
     };
-    // Lot 5,800,000: III is code R, where AQL 1.5 and the critical class need all 2,000; S-4 is code K.
+    // Lot 5,800,000: III is code R, where AQL 1.5 and the critical class need all 2,000; II is code Q.
     expect(at("III")).toMatchObject({ inspectionLevel: "III", sizes: { M: { codeLetter: "R", planSampleSize: 2000, belowPlan: true } } });
-    expect(at("S-4")).toMatchObject({ inspectionLevel: "S-4", sizes: { M: { codeLetter: "K" } } });
+    expect(at("II")).toMatchObject({ inspectionLevel: "II", sizes: { M: { codeLetter: "Q" } } });
     // Nothing in the table changes with it: the result and the totals are the counts', not the level's.
     const plain = calcSamplingPlan(input({ M: ROW_M }, LEVEL_I, context));
     const base = input({ M: ROW_M }, LEVEL_I, context);
@@ -480,10 +510,20 @@ describe("sampling_plan's inspection level, set for the inspection in Sampling S
       sampling: {},
       aql: { inspectionLevel: "II" },
     });
-    expect(contributeSamplingPlan({ data: { sizes: {}, inspectionLevel: "S-2" }, config: SAMPLING_PLAN_DEFAULT_CONFIG }).aql).toEqual({
-      inspectionLevel: "S-2",
+    expect(contributeSamplingPlan({ data: { sizes: {}, inspectionLevel: "III" }, config: SAMPLING_PLAN_DEFAULT_CONFIG }).aql).toEqual({
+      inspectionLevel: "III",
     });
     expect(contributeSamplingPlan({ data: { sizes: {}, roundCasesTo: 10 }, config: SAMPLING_PLAN_DEFAULT_CONFIG })).toEqual({ sampling: {} });
+    // A special level saved as the one level is no general level: the template's goes forward, else nothing.
+    expect(contributeSamplingPlan({ data: { sizes: {}, inspectionLevel: "S-2" }, config: LEVEL_I }).aql).toEqual({ inspectionLevel: "I" });
+    expect(contributeSamplingPlan({ data: { sizes: {}, inspectionLevel: "S-2" }, config: SAMPLING_PLAN_DEFAULT_CONFIG })).toEqual({
+      sampling: {},
+    });
+    // The special level is the sampling plan's own: nothing reads it from the context.
+    expect(contributeSamplingPlan({ data: { sizes: {}, specialInspectionLevel: "S-4" }, config: LEVEL_I })).toEqual({
+      sampling: {},
+      aql: { inspectionLevel: "I" },
+    });
   });
 
   it("reaches the context and the plans through the engine; visual's code letter stays its sample's (BUILD_SPEC 6.2 rule 8)", () => {
@@ -515,6 +555,48 @@ describe("sampling_plan's inspection level, set for the inspection in Sampling S
     // Visual judges the 500 gloves it inspected: code N at either level.
     expect(fromTemplate.visual.codeLetters).toBe("N");
     expect(own.visual.codeLetters).toBe("N");
+  });
+});
+
+describe("sampling_plan's special inspection level (Kenneth, 27 October 2026: \"for dimension and FAB, use Special Inspection Level S2\")", () => {
+  const TEMPLATE_S3: SamplingPlanConfig = { ...LEVEL_I, specialInspectionLevel: "S-3" };
+
+  it("resolves the inspection's own first, then the template's, then S-2, saying which; no client sets one", () => {
+    expect(DEFAULT_SPECIAL_INSPECTION_LEVEL).toBe("S-2");
+    expect(resolveSpecialInspectionLevel({}, LEVEL_I)).toEqual({ level: "S-2", source: "default" });
+    expect(resolveSpecialInspectionLevel({}, TEMPLATE_S3)).toEqual({ level: "S-3", source: "template" });
+    expect(resolveSpecialInspectionLevel({ specialInspectionLevel: "S-1" }, TEMPLATE_S3)).toEqual({ level: "S-1", source: "inspection" });
+    expect(resolveSpecialInspectionLevel({ specialInspectionLevel: "S-4" }, LEVEL_I)).toEqual({ level: "S-4", source: "inspection" });
+    // A template version saved before the setting has none, parsed or not: S-2.
+    expect(resolveSpecialInspectionLevel({}, { columns: LEVEL_I.columns, inspectionLevel: "I" } as SamplingPlanConfig)).toEqual({
+      level: "S-2",
+      source: "default",
+    });
+  });
+
+  it("knows the special level Use Default goes back to: the template's, else S-2", () => {
+    expect(defaultSpecialInspectionLevel(TEMPLATE_S3)).toEqual({ level: "S-3", source: "template" });
+    expect(defaultSpecialInspectionLevel(LEVEL_I)).toEqual({ level: "S-2", source: "default" });
+  });
+
+  it("keeps the two levels apart: the general one sets nothing special, the special one nothing general", () => {
+    const data = { inspectionLevel: "III" as const, specialInspectionLevel: "S-1" as const };
+    expect(resolveInspectionLevel(data, TEMPLATE_S3, { aql: makeTestContext().aql })).toEqual({ level: "III", source: "inspection" });
+    expect(resolveSpecialInspectionLevel(data, TEMPLATE_S3)).toEqual({ level: "S-1", source: "inspection" });
+  });
+
+  it("puts the special level in force in the computed values beside the general one, checking nothing at it", () => {
+    const base = input({ M: ROW_M }, LEVEL_I);
+    const plain = calcSamplingPlan(base);
+    expect(plain.computed).toMatchObject({ inspectionLevel: "I", specialInspectionLevel: "S-2" });
+    expect(calcSamplingPlan({ ...base, config: TEMPLATE_S3 }).computed.specialInspectionLevel).toBe("S-3");
+    const own = calcSamplingPlan({ ...base, config: TEMPLATE_S3, data: { ...base.data, specialInspectionLevel: "S-4" } });
+    expect(own.computed.specialInspectionLevel).toBe("S-4");
+    // The plans, the result, the totals and the issues are the general level's and the counts'.
+    expect(own.result).toEqual(plain.result);
+    expect(own.computed.sizes).toEqual(plain.computed.sizes);
+    expect(own.computed.totals).toEqual(plain.computed.totals);
+    expect(own.issues).toEqual(plain.issues);
   });
 });
 
