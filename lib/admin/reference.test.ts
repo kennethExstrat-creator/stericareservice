@@ -9,8 +9,8 @@ import {
   LogoConfirmSchema,
   LogoUploadRequestSchema,
   MESSAGES,
-  ManufacturerInputSchema,
   clientValues,
+  counted,
   describeDeleteError,
   describeSaveError,
   deleteBlocker,
@@ -22,27 +22,26 @@ import {
   isLogoOf,
   isLogoType,
   loadClients,
-  loadManufacturers,
   logoFileExists,
   logoFileProblem,
   logoObjectName,
-  manufacturerLabel,
-  manufacturerValues,
   matchesSearch,
   multiLine,
   normaliseForSearch,
   oneLine,
+  optionalLine,
+  optionalText,
   parseLogoObjectName,
   readClient,
   readClientSnapshot,
   readForm,
-  readManufacturer,
-  readManufacturerSnapshot,
   removeLogoFiles,
+  requiredLine,
   removeUnusedLogos,
   searchText,
   succeeded,
   unreachable,
+  usageOf,
   usageText,
   type DatabaseClient,
 } from "./reference";
@@ -130,46 +129,27 @@ describe("text clean-up", () => {
   });
 });
 
-describe("ManufacturerInputSchema", () => {
-  const valid = { name: "Hartalega NGC", factory_name: "", address: "", country: "", notes: "" };
+describe("field schemas", () => {
+  const name = requiredLine(120, "name", "Enter the name.");
+  const line = optionalLine(60, "country");
+  const text = optionalText(400, "address");
 
-  it("cleans the fields and stores empty ones as null", () => {
-    const parsed = ManufacturerInputSchema.parse({
-      name: "  Terang   Nusa Sdn. Bhd. ",
-      factory_name: " TG Factory 40 ",
-      address: "Lot 67330  \r\nKlang\n",
-      country: " Malaysia",
-      notes: "   ",
-    });
-    expect(parsed).toEqual({
-      name: "Terang Nusa Sdn. Bhd.",
-      factory_name: "TG Factory 40",
-      address: "Lot 67330\nKlang",
-      country: "Malaysia",
-      notes: null,
-    });
+  it("clean what was typed and store an empty optional field as null", () => {
+    expect(name.parse("  Terang   Nusa Sdn. Bhd. ")).toBe("Terang Nusa Sdn. Bhd.");
+    expect(line.parse(" Malaysia ")).toBe("Malaysia");
+    expect(line.parse("   ")).toBeNull();
+    expect(text.parse("Lot 67330  \r\nKlang\n")).toBe("Lot 67330\nKlang");
+    expect(text.parse("\n \n")).toBeNull();
   });
 
-  it("needs a name", () => {
-    const result = ManufacturerInputSchema.safeParse({ ...valid, name: "   " });
-    expect(result.success).toBe(false);
-    expect(fieldErrors(result.error!)).toEqual({ name: "Enter the manufacturer's name." });
+  it("need a required value and say how long a value may be", () => {
+    expect(name.safeParse("   ").error?.issues[0].message).toBe("Enter the name.");
+    expect(name.safeParse("x".repeat(121)).error?.issues[0].message).toBe("Keep the name to 120 characters or fewer.");
+    expect(text.safeParse("y".repeat(401)).error?.issues[0].message).toBe("Keep the address to 400 characters or fewer.");
   });
 
-  it("caps each field and says how long it may be", () => {
-    const result = ManufacturerInputSchema.safeParse({
-      ...valid,
-      name: "x".repeat(121),
-      notes: "y".repeat(2001),
-    });
-    expect(fieldErrors(result.error!)).toEqual({
-      name: "Keep the name to 120 characters or fewer.",
-      notes: "Keep the notes to 2,000 characters or fewer.",
-    });
-  });
-
-  it("measures the cleaned value, not what was pasted", () => {
-    expect(ManufacturerInputSchema.safeParse({ ...valid, name: `  ${"x".repeat(120)}  ` }).success).toBe(true);
+  it("measure the cleaned value, not what was pasted", () => {
+    expect(name.safeParse(`  ${"x".repeat(120)}  `).success).toBe(true);
   });
 });
 
@@ -215,14 +195,10 @@ describe("EditTargetSchema", () => {
 
 describe("form values", () => {
   it("show every editable field as text, with empty ones as blank", () => {
-    expect(
-      manufacturerValues({ name: "Terang Nusa", factoryName: "TG Factory 40", address: null, country: "Malaysia", notes: null }),
-    ).toEqual({ name: "Terang Nusa", factory_name: "TG Factory 40", address: "", country: "Malaysia", notes: "" });
     expect(clientValues({ name: "Polyco", notes: null })).toEqual({ name: "Polyco", notes: "" });
   });
 
   it("are blank for a new row", () => {
-    expect(manufacturerValues(null)).toEqual({ name: "", factory_name: "", address: "", country: "", notes: "" });
     expect(clientValues(null)).toEqual({ name: "", notes: "" });
   });
 });
@@ -277,11 +253,9 @@ describe("readForm", () => {
 
 describe("fieldErrors", () => {
   it("keeps the first message for each field", () => {
-    const result = ManufacturerInputSchema.safeParse({ name: "", factory_name: "x".repeat(200) });
-    expect(fieldErrors(result.error!)).toMatchObject({ name: "Enter the manufacturer's name." });
-    expect(Object.keys(fieldErrors(result.error!))).toEqual(
-      expect.arrayContaining(["name", "factory_name", "address", "country", "notes"]),
-    );
+    const result = ClientInputSchema.safeParse({ name: "", notes: 5 });
+    expect(fieldErrors(result.error!)).toMatchObject({ name: "Enter the client's name." });
+    expect(Object.keys(fieldErrors(result.error!))).toEqual(["name", "notes"]);
   });
 });
 
@@ -336,6 +310,16 @@ describe("usage", () => {
     expect(isInUse(usage)).toBe(inUse);
   });
 
+  it("counts in words", () => {
+    expect(counted(1, "company", "companies")).toBe("1 company");
+    expect(counted(1450, "factory", "factories")).toBe("1,450 factories");
+  });
+
+  it("reads the counts a select of templates(count) and inspections(count) returns", () => {
+    expect(usageOf(usageColumns(2, 11))).toEqual({ templates: 2, inspections: 11 });
+    expect(usageOf({ templates: [], inspections: [] })).toEqual({ templates: 0, inspections: 0 });
+  });
+
   it("explains why a row in use cannot be deleted", () => {
     expect(deleteBlocker({ templates: 1, inspections: 3 })).toBe(
       "Used by 1 template and 3 inspections, so it cannot be deleted.",
@@ -346,10 +330,6 @@ describe("usage", () => {
 
 describe("database errors", () => {
   it("puts a duplicate next to the name", () => {
-    expect(describeSaveError("manufacturer", { code: "23505" })).toEqual({
-      field: "name",
-      message: "There is already a manufacturer with this name and factory.",
-    });
     expect(describeSaveError("client", { code: "23505" })).toEqual({
       field: "name",
       message: "There is already a client with this name.",
@@ -365,20 +345,9 @@ describe("database errors", () => {
 
   it("says a row in use cannot be deleted, for both codes Postgres uses", () => {
     for (const code of ["23503", "23001"]) {
-      expect(describeDeleteError("manufacturer", { code })).toBe(
-        "Templates or inspections use this manufacturer, so it cannot be deleted.",
-      );
+      expect(describeDeleteError("client", { code })).toBe("Templates or inspections use this client, so it cannot be deleted.");
     }
     expect(describeDeleteError("client", { code: "XX000" })).toBe("The client could not be deleted. Try again.");
-  });
-});
-
-describe("manufacturerLabel", () => {
-  it("names the factory when there is one", () => {
-    expect(manufacturerLabel({ name: "Terang Nusa Sdn. Bhd.", factoryName: "TG Factory 40" })).toBe(
-      "Terang Nusa Sdn. Bhd., TG Factory 40",
-    );
-    expect(manufacturerLabel({ name: "Hartalega NGC", factoryName: null })).toBe("Hartalega NGC");
   });
 });
 
@@ -478,40 +447,6 @@ describe("logo object names", () => {
  * Queries
  * ------------------------------------------------------------------ */
 
-describe("loadManufacturers", () => {
-  it("lists every manufacturer with its usage, by name and then factory", async () => {
-    const { client, queries } = fakeClient(() => ({
-      data: [
-        { id: "c", name: "terang nusa", factory_name: "TG Factory 40", address: null, country: "Malaysia", notes: null, updated_at: "t3", ...usageColumns(0, 0) },
-        { id: "b", name: "Terang Nusa", factory_name: "TG Factory 12", address: null, country: null, notes: null, updated_at: "t2", ...usageColumns(1, 4) },
-        { id: "a", name: "Hartalega NGC", factory_name: null, address: "Sepang", country: "Malaysia", notes: "n", updated_at: "t1", ...usageColumns(0, 2) },
-      ],
-      error: null,
-    }));
-
-    const rows = await loadManufacturers(client);
-
-    expect(queries[0].table).toBe("manufacturers");
-    expect(queries[0].calls[0][1][0]).toContain("templates(count), inspections(count)");
-    expect(rows.map((row) => row.id)).toEqual(["a", "b", "c"]);
-    expect(rows[0]).toEqual({
-      id: "a",
-      name: "Hartalega NGC",
-      factoryName: null,
-      address: "Sepang",
-      country: "Malaysia",
-      notes: "n",
-      updatedAt: "t1",
-      usage: { templates: 0, inspections: 2 },
-    });
-  });
-
-  it("fails loudly when the list cannot be read, for the error page", async () => {
-    const { client } = fakeClient(() => ({ data: null, error: { message: "permission denied" } }));
-    await expect(loadManufacturers(client)).rejects.toThrow("Could not load the manufacturers: permission denied");
-  });
-});
-
 describe("loadClients", () => {
   it("signs every stored logo in one call and keeps the object names on the server", async () => {
     const { client, bucket, storage } = fakeClient(() => ({
@@ -608,8 +543,8 @@ describe("loadClients", () => {
   });
 });
 
-describe("readManufacturer and readClient", () => {
-  it("read one row with its usage", async () => {
+describe("readClient", () => {
+  it("reads one row with its usage", async () => {
     const { client, queries } = fakeClient(() => ({
       data: { id: CLIENT, name: "Polyco", logo_path: `${CLIENT}/${FILE}.png`, ...usageColumns(1, 2) },
       error: null,
@@ -623,42 +558,33 @@ describe("readManufacturer and readClient", () => {
     expect(queries[0].calls).toContainEqual(["eq", ["id", CLIENT]]);
   });
 
-  it("answer null for a row that does not exist", async () => {
+  it("answers null for a row that does not exist", async () => {
     const { client } = fakeClient(() => ({ data: null, error: null }));
-    await expect(readManufacturer(client, CLIENT)).resolves.toBeNull();
+    await expect(readClient(client, CLIENT)).resolves.toBeNull();
   });
 
-  it("throw on a database error", async () => {
+  it("throws on a database error", async () => {
     const { client } = fakeClient(() => ({ data: null, error: { message: "timeout" } }));
-    await expect(readManufacturer(client, CLIENT)).rejects.toThrow("timeout");
+    await expect(readClient(client, CLIENT)).rejects.toThrow("timeout");
   });
 });
 
-describe("readManufacturerSnapshot and readClientSnapshot", () => {
+describe("readClientSnapshot", () => {
   const VERSION = "2026-10-06T10:45:02.066067+00:00";
 
-  it("read the editable fields as the form shows them, at the row's current version", async () => {
-    const { client, queries } = fakeClient(() => ({
-      data: { name: "Terang Nusa", factory_name: null, address: "Lot 1\nKlang", country: "Malaysia", notes: null, updated_at: VERSION },
-      error: null,
-    }));
-    await expect(readManufacturerSnapshot(client, CLIENT)).resolves.toEqual({
-      version: VERSION,
-      values: { name: "Terang Nusa", factory_name: "", address: "Lot 1\nKlang", country: "Malaysia", notes: "" },
-    });
-    expect(queries[0].calls).toContainEqual(["eq", ["id", CLIENT]]);
-
-    const clients = fakeClient(() => ({ data: { name: "Polyco", notes: null, updated_at: VERSION }, error: null }));
-    await expect(readClientSnapshot(clients.client, CLIENT)).resolves.toEqual({
+  it("reads the editable fields as the form shows them, at the row's current version", async () => {
+    const { client, queries } = fakeClient(() => ({ data: { name: "Polyco", notes: null, updated_at: VERSION }, error: null }));
+    await expect(readClientSnapshot(client, CLIENT)).resolves.toEqual({
       version: VERSION,
       values: { name: "Polyco", notes: "" },
     });
+    expect(queries[0].calls).toContainEqual(["eq", ["id", CLIENT]]);
   });
 
-  it("answer null for a row that has been deleted, and throw on a database error", async () => {
+  it("answers null for a row that has been deleted, and throws on a database error", async () => {
     await expect(readClientSnapshot(fakeClient(() => ({ data: null, error: null })).client, CLIENT)).resolves.toBeNull();
     const failing = fakeClient(() => ({ data: null, error: { message: "timeout" } }));
-    await expect(readManufacturerSnapshot(failing.client, CLIENT)).rejects.toThrow("timeout");
+    await expect(readClientSnapshot(failing.client, CLIENT)).rejects.toThrow("timeout");
   });
 });
 

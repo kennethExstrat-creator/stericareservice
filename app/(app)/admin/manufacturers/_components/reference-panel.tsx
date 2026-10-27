@@ -1,8 +1,9 @@
 "use client";
 
-// Shared by /admin/manufacturers and /admin/clients: the side panel that adds
-// or edits one row. It lives with the manufacturers page because this branch
-// owns only the two route folders; move it to components/admin/ when handy.
+// Shared by /admin/manufacturers, /admin/clients and /admin/roles: the side
+// panel that adds or edits one row. It lives with the manufacturers page
+// because that branch owned only the two route folders; move it to
+// components/admin/ when handy.
 
 import { useCallback, useRef, useState, type ReactNode, type RefObject } from "react";
 import { Sheet, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle } from "@/components/ui/sheet";
@@ -11,7 +12,17 @@ import { COARSE_QUERY } from "@/components/qc";
 /** What the panel shows: a new row, or the row with this id. */
 export type PanelTarget = { mode: "create" } | { mode: "edit"; id: string };
 
-type PanelState = { key: number; open: boolean; target: PanelTarget };
+type PanelState<Target> = { key: number; open: boolean; target: Target };
+
+const CREATE: PanelTarget = { mode: "create" };
+
+export type PanelControls<Target> = PanelState<Target> & {
+  show: (target: Target, from: HTMLElement | null) => void;
+  close: () => void;
+  closeDeleted: () => void;
+  retarget: (target: Target) => void;
+  returnFocus: () => void;
+};
 
 /**
  * Focuses the first element that is still on the page and can take the
@@ -37,11 +48,24 @@ export function focusFirst(candidates: ReadonlyArray<HTMLElement | null | undefi
  * keyboard back on it when the panel closes. When that button has gone (its
  * row was deleted, or no longer matches the search) the focus goes to
  * `fallback`, the page's Add button.
+ *
+ * A page whose panel shows more than a row (the manufacturers page: a brand,
+ * a company or a factory, and what a new one goes under) passes its own
+ * kind of target and the one to start from.
  */
-export function usePanel(fallback: RefObject<HTMLElement | null>) {
-  const [state, setState] = useState<PanelState>({ key: 0, open: false, target: { mode: "create" } });
+export function usePanel(fallback: RefObject<HTMLElement | null>): PanelControls<PanelTarget>;
+export function usePanel<Target>(fallback: RefObject<HTMLElement | null>, initial: Target): PanelControls<Target>;
+export function usePanel<Target>(
+  fallback: RefObject<HTMLElement | null>,
+  initial?: Target,
+): PanelControls<Target | PanelTarget> {
+  const [state, setState] = useState<PanelState<Target | PanelTarget>>(() => ({
+    key: 0,
+    open: false,
+    target: initial ?? CREATE,
+  }));
   const opener = useRef<HTMLElement | null>(null);
-  const show = useCallback((target: PanelTarget, from: HTMLElement | null) => {
+  const show = useCallback((target: Target | PanelTarget, from: HTMLElement | null) => {
     opener.current = from;
     setState((current) => ({ key: current.key + 1, open: true, target }));
   }, []);
@@ -51,7 +75,7 @@ export function usePanel(fallback: RefObject<HTMLElement | null>) {
     opener.current = null;
     close();
   }, [close]);
-  const retarget = useCallback((target: PanelTarget) => setState((current) => ({ ...current, target })), []);
+  const retarget = useCallback((target: Target | PanelTarget) => setState((current) => ({ ...current, target })), []);
   const returnFocus = useCallback(() => {
     focusFirst([opener.current, fallback.current]);
   }, [fallback]);
@@ -66,7 +90,8 @@ type ReferencePanelProps = {
   /** Puts the keyboard back where the panel opened from, once it has closed (usePanel's returnFocus). */
   returnFocus: () => void;
   title: string;
-  description: ReactNode;
+  /** A line under the title; none for a panel whose fields speak for themselves. */
+  description?: ReactNode;
   children: ReactNode;
   footer: ReactNode;
 };
@@ -104,6 +129,8 @@ export function ReferencePanel({
         ref={contentRef}
         side="right"
         aria-busy={busy || undefined}
+        // Without a description, say so: Radix warns about a dialog that has none.
+        {...(description ? {} : { "aria-describedby": undefined })}
         className="gap-0 outline-none data-[side=right]:w-full data-[side=right]:sm:max-w-md data-[side=right]:xl:max-w-lg"
         onOpenAutoFocus={(event) => {
           event.preventDefault();
@@ -127,7 +154,7 @@ export function ReferencePanel({
       >
         <SheetHeader className="gap-1.5 border-b border-border px-6 pt-6 pb-5 pr-16">
           <SheetTitle className="text-xl font-bold">{title}</SheetTitle>
-          <SheetDescription>{description}</SheetDescription>
+          {description && <SheetDescription>{description}</SheetDescription>}
         </SheetHeader>
         <div className="min-h-0 flex-1 overflow-y-auto px-6 py-6">{children}</div>
         <SheetFooter className="mt-0 flex-row flex-wrap justify-end gap-2 border-t border-border px-6 py-4 pb-[max(1rem,env(safe-area-inset-bottom))]">

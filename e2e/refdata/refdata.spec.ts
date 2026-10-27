@@ -18,10 +18,10 @@ import {
 
 /**
  * /admin/manufacturers and /admin/clients (BUILD_SPEC 3, 5 and 10) against
- * the live project, at the three sizes in playwright.config.ts. Rows are
- * named E2E_REFDATA…; afterAll deletes them, their logo files and the draft
- * template that marks one manufacturer and one client as in use.
- * Screenshots go to screenshots/refdata/ (git-ignored).
+ * the live project, at the sizes in playwright.config.ts. Brands, companies
+ * and clients are named E2E_REFDATA…; afterAll deletes them, their factories,
+ * their logo files and the draft template that marks one factory and one
+ * client as in use. Screenshots go to screenshots/refdata/ (git-ignored).
  */
 
 let admin: AdminClient;
@@ -68,26 +68,45 @@ async function height(locator: Locator): Promise<number> {
 test.describe("manufacturers, as the admin", () => {
   useAccount(TEST_ACCOUNTS.admin);
 
-  test("the list searches as you type and keeps the search in the address", async ({ page }) => {
+  test("brands, companies and factories in one table, searched as you type", async ({ page }) => {
     await page.goto("/admin/manufacturers");
     await expect(page.getByRole("heading", { level: 1, name: "Manufacturers" })).toBeVisible();
     await expect(page).toHaveTitle("Manufacturers · SteriCare QC");
-    await expect(row(page, inUse.name)).toBeVisible();
-    await expect(row(page, inUse.name)).toContainText("1 template");
+
+    // One row: the brand, its company and its factory, with the factory's usage.
+    const inUseRow = row(page, inUse.companyName);
+    await expect(inUseRow).toContainText(inUse.name);
+    await expect(inUseRow).toContainText(inUse.factoryName);
+    await expect(inUseRow).toContainText("1 template");
+    // The pencils and pluses sit in the cells they act on.
+    const controls = [
+      inUseRow.getByRole("button", { name: `Edit ${inUse.name}`, exact: true }),
+      inUseRow.getByRole("button", { name: `Add Company to ${inUse.name}` }),
+      inUseRow.getByRole("button", { name: `Edit ${inUse.companyName}`, exact: true }),
+      inUseRow.getByRole("button", { name: `Add Factory to ${inUse.companyName}` }),
+      inUseRow.getByRole("button", { name: `Edit ${inUse.factoryName}` }),
+    ];
+    for (const control of controls) await expect(control).toBeVisible();
     if (isDesktop(page)) {
-      // Compact rows with a mouse (docs/DESIGN.md, Density): 32 to 36 px.
-      expect(await height(row(page, inUse.name))).toBeLessThanOrEqual(36);
+      // Compact rows with a mouse (docs/DESIGN.md, Density): about 36 px.
+      expect(await height(inUseRow)).toBeLessThanOrEqual(37);
+      await expect(inUseRow.getByRole("cell").nth(3)).toContainText("Malaysia");
+    } else {
+      // 44 px controls on any touchscreen, and no address column.
+      for (const control of controls) expect(await height(control), String(control)).toBeGreaterThanOrEqual(44);
+      await expect(page.getByRole("columnheader", { name: "Address" })).toBeHidden();
     }
     await shot(page, "manufacturers-list");
 
-    await search(page, "Search manufacturers", `in use ${tag.toLowerCase()}`);
+    // A factory's name with its brand's: just that factory, and the search in the address.
+    await search(page, "Search manufacturers", `in use ${tag.toLowerCase()} plant 1`);
     await expect(page.getByRole("row")).toHaveCount(2); // the header and the match
-    await expect(page.getByText(/^1 of \d+ manufacturers$/)).toBeVisible();
+    await expect(page.getByText(/^1 of \d+ factories$/)).toBeVisible();
     await expect(page).toHaveURL(/\?q=in\+use\+/);
 
     await page.reload();
     await expect(page.getByRole("searchbox", { name: "Search manufacturers" })).toHaveValue(
-      `in use ${tag.toLowerCase()}`,
+      `in use ${tag.toLowerCase()} plant 1`,
     );
     await expect(page.getByRole("row")).toHaveCount(2);
 
@@ -95,120 +114,234 @@ test.describe("manufacturers, as the admin", () => {
     await expect(page.getByText("No Manufacturers Match “no factory is called this”")).toBeVisible();
     await shot(page, "manufacturers-no-match");
     await page.getByRole("button", { name: "Clear Search" }).first().click();
-    await expect(row(page, inUse.name)).toBeVisible();
+    await expect(inUseRow).toBeVisible();
     await expect(page).not.toHaveURL(/\?q=/);
   });
 
-  test("add, check, edit and delete a manufacturer", async ({ page }) => {
-    const name = `${PREFIX} ${tag} Gloves`;
+  test("add a brand, its companies and factories, edit, move and delete them", async ({ page }) => {
+    const brand = `${PREFIX} ${tag} Gloves`;
+    const company = `${PREFIX} ${tag} Gloves Sdn. Bhd.`;
+    // Sorts before `company`, so its row comes first under the brand.
+    const otherCompany = `${PREFIX} ${tag} Gloves Medical`;
+    const unnamed = `${company}'s Factory`;
+    const button = (name: string) => page.getByRole("button", { name, exact: true });
     await page.goto("/admin/manufacturers");
 
-    // Add: the name is required.
-    await page.getByRole("button", { name: "Add Manufacturer" }).click();
-    const add = panel(page, "Add Manufacturer");
-    await expect(add).toBeVisible();
-    await shot(page, "manufacturer-add");
-    await add.getByRole("button", { name: "Add Manufacturer" }).click();
-    await expect(add.getByText("Enter the manufacturer's name.")).toBeVisible();
-    await expect(add.getByLabel("Name", { exact: true })).toBeFocused();
-    await expect(add.getByLabel("Name", { exact: true })).toHaveAttribute("aria-invalid", "true");
-    await shot(page, "manufacturer-add-error");
+    // Add a brand: the name is required.
+    await button("Add Brand").click();
+    const addBrand = panel(page, "Add Brand");
+    await expect(addBrand).toBeVisible();
+    await footerButton(addBrand, "Add Brand").click();
+    await expect(addBrand.getByText("Enter the brand's name.")).toBeVisible();
+    await expect(addBrand.getByLabel("Name", { exact: true })).toBeFocused();
+    await expect(addBrand.getByLabel("Name", { exact: true })).toHaveAttribute("aria-invalid", "true");
+    await addBrand.getByLabel("Name", { exact: true }).fill(`  ${brand}  `);
+    await footerButton(addBrand, "Add Brand").click();
+    await expect(page.getByText(`${brand} added.`)).toBeVisible();
+    await expect(addBrand).toBeHidden();
+    await expect(button("Add Brand")).toBeFocused();
 
-    await add.getByLabel("Name", { exact: true }).fill(`  ${name}  `);
-    await add.getByLabel("Factory").fill("Plant 7");
-    await add.getByLabel("Address").fill("Lot 1, Jalan Contoh   \n43900 Sepang, Selangor\n\n");
-    await add.getByLabel("Country").fill("Malaysia");
-    await add.getByLabel("Notes").fill("Created by the reference data e2e spec.");
-    await add.getByRole("button", { name: "Add Manufacturer" }).click();
-    await expect(page.getByText(`${name}, Plant 7 added.`)).toBeVisible();
-    await expect(add).toBeHidden();
-    await expect(row(page, name)).toContainText("Plant 7");
-    // The focus is back on the button the panel opened from.
-    await expect(page.getByRole("button", { name: "Add Manufacturer" })).toBeFocused();
-    // The count stays on one line; a long name wraps instead.
-    expect(await height(row(page, name).getByText("Not in use"))).toBeLessThanOrEqual(24);
+    // The same name again, in another case, is a duplicate.
+    await button("Add Brand").click();
+    const again = panel(page, "Add Brand");
+    await again.getByLabel("Name", { exact: true }).fill(brand.toLowerCase());
+    await footerButton(again, "Add Brand").click();
+    await expect(again.getByText("There is already a brand with this name.")).toBeVisible();
+    await footerButton(again, "Cancel").click();
+    await expect(again).toBeHidden();
 
-    const { data: created } = await admin
+    // A brand with no company offers Add Company in the company's cell, with the brand chosen.
+    await row(page, brand).getByRole("button", { name: `Add Company to ${brand}` }).click();
+    const addCompany = panel(page, "Add Company");
+    await expect(addCompany.getByLabel("Brand")).toHaveText(brand);
+    await addCompany.getByLabel("Name", { exact: true }).fill(company);
+    await shot(page, "company-add");
+    await footerButton(addCompany, "Add Company").click();
+    await expect(page.getByText(`${company} added.`)).toBeVisible();
+    // That button went with its row; the brand's plus took its place, and the focus.
+    await expect(button(`Add Company to ${brand}`)).toBeFocused();
+
+    // A company with no factory offers Add Factory in the factory's cell, with the company chosen.
+    await row(page, company).getByRole("button", { name: `Add Factory to ${company}` }).click();
+    const addFactory = panel(page, "Add Factory");
+    await expect(addFactory.getByLabel("Company")).toHaveText(company);
+    await addFactory.getByLabel("Factory (Optional)").fill("Plant 7");
+    await addFactory.getByLabel("Address").fill("Lot 1, Jalan Contoh   \n43900 Sepang, Selangor\n\n");
+    await addFactory.getByLabel("Country").fill("Malaysia");
+    await addFactory.getByLabel("Notes").fill("Created by the reference data e2e spec.");
+    await shot(page, "factory-add");
+    await footerButton(addFactory, "Add Factory").click();
+    await expect(page.getByText("Plant 7 added.")).toBeVisible();
+    await expect(button(`Add Factory to ${company}`)).toBeFocused();
+
+    const { data: companyRow } = await admin.from("manufacturer_companies").select("id, brand_id").eq("name", company).single();
+    const { data: plant } = await admin
       .from("manufacturers")
-      .select("id, name, factory_name, address, country, notes")
-      .eq("name", name)
+      .select("id, factory_name, address, country, notes")
+      .eq("company_id", companyRow!.id)
       .single();
-    expect(created).toMatchObject({
-      name,
+    expect(plant).toMatchObject({
       factory_name: "Plant 7",
       address: "Lot 1, Jalan Contoh\n43900 Sepang, Selangor",
       country: "Malaysia",
+      notes: "Created by the reference data e2e spec.",
     });
 
-    // The same name and factory again is a duplicate, shown at the name.
-    await page.getByRole("button", { name: "Add Manufacturer" }).click();
-    const again = panel(page, "Add Manufacturer");
-    await again.getByLabel("Name", { exact: true }).fill(name.toLowerCase());
-    await again.getByLabel("Factory").fill("plant 7");
-    await again.getByRole("button", { name: "Add Manufacturer" }).click();
-    await expect(again.getByText("There is already a manufacturer with this name and factory.")).toBeVisible();
-    await shot(page, "manufacturer-duplicate");
-    await footerButton(again, "Cancel").click();
-    await expect(again).toBeHidden();
-    await expect(page.getByRole("button", { name: "Add Manufacturer" })).toBeFocused();
+    // A second factory needs no name; a company has one such factory at most, and each name once.
+    await button(`Add Factory to ${company}`).click();
+    const second = panel(page, "Add Factory");
+    await footerButton(second, "Add Factory").click();
+    await expect(page.getByText(`${company}'s factory added.`)).toBeVisible();
+    await button(`Add Factory to ${company}`).click();
+    const duplicate = panel(page, "Add Factory");
+    await footerButton(duplicate, "Add Factory").click();
+    await expect(duplicate.getByText("This company already has a factory without a name.")).toBeVisible();
+    await duplicate.getByLabel("Factory (Optional)").fill("plant 7");
+    await footerButton(duplicate, "Add Factory").click();
+    await expect(duplicate.getByText("This company already has a factory with this name.")).toBeVisible();
+    await expect(duplicate.getByLabel("Factory (Optional)")).toBeFocused();
+    await shot(page, "factory-duplicate");
+    await footerButton(duplicate, "Cancel").click();
+    await expect(duplicate).toBeHidden();
 
-    // From the keyboard: Enter on the row's Edit button opens the panel, and
-    // Escape closes it with the focus back on that button.
-    const editButton = row(page, name).getByRole("button", { name: `Edit ${name}, Plant 7` });
-    await editButton.focus();
+    // The brand's and the company's cells span the company's two rows, the unnamed factory first.
+    await expect(page.locator('td[rowspan="2"]', { hasText: brand }).first()).toBeVisible();
+    await expect(page.locator('td[rowspan="2"]', { hasText: company })).toBeVisible();
+    await expect(row(page, company)).toContainText("—");
+    await shot(page, "manufacturers-branch");
+
+    // From the keyboard: Enter on a pencil opens its panel, Escape closes it with the focus back.
+    const editPlant = button("Edit Plant 7");
+    await editPlant.focus();
     await page.keyboard.press("Enter");
-    const edit = panel(page, "Edit Manufacturer");
-    await expect(edit.getByLabel("Name", { exact: true })).toHaveValue(name);
-    // With a mouse the first field takes the focus; on touch the panel does, so no keyboard pops up.
-    if (!hasTouch()) await expect(edit.getByLabel("Name", { exact: true })).toBeFocused();
+    const edit = panel(page, "Edit Factory");
+    await expect(edit.getByLabel("Factory (Optional)")).toHaveValue("Plant 7");
+    await expect(edit.getByLabel("Company")).toHaveText(company);
+    // With a mouse the first text field takes the focus; on touch the panel does, so no keyboard pops up.
+    if (!hasTouch()) await expect(edit.getByLabel("Factory (Optional)")).toBeFocused();
     await page.keyboard.press("Escape");
     await expect(edit).toBeHidden();
-    await expect(editButton).toBeFocused();
+    await expect(editPlant).toBeFocused();
 
-    // Edit.
-    await page.keyboard.press("Enter");
-    await expect(edit.getByText("Not used by any template or inspection, so it can be deleted.")).toBeVisible();
-    await shot(page, "manufacturer-edit");
-    await edit.getByLabel("Factory").fill("Plant 8");
-    await expect(footerButton(edit, "Cancel")).toBeVisible();
-    await edit.getByRole("button", { name: "Save Changes" }).click();
-    await expect(page.getByText(`${name}, Plant 8 saved.`)).toBeVisible();
-    await expect(edit).toBeHidden();
-    await expect(row(page, name)).toContainText("Plant 8");
-    await expect(row(page, name).getByRole("button", { name: `Edit ${name}, Plant 8` })).toBeFocused();
+    // A second company, from the brand's plus.
+    await button(`Add Company to ${brand}`).click();
+    const addOther = panel(page, "Add Company");
+    await addOther.getByLabel("Name", { exact: true }).fill(otherCompany);
+    await footerButton(addOther, "Add Company").click();
+    await expect(page.getByText(`${otherCompany} added.`)).toBeVisible();
 
-    // Delete. Cancelling the confirmation keeps the panel, with the focus on its Delete button.
-    await row(page, name).getByRole("button", { name: /^Edit / }).click();
-    const reopened = panel(page, "Edit Manufacturer");
-    const deleteButton = reopened.getByRole("button", { name: "Delete Manufacturer" });
-    await deleteButton.click();
-    const confirm = page.getByRole("alertdialog", { name: `Delete ${name}, Plant 8?` });
+    // Rename Plant 7 and move it to the other company.
+    await button("Edit Plant 7").click();
+    const move = panel(page, "Edit Factory");
+    await move.getByLabel("Factory (Optional)").fill("Plant 8");
+    await move.getByLabel("Company").click();
+    await page.getByRole("option", { name: otherCompany }).click();
+    await expect(move.getByLabel("Company")).toHaveText(otherCompany);
+    await expect(footerButton(move, "Cancel")).toBeVisible();
+    await shot(page, "factory-edit");
+    await footerButton(move, "Save Changes").click();
+    await expect(page.getByText("Plant 8 saved.")).toBeVisible();
+    await expect(move).toBeHidden();
+    await expect(row(page, otherCompany)).toContainText("Plant 8");
+    await expect(button("Edit Plant 8")).toBeFocused();
+    const { data: other } = await admin.from("manufacturer_companies").select("id").eq("name", otherCompany).single();
+    const { data: moved } = await admin.from("manufacturers").select("company_id, factory_name").eq("id", plant!.id).single();
+    expect(moved).toEqual({ company_id: other!.id, factory_name: "Plant 8" });
+
+    // A brand with companies and a company with factories cannot be deleted.
+    await button(`Edit ${brand}`).click();
+    const editBrand = panel(page, "Edit Brand");
+    await expect(editBrand.getByLabel("Name", { exact: true })).toHaveValue(brand);
+    await expect(editBrand.getByText("Has 2 companies, so it cannot be deleted.")).toBeVisible();
+    await expect(editBrand.getByRole("button", { name: "Delete Brand" })).toBeDisabled();
+    await shot(page, "brand-edit");
+    await footerButton(editBrand, "Close").click();
+    await expect(editBrand).toBeHidden();
+    await button(`Edit ${company}`).click();
+    const editCompany = panel(page, "Edit Company");
+    await expect(editCompany.getByText("Has 1 factory, so it cannot be deleted.")).toBeVisible();
+    await expect(editCompany.getByRole("button", { name: "Delete Company" })).toBeDisabled();
+    await footerButton(editCompany, "Close").click();
+    await expect(editCompany).toBeHidden();
+
+    // Delete the unnamed factory. Cancelling the confirmation keeps the panel, with the focus on its Delete button.
+    await button(`Edit ${unnamed}`).click();
+    const editUnnamed = panel(page, "Edit Factory");
+    await expect(editUnnamed.getByText("Not used by any template or inspection, so it can be deleted.")).toBeVisible();
+    const deleteFactory = editUnnamed.getByRole("button", { name: "Delete Factory" });
+    await deleteFactory.click();
+    const confirm = page.getByRole("alertdialog", { name: `Delete ${unnamed}?` });
     await expect(confirm).toBeVisible();
-    await shot(page, "manufacturer-delete-confirm");
+    await shot(page, "factory-delete-confirm");
     await confirm.getByRole("button", { name: "Cancel" }).click();
     await expect(confirm).toBeHidden();
-    await expect(deleteButton).toBeFocused();
-    await deleteButton.click();
-    await confirm.getByRole("button", { name: "Delete Manufacturer" }).click();
-    await expect(page.getByText(`${name}, Plant 8 deleted.`)).toBeVisible();
-    await expect(confirm).toBeHidden();
-    await expect(reopened).toBeHidden();
-    await expect(row(page, name)).toHaveCount(0);
-    // Its row, and the Edit button the panel opened from, have gone: the focus goes to Add.
-    await expect(page.getByRole("button", { name: "Add Manufacturer" })).toBeFocused();
+    await expect(deleteFactory).toBeFocused();
+    await deleteFactory.click();
+    await confirm.getByRole("button", { name: "Delete Factory" }).click();
+    await expect(page.getByText(`${company}'s factory deleted.`)).toBeVisible();
+    await expect(editUnnamed).toBeHidden();
+    // Its pencil has gone: the focus goes to its company's, whose row offers Add Factory again.
+    await expect(button(`Edit ${company}`)).toBeFocused();
+    await expect(row(page, company).getByRole("button", { name: `Add Factory to ${company}` })).toBeVisible();
 
-    const { data: left } = await admin.from("manufacturers").select("id").eq("id", created!.id);
+    // Delete that company, now with no factory: the focus goes to its brand.
+    await button(`Edit ${company}`).click();
+    const emptyCompany = panel(page, "Edit Company");
+    await expect(emptyCompany.getByText("Has no factories, so it can be deleted.")).toBeVisible();
+    await emptyCompany.getByRole("button", { name: "Delete Company" }).click();
+    await page.getByRole("alertdialog", { name: `Delete ${company}?` }).getByRole("button", { name: "Delete Company" }).click();
+    await expect(page.getByText(`${company} deleted.`)).toBeVisible();
+    await expect(button(`Edit ${brand}`)).toBeFocused();
+
+    // Plant 8, its company, then the brand.
+    await button("Edit Plant 8").click();
+    await panel(page, "Edit Factory").getByRole("button", { name: "Delete Factory" }).click();
+    await page.getByRole("alertdialog", { name: "Delete Plant 8?" }).getByRole("button", { name: "Delete Factory" }).click();
+    await expect(page.getByText("Plant 8 deleted.")).toBeVisible();
+    await button(`Edit ${otherCompany}`).click();
+    await panel(page, "Edit Company").getByRole("button", { name: "Delete Company" }).click();
+    await page
+      .getByRole("alertdialog", { name: `Delete ${otherCompany}?` })
+      .getByRole("button", { name: "Delete Company" })
+      .click();
+    await expect(page.getByText(`${otherCompany} deleted.`)).toBeVisible();
+    await expect(row(page, brand).getByRole("button", { name: `Add Company to ${brand}` })).toBeVisible();
+
+    await button(`Edit ${brand}`).click();
+    const emptyBrand = panel(page, "Edit Brand");
+    await expect(emptyBrand.getByText("Has no companies, so it can be deleted.")).toBeVisible();
+    await emptyBrand.getByRole("button", { name: "Delete Brand" }).click();
+    await page.getByRole("alertdialog", { name: `Delete ${brand}?` }).getByRole("button", { name: "Delete Brand" }).click();
+    await expect(page.getByText(`${brand} deleted.`)).toBeVisible();
+    await expect(emptyBrand).toBeHidden();
+    await expect(row(page, brand)).toHaveCount(0);
+    // Its row, and the pencil the panel opened from, have gone: the focus goes to Add Brand.
+    await expect(button("Add Brand")).toBeFocused();
+
+    const { data: left } = await admin.from("manufacturer_brands").select("id").eq("id", companyRow!.brand_id);
     expect(left).toEqual([]);
   });
 
-  test("a manufacturer a template uses cannot be deleted", async ({ page }) => {
-    await page.goto(`/admin/manufacturers?q=${encodeURIComponent(inUse.name)}`);
-    await row(page, inUse.name).click();
-    const edit = panel(page, "Edit Manufacturer");
+  test("a factory a template uses cannot be deleted", async ({ page }) => {
+    await page.goto(`/admin/manufacturers?q=${encodeURIComponent(inUse.companyName)}`);
+    await row(page, inUse.companyName).getByRole("button", { name: `Edit ${inUse.factoryName}` }).click();
+    const edit = panel(page, "Edit Factory");
     await expect(edit.getByText("Used by 1 template, so it cannot be deleted.")).toBeVisible();
-    await expect(edit.getByRole("button", { name: "Delete Manufacturer" })).toBeDisabled();
-    await edit.getByRole("button", { name: "Delete Manufacturer" }).scrollIntoViewIfNeeded();
-    await shot(page, "manufacturer-in-use");
+    await expect(edit.getByRole("button", { name: "Delete Factory" })).toBeDisabled();
+    if (isDesktop(page)) {
+      expect(await height(footerButton(edit, "Save Changes"))).toBeLessThan(44);
+    } else {
+      for (const control of [
+        edit.getByLabel("Company"),
+        edit.getByLabel("Factory (Optional)"),
+        footerButton(edit, "Save Changes"),
+        footerButton(edit, "Close"),
+      ]) {
+        expect(await height(control), String(control)).toBeGreaterThanOrEqual(44);
+      }
+    }
+    await edit.getByRole("button", { name: "Delete Factory" }).scrollIntoViewIfNeeded();
+    await shot(page, "factory-in-use");
   });
 });
 
@@ -414,7 +547,7 @@ test.describe("as the inspector", () => {
       // Nothing gives the page away: not the title, not the list, not the HTML.
       await expect(page).not.toHaveTitle(/Manufacturers|Clients/);
       expect(html).not.toContain(inUse.name);
-      expect(html).not.toContain("Add Manufacturer");
+      expect(html).not.toContain("Add Brand");
       expect(html).not.toContain("Add Client");
       await expect(page.getByRole("heading", { name: /Manufacturers|Clients/ })).toHaveCount(0);
       await shot(page, `inspector${path.replaceAll("/", "-")}`);

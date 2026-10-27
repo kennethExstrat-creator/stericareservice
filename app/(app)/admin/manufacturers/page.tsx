@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { loadManufacturers } from "@/lib/admin/reference";
+import { loadManufacturerTree } from "@/lib/admin/manufacturers";
 import { requirePermission } from "@/lib/auth/session";
 import { createClient } from "@/lib/supabase/server";
 import { ManufacturersAdmin } from "./_components/manufacturers-admin";
@@ -15,18 +15,19 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 /**
- * /admin/manufacturers (BUILD_SPEC 3, 5 and 10): the factories inspections
- * and templates refer to. Someone whose role has no Manufacturers switch
- * gets a 404 from requirePermission(); a layout is not a security boundary,
- * so the page checks for itself, and the database lets only such a role
- * write (has_permission).
+ * /admin/manufacturers (BUILD_SPEC 3, 5 and 10): the brands, their operating
+ * companies and their factories, which inspections and templates refer to.
+ * Someone whose role has no Manufacturers switch gets a 404 from
+ * requirePermission(); a layout is not a security boundary, so the page
+ * checks for itself, and the database lets only such a role write
+ * (has_permission).
  *
  * No outer padding or width: the app shell's main area provides both.
  */
 export default async function ManufacturersPage({ searchParams }: PageProps<"/admin/manufacturers">) {
   await requirePermission("manufacturers");
   const supabase = await createClient();
-  const [manufacturers, { q }] = await Promise.all([loadManufacturers(supabase), searchParams]);
+  const [brands, { q }] = await Promise.all([loadManufacturerTree(supabase), searchParams]);
 
-  return <ManufacturersAdmin manufacturers={manufacturers} initialQuery={typeof q === "string" ? q : ""} />;
+  return <ManufacturersAdmin brands={brands} initialQuery={typeof q === "string" ? q : ""} />;
 }

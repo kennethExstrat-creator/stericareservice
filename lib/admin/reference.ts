@@ -4,9 +4,10 @@ import { z } from "zod";
 import type { Database } from "@/lib/supabase/database.types";
 
 /**
- * Manufacturers and clients for the admin screens (BUILD_SPEC 3, 5 and 10):
- * the form schemas, how client logos are stored, list search, plain words
- * for database errors, and the queries both pages run.
+ * Clients for the admin screens (BUILD_SPEC 3, 5 and 10), and what the
+ * reference lists share: the form clean-up, versions, action results, usage,
+ * list search and plain words for database errors. Manufacturers (brand,
+ * company and factory) have their own module, lib/admin/manufacturers.ts.
  *
  * Shared by server and browser code (the pages' client components use the
  * logo rules and the search), so nothing here imports a server-only module.
@@ -20,10 +21,9 @@ export type DatabaseClient = SupabaseClient<Database>;
  * Kinds
  * ------------------------------------------------------------------ */
 
-export type ReferenceKind = "manufacturer" | "client";
+export type ReferenceKind = "client";
 
 export const KINDS = {
-  manufacturer: { one: "manufacturer", many: "manufacturers" },
   client: { one: "client", many: "clients" },
 } as const satisfies Record<ReferenceKind, { one: string; many: string }>;
 
@@ -65,29 +65,20 @@ export function multiLine(value: string): string {
 const nullIfEmpty = (value: string): string | null => (value === "" ? null : value);
 const tooLong = (what: string, max: number) => `Keep the ${what} to ${max.toLocaleString("en-GB")} characters or fewer.`;
 
-function requiredLine(max: number, what: string, empty: string) {
+/** A required one-line field: a name. `empty` is the message when it is blank. */
+export function requiredLine(max: number, what: string, empty: string) {
   return z.string().overwrite(oneLine).min(1, empty).max(max, tooLong(what, max));
 }
 
-function optionalLine(max: number, what: string) {
+/** An optional one-line field; blank becomes null. */
+export function optionalLine(max: number, what: string) {
   return z.string().overwrite(oneLine).max(max, tooLong(what, max)).transform(nullIfEmpty);
 }
 
-function optionalText(max: number, what: string) {
+/** An optional field of several lines (an address, notes); blank becomes null. */
+export function optionalText(max: number, what: string) {
   return z.string().overwrite(multiLine).max(max, tooLong(what, max)).transform(nullIfEmpty);
 }
-
-/** A manufacturer as the form sends it. Keys are the table's columns; empty optional fields become null. */
-export const ManufacturerInputSchema = z.object({
-  name: requiredLine(LIMITS.name, "name", "Enter the manufacturer's name."),
-  factory_name: optionalLine(LIMITS.factory_name, "factory name"),
-  address: optionalText(LIMITS.address, "address"),
-  country: optionalLine(LIMITS.country, "country"),
-  notes: optionalText(LIMITS.notes, "notes"),
-});
-export type ManufacturerInput = z.output<typeof ManufacturerInputSchema>;
-export type ManufacturerField = keyof ManufacturerInput;
-export const MANUFACTURER_FIELDS = Object.keys(ManufacturerInputSchema.shape) as ManufacturerField[];
 
 /** A client as the form sends it. The logo has its own flow (see Client logos below). */
 export const ClientInputSchema = z.object({
@@ -96,19 +87,6 @@ export const ClientInputSchema = z.object({
 });
 export type ClientField = keyof z.output<typeof ClientInputSchema>;
 export const CLIENT_FIELDS = Object.keys(ClientInputSchema.shape) as ClientField[];
-
-type ManufacturerText = { name: string; factoryName: string | null; address: string | null; country: string | null; notes: string | null };
-
-/** A manufacturer's editable fields as the form shows them: text, "" for none. */
-export function manufacturerValues(row: ManufacturerText | null): Record<ManufacturerField, string> {
-  return {
-    name: row?.name ?? "",
-    factory_name: row?.factoryName ?? "",
-    address: row?.address ?? "",
-    country: row?.country ?? "",
-    notes: row?.notes ?? "",
-  };
-}
 
 /** A client's editable fields as the form shows them. The logo is not one: it has its own actions. */
 export function clientValues(row: { name: string; notes: string | null } | null): Record<ClientField, string> {
@@ -227,7 +205,7 @@ export function unreachable(error: unknown): { status: "error"; message: string 
 }
 
 /* ------------------------------------------------------------------ *
- * Usage: what still refers to a manufacturer or client
+ * Usage: what still refers to a factory or client
  * ------------------------------------------------------------------ */
 
 /** Templates and inspections that refer to a row. Both restrict its deletion in the database. */
@@ -237,7 +215,8 @@ export function isInUse(usage: Usage): boolean {
   return usage.templates > 0 || usage.inspections > 0;
 }
 
-function counted(count: number, one: string, many: string): string {
+/** "1 template", "2 companies". */
+export function counted(count: number, one: string, many: string): string {
   return `${count.toLocaleString("en-GB")} ${count === 1 ? one : many}`;
 }
 
@@ -258,19 +237,13 @@ export function deleteBlocker(usage: Usage): string | null {
  * Database errors in plain words (codes: docs/DATABASE.md)
  * ------------------------------------------------------------------ */
 
-type DatabaseError = { code?: string | null; message?: string | null };
+export type DatabaseError = { code?: string | null; message?: string | null };
 
 /** A failed insert or update. A duplicate belongs next to the name field. */
 export function describeSaveError(kind: ReferenceKind, error: DatabaseError): { message: string; field?: "name" } {
   switch (error.code) {
     case "23505":
-      return {
-        field: "name",
-        message:
-          kind === "manufacturer"
-            ? "There is already a manufacturer with this name and factory."
-            : "There is already a client with this name.",
-      };
+      return { field: "name", message: `There is already a ${KINDS[kind].one} with this name.` };
     case "42501":
       return { message: `Only active admins can change ${KINDS[kind].many}. Reload the page to check your access.` };
     default:
@@ -289,15 +262,6 @@ export function describeDeleteError(kind: ReferenceKind, error: DatabaseError): 
     default:
       return `The ${KINDS[kind].one} could not be deleted. Try again.`;
   }
-}
-
-/**
- * How a manufacturer is named in buttons and messages. A company can have
- * several plants, so the factory goes with the name: "Terang Nusa Sdn. Bhd.,
- * TG Factory 40".
- */
-export function manufacturerLabel(manufacturer: { name: string; factoryName: string | null }): string {
-  return manufacturer.factoryName ? `${manufacturer.name}, ${manufacturer.factoryName}` : manufacturer.name;
 }
 
 /* ------------------------------------------------------------------ *
@@ -405,26 +369,14 @@ export function isLogoOf(name: string, clientId: string): boolean {
  * Queries
  * ------------------------------------------------------------------ */
 
-type UsageColumns = { templates: Array<{ count: number }>; inspections: Array<{ count: number }> };
+/** The usage counts a select of `templates(count), inspections(count)` returns. */
+export type UsageColumns = { templates: Array<{ count: number }>; inspections: Array<{ count: number }> };
 
-function usageOf(row: UsageColumns): Usage {
+export function usageOf(row: UsageColumns): Usage {
   return { templates: row.templates[0]?.count ?? 0, inspections: row.inspections[0]?.count ?? 0 };
 }
 
 const byName = new Intl.Collator("en-GB", { sensitivity: "base", numeric: true });
-
-/** One manufacturer as the admin page shows it. Display fields only: this reaches the browser. */
-export type ManufacturerItem = {
-  id: string;
-  name: string;
-  factoryName: string | null;
-  address: string | null;
-  country: string | null;
-  notes: string | null;
-  /** The row's `updated_at`: the version an edit starts from. */
-  updatedAt: string;
-  usage: Usage;
-};
 
 /**
  * A stored logo as the page shows it: a signed preview link, or why there is
@@ -446,27 +398,6 @@ export type ClientItem = {
   usage: Usage;
   logo: LogoPreview | null;
 };
-
-/** Every manufacturer with its usage counts, by name (then factory). */
-export async function loadManufacturers(supabase: DatabaseClient): Promise<ManufacturerItem[]> {
-  const { data, error } = await supabase
-    .from("manufacturers")
-    .select("id, name, factory_name, address, country, notes, updated_at, templates(count), inspections(count)");
-  if (error) throw new Error(`Could not load the manufacturers: ${error.message}`);
-
-  return data
-    .map((row) => ({
-      id: row.id,
-      name: row.name,
-      factoryName: row.factory_name,
-      address: row.address,
-      country: row.country,
-      notes: row.notes,
-      updatedAt: row.updated_at,
-      usage: usageOf(row),
-    }))
-    .sort((a, b) => byName.compare(a.name, b.name) || byName.compare(a.factoryName ?? "", b.factoryName ?? ""));
-}
 
 /** Every client with its usage counts and a signed preview of its logo, by name. */
 export async function loadClients(supabase: DatabaseClient): Promise<ClientItem[]> {
@@ -514,20 +445,6 @@ export async function signLogos(supabase: DatabaseClient, paths: readonly string
   return previews;
 }
 
-/** A manufacturer by id with its usage counts, or null when it does not exist. */
-export async function readManufacturer(
-  supabase: DatabaseClient,
-  id: string,
-): Promise<{ id: string; name: string; factoryName: string | null; usage: Usage } | null> {
-  const { data, error } = await supabase
-    .from("manufacturers")
-    .select("id, name, factory_name, templates(count), inspections(count)")
-    .eq("id", id)
-    .maybeSingle();
-  if (error) throw new Error(`Could not read manufacturer ${id}: ${error.message}`);
-  return data ? { id: data.id, name: data.name, factoryName: data.factory_name, usage: usageOf(data) } : null;
-}
-
 /** A client by id with its logo's object name and usage counts, or null when it does not exist. */
 export async function readClient(
   supabase: DatabaseClient,
@@ -540,22 +457,6 @@ export async function readClient(
     .maybeSingle();
   if (error) throw new Error(`Could not read client ${id}: ${error.message}`);
   return data ? { id: data.id, name: data.name, logoPath: data.logo_path, usage: usageOf(data) } : null;
-}
-
-/** A manufacturer's editable fields at its current version, or null when it does not exist. */
-export async function readManufacturerSnapshot(
-  supabase: DatabaseClient,
-  id: string,
-): Promise<Snapshot<ManufacturerField> | null> {
-  const { data, error } = await supabase
-    .from("manufacturers")
-    .select("name, factory_name, address, country, notes, updated_at")
-    .eq("id", id)
-    .maybeSingle();
-  if (error) throw new Error(`Could not read manufacturer ${id}: ${error.message}`);
-  if (!data) return null;
-  const { factory_name: factoryName, updated_at: version, ...text } = data;
-  return { version, values: manufacturerValues({ ...text, factoryName }) };
 }
 
 /** A client's editable fields at its current version, or null when it does not exist. */

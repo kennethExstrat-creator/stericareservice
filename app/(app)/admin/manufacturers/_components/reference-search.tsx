@@ -14,17 +14,23 @@ import { matchesSearch } from "@/lib/admin/reference";
  * `textOf` must be stable (a module-level function).
  */
 export function useListSearch<T>(rows: readonly T[], initialQuery: string, textOf: (row: T) => string) {
-  const [query, setQueryState] = useState(initialQuery);
+  const { query, setQuery } = useSearchQuery(initialQuery);
   const indexed = useMemo(() => rows.map((row) => ({ row, text: textOf(row) })), [rows, textOf]);
   const results = useMemo(
     () => indexed.filter((entry) => matchesSearch(entry.text, query)).map((entry) => entry.row),
     [indexed, query],
   );
+  return { query, setQuery, results };
+}
+
+/** The query alone, kept in the address, for a list that filters in its own way (the manufacturers' tree). */
+export function useSearchQuery(initialQuery: string) {
+  const [query, setQueryState] = useState(initialQuery);
   const setQuery = useCallback((next: string) => {
     setQueryState(next);
     keepQueryInAddress(next);
   }, []);
-  return { query, setQuery, results };
+  return { query, setQuery };
 }
 
 function keepQueryInAddress(query: string) {

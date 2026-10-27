@@ -17,6 +17,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
+import type { ManufacturerKind } from "@/lib/admin/manufacturers";
 import {
   IDLE,
   deleteBlocker,
@@ -29,37 +30,60 @@ import { focusFirst, PanelSection } from "./reference-panel";
 
 type DeleteAction = (previous: ActionResult, formData: FormData) => Promise<ActionResult>;
 
-/** The kind in a heading or on a button, in Title Case: "Delete Manufacturer". lib/admin/reference KINDS words it for sentences. */
-const KIND_TITLE: Readonly<Record<ReferenceKind, string>> = { manufacturer: "Manufacturer", client: "Client" };
+type DeleteKind = ReferenceKind | ManufacturerKind;
+
+/** The kind in a heading or on a button, in Title Case: "Delete Brand". KINDS and MANUFACTURER_KINDS word it for sentences. */
+const KIND_TITLE: Readonly<Record<DeleteKind, string>> = {
+  client: "Client",
+  brand: "Brand",
+  company: "Company",
+  factory: "Factory",
+};
+
+/**
+ * What keeps the row: the templates and inspections that use it (a client,
+ * a factory), or a reason of its own with the line shown when there is none
+ * (a brand's companies, a company's factories).
+ */
+type DeleteReason =
+  | { usage: Usage; blocker?: never; deletable?: never }
+  | { usage?: never; blocker: string | null; deletable: string };
 
 type DeleteSectionProps = {
-  kind: ReferenceKind;
+  kind: DeleteKind;
   id: string;
   name: string;
-  usage: Usage;
   action: DeleteAction;
   /** What else goes with the row, said in the confirmation (a client's logo). */
   alsoDeletes?: string;
   onDeleted: () => void;
-};
+} & DeleteReason;
+
+function reasonOf(reason: DeleteReason): { blocker: string | null; text: string } {
+  if (reason.usage) {
+    const blocker = deleteBlocker(reason.usage);
+    return { blocker, text: blocker ?? "Not used by any template or inspection, so it can be deleted." };
+  }
+  return { blocker: reason.blocker, text: reason.blocker ?? reason.deletable };
+}
 
 /**
- * The end of the edit panel. A row that templates or inspections use cannot
- * be deleted (the database restricts it too), and the panel says why instead
+ * The end of the edit panel. A row that something still needs cannot be
+ * deleted (the database restricts it too), and the panel says why instead
  * of offering a button that can only fail.
  */
-export function DeleteSection({ kind, id, name, usage, action, alsoDeletes, onDeleted }: DeleteSectionProps) {
+export function DeleteSection({ kind, id, name, action, alsoDeletes, onDeleted, ...reason }: DeleteSectionProps) {
   const titleId = useId();
   const reasonId = useId();
   const deleteButton = useRef<HTMLButtonElement>(null);
   const [confirming, setConfirming] = useState(false);
-  const blocker = deleteBlocker(usage);
+  const { blocker, text } = reasonOf(reason);
 
   return (
     <PanelSection title={`Delete ${KIND_TITLE[kind]}`} titleId={titleId}>
       <p id={reasonId} className="flex gap-2 text-sm text-muted-foreground">
         <InfoIcon aria-hidden className="mt-0.5 size-4 shrink-0" />
-        <span>{blocker ?? "Not used by any template or inspection, so it can be deleted."}</span>
+        <span>{text}</span>
       </p>
       <div>
         <Button
@@ -102,7 +126,12 @@ function ConfirmDelete({
   opener,
   onCancel,
   onDeleted,
-}: Omit<DeleteSectionProps, "usage" | "onDeleted"> & {
+}: {
+  kind: DeleteKind;
+  id: string;
+  name: string;
+  action: DeleteAction;
+  alsoDeletes?: string;
   /** The Delete button, which gets the focus back when this closes without deleting. */
   opener: RefObject<HTMLButtonElement | null>;
   onCancel: () => void;

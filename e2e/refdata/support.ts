@@ -3,9 +3,10 @@ import { createTestAdminClient } from "../support/admin";
 import { sessionCookies } from "../support/session";
 
 /**
- * Test data for the /admin/manufacturers and /admin/clients specs. Every row
- * they make is named with PREFIX, and every template code starts with
- * TEMPLATE_PREFIX, so cleanUp() finds leftovers of a failed run too.
+ * Test data for the /admin/manufacturers and /admin/clients specs. Every
+ * brand, company and client they make is named with PREFIX, and every
+ * template code starts with TEMPLATE_PREFIX, so cleanUp() finds leftovers of
+ * a failed run too; a factory is found by its company.
  */
 export const PREFIX = "E2E_REFDATA";
 export const TEMPLATE_PREFIX = "E2E_REFDATA_";
@@ -70,15 +71,30 @@ export function failOnHydrationErrors() {
   });
 }
 
-/** A manufacturer and a client that a draft template uses, so neither can be deleted. */
+/**
+ * A brand with one company and its one factory, and a client, that a draft
+ * template uses, so neither the factory nor the client can be deleted.
+ */
 export async function createInUseFixtures(admin: AdminClient, tag: string) {
   const name = `${PREFIX} in use ${tag}`;
+  const companyName = `${name} Sdn. Bhd.`;
+  const factoryName = "Plant 1";
+
+  const { data: brand, error: brandError } = await admin.from("manufacturer_brands").insert({ name }).select("id").single();
+  if (brandError) throw new Error(`Could not create the test brand: ${brandError.message}`);
+  const { data: company, error: companyError } = await admin
+    .from("manufacturer_companies")
+    .insert({ brand_id: brand.id, name: companyName })
+    .select("id")
+    .single();
+  if (companyError) throw new Error(`Could not create the test company: ${companyError.message}`);
+  // manufacturers.name is left out: a trigger copies the company's name into it.
   const { data: manufacturer, error: manufacturerError } = await admin
     .from("manufacturers")
-    .insert({ name, factory_name: "Plant 1", country: "Malaysia" })
-    .select("id, name")
+    .insert({ company_id: company.id, factory_name: factoryName, country: "Malaysia" })
+    .select("id")
     .single();
-  if (manufacturerError) throw new Error(`Could not create the test manufacturer: ${manufacturerError.message}`);
+  if (manufacturerError) throw new Error(`Could not create the test factory: ${manufacturerError.message}`);
 
   const { data: client, error: clientError } = await admin.from("clients").insert({ name }).select("id, name").single();
   if (clientError) throw new Error(`Could not create the test client: ${clientError.message}`);
@@ -103,7 +119,17 @@ export async function createInUseFixtures(admin: AdminClient, tag: string) {
   });
   if (templateError) throw new Error(`Could not create the test template: ${templateError.message}`);
 
-  return { name, manufacturerId: manufacturer.id, clientId: client.id, templateCode: code };
+  return {
+    /** The brand's and the client's name. */
+    name,
+    companyName,
+    factoryName,
+    brandId: brand.id,
+    companyId: company.id,
+    manufacturerId: manufacturer.id,
+    clientId: client.id,
+    templateCode: code,
+  };
 }
 
 /** The logo files in a client's folder. */
@@ -113,9 +139,25 @@ export async function logoFiles(admin: AdminClient, clientId: string): Promise<s
   return data.filter((item) => item.id !== null).map((item) => `${clientId}/${item.name}`);
 }
 
+/** The test companies: named with PREFIX, or under a test brand. */
+async function testCompanies(admin: AdminClient, brandIds: readonly string[], problems: string[]): Promise<string[]> {
+  const ids = new Set<string>();
+  const named = await admin.from("manufacturer_companies").select("id").like("name", `${PREFIX}%`);
+  if (named.error) problems.push(`manufacturer_companies: ${named.error.message}`);
+  for (const company of named.data ?? []) ids.add(company.id);
+  if (brandIds.length > 0) {
+    const under = await admin.from("manufacturer_companies").select("id").in("brand_id", [...brandIds]);
+    if (under.error) problems.push(`manufacturer_companies: ${under.error.message}`);
+    for (const company of under.data ?? []) ids.add(company.id);
+  }
+  return [...ids];
+}
+
 /**
  * Deletes everything the specs made, leftovers of earlier runs included:
- * templates first (they restrict the rows), then logo files, then the rows.
+ * templates first (they restrict the rows), then logo files, then the rows,
+ * a test company's factories before the company and a brand's companies
+ * before the brand (the database restricts each).
  */
 export async function cleanUp(admin: AdminClient) {
   const problems: string[] = [];
@@ -139,17 +181,40 @@ export async function cleanUp(admin: AdminClient) {
   const deletedClients = await admin.from("clients").delete().like("name", `${PREFIX}%`);
   if (deletedClients.error) problems.push(`clients: ${deletedClients.error.message}`);
 
-  const deletedManufacturers = await admin.from("manufacturers").delete().like("name", `${PREFIX}%`);
-  if (deletedManufacturers.error) problems.push(`manufacturers: ${deletedManufacturers.error.message}`);
+  const { data: brands, error: brandsError } = await admin
+    .from("manufacturer_brands")
+    .select("id")
+    .like("name", `${PREFIX}%`);
+  if (brandsError) problems.push(`manufacturer_brands: ${brandsError.message}`);
+  const brandIds = (brands ?? []).map((brand) => brand.id);
+  const companyIds = await testCompanies(admin, brandIds, problems);
+  if (companyIds.length > 0) {
+    const factories = await admin.from("manufacturers").delete().in("company_id", companyIds);
+    if (factories.error) problems.push(`manufacturers: ${factories.error.message}`);
+    const companies = await admin.from("manufacturer_companies").delete().in("id", companyIds);
+    if (companies.error) problems.push(`manufacturer_companies: ${companies.error.message}`);
+  }
+  if (brandIds.length > 0) {
+    const deletedBrands = await admin.from("manufacturer_brands").delete().in("id", brandIds);
+    if (deletedBrands.error) problems.push(`manufacturer_brands: ${deletedBrands.error.message}`);
+  }
 
   // Check, rather than trust, that nothing is left.
   for (const [table, column, pattern] of [
     ["templates", "code", `${TEMPLATE_PREFIX}%`],
     ["clients", "name", `${PREFIX}%`],
-    ["manufacturers", "name", `${PREFIX}%`],
+    ["manufacturer_brands", "name", `${PREFIX}%`],
+    ["manufacturer_companies", "name", `${PREFIX}%`],
   ] as const) {
     const { count, error } = await admin.from(table).select("*", { count: "exact", head: true }).like(column, pattern);
     if (error || count) problems.push(`${table}: ${error?.message ?? `${count} left`}`);
+  }
+  if (companyIds.length > 0) {
+    const { count, error } = await admin
+      .from("manufacturers")
+      .select("*", { count: "exact", head: true })
+      .in("company_id", companyIds);
+    if (error || count) problems.push(`manufacturers: ${error?.message ?? `${count} left`}`);
   }
   for (const client of clients ?? []) {
     const files = await logoFiles(admin, client.id);

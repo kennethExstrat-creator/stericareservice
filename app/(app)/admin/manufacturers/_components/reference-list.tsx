@@ -1,6 +1,6 @@
 "use client";
 
-// Shared by /admin/manufacturers and /admin/clients (see reference-panel.tsx).
+// Shared by /admin/manufacturers, /admin/clients and /admin/roles (see reference-panel.tsx).
 
 import type { ReactNode } from "react";
 import { PencilIcon, SearchXIcon } from "lucide-react";
@@ -79,7 +79,8 @@ export function EmptyList({
 }: {
   icon: ReactNode;
   title: string;
-  description: string;
+  /** A sentence under the title, if the title and the button do not say enough. */
+  description?: string;
   action: ReactNode;
 }) {
   return (
@@ -87,7 +88,7 @@ export function EmptyList({
       <EmptyHeader>
         <EmptyMedia variant="icon">{icon}</EmptyMedia>
         <EmptyTitle>{title}</EmptyTitle>
-        <EmptyDescription>{description}</EmptyDescription>
+        {description && <EmptyDescription>{description}</EmptyDescription>}
       </EmptyHeader>
       <EmptyContent>{action}</EmptyContent>
     </Empty>
