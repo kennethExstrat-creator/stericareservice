@@ -90,9 +90,11 @@ export async function loadInspectionMedia(
   if (!found.data) return { kind: "not_found" };
   const inspection = found.data;
 
-  const [canEdit, isAdmin, photos, files, defects] = await Promise.all([
+  const [canEdit, isAdmin, approves, photos, files, defects] = await Promise.all([
     client.rpc("can_edit_inspection", { inspection_id: inspectionId }),
     client.rpc("is_admin"),
+    // Choosing the report's photos is part of approving: the role's Approve and Reopen (migration 20261027150000).
+    client.rpc("has_permission", { permission: "approve_inspections" }),
     client.from("inspection_photos").select(PHOTO_COLUMNS).eq("inspection_id", inspectionId).order("created_at").order("id"),
     client.from("inspection_files").select(FILE_COLUMNS).eq("inspection_id", inspectionId).order("created_at").order("id"),
     client.from("defect_codes").select("code, name").eq("active", true).order("name"),
@@ -103,8 +105,9 @@ export async function loadInspectionMedia(
   }
 
   const problems: string[] = [];
-  if (canEdit.error || isAdmin.error) {
-    logFailure("access", (canEdit.error ?? isAdmin.error)!);
+  const accessError = canEdit.error ?? isAdmin.error ?? approves.error;
+  if (accessError) {
+    logFailure("access", accessError);
     problems.push(MEDIA_MESSAGES.accessFailed);
   }
   if (files.error) {
@@ -134,7 +137,8 @@ export async function loadInspectionMedia(
       },
       access: {
         canEdit: !canEdit.error && canEdit.data === true,
-        isAdmin: !isAdmin.error && isAdmin.data === true,
+        // Every inspection in sight and the switch, as the session's can() reads Approve and Reopen.
+        isAdmin: !isAdmin.error && isAdmin.data === true && !approves.error && approves.data === true,
       },
       photos: photoRows.map((row) => toMediaPhoto(row, photoUrls.urls)),
       files: fileRows.map((row) => toMediaFile(row, fileUrls.urls)),

@@ -107,6 +107,17 @@ describe("who may ask", () => {
     nothingCalled();
   });
 
+  it("asks for the role's Steri-AI Summary, and calls nobody for a role without it", async () => {
+    vi.mocked(authorizeAction).mockResolvedValue({ ok: false, error: "You do not have permission to do that." });
+    expect(await draftInspectionSummary(request(useInspection()))).toEqual({
+      ok: false,
+      reason: "forbidden",
+      message: "You do not have permission to do that.",
+    });
+    expect(authorizeAction).toHaveBeenCalledWith({ permission: "ai_summary" });
+    nothingCalled();
+  });
+
   it.each([
     ["no inspection id", { dataHash: "0123456789abcdef", options: { mode: "write" } }],
     ["an id that is no id", { inspectionId: "INS-2025-0001", dataHash: "0123456789abcdef", options: { mode: "write" } }],

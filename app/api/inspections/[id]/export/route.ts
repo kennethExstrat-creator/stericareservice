@@ -1,22 +1,24 @@
 import type { NextRequest } from "next/server";
-import { getSession } from "@/lib/auth/session";
+import { getSession, userCan } from "@/lib/auth/session";
 import { buildInspectionExport, exportFileName, parseInspectionId, type ExportFailureReason } from "@/lib/export";
 import { createClient } from "@/lib/supabase/server";
 
 /*
  * GET /api/inspections/[id]/export (BUILD_SPEC 9.1): the inspection export as
- * a JSON download, for its inspector or an admin.
+ * a JSON download, for its inspector or an admin whose role allows Export
+ * Reports.
  *
  *   401  not signed in
- *   403  signed in, but the account is not active
+ *   403  signed in, but the account is not active, or its role does not
+ *        allow Export Reports (said before any inspection is read)
  *   404  no such inspection, or not one this account may export (the two look
  *        the same, so the route never reveals that someone else's exists)
  *   500  the inspection could not be turned into a valid export
  *   503  Supabase not configured, or the database or storage did not answer
  *
  * proxy.ts lets /api through without redirecting; this handler checks the
- * session itself, reads through the signed-in user's client (Row Level
- * Security) and checks owner-or-admin again on the record.
+ * session and the role itself, reads through the signed-in user's client
+ * (Row Level Security) and checks owner-or-admin again on the record.
  */
 
 const NO_STORE = { "Cache-Control": "private, no-store", "X-Content-Type-Options": "nosniff" } as const;
@@ -38,6 +40,9 @@ export async function GET(_request: NextRequest, context: RouteContext<"/api/ins
       return failure(403, "forbidden", "This account is not active.");
     case "active":
       break;
+  }
+  if (!userCan(session.user, "export_reports")) {
+    return failure(403, "forbidden", "Your role does not allow exporting reports.");
   }
 
   const { id } = await context.params;

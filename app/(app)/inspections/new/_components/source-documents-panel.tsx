@@ -135,7 +135,7 @@ function FilesSide({
   unlisted,
   onPreview,
 }: Omit<SourceDocumentsPanelProps, "id"> & { onPreview: (document: HeldDocument) => void }) {
-  const { documents, preparing, canRead } = sources;
+  const { documents, preparing, canRead, aiReading } = sources;
   const lines = createLines(sources.fill);
   const empty = documents.length === 0 && preparing === 0;
   const summary = filled.length > 0 || unlisted.length > 0 || lines.length > 0;
@@ -147,11 +147,7 @@ function FilesSide({
           <DropArea
             slot="read-drop"
             title={empty ? "Start Here" : "More Documents"}
-            text={
-              empty
-                ? "Drop the PO, packing list and inspection forms here. Steri-AI reads each one and fills in the inspection."
-                : "Drop them here. Steri-AI reads each one in turn."
-            }
+            text={filesText(empty, aiReading)}
             buttonLabel="Add Document"
             buttonIcon={FilePlusIcon}
             accept={FILE_ACCEPT}
@@ -176,12 +172,14 @@ function FilesSide({
                       <p className="min-w-0 truncate font-medium text-foreground" title={document.file.name}>
                         {document.file.name}
                       </p>
-                      <ReadMark
-                        state={document.state}
-                        canRead={canRead}
-                        name={document.file.name}
-                        onReadAgain={() => sources.readAgain(document.key)}
-                      />
+                      {aiReading && (
+                        <ReadMark
+                          state={document.state}
+                          canRead={canRead}
+                          name={document.file.name}
+                          onReadAgain={() => sources.readAgain(document.key)}
+                        />
+                      )}
                     </div>
                     {document.state.step === "failed" && <p className="mt-1 text-sm text-warn">{document.state.message}</p>}
                   </div>
@@ -222,6 +220,16 @@ function FilesSide({
       </div>
     </div>
   );
+}
+
+/** The Files drop area's words: Steri-AI's part only for a role with Steri-AI Reading, which nothing else promises. */
+function filesText(empty: boolean, aiReading: boolean): string {
+  if (!aiReading) {
+    return empty ? "Drop the PO, packing list and inspection forms here. They upload with the inspection on Create." : "Drop them here.";
+  }
+  return empty
+    ? "Drop the PO, packing list and inspection forms here. Steri-AI reads each one and fills in the inspection."
+    : "Drop them here. Steri-AI reads each one in turn.";
 }
 
 /** Beside a document's name: what Steri-AI has done with it here. */
@@ -296,8 +304,13 @@ function MediaSide({
     <div className="flex flex-col gap-3" data-slot="held-media">
       <DropArea
         slot="auto-sort"
-        title="Auto-Sort"
-        text="Drop all photos and videos here. Steri-AI sorts each into its category after Create."
+        // Without Steri-AI Reading nothing sorts them: they wait in Other (use-held-sources.ts).
+        title={sources.aiReading ? "Auto-Sort" : "Photos and Videos"}
+        text={
+          sources.aiReading
+            ? "Drop all photos and videos here. Steri-AI sorts each into its category after Create."
+            : "Drop all photos and videos here. After Create they are in Other, on Media, to drag into place."
+        }
         buttonLabel="Add Photos and Videos"
         buttonIcon={ImagePlusIcon}
         accept="image/*,video/*"

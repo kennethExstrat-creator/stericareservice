@@ -567,13 +567,13 @@ function form(fields: Record<string, string>): FormData {
 describe("switchModuleOff", () => {
   beforeEach(() => signedInAs("admin"));
 
-  it("is for admins only", async () => {
+  it("is for admins whose role switches steps only", async () => {
     vi.mocked(authorizeAction).mockResolvedValue({ ok: false, error: "You do not have permission to do that." });
     useClient(() => ({ data: row(), error: null }));
     await expect(
       switchModuleOff(IDLE, form({ inspectionId: INSPECTION, moduleKey: "weight", reason: "n/a" })),
     ).resolves.toEqual({ status: "error", message: "You do not have permission to do that." });
-    expect(authorizeAction).toHaveBeenCalledWith("admin");
+    expect(authorizeAction).toHaveBeenCalledWith({ permission: "switch_steps" });
   });
 
   it("needs a reason, reported on the field", async () => {
@@ -642,6 +642,17 @@ describe("switchModuleOff", () => {
     await expect(
       switchModuleOff(IDLE, form({ inspectionId: INSPECTION, moduleKey: "weight", reason: "n/a" })),
     ).resolves.toMatchObject({ status: "warning", message: expect.stringMatching(/audit log/) });
+  });
+
+  it("puts the role guard's refusal in plain words (migration 20261027150000)", async () => {
+    useClient((query) =>
+      isUpdate(query)
+        ? { data: null, error: { code: "42501", message: "your role cannot switch inspection steps on or off" } }
+        : { data: row(), error: null },
+    );
+    await expect(
+      switchModuleOff(IDLE, form({ inspectionId: INSPECTION, moduleKey: "weight", reason: "n/a" })),
+    ).resolves.toEqual({ status: "error", message: "You do not have permission to switch sections off or on." });
   });
 
   it("leaves an approved inspection alone", async () => {

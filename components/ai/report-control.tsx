@@ -14,7 +14,8 @@ import { unreachable } from "./unreachable";
  * The AI report hand-off (BUILD_SPEC 9.1): "Send to AI Report" for admins
  * when a report service is connected, the link to the finished report once
  * there is one, and the export as a JSON download, which is the way out when
- * no report service is connected ("AI Not Connected").
+ * no report service is connected ("AI Not Connected"). Sending and the
+ * download are for a role that allows Export Reports.
  */
 export function ReportControl({
   inspectionId,
@@ -22,13 +23,16 @@ export function ReportControl({
   reportUrl,
   connected,
   canSend,
+  canDownload,
 }: {
   inspectionId: string;
   exportHref: string;
   reportUrl: string | null;
   connected: boolean;
-  /** An admin, a submitted or approved inspection, and a report service. */
+  /** An admin whose role allows Export Reports, a submitted or approved inspection, and a report service. */
   canSend: boolean;
+  /** The role allows Export Reports. */
+  canDownload: boolean;
 }) {
   const formRef = useRef<HTMLFormElement>(null);
   const sendRef = useRef<HTMLButtonElement>(null);
@@ -55,12 +59,14 @@ export function ReportControl({
             </a>
           </Button>
         )}
-        <Button asChild variant="outline">
-          <a href={exportHref} download data-testid="export-download">
-            <DownloadIcon aria-hidden />
-            Download JSON
-          </a>
-        </Button>
+        {canDownload && (
+          <Button asChild variant="outline">
+            <a href={exportHref} download data-testid="export-download">
+              <DownloadIcon aria-hidden />
+              Download JSON
+            </a>
+          </Button>
+        )}
         {connected && canSend && (
           <form ref={formRef} action={formAction}>
             <input type="hidden" name="inspectionId" value={inspectionId} />

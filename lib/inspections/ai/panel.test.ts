@@ -76,7 +76,7 @@ describe("loadAiPanel", () => {
     if (!loaded.ok) throw new Error(loaded.message);
     const { model } = loaded;
 
-    expect(model.viewer).toEqual({ id: IDS.admin, isAdmin: true });
+    expect(model.viewer).toEqual({ id: IDS.admin, isAdmin: true, canDecide: true });
     expect(model.review).toMatchObject({ connected: true, mock: true, canRequest: true });
     expect(model.current).toMatchObject({ id: REVIEW_ID, state: "done", isCurrentVersion: true });
     const [finding] = model.current?.findings ?? [];
@@ -148,6 +148,23 @@ describe("loadAiPanel", () => {
     expect(loaded.model.viewer.isAdmin).toBe(false);
     expect(loaded.model.review.canRequest).toBe(false);
     expect(loaded.model.current?.findings[0].decision).toBeNull();
+    // An inspector exports their own inspection (the built-in role's Export Reports).
+    expect(loaded.model.report.canDownload).toBe(true);
+  });
+
+  // Roles and permissions (migration 20261027150000): an admin-level role reads everything, does what it allows.
+  it("follows the role's switches: no request or decision without Steri-AI Second Opinion, no export without Export Reports", async () => {
+    const desk = {
+      ...ADMIN,
+      grant: { id: "r1", name: "Office Desk", builtIn: null, access: "all" as const, permissions: ["create_inspections"] },
+    };
+    const loaded = await loadAiPanel(desk, IDS.inspection, { client: fake().client, now: NOW });
+    if (!loaded.ok) throw new Error(loaded.message);
+    expect(loaded.model.viewer).toEqual({ id: IDS.admin, isAdmin: true, canDecide: false });
+    expect(loaded.model.review.canRequest).toBe(false);
+    expect(loaded.model.report).toMatchObject({ canSend: false, canDownload: false });
+    // What they see is unchanged: the decisions recorded by others.
+    expect(loaded.model.current?.findings[0].decision).toMatchObject({ action: "disagree" });
   });
 
   it("answers not found for someone else's inspection, an unknown id or one that is not a UUID", async () => {

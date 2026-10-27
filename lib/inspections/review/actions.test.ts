@@ -82,10 +82,10 @@ describe("both actions", () => {
     ["reopenInspection", () => reopenInspection(IDLE, reopenForm())],
   ];
 
-  it.each(run)("%s refuses anyone who is not an active admin, before touching the database", async (_, action) => {
+  it.each(run)("%s refuses anyone whose role does not approve and reopen, before touching the database", async (_, action) => {
     vi.mocked(authorizeAction).mockResolvedValue({ ok: false, error: "You do not have permission to do that." });
     expect(await action()).toEqual({ status: "error", message: "You do not have permission to do that." });
-    expect(authorizeAction).toHaveBeenCalledWith("admin");
+    expect(authorizeAction).toHaveBeenCalledWith({ permission: "approve_inspections" });
     expect(createClient).not.toHaveBeenCalled();
     expect(refresh).not.toHaveBeenCalled();
   });
@@ -165,6 +165,7 @@ describe("approveInspection", () => {
 
   it.each([
     [{ code: "42501", message: "only an admin can approve an inspection" }, "You do not have permission to approve inspections."],
+    [{ code: "42501", message: "your role cannot approve or reopen inspections" }, "You do not have permission to approve inspections."],
     [
       { code: "23514", message: "status cannot change from reopened to approved" },
       "This inspection cannot be approved now: only submitted inspections can.",

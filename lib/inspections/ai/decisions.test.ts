@@ -122,7 +122,7 @@ describe("recordFindingDecision", () => {
     });
     expect(await recordFindingDecision(db.client, { reviewId: REVIEW_ID, findingId: "F1", action: "agree", note: "" })).toEqual({
       ok: false,
-      message: "Only admins record decisions on findings.",
+      message: "Your role does not allow deciding on Steri-AI's findings.",
     });
     expect(db.rpcCalls).toEqual([]);
   });

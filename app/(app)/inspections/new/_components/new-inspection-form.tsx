@@ -17,7 +17,8 @@
 // stay in the browser until Create. Steri-AI reads the documents one at a
 // time until the client, manufacturer, product type and product name are
 // filled; a reading fills only what is still empty, and the PO, codes, dates
-// and order lines it read go in with Create (documentFill).
+// and order lines it read go in with Create (documentFill). For a role
+// without Steri-AI Reading nothing is read or sorted: the files only upload.
 //
 // Uploading the documents is where a new inspection starts and Steri-AI
 // fills in the picks from them, so from 1024 px Source Documents is the main
@@ -135,6 +136,8 @@ type NewInspectionFormProps = {
   /** The signed-in user: the draft kept in the tab is theirs alone. */
   userId: string;
   role: "inspector" | "admin";
+  /** The role allows Steri-AI Reading: the documents held are read, and the photos and videos sorted after Create. */
+  aiReading: boolean;
   clients: readonly Option[];
   manufacturers: readonly Option[];
   templates: readonly TemplateOption[];
@@ -169,7 +172,7 @@ type ChoicesFormProps = NewInspectionFormProps & {
   initial: NewInspectionChoices;
 };
 
-function ChoicesForm({ userId, storageKey, initial, role, clients, manufacturers, templates }: ChoicesFormProps) {
+function ChoicesForm({ userId, storageKey, initial, role, aiReading, clients, manufacturers, templates }: ChoicesFormProps) {
   const id = useId();
   const router = useRouter();
   const [choices, setChoices] = useState(initial);
@@ -292,6 +295,7 @@ function ChoicesForm({ userId, storageKey, initial, role, clients, manufacturers
 
   // Documents are read until the form has its client, manufacturer, product type and product name.
   const sources = useHeldSources({
+    aiReading,
     needsValues: picks === null || (!nameOff && productName.trim() === ""),
     paused: creating,
     onRead: applyRead,

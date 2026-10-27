@@ -134,8 +134,12 @@ export type AiPanelModel = {
     reportUrl: string | null;
     exportHref: string;
   };
-  /** The signed-in user: decisions are for admins, and a half-made one is kept under the user's id on this device. */
-  viewer: { id: string; isAdmin: boolean };
+  /**
+   * The signed-in user: decisions are for admins whose role allows Steri-AI
+   * Second Opinion (`canDecide`, which asks for one too), and a half-made one
+   * is kept under the user's id on this device.
+   */
+  viewer: { id: string; isAdmin: boolean; canDecide: boolean };
   review: HandoffModel & {
     canRequest: boolean;
     /** Why an admin cannot request one now, e.g. "Only submitted or approved inspections are reviewed." */
@@ -143,7 +147,8 @@ export type AiPanelModel = {
     /** Not connected because AI_REVIEW_PROVIDER is off on purpose, not because nothing is set up. */
     switchedOff: boolean;
   };
-  report: HandoffModel & { canSend: boolean; blockedReason: string | null };
+  /** `canDownload`: the role allows Export Reports, so the export is offered as a JSON download. */
+  report: HandoffModel & { canSend: boolean; canDownload: boolean; blockedReason: string | null };
   /** The newest finished review: the AI column. */
   current: ReviewModel | null;
   /** A newer request than `current` that is still running, failed or stopped. */

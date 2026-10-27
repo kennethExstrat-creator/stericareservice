@@ -79,6 +79,18 @@ describe("deleteInspection", () => {
     expect(createClient).not.toHaveBeenCalled();
   });
 
+  it("asks for the role's Delete Drafts, and deletes nothing for a role without it", async () => {
+    vi.mocked(authorizeAction).mockResolvedValue({ ok: false, error: "You do not have permission to do that." });
+    const rpc = useUserClient({ data: DELETED });
+
+    expect(await deleteInspection({ inspectionId: ID })).toEqual({
+      status: "error",
+      message: "You do not have permission to do that.",
+    });
+    expect(authorizeAction).toHaveBeenCalledWith({ permission: "delete_drafts" });
+    expect(rpc).not.toHaveBeenCalled();
+  });
+
   it.each([[{}], [{ inspectionId: "INS-2026-0001" }], [null], ["not an object"], [{ inspectionId: 42 }]])(
     "refuses %j without asking the database",
     async (input) => {

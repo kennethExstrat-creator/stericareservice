@@ -48,6 +48,8 @@ export type StartAiReviewFailure =
   | "not_reviewable"
   | "pending"
   | "export_failed"
+  /** The caller's role does not allow Steri-AI Second Opinion. */
+  | "not_allowed"
   | "database_error";
 
 export type StartAiReviewResult =
@@ -130,6 +132,10 @@ export async function startAiReview(input: StartAiReviewInput): Promise<StartAiR
   if (inserted.error) {
     // The one-pending-review indexes: another request for this version got in first.
     if (inserted.error.code === UNIQUE_VIOLATION) return alreadyPending();
+    // Row level security: asking is the role's Steri-AI Second Opinion (migration 20261027150000).
+    if (inserted.error.code === "42501") {
+      return { ok: false, reason: "not_allowed", message: "Your role does not allow asking Steri-AI for a second opinion." };
+    }
     return databaseError("Could not save the review request.", inserted.error);
   }
   const reviewId = inserted.data.id;

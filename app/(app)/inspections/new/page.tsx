@@ -4,7 +4,7 @@ import { TriangleAlertIcon } from "lucide-react";
 import { PageHeader } from "@/components/qc";
 import { Button } from "@/components/ui/button";
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
-import { requireUser } from "@/lib/auth/session";
+import { requirePermission, userCan } from "@/lib/auth/session";
 import { INSPECTIONS_PATH } from "@/lib/inspections/search-params";
 import { createClient } from "@/lib/supabase/server";
 import { NewInspectionForm } from "./_components/new-inspection-form";
@@ -15,12 +15,14 @@ export const metadata: Metadata = {
 };
 
 /**
- * Starting an inspection (BUILD_SPEC 10): any signed-in inspector or admin.
+ * Starting an inspection (BUILD_SPEC 10): anyone whose role allows Create
+ * Inspections; anyone else gets a 404, so the page does not reveal itself.
  * Everything is read through the user's own client, so Row Level Security
- * decides what the pickers offer.
+ * decides what the pickers offer. Steri-AI reads the documents held on the
+ * form only for a role with Steri-AI Reading.
  */
 export default async function NewInspectionPage() {
-  const user = await requireUser();
+  const user = await requirePermission("create_inspections");
   const options = await loadNewInspectionOptions(await createClient(), user.role);
 
   // No padding of its own: the app shell's <main> sets the page margins.
@@ -34,6 +36,7 @@ export default async function NewInspectionPage() {
         <NewInspectionForm
           userId={user.id}
           role={user.role}
+          aiReading={userCan(user, "ai_reading")}
           clients={options.clients}
           manufacturers={options.manufacturers}
           templates={options.templates}

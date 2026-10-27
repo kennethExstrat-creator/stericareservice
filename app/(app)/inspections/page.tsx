@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { PageHeader } from "@/components/qc";
 import { Button } from "@/components/ui/button";
 import { inspectionScope, type InspectionScope } from "@/lib/auth/org";
-import { requireUser } from "@/lib/auth/session";
+import { requireUser, userCan } from "@/lib/auth/session";
 import { countInspections, listInspections, loadFilterOptions } from "@/lib/inspections/query";
 import {
   buildInspectionsHref,
@@ -47,7 +47,9 @@ const HEADING: Readonly<Record<InspectionScope, { eyebrow: string; caption: stri
  * them, the counts per status, each a link to that status, and this month's
  * (inspection-metrics.tsx); they follow every filter but the status. Each
  * row ends with its actions: Continue, Review or View, and Delete on a draft
- * (./actions.ts, which re-renders this page once the draft is gone).
+ * (./actions.ts, which re-renders this page once the draft is gone). What a
+ * role switches off is not offered: New Inspection without Create
+ * Inspections, Review and Delete as the row actions decide (row-actions.ts).
  */
 export default async function InspectionsPage({ searchParams }: PageProps<"/inspections">) {
   const user = await requireUser();
@@ -70,6 +72,7 @@ export default async function InspectionsPage({ searchParams }: PageProps<"/insp
       : await Promise.all([listInspections(supabase, filters, user), countInspections(supabase, filters)]);
 
   const scope = inspectionScope(user);
+  const canCreate = userCan(user, "create_inspections");
   const filtered = hasActiveFilters(filters);
   const failed = !options.ok || list.kind === "error";
   const nothingYet = !failed && list.kind === "rows" && list.total === 0 && !filtered;
@@ -96,7 +99,7 @@ export default async function InspectionsPage({ searchParams }: PageProps<"/insp
       <PageHeader
         eyebrow={HEADING[scope].eyebrow}
         title="Inspections"
-        actions={<NewInspectionButton />}
+        actions={canCreate ? <NewInspectionButton /> : undefined}
       />
 
       <ListFocusScope href={buildInspectionsHref(filters)} view={view} className="group/list flex flex-col gap-4">
@@ -124,14 +127,14 @@ export default async function InspectionsPage({ searchParams }: PageProps<"/insp
             filtered ? (
               <NoMatches filters={filters} names={selectedNames(filters, options.ok ? options : null)} />
             ) : (
-              <NoInspectionsYet scope={scope} />
+              <NoInspectionsYet scope={scope} canCreate={canCreate} />
             )
           ) : list.kind === "rows" ? (
             <>
               <ListSummary filters={filters} total={list.total} shown={list.rows.length} />
               <InspectionTable
                 rows={list.rows}
-                viewer={{ id: user.id, role: user.role, isLead: user.isLead }}
+                viewer={{ id: user.id, role: user.role, isLead: user.isLead, grant: user.grant }}
                 caption={HEADING[scope].caption}
               />
               <ListPagination filters={filters} pageCount={pageCount(list.total)} />

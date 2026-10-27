@@ -5,7 +5,11 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("@/lib/auth/session", () => ({ requireUser: vi.fn() }));
+// The session's own userCan decides the role's switches from the user requireUser answers.
+vi.mock("@/lib/auth/session", async (importOriginal) => ({
+  requireUser: vi.fn(),
+  userCan: (await importOriginal<typeof import("@/lib/auth/session")>()).userCan,
+}));
 vi.mock("@/lib/supabase/server", () => ({ createClient: vi.fn() }));
 
 import { requireUser } from "@/lib/auth/session";
@@ -79,6 +83,13 @@ describe("/inspections/[id]/report/print", () => {
     signedInAs(INSPECTOR);
     await expect(render("INS-2025-0001")).rejects.toThrow("NEXT_HTTP_ERROR_FALLBACK;404");
     await expect(render("00000000-0000-4000-8000-000000000999")).rejects.toThrow("NEXT_HTTP_ERROR_FALLBACK;404");
+  });
+
+  // Roles and permissions (migration 20261027150000): printing is exporting, the role's Export Reports.
+  it("answers a role without Export Reports with a 404, before it reads the inspection", async () => {
+    signedInAs({ ...ADMIN, grant: { id: "r1", name: "Office Desk", builtIn: null, access: "all", permissions: [] } });
+    await expect(render()).rejects.toThrow("NEXT_HTTP_ERROR_FALLBACK;404");
+    expect(createClient).not.toHaveBeenCalled();
   });
 
   it("hands an export that cannot be made to the error screen", async () => {

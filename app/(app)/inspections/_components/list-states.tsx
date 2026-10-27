@@ -62,12 +62,15 @@ const WHO_SEES_WHAT: Readonly<Record<InspectionScope, string>> = {
   own: "Inspections you start will appear here, newest first. You see only your own; admins see everyone's.",
 };
 
-/** Nobody has inspections to show this user yet. Says who sees what. */
-export function NoInspectionsYet({ scope }: { scope: InspectionScope }) {
+/**
+ * Nobody has inspections to show this user yet. Says who sees what, and
+ * where to start one when their role creates inspections (`canCreate`).
+ */
+export function NoInspectionsYet({ scope, canCreate }: { scope: InspectionScope; canCreate: boolean }) {
   return (
     <ListState icon={ClipboardListIcon} title="No Inspections Yet" state="empty">
       <p>{WHO_SEES_WHAT[scope]}</p>
-      <p className="mt-2">Start one with New Inspection.</p>
+      {canCreate && <p className="mt-2">Start one with New Inspection.</p>}
     </ListState>
   );
 }

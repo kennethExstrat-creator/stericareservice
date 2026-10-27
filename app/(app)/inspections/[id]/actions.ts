@@ -306,7 +306,8 @@ export type OverrideResult =
  */
 export async function switchModuleOff(_previous: OverrideResult, formData: FormData): Promise<OverrideResult> {
   return guardedOverride("switchModuleOff", async () => {
-    const auth = await authorizeAction("admin");
+    // The role's Switch Inspection Steps On or Off, which needs every inspection in sight.
+    const auth = await authorizeAction({ permission: "switch_steps" });
     if (!auth.ok) return { status: "error", message: auth.error };
 
     const parsed = SwitchOffInputSchema.safeParse({
@@ -338,7 +339,7 @@ export async function switchModuleOff(_previous: OverrideResult, formData: FormD
 /** Switches a module back on; its saved data returns with it. Logged as `module_override`. */
 export async function switchModuleOn(_previous: OverrideResult, formData: FormData): Promise<OverrideResult> {
   return guardedOverride("switchModuleOn", async () => {
-    const auth = await authorizeAction("admin");
+    const auth = await authorizeAction({ permission: "switch_steps" });
     if (!auth.ok) return { status: "error", message: auth.error };
 
     const parsed = SwitchOnInputSchema.safeParse({
@@ -405,7 +406,9 @@ async function updateOverrides(
       console.error("[capture] override refused", error.code, error.message);
       return {
         status: "error",
-        message: error.code === "42501" ? "Only an admin can switch sections off or on." : "The change could not be saved. Try again.",
+        // Row level security, or the role guard's "your role cannot switch inspection steps on or off".
+        message:
+          error.code === "42501" ? "You do not have permission to switch sections off or on." : "The change could not be saved. Try again.",
       };
     }
     if (!written || written.length === 0) continue;

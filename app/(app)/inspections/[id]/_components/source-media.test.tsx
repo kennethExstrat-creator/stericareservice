@@ -77,7 +77,8 @@ function ready(photos: MediaPhoto[], files: MediaFile[], canEdit = true): MediaS
   };
 }
 
-const render = (readOnly = false) => renderToStaticMarkup(<SourceMedia inspectionId={INSPECTION} readOnly={readOnly} />);
+const render = (readOnly = false, canAutoSort = true) =>
+  renderToStaticMarkup(<SourceMedia inspectionId={INSPECTION} readOnly={readOnly} canAutoSort={canAutoSort} />);
 
 /** Each section's markup, by its data-category. */
 function sections(html: string): Record<string, string> {
@@ -212,6 +213,15 @@ describe("SourceMedia", () => {
     expect(html).toContain("Preview Photo 1</span>");
     expect(html).toContain("Download Proof.mp4</span>");
     expect(sections(html).other).toContain("About Other</span>");
+  });
+
+  // Roles and permissions (migration 20261027150000): Auto-Sort is the role's Steri-AI Reading.
+  it("offers no Auto-Sort to a role without Steri-AI Reading, and each category's Add all the same", () => {
+    loaded.media = ready([], []);
+    const html = render(false, false);
+    expect(html).not.toContain('data-slot="auto-sort"');
+    expect(html).not.toContain("Auto-Sort");
+    for (const { title } of MEDIA_CATEGORIES) expect(html).toContain(`Add<span class="sr-only"> Photos and Videos to ${title}</span>`);
   });
 
   it("says Loading… in each row until the photos are known, never 0", () => {

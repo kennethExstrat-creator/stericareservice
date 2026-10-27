@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { cache } from "react";
 import { ReportDocument } from "@/components/report";
-import { requireUser } from "@/lib/auth/session";
+import { requireUser, userCan } from "@/lib/auth/session";
 import { buildInspectionExport, parseInspectionId } from "@/lib/export";
 import { buildReportModel } from "@/lib/report/model";
 import { REPORT_AUTO_PRINT_PARAM, reportPagePath } from "@/lib/report/paths";
@@ -16,10 +16,12 @@ import { ReportPrintStyles } from "./_components/print-styles";
  * client, with the export's own rule on top (canExportInspection: the
  * inspection's inspector or an admin), so whoever may download the export
  * may print the report, and anyone else gets the same 404 as for an
- * inspection that does not exist. The session is checked first.
+ * inspection that does not exist. The session is checked first, then the
+ * role's Export Reports, as the export route checks it.
  */
 const loadReport = cache(async (id: string) => {
   const user = await requireUser();
+  if (!userCan(user, "export_reports")) notFound();
   const inspectionId = parseInspectionId(id);
   if (!inspectionId) notFound();
   const result = await buildInspectionExport(await createClient(), inspectionId, { viewer: { id: user.id, role: user.role } });

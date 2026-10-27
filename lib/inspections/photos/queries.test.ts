@@ -190,6 +190,28 @@ describe("loadInspectionMedia", () => {
     );
   });
 
+  // Roles and permissions (migration 20261027150000): choosing the report's photos is part of approving.
+  it("lets an admin choose the report's photos only when their role approves and reopens", async () => {
+    const client = fakeClient();
+    const access = async () => {
+      const result = await loadInspectionMedia(client, INSPECTION);
+      if (result.kind !== "ok") throw new Error(result.kind);
+      return result.media.access;
+    };
+    rpcs.is_admin = { data: true, error: null };
+    rpcs.has_permission = { data: true, error: null };
+    expect(await access()).toEqual({ canEdit: true, isAdmin: true });
+    expect((client as { rpc: ReturnType<typeof vi.fn> }).rpc).toHaveBeenCalledWith("has_permission", {
+      permission: "approve_inspections",
+    });
+    rpcs.has_permission = { data: false, error: null };
+    expect(await access()).toEqual({ canEdit: true, isAdmin: false });
+    // The switch stored on a role that does not see every inspection does nothing.
+    rpcs.is_admin = { data: false, error: null };
+    rpcs.has_permission = { data: true, error: null };
+    expect(await access()).toEqual({ canEdit: true, isAdmin: false });
+  });
+
   it("shows the photos read-only when the rights cannot be checked", async () => {
     rpcs.can_edit_inspection = { data: null, error: { message: "timeout" } };
     const result = await loadInspectionMedia(fakeClient(), INSPECTION);

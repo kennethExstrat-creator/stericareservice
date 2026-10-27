@@ -12,11 +12,13 @@ import { REOPEN_EVENT, REVIEW_MESSAGES, ReopenInputSchema, ReviewTargetSchema } 
 /*
  * Approve and reopen (BUILD_SPEC 5: submitted -> approved, submitted ->
  * reopened). Server Actions are public HTTP endpoints, so each one checks the
- * caller is an active admin and validates its input with zod before it
- * touches the database. The status change is a plain update through the
- * admin's own client: row level security and the inspections guard check
- * the transition again, set approved_by and approved_at, and write the
- * audit row. The reopen reason goes into the audit log right after.
+ * caller is active and their role allows Approve and Reopen (which needs
+ * every inspection in sight, lib/auth/permissions.ts), and validates its
+ * input with zod before it touches the database. The status change is a
+ * plain update through the admin's own client: row level security and the
+ * inspections guards check the transition and the role again, set
+ * approved_by and approved_at, and write the audit row. The reopen reason
+ * goes into the audit log right after.
  */
 
 export type ReviewActionResult =
@@ -60,6 +62,7 @@ function firstMessage(error: z.ZodError): string {
 
 /** A refused update in plain words. Details go to the server log, not the screen. */
 function describeError(error: DatabaseError, verb: Verb): string {
+  // Row level security, or the role guard's "your role cannot approve or reopen inspections".
   if (error.code === "42501") return `You do not have permission to ${verb} inspections.`;
   if (error.code === "23514") {
     return `This inspection cannot be ${verb === "approve" ? "approved" : "reopened"} now: only submitted inspections can.`;
@@ -119,7 +122,7 @@ async function explainMiss(
  */
 export async function approveInspection(_previous: ReviewActionResult, formData: FormData): Promise<ReviewActionResult> {
   return guarded("approveInspection", async () => {
-    const auth = await authorizeAction("admin");
+    const auth = await authorizeAction({ permission: "approve_inspections" });
     if (!auth.ok) return fail(auth.error);
 
     const parsed = ReviewTargetSchema.safeParse({
@@ -153,7 +156,7 @@ export async function approveInspection(_previous: ReviewActionResult, formData:
  */
 export async function reopenInspection(_previous: ReviewActionResult, formData: FormData): Promise<ReviewActionResult> {
   return guarded("reopenInspection", async () => {
-    const auth = await authorizeAction("admin");
+    const auth = await authorizeAction({ permission: "approve_inspections" });
     if (!auth.ok) return fail(auth.error);
 
     const parsed = ReopenInputSchema.safeParse({

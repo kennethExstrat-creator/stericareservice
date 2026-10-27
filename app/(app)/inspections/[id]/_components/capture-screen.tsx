@@ -455,7 +455,8 @@ export function CaptureScreen({
   // message says which sizes, by their names on the order.
   const sourceDocuments = useSourceDocuments({
     inspectionId,
-    canRead: !readOnly,
+    // Steri-AI reads only for a role with Steri-AI Reading (access.ts); without it the files only upload.
+    canRead: !readOnly && access.aiReading,
     onProposals: (proposals) => {
       const included = new Set(evaluation.template.modules.filter((entry) => entry.include).map((entry) => entry.key));
       const result = applyProposals(dataRef.current, proposals, MODULE_REGISTRY, included);

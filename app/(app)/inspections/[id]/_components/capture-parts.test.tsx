@@ -507,6 +507,13 @@ describe("captureNotices (who reads a read-only inspection)", () => {
     });
     expect(notice("approved", "inspector", LEAD).message).toBe("Approved: this inspection is read-only.");
   });
+
+  // Roles and permissions (migration 20261027150000): an admin-level role that does not approve or reopen.
+  it("tells no role without Approve and Reopen to reopen it", () => {
+    expect(submittedMessage({ role: "admin", own: false, inspectorName: "Ivan Inspector", canReopen: false })).toBe(
+      "Submitted for review by Ivan Inspector: read-only.",
+    );
+  });
 });
 
 describe("SubmitSummary (the submit confirmation)", () => {

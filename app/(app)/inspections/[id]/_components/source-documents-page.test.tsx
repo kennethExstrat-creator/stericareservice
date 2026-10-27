@@ -39,8 +39,8 @@ const FILE: SlotFile = {
   url: null,
 };
 
-function documentsWith(status: SourceFileStatus | undefined): SourceDocuments {
-  return { statuses: status ? { [FILE.id]: status } : {}, status: "not_done", progress: "in_progress", retry: () => {} };
+function documentsWith(status: SourceFileStatus | undefined, canRead = true): SourceDocuments {
+  return { statuses: status ? { [FILE.id]: status } : {}, status: "not_done", progress: "in_progress", canRead, retry: () => {} };
 }
 
 const mark = (status: SourceFileStatus | undefined, readOnly = false) =>
@@ -72,6 +72,16 @@ describe("a Source Document's Steri-AI mark", () => {
     expect(again({ status: "failed", summary: null }, true)).toBe("");
     expect(again({ status: "reading", summary: null })).toBe("");
     expect(again(undefined)).toBe("");
+  });
+
+  // Roles and permissions (migration 20261027150000): reading is the role's Steri-AI Reading.
+  it("offers no Read Again and shows nothing waiting for a role without Steri-AI Reading; a reading made is still shown", () => {
+    const off = (status: SourceFileStatus | undefined) => documentsWith(status, false);
+    expect(renderToStaticMarkup(<ReadAgainButton file={FILE} documents={off({ status: "read", summary: null })} readOnly={false} />)).toBe("");
+    expect(renderToStaticMarkup(<AiMark file={FILE} documents={off(undefined)} readOnly={false} />)).toBe("");
+    expect(renderToStaticMarkup(<AiMark file={FILE} documents={off({ status: "read", summary: "PO." })} readOnly={false} />)).toContain(
+      'data-testid="ai-verified"',
+    );
   });
 });
 
@@ -118,7 +128,7 @@ describe("the page's Files", () => {
         titleRef={() => null}
         inspectionId={INSPECTION}
         readOnly={readOnly}
-        documents={{ statuses, status: "not_done", progress: "in_progress", retry: () => {} }}
+        documents={{ statuses, status: "not_done", progress: "in_progress", canRead: !readOnly, retry: () => {} }}
       />,
     );
 

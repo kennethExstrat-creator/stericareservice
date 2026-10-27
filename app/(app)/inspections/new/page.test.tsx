@@ -9,7 +9,11 @@ vi.mock("next/navigation", async (importOriginal) => ({
   ...(await importOriginal<typeof import("next/navigation")>()),
   useRouter: () => ({ push: vi.fn() }),
 }));
-vi.mock("@/lib/auth/session", () => ({ requireUser: vi.fn() }));
+// The session's own userCan decides the role's switches from the user requirePermission answers.
+vi.mock("@/lib/auth/session", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/auth/session")>()),
+  requirePermission: vi.fn(),
+}));
 vi.mock("@/lib/supabase/server", () => ({ createClient: vi.fn() }));
 vi.mock("./_lib/options", async (importOriginal) => ({
   ...(await importOriginal<typeof import("./_lib/options")>()),
@@ -17,7 +21,7 @@ vi.mock("./_lib/options", async (importOriginal) => ({
 }));
 vi.mock("./actions", () => ({ createInspection: vi.fn() }));
 
-import { requireUser } from "@/lib/auth/session";
+import { requirePermission } from "@/lib/auth/session";
 import { PRODUCT_TYPE_LABEL } from "@/lib/inspections/create";
 import { createClient } from "@/lib/supabase/server";
 import { loadNewInspectionOptions } from "./_lib/options";
@@ -39,8 +43,8 @@ describe("/inspections/new", () => {
 
   beforeEach(() => {
     order.length = 0;
-    vi.mocked(requireUser).mockImplementation(async () => {
-      order.push("requireUser");
+    vi.mocked(requirePermission).mockImplementation(async (permission) => {
+      order.push(`requirePermission ${permission}`);
       return { id: "inspector-id", email: "inspector@test.local", fullName: "Test Inspector", role: "inspector" };
     });
     vi.mocked(createClient).mockImplementation(async () => {
@@ -53,14 +57,21 @@ describe("/inspections/new", () => {
     });
   });
 
-  it("checks the session before it reads anything, and reads as the user's role", async () => {
+  it("checks the session and the role's Create Inspections before it reads anything, and reads as the user's role", async () => {
     await render();
-    expect(order).toEqual(["requireUser", "createClient", "load as inspector"]);
+    expect(order).toEqual(["requirePermission create_inspections", "createClient", "load as inspector"]);
   });
 
   it("stops at the session check when signed out", async () => {
-    vi.mocked(requireUser).mockRejectedValue(new Error("NEXT_REDIRECT"));
+    vi.mocked(requirePermission).mockRejectedValue(new Error("NEXT_REDIRECT"));
     await expect(render()).rejects.toThrow("NEXT_REDIRECT");
+    expect(loadNewInspectionOptions).not.toHaveBeenCalled();
+  });
+
+  it("is a 404 for a role that creates no inspections, before it reads anything", async () => {
+    vi.mocked(requirePermission).mockRejectedValue(new Error("NEXT_HTTP_ERROR_FALLBACK;404"));
+    await expect(render()).rejects.toThrow("NEXT_HTTP_ERROR_FALLBACK;404");
+    expect(createClient).not.toHaveBeenCalled();
     expect(loadNewInspectionOptions).not.toHaveBeenCalled();
   });
 
@@ -140,8 +151,23 @@ describe("/inspections/new", () => {
     }
   });
 
+  it("reads the documents with Steri-AI only for a role with Steri-AI Reading", async () => {
+    expect(await render()).toContain("Steri-AI reads each one and fills in the inspection.");
+    vi.mocked(requirePermission).mockResolvedValue({
+      id: "inspector-id",
+      email: "inspector@test.local",
+      fullName: "Test Inspector",
+      role: "inspector",
+      grant: { id: "r1", name: "Field Inspector", builtIn: null, access: "own", permissions: ["create_inspections"] },
+    });
+    const html = await render();
+    expect(html).toContain('data-testid="new-inspection-form"');
+    expect(html).toContain("They upload with the inspection on Create.");
+    expect(html).not.toContain("Steri-AI reads");
+  });
+
   it("lets an admin's form carry a template choice", async () => {
-    vi.mocked(requireUser).mockResolvedValue({ id: "admin-id", email: "admin@test.local", fullName: null, role: "admin" });
+    vi.mocked(requirePermission).mockResolvedValue({ id: "admin-id", email: "admin@test.local", fullName: null, role: "admin" });
     const html = await render();
     expect(html).toContain('name="templateId"');
     expect(loadNewInspectionOptions).toHaveBeenCalledWith(expect.anything(), "admin");

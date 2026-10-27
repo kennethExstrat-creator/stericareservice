@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { getAiStatus } from "@/lib/ai";
 import { loadSummaryMenu } from "@/lib/ai/settings";
 import { HOME_PATH } from "@/lib/auth/routes";
-import { requireUser } from "@/lib/auth/session";
+import { grantOf, requireUser, userCan } from "@/lib/auth/session";
 import { canExportInspection } from "@/lib/export/access";
 import { AI_STATUSES } from "@/lib/inspections/ai";
 import { captureAccess } from "@/lib/inspections/capture/access";
@@ -63,7 +63,9 @@ export async function generateMetadata({ params }: PageProps<"/inspections/[id]"
  * Send to Steri-AI Report may run (the AI report's rules, BUILD_SPEC 9.1),
  * the report last made, whether this user may download the PDF (the
  * export's rule, which the print route checks again) and the template
- * version's facts its preview needs.
+ * version's facts its preview needs. What the user's role switches off is
+ * not offered (lib/auth/permissions.ts): switching steps, Steri-AI's
+ * reading, sorting and summary, and the report's export.
  */
 export default async function CapturePage({ params, searchParams }: PageProps<"/inspections/[id]">) {
   const user = await requireUser();
@@ -98,7 +100,10 @@ export default async function CapturePage({ params, searchParams }: PageProps<"/
     role: user.role,
     userId: user.id,
     inspectorId: inspection.inspectorId,
+    grant: grantOf(user),
   });
+  // The report's export, the PDF and Steri-AI Report alike: the role's Export Reports on top of the export's rule.
+  const exportsReports = userCan(user, "export_reports");
   const [authors, query, reopen, defectUsage, summaryMenu, lastReport] = await Promise.all([
     loadOverrideAuthors(supabase, inspection.overrides),
     searchParams,
@@ -120,14 +125,15 @@ export default async function CapturePage({ params, searchParams }: PageProps<"/
           manufacturerId: inspection.meta.manufacturer?.id ?? null,
         })
       : Promise.resolve<DefectUsage>({}),
-    // Only where the button can show; never throws (the house style's defaults stand in).
-    access.editable ? loadSummaryMenu() : Promise.resolve(null),
+    // Only where the button can show, for a role with Steri-AI Summary; never throws (the house style's defaults stand in).
+    access.editable && userCan(user, "ai_summary") ? loadSummaryMenu() : Promise.resolve(null),
     // Never throws: without it, Open Last Report does not show.
     loadLastReport(supabase, inspection.id),
   ]);
-  // The Report page's Send to Steri-AI Report is the review's action, which checks all three again.
+  // The Report page's Send to Steri-AI Report is the review's action, which checks all three again:
+  // an admin (it writes the report's link) whose role allows Export Reports.
   const generate = generateAvailability({
-    isAdmin: user.role === "admin",
+    isAdmin: user.role === "admin" && exportsReports,
     reportable: AI_STATUSES.includes(inspection.status),
     connected: getAiStatus().report.connected,
   });
@@ -164,7 +170,8 @@ export default async function CapturePage({ params, searchParams }: PageProps<"/
           generate,
           lastReport,
           // A lead inspector reads a team member's inspection here, but only its inspector and admins export it.
-          canDownload: canExportInspection({ id: user.id, role: user.role }, { inspectorId: inspection.inspectorId }),
+          canDownload:
+            exportsReports && canExportInspection({ id: user.id, role: user.role }, { inspectorId: inspection.inspectorId }),
           record: {
             standard: inspection.template.standard,
             productType: inspection.template.productType,

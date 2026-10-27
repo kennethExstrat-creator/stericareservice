@@ -50,6 +50,18 @@ describe("canDeleteInspection", () => {
       expect(allowed, inspectorId).toEqual(["draft"]);
     }
   });
+
+  // Roles and permissions (migration 20261027150000): whose drafts stays with what the role sees.
+  it("needs the role's Delete Drafts, for an admin too", () => {
+    const draft = { status: "draft" as const, inspectorId: INSPECTOR };
+    const off = { builtIn: null, access: "all" as const, permissions: ["create_inspections"], id: "r1", name: "Desk" };
+    expect(canDeleteInspection(draft, { id: SOMEONE_ELSE, role: "admin", grant: off })).toBe(false);
+    expect(canDeleteInspection(draft, { id: INSPECTOR, role: "inspector", grant: { ...off, access: "own" } })).toBe(false);
+    const on = { ...off, permissions: ["delete_drafts"] };
+    expect(canDeleteInspection(draft, { id: SOMEONE_ELSE, role: "admin", grant: on })).toBe(true);
+    // The switch never reaches past what the role sees: someone else's draft stays theirs.
+    expect(canDeleteInspection(draft, { id: SOMEONE_ELSE, role: "inspector", grant: { ...on, access: "own" } })).toBe(false);
+  });
 });
 
 describe("DeleteInspectionInputSchema", () => {
@@ -89,6 +101,7 @@ describe("deleteDraftInspection", () => {
   it.each([
     [{ code: "23514", message: "only a draft that was never submitted can be deleted" }, 400, { kind: "not_draft" }],
     [{ code: "42501", message: "the account is not active" }, 403, { kind: "not_allowed" }],
+    [{ code: "42501", message: "your role cannot delete drafts" }, 403, { kind: "role_refused" }],
     [{ code: "PGRST202", message: "Could not find the function" }, 404, { kind: "unavailable" }],
     [{ message: "fetch failed" }, 0, { kind: "failed", reason: "network" }],
     [{ code: "57014", message: "canceling statement due to statement timeout" }, 500, { kind: "failed", reason: "server" }],
@@ -118,6 +131,7 @@ describe("deleteFailureMessage", () => {
     expect(deleteFailureMessage({ kind: "gone" })).toBe(DELETE_MESSAGES.gone);
     expect(deleteFailureMessage({ kind: "not_draft" })).toBe(DELETE_MESSAGES.notDraft);
     expect(deleteFailureMessage({ kind: "not_allowed" })).toBe(DELETE_MESSAGES.notAllowed);
+    expect(deleteFailureMessage({ kind: "role_refused" })).toBe("Your role does not allow deleting drafts. Ask an admin to check it.");
     expect(deleteFailureMessage({ kind: "unavailable" })).toBe(DELETE_MESSAGES.unavailable);
     expect(deleteFailureMessage({ kind: "failed", reason: "network" })).toBe(DELETE_MESSAGES.network);
     expect(deleteFailureMessage({ kind: "failed", reason: "server" })).toBe(DELETE_MESSAGES.failed);

@@ -21,7 +21,7 @@ export const COLUMN_TITLES = {
 } as const;
 
 export function Comparison({ model, review }: { model: AiPanelModel; review: ReviewModel }) {
-  const canDecide = model.viewer.isAdmin;
+  const canDecide = model.viewer.canDecide;
   const viewerId = model.viewer.id;
   return (
     <div

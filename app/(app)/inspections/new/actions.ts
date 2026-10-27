@@ -5,7 +5,7 @@ import { readableDocument } from "@/lib/ai/document-file";
 import { readOrderDocument } from "@/lib/ai/document-reader";
 import { loadAiEnv, loadGlossary } from "@/lib/ai/settings";
 import { recordAiUsageLater } from "@/lib/ai/usage";
-import { authorizeAction } from "@/lib/auth/session";
+import { authorizeAction, userCan } from "@/lib/auth/session";
 import { evaluateCapture } from "@/lib/inspections/capture/evaluate";
 import { mirroredColumns } from "@/lib/inspections/capture/mirror";
 import {
@@ -75,7 +75,7 @@ export async function createInspection(_previous: CreateInspectionState, formDat
 }
 
 async function create(formData: FormData): Promise<CreateInspectionState> {
-  const auth = await authorizeAction();
+  const auth = await authorizeAction({ permission: "create_inspections" });
   if (!auth.ok) return fail(auth.error);
   const { user } = auth;
 
@@ -83,6 +83,9 @@ async function create(formData: FormData): Promise<CreateInspectionState> {
   if (!parsed.success) return fail("Check the highlighted fields.", fieldErrorsOf(parsed.error));
   const input = parsed.data;
   const documentFill = readDocumentFill(formData);
+  // Choosing another template stays with the role level, not a switch: it is a choice among the
+  // templates people who see every inspection may start from (any not retired), where everyone
+  // else starts from the active one the rule picks. create_inspection() checks the same.
   if (input.templateId && user.role !== "admin") {
     const message = "Only an admin can choose the template.";
     return fail(message, { templateId: message });
@@ -282,20 +285,25 @@ function readDocumentFill(formData: FormData): DocumentFill | null {
 }
 
 const READ_FAILED = "The document could not be read. Try again.";
+/** authorizeAction's words for a role that does not allow it. */
+const NOT_ALLOWED = "You do not have permission to do that.";
 
 /**
  * Reads one of the Source Documents held on the form with the AI (docs/AI.md,
- * "Reading order documents") and answers what the form can fill in. Anyone
- * who can start an inspection may use it. The file is passed to the AI and
- * not stored (it uploads after Create); its bytes decide what it is, and an
- * Excel or CSV file goes as its text (lib/ai/document-file.ts). The lists
+ * "Reading order documents") and answers what the form can fill in. For
+ * anyone whose role starts inspections and allows Steri-AI Reading (Fill From
+ * a Document). The file is passed to the AI and not stored (it uploads after
+ * Create); its bytes decide what it is, and an Excel or CSV file goes as its
+ * text (lib/ai/document-file.ts). The lists
  * are read through the caller's client, so the AI matches only clients and
  * manufacturers the caller can pick.
  */
 export async function readDocument(formData: FormData): Promise<DocumentReadResult> {
   try {
-    const auth = await authorizeAction();
+    const auth = await authorizeAction({ permission: "ai_reading" });
     if (!auth.ok) return { status: "error", message: auth.error };
+    // It fills in New Inspection, which only a role that starts inspections opens.
+    if (!userCan(auth.user, "create_inspections")) return { status: "error", message: NOT_ALLOWED };
 
     const file = formData.get("document");
     if (!(file instanceof File) || file.size === 0) return { status: "error", message: "Choose a file to read." };

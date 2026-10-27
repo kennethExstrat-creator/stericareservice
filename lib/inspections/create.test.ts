@@ -686,6 +686,9 @@ describe("dates and errors", () => {
     );
     expect(describeCreateError({ code: "23503", message: "fk" })).toMatch(/has gone/);
     expect(describeCreateError({ code: "42501", message: "rls" })).toMatch(/not allowed/);
+    expect(describeCreateError({ code: "42501", message: "your role cannot create inspections" })).toBe(
+      "Your role does not allow starting inspections. Ask an admin to check it.",
+    );
     expect(describeCreateError({ code: "XX000", message: "boom" })).toBe("The inspection could not be created. Try again.");
   });
 });

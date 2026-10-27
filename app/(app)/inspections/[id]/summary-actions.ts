@@ -13,12 +13,13 @@ import { createClient } from "@/lib/supabase/server";
 
 /*
  * The Steri-AI Summary button on the Conclusion (docs/AI.md, "Steri-AI
- * Summary"; 12 October 2026). A public endpoint, so it checks the session,
- * validates its input with zod, reads the inspection through the user's own
- * client (Row Level Security decides) and allows only who may change it on
- * the capture screen (captureAccess: the inspector or an admin, while it is
- * a draft or reopened; the autosave that saves the summary keeps the same
- * rule). Leads and submitted or approved inspections never reach Claude.
+ * Summary"; 12 October 2026). A public endpoint, so it checks the session
+ * and the role's Steri-AI Summary, validates its input with zod, reads the
+ * inspection through the user's own client (Row Level Security decides) and
+ * allows only who may change it on the capture screen (captureAccess: the
+ * inspector or an admin, while it is a draft or reopened; the autosave that
+ * saves the summary keeps the same rule). Leads and submitted or approved
+ * inspections never reach Claude.
  * The saved data must be what the screen holds (`dataHash`, after its
  * autosave flush), so the draft is written from what the inspector sees.
  *
@@ -35,7 +36,7 @@ const SummaryRequestSchema = z.strictObject({
 
 export async function draftInspectionSummary(input: unknown): Promise<SummaryDraftResult> {
   try {
-    const auth = await authorizeAction();
+    const auth = await authorizeAction({ permission: "ai_summary" });
     if (!auth.ok) return { ok: false, reason: "forbidden", message: auth.error };
 
     const parsed = SummaryRequestSchema.safeParse(input);

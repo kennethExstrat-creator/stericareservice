@@ -71,4 +71,21 @@ describe("rowActions", () => {
     expect(deletable(ADMIN_VIEWER, OTHER)).toEqual(["draft"]);
     expect(rowActions(row("draft"), INSPECTOR).deleteName).toBe("Delete INS-2026-0001");
   });
+
+  // Roles and permissions (migration 20261027150000): a custom role that sees every inspection.
+  it("follows the role's switches: no Review without Approve and Reopen, no Delete without Delete Drafts", () => {
+    const desk: ListViewer = {
+      id: ADMIN,
+      role: "admin",
+      grant: { id: "r1", name: "Office Desk", builtIn: null, access: "all", permissions: ["create_inspections"] },
+    };
+    expect(rowActions(row("submitted", OTHER), desk).primary).toMatchObject({ label: "View", href: REVIEW });
+    // What the role sees is unchanged: it still continues anyone's draft.
+    expect(rowActions(row("draft", OTHER), desk).primary.label).toBe("Continue");
+    expect(rowActions(row("draft", OTHER), desk).deleteName).toBeNull();
+
+    const reviewer: ListViewer = { ...desk, grant: { ...desk.grant!, permissions: ["approve_inspections", "delete_drafts"] } };
+    expect(rowActions(row("submitted", OTHER), reviewer).primary.label).toBe("Review");
+    expect(rowActions(row("draft", OTHER), reviewer).deleteName).toBe("Delete INS-2026-0001");
+  });
 });

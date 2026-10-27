@@ -186,12 +186,13 @@ describe("a choice card", () => {
 describe("Source Documents", () => {
   const order = new File(["%PDF-1.4"], "Purchase Order.pdf", { type: "application/pdf" });
 
-  function panel(documents: HeldDocument[], filled: { label: string; value: string }[] = []) {
+  function panel(documents: HeldDocument[], filled: { label: string; value: string }[] = [], aiReading = true) {
     const sources: HeldSources = {
       documents,
       media: [],
       preparing: 0,
-      canRead: true,
+      aiReading,
+      canRead: aiReading,
       fill: null,
       addDocuments: noop,
       addMedia: noop,
@@ -231,5 +232,22 @@ describe("Source Documents", () => {
     expect(rows).toHaveLength(2);
     expect(rows[0]).toContain("lucide-file-text");
     expect(rows[1]).toContain("lucide-file-spreadsheet");
+  });
+
+  // A role without Steri-AI Reading (migration 20261027150000): the files only upload.
+  it("promises no Steri-AI to a role without Steri-AI Reading: no reading marks, no Read Again", () => {
+    const html = panel(
+      [
+        { key: "a", file: order, url: "blob:a", state: { step: "waiting" } },
+        { key: "b", file: order, url: "blob:b", state: { step: "later" } },
+      ],
+      [],
+      false,
+    );
+    expect(html).toContain("Drop them here.");
+    expect(html).not.toContain("Steri-AI");
+    expect(html).not.toContain("Read after Create");
+    expect(html).not.toContain("Read Again");
+    expect(panel([], [], false)).toContain("They upload with the inspection on Create.");
   });
 });

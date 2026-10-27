@@ -15,18 +15,23 @@ import type { AiActionState, AiReviewProgress } from "./types";
 /*
  * Server Actions for the AI hand-offs (BUILD_SPEC 9). Server Actions are
  * public HTTP endpoints: each checks the caller with authorizeAction() first
- * (the decisions and both hand-offs are admin work), validates its input with
- * zod, and reads and writes through the caller's own client, so Row Level
- * Security and the database guards check everything again. None of them
- * changes an inspection's result: the AI suggests, the admin decides.
+ * (the decisions and both hand-offs are admin work, each behind its role's
+ * switch: Steri-AI Second Opinion for the review and its decisions, Export
+ * Reports for the report), validates its input with zod, and reads and
+ * writes through the caller's own client, so Row Level Security and the
+ * database guards check everything again. None of them changes an
+ * inspection's result: the AI suggests, the admin decides.
  */
 
 const InspectionFormSchema = z.object({ inspectionId: z.string() });
 
+/** authorizeAction's words for a caller it does not allow. */
+const NOT_ALLOWED = "You do not have permission to do that.";
+
 /** "Request AI Second Opinion": stores a pending review of the current version and runs it in the background. */
 export async function requestAiSecondOpinion(_previous: AiActionState, formData: FormData): Promise<AiActionState> {
   return guarded("requestAiSecondOpinion", async () => {
-    const auth = await authorizeAction("admin");
+    const auth = await authorizeAction({ permission: "ai_second_opinion" });
     if (!auth.ok) return failure(auth.error);
     const inspectionId = inspectionIdFrom(formData);
     if (!inspectionId) return failure("That inspection could not be found. Reload the page.");
@@ -49,7 +54,7 @@ export async function requestAiSecondOpinion(_previous: AiActionState, formData:
 /** Agree, disagree (with a note) or fixed, on one finding of a finished review. */
 export async function recordAiFindingDecision(_previous: AiActionState, formData: FormData): Promise<AiActionState> {
   return guarded("recordAiFindingDecision", async () => {
-    const auth = await authorizeAction("admin");
+    const auth = await authorizeAction({ permission: "ai_second_opinion" });
     if (!auth.ok) return failure(auth.error);
 
     const result = await recordFindingDecision(await createClient(), {
@@ -67,8 +72,11 @@ export async function recordAiFindingDecision(_previous: AiActionState, formData
 /** "Send to AI Report": the export goes to the report service; its link is stored on the inspection. */
 export async function sendToAiReport(_previous: AiActionState, formData: FormData): Promise<AiActionState> {
   return guarded("sendToAiReport", async () => {
-    const auth = await authorizeAction("admin");
+    const auth = await authorizeAction({ permission: "export_reports" });
     if (!auth.ok) return failure(auth.error);
+    // And the role level, as before roles: the link is stored on a submitted or approved
+    // inspection, which only someone who sees every inspection may write.
+    if (auth.user.role !== "admin") return failure(NOT_ALLOWED);
     const inspectionId = inspectionIdFrom(formData);
     if (!inspectionId) return failure("That inspection could not be found. Reload the page.");
 

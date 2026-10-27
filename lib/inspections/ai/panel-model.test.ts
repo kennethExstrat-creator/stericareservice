@@ -27,6 +27,7 @@ beforeAll(async () => {
 });
 
 function model(overrides: Partial<PanelModelInput> = {}) {
+  const isAdmin = overrides.isAdmin ?? true;
   return buildAiPanelModel({
     record,
     evaluated,
@@ -35,7 +36,9 @@ function model(overrides: Partial<PanelModelInput> = {}) {
     photoLinks: PHOTO_LINKS,
     aiStatus: MOCK_STATUS,
     viewerId: IDS.admin,
-    isAdmin: true,
+    isAdmin,
+    // The built-in roles as made: admins ask and decide; whoever reads the panel exports.
+    allows: { secondOpinion: isAdmin, exportReports: true },
     now: NOW,
     ...overrides,
   });
@@ -135,7 +138,7 @@ describe("buildAiPanelModel: reviews", () => {
   });
 
   it("knows who is looking: a half-made decision is kept under the admin's id", () => {
-    expect(model().viewer).toEqual({ id: IDS.admin, isAdmin: true });
+    expect(model().viewer).toEqual({ id: IDS.admin, isAdmin: true, canDecide: true });
   });
 
   it("waits for a review still being written and lets no second one start for the same version", () => {
@@ -279,6 +282,27 @@ describe("buildAiPanelModel: who may do what", () => {
     expect(panel.review.canRequest).toBe(false);
     expect(panel.report.canSend).toBe(false);
     expect(panel.current?.findings.length).toBeGreaterThan(0);
+  });
+
+  // Roles and permissions (migration 20261027150000): an admin-level role does only what its switches allow.
+  it("follows the role's switches: Steri-AI Second Opinion asks and decides, Export Reports downloads and sends", () => {
+    const report = { ...MOCK_STATUS, report: { connected: true, provider: "webhook" as const, label: "Steri-AI Report Connected (Webhook)" } };
+    const none = model({ aiStatus: report, allows: { secondOpinion: false, exportReports: false } });
+    expect(none.viewer).toMatchObject({ isAdmin: true, canDecide: false });
+    expect(none.review.canRequest).toBe(false);
+    expect(none.report).toMatchObject({ canSend: false, canDownload: false });
+    // The decisions others made are still read.
+    expect(none.current?.findings.some((finding) => finding.decision !== null)).toBe(true);
+
+    const both = model({ aiStatus: report, allows: { secondOpinion: true, exportReports: true } });
+    expect(both.viewer.canDecide).toBe(true);
+    expect(both.review.canRequest).toBe(true);
+    expect(both.report).toMatchObject({ canSend: true, canDownload: true });
+    // Sending writes the report's link on the inspection: never for someone who does not see every inspection.
+    expect(model({ aiStatus: report, isAdmin: false, allows: { secondOpinion: false, exportReports: true } }).report).toMatchObject({
+      canSend: false,
+      canDownload: true,
+    });
   });
 
   it("keeps drafts out of both hand-offs, and says why", () => {

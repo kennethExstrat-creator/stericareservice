@@ -90,10 +90,13 @@ export async function moveMedia(
   }
 }
 
-/** Claude puts each item in its category; one it is unsure of (category null) stays where it is. At most 12 items a call. */
+/**
+ * Claude puts each item in its category; one it is unsure of (category null) stays where it is. At most 12 items a
+ * call. Auto-Sort is the role's Steri-AI Reading; moving by hand (moveMedia) needs no switch.
+ */
 export async function sortMediaWithAi(inspectionId: string, items: SortMediaItem[]): Promise<SortMediaResult> {
   try {
-    const auth = await authorizeAction();
+    const auth = await authorizeAction({ permission: "ai_reading" });
     if (!auth.ok) return { ok: false, error: auth.error };
     const input = parseSortInput(inspectionId, items);
     if (!input.ok) return { ok: false, error: input.error };

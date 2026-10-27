@@ -10,10 +10,12 @@
 // Documents, and the photos and videos to an Auto-Sort run for it: both
 // belong to the page, not to this screen, so they carry on while the capture
 // screen opens, where each document is read in full and Media shows the sort.
+// For a role without Steri-AI Reading nothing is read here, and the photos
+// and videos upload into Media's Other with no sort, to drag into place.
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { photoQueueStore } from "@/components/capture/photos/queue-store";
-import { SOURCE_DOCUMENTS_KEY, mediaKind } from "@/lib/inspections/source-documents";
+import { SOURCE_DOCUMENTS_KEY, SOURCE_MEDIA_KEY, mediaKind } from "@/lib/inspections/source-documents";
 import { readableFile } from "@/lib/photos/readable";
 import { spreadsheetTypeOf } from "@/lib/photos/sniff";
 import type { DocumentFill, DocumentReadResult } from "@/lib/schemas/document-fill";
@@ -39,6 +41,8 @@ export type HeldSources = {
   media: readonly HeldMedia[];
   /** Documents being made ready: photos turned into JPEG. */
   preparing: number;
+  /** The role allows Steri-AI Reading: the documents are read and the photos and videos sorted. */
+  aiReading: boolean;
   /** Documents waiting are still read here; once the form has its values, they are read after Create. */
   canRead: boolean;
   /** The header values and order lines of the documents read, for Create. */
@@ -81,10 +85,13 @@ function notAdded(file: File, why: string) {
 }
 
 export function useHeldSources({
+  aiReading,
   needsValues,
   paused,
   onRead,
 }: {
+  /** The role allows Steri-AI Reading; without it nothing is read, and the photos and videos are not sorted. */
+  aiReading: boolean;
   /** The form still lacks its client, manufacturer, product type or product name: documents are read until it has them. */
   needsValues: boolean;
   /** Create is under way: nothing new is read or added. */
@@ -138,7 +145,7 @@ export function useHeldSources({
   }, []);
 
   // One document at a time, while the form still needs values.
-  const next = paused ? null : nextToRead(documents, needsValues);
+  const next = paused || !aiReading ? null : nextToRead(documents, needsValues);
   useEffect(() => {
     if (!next || reading.current !== null) return;
     const { key, file } = next;
@@ -218,29 +225,42 @@ export function useHeldSources({
 
   const readAgain = useCallback((key: string) => setState(key, { step: "waiting" }), [setState]);
 
-  const handOver = useCallback(async (inspectionId: string, userId: string) => {
-    // A photo still being converted goes too.
-    await preparation.current;
-    const { documents: kept, media: taken } = held.current;
-    void photoQueueStore.start(userId);
-    // Documents first: they upload and are read while the photos are prepared.
-    if (kept.length > 0) {
-      void photoQueueStore.addFiles({
-        inspectionId,
-        moduleKey: SOURCE_DOCUMENTS_KEY,
-        kind: "other",
-        files: kept.map((document) => document.file),
-      });
-    }
-    if (taken.length > 0) void autoSort(inspectionId, taken.map((item) => item.file));
-  }, []);
+  const handOver = useCallback(
+    async (inspectionId: string, userId: string) => {
+      // A photo still being converted goes too.
+      await preparation.current;
+      const { documents: kept, media: taken } = held.current;
+      void photoQueueStore.start(userId);
+      // Documents first: they upload and are read while the photos are prepared.
+      if (kept.length > 0) {
+        void photoQueueStore.addFiles({
+          inspectionId,
+          moduleKey: SOURCE_DOCUMENTS_KEY,
+          kind: "other",
+          files: kept.map((document) => document.file),
+        });
+      }
+      if (taken.length === 0) return;
+      if (aiReading) {
+        void autoSort(inspectionId, taken.map((item) => item.file));
+        return;
+      }
+      // No sort: into Other, as Auto-Sort uploads them before it sorts (untagged photos, Media's videos).
+      const photos = taken.filter((item) => item.kind === "photo").map((item) => item.file);
+      const videos = taken.filter((item) => item.kind === "video").map((item) => item.file);
+      if (photos.length > 0) void photoQueueStore.addPhotos({ inspectionId, files: photos, tag: { moduleKey: null, target: {} } });
+      if (videos.length > 0) void photoQueueStore.addFiles({ inspectionId, moduleKey: SOURCE_MEDIA_KEY, kind: "other", files: videos });
+    },
+    [aiReading],
+  );
 
   const reads = documents.flatMap((document) => (document.state.step === "read" ? [document.state.read] : []));
   return {
     documents,
     media,
     preparing,
-    canRead: needsValues && !paused,
+    aiReading,
+    canRead: aiReading && needsValues && !paused,
     fill: mergeFills(reads),
     addDocuments,
     addMedia,

@@ -32,15 +32,17 @@ function on(iso: string | null): string {
  * the inspector's: an admin, or a lead inspector reading their team's
  * (read-only: only admins approve and reopen). A submitted one waits for an
  * admin, so admins read it as theirs to review, their own inspections
- * included.
+ * included: those whose role approves and reopens (`canApprove`; absent, as
+ * before roles, every admin), as the review offers them only then.
  */
 export function statusNotice(
   inspection: NoticeInspection,
-  viewer: { id: string; role: "inspector" | "admin" },
+  viewer: { id: string; role: "inspector" | "admin"; canApprove?: boolean },
   history: readonly AuditEntry[],
 ): StatusNotice {
   const own = viewer.id === inspection.inspector.id;
   const inspector = inspection.inspector.name;
+  const reviews = viewer.canApprove ?? viewer.role === "admin";
 
   switch (inspection.status) {
     case "draft":
@@ -54,7 +56,7 @@ export function statusNotice(
       };
 
     case "submitted":
-      return viewer.role === "admin"
+      return reviews
         ? {
             status: "submitted",
             title: "Waiting for Your Review",

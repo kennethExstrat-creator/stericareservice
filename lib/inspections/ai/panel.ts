@@ -1,7 +1,7 @@
 import "server-only";
 import { getAiStatus } from "@/lib/ai";
 import { loadAiEnv } from "@/lib/ai/settings";
-import type { SessionUser } from "@/lib/auth/session";
+import { userCan, type SessionUser } from "@/lib/auth/session";
 import {
   canExportInspection,
   evaluateRecord,
@@ -27,7 +27,8 @@ import type { AiPanelModel } from "./types";
  * system and inspector columns), its stored reviews (the AI column and
  * the history) and, for admins, the decisions recorded on findings. The
  * inspection and the reviews load side by side; decisions come embedded
- * in the reviews.
+ * in the reviews. What the user may do in it follows their role's
+ * switches: Steri-AI Second Opinion, and Export Reports.
  * ------------------------------------------------------------------ */
 
 /** Photo links in the panel outlive a long review session but not the day. */
@@ -63,14 +64,16 @@ export type AiPanelLoad =
   | { ok: false; reason: "not_found" | "unreadable" | "unavailable"; message: string };
 
 export async function loadAiPanel(
-  user: Pick<SessionUser, "id" | "role">,
+  user: Pick<SessionUser, "id" | "role" | "isLead" | "grant">,
   inspectionId: string,
   options: { client?: ExportClient; now?: number } = {},
 ): Promise<AiPanelLoad> {
   const id = parseInspectionId(inspectionId);
   if (!id) return { ok: false, reason: "not_found", message: "Inspection not found." };
   const client = options.client ?? (await createClient());
+  // What they see (decisions are read by admins only, RLS), apart from what their role lets them do.
   const isAdmin = user.role === "admin";
+  const allows = { secondOpinion: userCan(user, "ai_second_opinion"), exportReports: userCan(user, "export_reports") };
 
   const [loaded, reviewRows] = await Promise.all([
     loadInspectionRecord(client, id),
@@ -116,6 +119,7 @@ export async function loadAiPanel(
       aiStatus: getAiStatus(await loadAiEnv()),
       viewerId: user.id,
       isAdmin,
+      allows,
       now: options.now ?? Date.now(),
     }),
   };

@@ -207,10 +207,10 @@ describe("deletePhoto", () => {
 });
 
 describe("setPhotoInReport", () => {
-  it("is for admins only", async () => {
+  it("is for roles that approve and reopen only: choosing the report's photos is part of approving", async () => {
     vi.mocked(authorizeAction).mockResolvedValue({ ok: false, error: "You do not have permission to do that." });
     const result = await setPhotoInReport(IDLE_PHOTO_ACTION, form({ photoId: PHOTO, include: "true" }));
-    expect(authorizeAction).toHaveBeenCalledWith("admin");
+    expect(authorizeAction).toHaveBeenCalledWith({ permission: "approve_inspections" });
     expect(result).toEqual({ status: "error", message: "You do not have permission to do that." });
     expect(queries).toEqual([]);
   });

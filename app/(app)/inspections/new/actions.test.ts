@@ -5,7 +5,11 @@ vi.mock("next/navigation", () => ({
     if (error instanceof Error && error.message === "NEXT_REDIRECT") throw error;
   }),
 }));
-vi.mock("@/lib/auth/session", () => ({ authorizeAction: vi.fn() }));
+// The session's own userCan decides the role's switches from the user authorizeAction answers.
+vi.mock("@/lib/auth/session", async (importOriginal) => ({
+  authorizeAction: vi.fn(),
+  userCan: (await importOriginal<typeof import("@/lib/auth/session")>()).userCan,
+}));
 vi.mock("@/lib/supabase/server", () => ({ createClient: vi.fn() }));
 // Without the key (the default here) the user's own client inserts.
 vi.mock("@/lib/supabase/admin", () => ({ createAdminClient: vi.fn(), isAdminClientConfigured: vi.fn() }));
@@ -19,7 +23,7 @@ import { createClient } from "@/lib/supabase/server";
 import { buildSeedBundle, SEED_TEMPLATES } from "@/lib/templates/definitions";
 import type { InspectionData } from "@/modules/_framework";
 import { MODULE_REGISTRY } from "@/modules/registry";
-import { createInspection, type CreateInspectionState } from "./actions";
+import { createInspection, readDocument, type CreateInspectionState } from "./actions";
 
 const INSPECTOR = "7c2d4e1a-0b3f-4a5c-9d8e-1f2a3b4c5d6e";
 const ADMIN = "0a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d";
@@ -187,7 +191,13 @@ describe("who may start an inspection", () => {
   it("answers a caller without an active session with the session's words, reading nothing", async () => {
     vi.mocked(authorizeAction).mockResolvedValue({ ok: false, error: "Your session has ended. Sign in again." });
     expect(await submit(order())).toEqual({ status: "error", message: "Your session has ended. Sign in again." });
-    expect(authorizeAction).toHaveBeenCalledWith();
+    expect(authorizeAction).toHaveBeenCalledWith({ permission: "create_inspections" });
+    expect(createClient).not.toHaveBeenCalled();
+  });
+
+  it("starts nothing for a role without Create Inspections", async () => {
+    vi.mocked(authorizeAction).mockResolvedValue({ ok: false, error: "You do not have permission to do that." });
+    expect(await submit(order())).toEqual({ status: "error", message: "You do not have permission to do that." });
     expect(createClient).not.toHaveBeenCalled();
   });
 
@@ -514,6 +524,29 @@ describe("Source Documents read on the form (docs/AI.md)", () => {
         { inspection_id: NEW_ID, action: "filled_from_document", changes: { file: fill.fileName, filled: ["header.poNo"], by: INSPECTOR } },
       ],
     ]);
+  });
+
+  // Fill From a Document is the role's Steri-AI Reading, on a page only Create Inspections opens.
+  it("reads nothing for a role without Steri-AI Reading or without Create Inspections", async () => {
+    const document = new FormData();
+    document.set("document", new File(["%PDF-1.7"], "PO 0001.pdf", { type: "application/pdf" }));
+
+    vi.mocked(authorizeAction).mockResolvedValue({ ok: false, error: "You do not have permission to do that." });
+    expect(await readDocument(document)).toEqual({ status: "error", message: "You do not have permission to do that." });
+    expect(authorizeAction).toHaveBeenCalledWith({ permission: "ai_reading" });
+
+    vi.mocked(authorizeAction).mockResolvedValue({
+      ok: true,
+      user: {
+        id: INSPECTOR,
+        email: "reader@test.local",
+        fullName: null,
+        role: "admin",
+        grant: { id: "r1", name: "Document Desk", builtIn: null, access: "all", permissions: ["ai_reading"] },
+      },
+    });
+    expect(await readDocument(document)).toEqual({ status: "error", message: "You do not have permission to do that." });
+    expect(createClient).not.toHaveBeenCalled();
   });
 });
 

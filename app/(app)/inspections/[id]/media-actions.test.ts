@@ -118,6 +118,18 @@ describe("input checks", () => {
     expect(await moveMedia(INSPECTION, { kind: "photo", id: PHOTO }, null)).toEqual({ ok: false, error: "Your session has ended. Sign in again." });
     expect(createClient).not.toHaveBeenCalled();
   });
+
+  // Roles and permissions (migration 20261027150000): moving by hand is anyone's who may change the photos.
+  it("sorts with Steri-AI only for a role with Steri-AI Reading", async () => {
+    vi.mocked(authorizeAction).mockResolvedValue({ ok: false, error: "You do not have permission to do that." });
+    expect(await sortMediaWithAi(INSPECTION, [{ kind: "photo", id: PHOTO, preview: "AAAA" }])).toEqual({
+      ok: false,
+      error: "You do not have permission to do that.",
+    });
+    expect(authorizeAction).toHaveBeenCalledWith({ permission: "ai_reading" });
+    expect(createClient).not.toHaveBeenCalled();
+    expect(sortMedia).not.toHaveBeenCalled();
+  });
 });
 
 describe("moveMedia", () => {

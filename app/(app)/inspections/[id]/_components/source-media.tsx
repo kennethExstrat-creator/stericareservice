@@ -14,7 +14,8 @@
 // no category (untagged photos, a step's from before the categories, the
 // first Media tab's videos); photos and videos can be added there too.
 // Auto-Sort, at the top, uploads a heap of photos and videos into Other and
-// has Steri-AI sort them (auto-sort.ts). Files dropped on a section come in
+// has Steri-AI sort them (auto-sort.ts), for a role with Steri-AI Reading
+// (`canAutoSort`). Files dropped on a section come in
 // through useFileDrop (../../_components/use-file-drop.ts).
 import {
   useCallback,
@@ -114,9 +115,11 @@ type SourceMediaProps = {
   inspectionId: string;
   /** The screen's read-only state (approved, or not the user's): nothing to add, move or delete. */
   readOnly: boolean;
+  /** Auto-Sort is offered: the user's role allows Steri-AI Reading. Each category's Add works either way. */
+  canAutoSort: boolean;
 };
 
-export function SourceMedia({ inspectionId, readOnly }: SourceMediaProps) {
+export function SourceMedia({ inspectionId, readOnly, canAutoSort }: SourceMediaProps) {
   const baseId = useId();
   const media = useInspectionMedia(inspectionId);
   const queue = usePhotoQueue();
@@ -252,7 +255,7 @@ export function SourceMedia({ inspectionId, readOnly }: SourceMediaProps) {
 
   return (
     <div data-slot="source-media" className="relative flex flex-col gap-4">
-      {canAdd && <AutoSortBox inspectionId={inspectionId} />}
+      {canAdd && canAutoSort && <AutoSortBox inspectionId={inspectionId} />}
       <UploadNotices inspectionId={inspectionId} />
       {media.status === "error" && <MediaLoadFailure inspectionId={inspectionId} />}
       {/* -m-3: the sections' own padding reaches into the card's, so the text lines up with the card's edge. */}

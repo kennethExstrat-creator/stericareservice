@@ -62,6 +62,8 @@ export type SourceDocuments = {
   /** The step's result: "pass" once every uploaded file is Steri-AI Verified. */
   status: Status;
   progress: SectionProgress;
+  /** Readings start here: the files wait to be read, and Read Again is offered. */
+  canRead: boolean;
   retry: (fileId: string) => void;
 };
 
@@ -71,7 +73,10 @@ export function useSourceDocuments({
   onProposals,
 }: {
   inspectionId: string;
-  /** False where this screen cannot change the inspection: readings are shown, none started. */
+  /**
+   * False where this screen cannot change the inspection, or the user's role
+   * does not allow Steri-AI Reading: readings are shown, none started.
+   */
   canRead: boolean;
   /** Fills a reading's proposals into the data; answers how many values went in, with a note on any no step shows yet. */
   onProposals: (proposals: SourceProposals) => SourceFill;
@@ -176,6 +181,7 @@ export function useSourceDocuments({
     statuses: known,
     status: allVerified ? "pass" : "not_done",
     progress: uploaded.length === 0 ? "not_started" : allVerified ? "done" : "in_progress",
+    canRead,
     retry,
   };
 }

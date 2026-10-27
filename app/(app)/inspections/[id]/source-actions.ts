@@ -119,10 +119,12 @@ export async function markSourceFilled(inspectionId: string, fileId: string): Pr
  * the inspection's modules, the file itself as a step's lab report or a
  * documents row's file included. The capture screen fills the proposals into
  * empty fields only. A file the AI could not read is marked so, with why.
+ * For a role with Steri-AI Reading (Read and Read Again); filling in what
+ * an earlier reading proposed (markSourceFilled) calls no AI, so needs none.
  */
 export async function readSourceFile(inspectionId: string, fileId: string): Promise<SourceReadResult> {
   try {
-    const auth = await authorizeAction();
+    const auth = await authorizeAction({ permission: "ai_reading" });
     if (!auth.ok) return { status: "error", message: auth.error };
     const { user } = auth;
     if (!IdSchema.safeParse(inspectionId).success || !IdSchema.safeParse(fileId).success) {

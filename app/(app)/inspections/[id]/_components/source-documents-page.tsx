@@ -72,7 +72,7 @@ export function SourceDocumentsPage({ id, tabLabelledBy, titleRef, inspectionId,
           pageSize={FILES_PER_PAGE}
         />
       ) : (
-        <SourceMedia inspectionId={inspectionId} readOnly={readOnly} />
+        <SourceMedia inspectionId={inspectionId} readOnly={readOnly} canAutoSort={documents.canRead} />
       )}
     </SectionFrame>
   );
@@ -83,11 +83,14 @@ function readingNote(summary: string | null): string {
   return (summary ?? "").split(" Read as: ")[0].trim();
 }
 
-/** Beside the file's name: what Steri-AI has done with it. Read Again is among the row's icons (ReadAgainButton). */
+/**
+ * Beside the file's name: what Steri-AI has done with it. Read Again is among the row's icons (ReadAgainButton).
+ * Nothing waits to be read where no reading starts: read-only, or a role without Steri-AI Reading.
+ */
 export function AiMark({ file, documents, readOnly }: { file: SlotFile; documents: SourceDocuments; readOnly: boolean }) {
   if (file.state !== "uploaded") return null;
   const reading = documents.statuses[file.id];
-  if (!reading) return readOnly ? null : <WaitingMark />;
+  if (!reading) return readOnly || !documents.canRead ? null : <WaitingMark />;
   if (reading.status === "reading") return <ReadingMark />;
   if (reading.status === "read") {
     return (
@@ -110,7 +113,7 @@ export function AiMark({ file, documents, readOnly }: { file: SlotFile; document
  */
 export function ReadAgainButton({ file, documents, readOnly }: { file: SlotFile; documents: SourceDocuments; readOnly: boolean }) {
   const reading = documents.statuses[file.id];
-  if (readOnly || file.state !== "uploaded" || !reading || reading.status === "reading") return null;
+  if (readOnly || !documents.canRead || file.state !== "uploaded" || !reading || reading.status === "reading") return null;
   return (
     <Button type="button" variant="ghost" size="icon" title="Read Again" onClick={() => documents.retry(file.id)}>
       <ReadAgainIcon />

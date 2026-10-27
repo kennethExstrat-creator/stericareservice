@@ -61,9 +61,23 @@ export function CaptureNotices({ notices, className }: { notices: readonly Captu
   );
 }
 
-/** Why a submitted inspection is read-only here, said to whoever is reading it. */
-export function submittedMessage({ role, own, inspectorName }: { role: UserRole; own: boolean; inspectorName: string | null }): string {
-  if (role === "admin") return "Submitted for review: read-only here. To change it, reopen it from the review.";
+/**
+ * Why a submitted inspection is read-only here, said to whoever is reading it.
+ * `canReopen`: their role approves and reopens (absent, as before roles, every
+ * admin); one that does not is not told to reopen it.
+ */
+export function submittedMessage({
+  role,
+  own,
+  inspectorName,
+  canReopen = role === "admin",
+}: {
+  role: UserRole;
+  own: boolean;
+  inspectorName: string | null;
+  canReopen?: boolean;
+}): string {
+  if (canReopen) return "Submitted for review: read-only here. To change it, reopen it from the review.";
   if (own) return "Submitted for review: read-only. An admin can send it back to you for changes.";
   // A lead inspector reading a team member's inspection: not theirs to have sent back.
   return `Submitted for review by ${inspectorName?.trim() || "another inspector"}: read-only.`;
@@ -115,7 +129,7 @@ export function captureNotices({
     notices.push({
       key: "submitted",
       tone: "lock",
-      message: submittedMessage({ role, own: access.own, inspectorName }),
+      message: submittedMessage({ role, own: access.own, inspectorName, canReopen: access.canReopen }),
       action: (
         <Button asChild variant="outline" size="sm">
           <Link href={reviewHref}>Open the Review</Link>

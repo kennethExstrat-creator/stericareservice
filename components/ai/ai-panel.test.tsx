@@ -36,6 +36,7 @@ beforeAll(async () => {
 });
 
 function model(overrides: Partial<PanelModelInput> = {}) {
+  const isAdmin = overrides.isAdmin ?? true;
   return buildAiPanelModel({
     record,
     evaluated,
@@ -44,7 +45,9 @@ function model(overrides: Partial<PanelModelInput> = {}) {
     photoLinks: PHOTO_LINKS,
     aiStatus: MOCK_STATUS,
     viewerId: IDS.admin,
-    isAdmin: true,
+    isAdmin,
+    // The built-in roles as made: admins ask and decide; whoever reads the panel exports.
+    allows: { secondOpinion: isAdmin, exportReports: true },
     now: NOW,
     ...overrides,
   });
@@ -304,6 +307,29 @@ describe("AiReviewPanelView for the inspector", () => {
     expect(content).not.toContain("Send to Steri-AI Report");
     expect(html).not.toContain("Change your decision");
     expect(html).toContain(`href="/api/inspections/${IDS.inspection}/export"`);
+  });
+});
+
+// Roles and permissions (migration 20261027150000): an admin-level role whose switches are off.
+describe("AiReviewPanelView for a role without the Steri-AI switches", () => {
+  it("offers no request, no decision and no export: no dead buttons", () => {
+    const report = { ...MOCK_STATUS, report: { connected: true, provider: "webhook" as const, label: "Steri-AI Report Connected (Webhook)" } };
+    const html = render({ aiStatus: report, allows: { secondOpinion: false, exportReports: false } });
+    const content = text(html);
+    expect(content).toContain("Finding F1");
+    expect(content).toContain("An admin decides on each finding.");
+    expect(content).not.toContain("Save Decision");
+    expect(content).not.toMatch(/Request (Steri-AI|a New) Second Opinion/);
+    expect(content).not.toContain("Send to Steri-AI Report");
+    expect(content).not.toContain("Download JSON");
+    expect(html).not.toContain(`href="/api/inspections/${IDS.inspection}/export"`);
+  });
+
+  it("says the report service is not connected without pointing at a download it does not offer", () => {
+    const content = text(render({ allows: { secondOpinion: true, exportReports: false } }));
+    expect(content).toContain("Steri-AI not connected.");
+    expect(content).not.toContain("Download the export");
+    expect(content).not.toContain("Download JSON");
   });
 });
 

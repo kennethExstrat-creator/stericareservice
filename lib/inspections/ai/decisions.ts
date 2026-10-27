@@ -84,8 +84,12 @@ export async function recordFindingDecision(
       code: inserted.error.code,
       message: inserted.error.message,
     });
+    // Row level security: deciding is the role's Steri-AI Second Opinion (migration 20261027150000).
     const refused = inserted.error.code === "42501";
-    return { ok: false, message: refused ? "Only admins record decisions on findings." : "Could not save the decision. Try again." };
+    return {
+      ok: false,
+      message: refused ? "Your role does not allow deciding on Steri-AI's findings." : "Could not save the decision. Try again.",
+    };
   }
 
   await logInspectionEvent(client, review.inspection_id, "ai_review.decision", {

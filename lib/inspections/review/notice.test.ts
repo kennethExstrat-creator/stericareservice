@@ -32,6 +32,15 @@ describe("statusNotice", () => {
     });
   });
 
+  // Roles and permissions (migration 20261027150000): one who sees everything but approves nothing is told who decides.
+  it("asks only a role that approves and reopens to review it", () => {
+    expect(statusNotice(inspection(), { ...admin, canApprove: false }, [])).toMatchObject({
+      title: "Waiting for Review",
+      body: "Inspector A submitted it on 5 Oct 2026, 14:30. An admin checks it next, and only an admin can reopen it for changes.",
+    });
+    expect(statusNotice(inspection(), { ...admin, canApprove: true }, []).title).toBe("Waiting for Your Review");
+  });
+
   it("tells the inspector who submitted it what happens next", () => {
     expect(statusNotice(inspection(), inspector, [])).toMatchObject({
       title: "Waiting for Review",

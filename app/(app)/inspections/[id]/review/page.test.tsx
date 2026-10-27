@@ -4,7 +4,11 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("@/lib/auth/session", () => ({ requireUser: vi.fn() }));
+// The session's own userCan decides the role's switches from the user requireUser answers.
+vi.mock("@/lib/auth/session", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/auth/session")>()),
+  requireUser: vi.fn(),
+}));
 vi.mock("@/lib/supabase/server", () => ({ createClient: vi.fn() }));
 vi.mock("@/lib/inspections/review/load", () => ({ loadReview: vi.fn() }));
 vi.mock("@/lib/inspections/review/actions", () => ({ approveInspection: vi.fn(), reopenInspection: vi.fn() }));
@@ -43,6 +47,7 @@ beforeAll(async () => {
       aiStatus: MOCK_STATUS,
       viewerId: ADMIN_ID,
       isAdmin: true,
+      allows: { secondOpinion: true, exportReports: true },
       now: NOW,
     }),
   };
@@ -108,7 +113,22 @@ describe("/inspections/[id]/review", () => {
     expect(link(html, "Open Inspection")).toBe(true);
   });
 
+  // Roles and permissions (migration 20261027150000): a role that sees every inspection but does not approve.
+  it("gives no decision to a role without Approve and Reopen, and tells them who decides", async () => {
+    vi.mocked(requireUser).mockResolvedValue({
+      ...ADMIN_USER,
+      grant: { id: "r1", name: "Office Desk", builtIn: null, access: "all", permissions: ["create_inspections"] },
+    });
+    const html = await render(reviewData());
+    expect(button(html, "Approve")).toBe(false);
+    expect(button(html, "Reopen")).toBe(false);
+    expect(link(html, "Open Inspection")).toBe(true);
+    expect(html).toContain("Waiting for Review");
+    expect(html).not.toContain("Waiting for Your Review");
+  });
+
   it("shows the inspector their submitted inspection read-only", async () => {
+    vi.mocked(requireUser).mockResolvedValue(INSPECTOR_USER);
     const html = await render(reviewData({ viewer: { id: INSPECTOR_ID, name: "Inspector A", role: "inspector" } }));
     expect(button(html, "Approve")).toBe(false);
     expect(button(html, "Reopen")).toBe(false);
@@ -121,6 +141,7 @@ describe("/inspections/[id]/review", () => {
     "shows a lead inspector their team's %s inspection read-only: no approve, reopen or editing, and no AI panel",
     async (status) => {
       const lead = { id: "00000000-0000-4000-8000-000000000103", name: "Lina Lead", role: "inspector" as const };
+      vi.mocked(requireUser).mockResolvedValue({ ...lead, email: "lead@test.local", fullName: lead.name, isLead: true });
       // The AI panel follows the export's rule (owner or admin): a lead gets nothing.
       vi.mocked(loadAiPanel).mockResolvedValue({ ok: false, reason: "not_found", message: "Inspection not found." });
       const html = await render(reviewData({ viewer: lead, inspection: reviewInspection({ status }) }));

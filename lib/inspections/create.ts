@@ -106,7 +106,9 @@ export type TemplateChoice =
  * The standard template for the product type, whoever the inspection is for
  * (Kenneth, 26 October 2026: one flow for every client); or, for an admin
  * only, the template they chose, which must be for the same product type and
- * not retired.
+ * not retired. "An admin" is the role level (profiles.role: every inspection
+ * in sight, custom roles that see all included), not a role's switch: the
+ * choice is among the templates all of them may start from.
  */
 export function chooseTemplate(
   candidates: readonly TemplateCandidate[],
@@ -546,6 +548,10 @@ export function describeCreateError(error: { code?: string; message?: string }):
     return "That template is no longer active. Reload the page to see the current one.";
   }
   if (error.code === "23503") return "The client, manufacturer or template has gone. Reload the page and pick again.";
+  // The inspections' role guard (migration 20261027150000): "your role cannot create inspections".
+  if (error.code === "42501" && /your role cannot/i.test(error.message ?? "")) {
+    return "Your role does not allow starting inspections. Ask an admin to check it.";
+  }
   if (error.code === "42501") return "Your account is not allowed to start this inspection. Ask an admin to check it.";
   return "The inspection could not be created. Try again.";
 }

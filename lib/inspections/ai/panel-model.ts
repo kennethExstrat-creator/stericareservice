@@ -70,7 +70,15 @@ export type PanelModelInput = {
   aiStatus: AiStatus;
   /** The signed-in user: their half-made decisions are kept on this device under their id. */
   viewerId: string;
+  /** Sees every inspection: reads the decisions (RLS) and the set-up details, and may write the report's link. */
   isAdmin: boolean;
+  /**
+   * What the user's role allows here (lib/auth/permissions.ts): asking for a
+   * second opinion and deciding on its findings (Steri-AI Second Opinion),
+   * and downloading the export or sending it to Steri-AI Report (Export
+   * Reports, which sending also needs `isAdmin` for).
+   */
+  allows: { secondOpinion: boolean; exportReports: boolean };
   /**
    * The master list's names (defect_codes) of defects the cited photos are
    * tagged with that their module has no label for, as the review's report
@@ -82,7 +90,7 @@ export type PanelModelInput = {
 };
 
 export function buildAiPanelModel(input: PanelModelInput): AiPanelModel {
-  const { record, evaluated, reviews, isAdmin, aiStatus, now } = input;
+  const { record, evaluated, reviews, isAdmin, allows, aiStatus, now } = input;
   // Cited photos are worded as the review's report photos are: module, size, defect, level and entry.
   const wording = photoWording(evaluated);
   // The version reviews are compared with: the inspection's content as it is now.
@@ -125,16 +133,17 @@ export function buildAiPanelModel(input: PanelModelInput): AiPanelModel {
       reportUrl: record.reportUrl,
       exportHref: exportPath(record.id),
     },
-    viewer: { id: input.viewerId, isAdmin },
+    viewer: { id: input.viewerId, isAdmin, canDecide: allows.secondOpinion },
     review: {
       ...reviewHandoff,
-      canRequest: isAdmin && reviewHandoff.connected && reviewable && !runningNow,
+      canRequest: allows.secondOpinion && reviewHandoff.connected && reviewable && !runningNow,
       blockedReason: !reviewable ? NOT_REVIEWABLE : runningNow ? ALREADY_PENDING : null,
       switchedOff: aiStatus.review.switchedOff === true,
     },
     report: {
       ...reportHandoff,
-      canSend: isAdmin && reportHandoff.connected && reviewable,
+      canSend: isAdmin && allows.exportReports && reportHandoff.connected && reviewable,
+      canDownload: allows.exportReports,
       blockedReason: reviewable ? null : NOT_REPORTABLE,
     },
     current: currentModel,

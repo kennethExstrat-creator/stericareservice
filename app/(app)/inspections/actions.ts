@@ -24,14 +24,15 @@ import { createClient } from "@/lib/supabase/server";
 export type DeleteInspectionResult = { status: "deleted" } | { status: "error"; message: string };
 
 /**
- * Deletes a draft with its photos and files (the list's Delete). The
- * database function checks the caller and deletes the rows as one; the
- * Storage objects go afterwards. On success, and when the row turned out to
- * be gone or no longer a draft, the list re-renders in the same answer.
+ * Deletes a draft with its photos and files (the list's Delete), for a role
+ * that allows Delete Drafts. The database function checks the caller and
+ * deletes the rows as one; the Storage objects go afterwards. On success,
+ * and when the row turned out to be gone or no longer a draft, the list
+ * re-renders in the same answer.
  */
 export async function deleteInspection(input: unknown): Promise<DeleteInspectionResult> {
   try {
-    const auth = await authorizeAction();
+    const auth = await authorizeAction({ permission: "delete_drafts" });
     if (!auth.ok) return { status: "error", message: auth.error };
 
     const parsed = DeleteInspectionInputSchema.safeParse(input);

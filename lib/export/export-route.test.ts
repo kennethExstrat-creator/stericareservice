@@ -1,6 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("@/lib/auth/session", () => ({ getSession: vi.fn() }));
+// The session's own userCan decides the role's switches from the user getSession answers.
+vi.mock("@/lib/auth/session", async (importOriginal) => ({
+  getSession: vi.fn(),
+  userCan: (await importOriginal<typeof import("@/lib/auth/session")>()).userCan,
+}));
 vi.mock("@/lib/supabase/server", () => ({ createClient: vi.fn() }));
 // The framework's test modules, so the results do not move when the real modules land.
 vi.mock("@/modules/registry", async () => {
@@ -98,6 +102,22 @@ describe("GET /api/inspections/[id]/export", () => {
     const response = await get();
     expect(response.status).toBe(403);
     expect(await response.json()).toEqual({ error: "forbidden", message: "This account is not active." });
+  });
+
+  // Roles and permissions (migration 20261027150000): Export Reports, on top of owner-or-admin.
+  it("answers 403 to a role without Export Reports, before reading any inspection", async () => {
+    if (ADMIN.status !== "active") throw new Error("expected an active session");
+    signedInAs({
+      status: "active",
+      user: {
+        ...ADMIN.user,
+        grant: { id: "r1", name: "Office Desk", builtIn: null, access: "all", permissions: ["create_inspections"] },
+      },
+    });
+    const response = await get();
+    expect(response.status).toBe(403);
+    expect(await response.json()).toEqual({ error: "forbidden", message: "Your role does not allow exporting reports." });
+    expect(createClient).not.toHaveBeenCalled();
   });
 
   it("answers 503 when Supabase is not configured or the session cannot be read", async () => {

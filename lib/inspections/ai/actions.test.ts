@@ -50,11 +50,11 @@ afterEach(() => {
 });
 
 describe("requestAiSecondOpinion", () => {
-  it("is admin work", async () => {
+  it("is admin work, for a role with Steri-AI Second Opinion", async () => {
     vi.mocked(authorizeAction).mockResolvedValue({ ok: false, error: "You do not have permission to do that." });
     const result = await requestAiSecondOpinion(AI_ACTION_IDLE, form({ inspectionId: IDS.inspection }));
     expect(result).toEqual({ status: "error", message: "You do not have permission to do that." });
-    expect(authorizeAction).toHaveBeenCalledWith("admin");
+    expect(authorizeAction).toHaveBeenCalledWith({ permission: "ai_second_opinion" });
     expect(db.queries).toEqual([]);
   });
 
@@ -109,7 +109,7 @@ describe("recordAiFindingDecision", () => {
     );
     expect(result).toEqual({ status: "success", message: "Recorded: finding F1 is fixed." });
     expect(refresh).toHaveBeenCalledOnce();
-    expect(authorizeAction).toHaveBeenCalledWith("admin");
+    expect(authorizeAction).toHaveBeenCalledWith({ permission: "ai_second_opinion" });
   });
 
   it("returns the note error next to the field", async () => {
@@ -142,6 +142,24 @@ describe("sendToAiReport", () => {
       status: "error",
       message: "Your session has ended. Sign in again.",
     });
+  });
+
+  // Roles and permissions (migration 20261027150000): the role's Export Reports, and every inspection in sight.
+  it("needs the role's Export Reports, and the role level that writes the link", async () => {
+    vi.mocked(authorizeAction).mockResolvedValue({ ok: false, error: "You do not have permission to do that." });
+    expect(await sendToAiReport(AI_ACTION_IDLE, form({ inspectionId: IDS.inspection }))).toEqual({
+      status: "error",
+      message: "You do not have permission to do that.",
+    });
+    expect(authorizeAction).toHaveBeenCalledWith({ permission: "export_reports" });
+
+    // An inspector exports their own inspection, but never writes a submitted one's report link.
+    vi.mocked(authorizeAction).mockResolvedValue({ ok: true, user: { ...ADMIN_USER, id: IDS.inspector, role: "inspector" } });
+    expect(await sendToAiReport(AI_ACTION_IDLE, form({ inspectionId: IDS.inspection }))).toEqual({
+      status: "error",
+      message: "You do not have permission to do that.",
+    });
+    expect(db.queries).toEqual([]);
   });
 });
 

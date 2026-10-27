@@ -1,6 +1,7 @@
 import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { z } from "zod";
+import { userCan, type SessionUser } from "@/lib/auth/session";
 import { FILE_BUCKET, PHOTO_BUCKET, storageInspectionId, type MediaBucket } from "@/lib/photos/paths";
 import type { InspectionStatus } from "@/lib/schemas/common";
 import type { Database } from "@/lib/supabase/database.types";
@@ -16,27 +17,30 @@ import type { Database } from "@/lib/supabase/database.types";
  */
 
 type Client = SupabaseClient<Database>;
-type UserRole = Database["public"]["Enums"]["user_role"];
 
 /* ------------------------------------------------------------------ *
  * The rule
  * ------------------------------------------------------------------ */
 
 export type DeletableInspection = { status: InspectionStatus; inspectorId: string };
-export type InspectionDeleter = { id: string; role: UserRole };
+/** The session's user; `grant` absent (test doubles) is the built-in role for `role` and `isLead`. */
+export type InspectionDeleter = Pick<SessionUser, "id" | "role" | "isLead" | "grant">;
 
 /**
  * Who may delete an inspection: a draft (never submitted: the status flow
- * never goes back to draft), by its own inspector or an admin. Submitted,
+ * never goes back to draft), by its own inspector or an admin, when their
+ * role allows Delete Drafts. "An admin" is what they see (every inspection,
+ * profiles.role), the switch is what their role lets them do. Submitted,
  * reopened and approved inspections are records and stay. The user is
  * active by the time anything asks (requireUser, authorizeAction).
  *
  * The app's one statement of the rule; the list offers Delete only where it
- * holds. public.delete_draft_inspection() enforces the same rule for every
- * request, so a change to who may delete changes both.
+ * holds. public.delete_draft_inspection() and the inspections' role guard
+ * (migration 20261027150000) enforce the same rule for every request, so a
+ * change to who may delete changes both.
  */
 export function canDeleteInspection(inspection: DeletableInspection, user: InspectionDeleter): boolean {
-  if (inspection.status !== "draft") return false;
+  if (inspection.status !== "draft" || !userCan(user, "delete_drafts")) return false;
   return user.role === "admin" || inspection.inspectorId === user.id;
 }
 
@@ -72,6 +76,8 @@ export type DeleteOutcome =
   | { kind: "not_draft" }
   /** Not signed in or not active. */
   | { kind: "not_allowed" }
+  /** The caller's role does not allow Delete Drafts (the inspections' role guard, migration 20261027150000). */
+  | { kind: "role_refused" }
   /** The database does not have the function yet (migration 20261007151500 not applied). */
   | { kind: "unavailable" }
   | { kind: "failed"; reason: "network" | "server" };
@@ -82,6 +88,7 @@ const FUNCTION_NOT_FOUND = "PGRST202";
 function refusal(error: { code?: string; message: string }, status: number): DeleteOutcome {
   if (error.code === FUNCTION_NOT_FOUND) return { kind: "unavailable" };
   if (error.code === "23514") return { kind: "not_draft" };
+  if (error.code === "42501" && /your role cannot/i.test(error.message)) return { kind: "role_refused" };
   if (error.code === "42501" || status === 401 || status === 403) return { kind: "not_allowed" };
   return { kind: "failed", reason: status === 0 ? "network" : "server" };
 }
@@ -219,6 +226,7 @@ export const DELETE_MESSAGES = {
   gone: "This inspection is no longer there: it may have been deleted already.",
   notDraft: "This inspection has been submitted, so it can no longer be deleted.",
   notAllowed: "You cannot delete this inspection.",
+  roleRefused: "Your role does not allow deleting drafts. Ask an admin to check it.",
   unavailable: "Deleting inspections is not set up on the database yet. Tell an admin.",
   network: "The inspection was not deleted: the database could not be reached. Try again.",
   failed: "The inspection was not deleted. Try again in a moment.",
@@ -233,6 +241,8 @@ export function deleteFailureMessage(outcome: Exclude<DeleteOutcome, { kind: "de
       return DELETE_MESSAGES.notDraft;
     case "not_allowed":
       return DELETE_MESSAGES.notAllowed;
+    case "role_refused":
+      return DELETE_MESSAGES.roleRefused;
     case "unavailable":
       return DELETE_MESSAGES.unavailable;
     case "failed":

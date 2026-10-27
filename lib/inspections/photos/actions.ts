@@ -138,10 +138,14 @@ export async function deletePhoto(_previous: PhotoActionState, formData: FormDat
   });
 }
 
-/** Admins choose the photos that go into the AI report, also on an approved inspection. */
+/**
+ * Admins choose the photos that go into the AI report, also on an approved
+ * inspection: part of approving, so the role's Approve and Reopen (which
+ * needs every inspection in sight) decides.
+ */
 export async function setPhotoInReport(_previous: PhotoActionState, formData: FormData): Promise<PhotoActionState> {
   return guarded("setPhotoInReport", async () => {
-    const auth = await authorizeAction("admin");
+    const auth = await authorizeAction({ permission: "approve_inspections" });
     if (!auth.ok) return fail(auth.error);
 
     const parsed = parseForm(PhotoReportFormSchema, formData);

@@ -7,7 +7,7 @@ import { ArrowLeftIcon, ClipboardListIcon, PencilLineIcon } from "lucide-react";
 import { LoadedAiReviewPanel } from "@/components/ai";
 import { PageHeader } from "@/components/qc";
 import { Button } from "@/components/ui/button";
-import { requireUser } from "@/lib/auth/session";
+import { requireUser, userCan } from "@/lib/auth/session";
 import { loadAiPanel, type AiPanelLoad } from "@/lib/inspections/ai";
 import { approvalChecks } from "@/lib/inspections/review/approval";
 import { loadReview, type ReviewData, type ReviewInspection } from "@/lib/inspections/review/load";
@@ -81,6 +81,9 @@ export async function generateMetadata({ params }: PageProps<"/inspections/[id]/
  * switched off, the report photos and the history. Admins approve or reopen
  * a submitted inspection here, and run the AI hand-offs; inspectors read
  * their own, and lead inspectors their team's, with no approve or reopen.
+ * Each follows the role's switch (lib/auth/permissions.ts): Approve and
+ * Reopen for the decision and the report photos, which are part of it; the
+ * AI panel's own for the hand-offs (lib/inspections/ai/panel.ts).
  * The AI panel stays with the owner and admins (canExportInspection in
  * lib/export/access.ts), so a lead sees none on a team member's review.
  *
@@ -88,9 +91,9 @@ export async function generateMetadata({ params }: PageProps<"/inspections/[id]/
  */
 export default async function InspectionReviewPage({ params }: PageProps<"/inspections/[id]/review">) {
   const { id } = await params;
-  const [review, aiPanel] = await Promise.all([getReview(id), getAiPanel(id)]);
+  const [review, aiPanel, user] = await Promise.all([getReview(id), getAiPanel(id), requireUser()]);
   const { viewer, inspection, template, evaluation, overrides, photos, history } = review;
-  const isAdmin = viewer.role === "admin";
+  const canApprove = userCan(user, "approve_inspections");
 
   return (
     <div className="flex flex-col gap-8 md:gap-10">
@@ -105,12 +108,12 @@ export default async function InspectionReviewPage({ params }: PageProps<"/inspe
           eyebrow="Inspection Review"
           title={inspection.refNo}
           description={<HeaderLine inspection={inspection} />}
-          actions={<HeaderActions review={review} />}
+          actions={<HeaderActions review={review} canApprove={canApprove} />}
         />
       </div>
 
       <FocusOnChange value={inspection.status} labelledBy={STATUS_HEADING_ID}>
-        <StatusNotice notice={statusNotice(inspection, viewer, history.entries)} />
+        <StatusNotice notice={statusNotice(inspection, { ...viewer, canApprove }, history.entries)} />
       </FocusOnChange>
 
       <InspectionFacts inspection={inspection} template={template} />
@@ -118,7 +121,7 @@ export default async function InspectionReviewPage({ params }: PageProps<"/inspe
       <LoadedAiReviewPanel load={aiPanel} />
       <ModuleResults evaluation={evaluation} />
       <SwitchedOffModules overrides={overrides} />
-      <ReportPhotos inspectionId={inspection.id} photos={photos} canChoose={isAdmin} />
+      <ReportPhotos inspectionId={inspection.id} photos={photos} canChoose={canApprove} />
       <History history={history} />
     </div>
   );
@@ -137,10 +140,11 @@ function HeaderLine({ inspection }: { inspection: ReviewInspection }) {
 }
 
 /**
- * Admins approve or reopen a submitted inspection. Whoever owns a draft or a
- * reopened inspection goes on with it; everyone else can open it.
+ * Those whose role allows Approve and Reopen (`canApprove`) approve or reopen
+ * a submitted inspection. Whoever owns a draft or a reopened inspection goes
+ * on with it; everyone else can open it.
  */
-function HeaderActions({ review }: { review: ReviewData }) {
+function HeaderActions({ review, canApprove }: { review: ReviewData; canApprove: boolean }) {
   const { viewer, inspection, evaluation } = review;
   const href = `${INSPECTIONS_PATH}/${inspection.id}`;
   const owner = viewer.id === inspection.inspector.id;
@@ -165,7 +169,7 @@ function HeaderActions({ review }: { review: ReviewData }) {
       </Link>
     </Button>
   );
-  if (viewer.role !== "admin" || inspection.status !== "submitted") return open;
+  if (!canApprove || inspection.status !== "submitted") return open;
 
   return (
     <>

@@ -27,7 +27,7 @@ export function AiReviewPanelView({ model, className }: { model: AiPanelModel; c
         <div className="min-w-0 space-y-1">
           <AiPanelTitle />
           <p className="text-sm text-muted-foreground">
-            {viewer.isAdmin
+            {viewer.canDecide
               ? "Steri-AI suggests and never changes a result. Record Agree, Disagree or Fixed for each finding."
               : "Steri-AI suggests and never changes a result. An admin decides on each finding."}
           </p>
@@ -42,7 +42,7 @@ export function AiReviewPanelView({ model, className }: { model: AiPanelModel; c
 
       {review.connected && !current && !attempt && (
         <Notice tone="neutral" title="No Second Opinion Yet">
-          {viewer.isAdmin
+          {viewer.canDecide
             ? (review.blockedReason ?? "Request one to compare Steri-AI's view with the computed results and the inspector's.")
             : "An admin can request one."}
         </Notice>
@@ -76,7 +76,7 @@ export function AiReviewPanelView({ model, className }: { model: AiPanelModel; c
               {current.comparedBy === "content"
                 ? "What it reviewed has changed: the entries, the modules switched off, or the lab reports and certificates."
                 : `It was saved again at ${model.inspection.savedAt} (an edit, a status change or a report link all count).`}
-              {viewer.isAdmin && review.canRequest ? " Request a new second opinion to review the current version." : ""}
+              {review.canRequest ? " Request a new second opinion to review the current version." : ""}
             </Notice>
           )}
           {!current.readable && (
@@ -88,7 +88,7 @@ export function AiReviewPanelView({ model, className }: { model: AiPanelModel; c
         </div>
       )}
 
-      <ReviewHistory reviews={model.history} canDecide={viewer.isAdmin} viewerId={viewer.id} />
+      <ReviewHistory reviews={model.history} canDecide={viewer.canDecide} viewerId={viewer.id} />
 
       <ReportSection model={model} />
     </section>
@@ -208,9 +208,13 @@ function NoticeText({ tone, title, children }: { tone: NoticeTone; title: string
 
 function ReportSection({ model }: { model: AiPanelModel }) {
   const { report, viewer, inspection } = model;
+  // Why sending waits is said only to someone who sends: an admin whose role allows Export Reports.
+  const sends = viewer.isAdmin && report.canDownload;
   const description = !report.connected
-    ? "Steri-AI not connected. Download the export (JSON) to pass it on to whoever writes the report."
-    : report.canSend || !viewer.isAdmin
+    ? report.canDownload
+      ? "Steri-AI not connected. Download the export (JSON) to pass it on to whoever writes the report."
+      : "Steri-AI not connected."
+    : report.canSend || !sends
       ? "The report service writes the client report from the export of this inspection."
       : (report.blockedReason ?? "The report service writes the client report from the export.");
 
@@ -237,6 +241,7 @@ function ReportSection({ model }: { model: AiPanelModel }) {
           reportUrl={inspection.reportUrl}
           connected={report.connected}
           canSend={report.canSend}
+          canDownload={report.canDownload}
         />
       </div>
     </section>

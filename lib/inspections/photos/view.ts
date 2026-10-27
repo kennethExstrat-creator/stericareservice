@@ -174,7 +174,10 @@ function blankToNull(value: string | null): string | null {
 export interface MediaAccess {
   /** Add, retag, caption and delete: the owner while draft or reopened; admins until approved. */
   canEdit: boolean;
-  /** Admins choose report photos, also on an approved inspection. */
+  /**
+   * Admins choose report photos, also on an approved inspection: those whose
+   * role allows Approve and Reopen, as choosing is part of approving.
+   */
   isAdmin: boolean;
 }
 

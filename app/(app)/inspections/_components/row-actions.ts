@@ -5,8 +5,8 @@
 // - Continue: a draft or reopened inspection the viewer may edit opens on
 //   the capture screen (its inspector and admins edit there; the same rule
 //   as the screen itself, lib/inspections/capture/access.ts).
-// - Review: a submitted inspection, for an admin, opens on the review, where
-//   admins approve or reopen it.
+// - Review: a submitted inspection, for someone whose role approves and
+//   reopens (Approve and Reopen), opens on the review, where they do.
 // - View: everything else opens on the review, read-only: a submitted one
 //   for its inspector, an approved one, or one the viewer may not edit (a
 //   lead inspector's team member's, in any status).
@@ -14,13 +14,17 @@
 //
 // The list only holds inspections the viewer may read (RLS), so these are
 // the only cases. Server-side only: the delete rule lives with the deletion.
-import { captureAccess, type UserRole } from "@/lib/inspections/capture/access";
+import { userCan, type SessionUser } from "@/lib/auth/session";
+import { captureAccess } from "@/lib/inspections/capture/access";
 import { canDeleteInspection } from "@/lib/inspections/delete";
 import type { InspectionListRow } from "@/lib/inspections/query";
 import { INSPECTIONS_PATH } from "@/lib/inspections/search-params";
 
-/** `isLead`: a lead inspector, who also sees their team's inspections (read-only, so only View). */
-export type ListViewer = { id: string; role: UserRole; isLead?: boolean };
+/**
+ * The session's user. `isLead`: a lead inspector, who also sees their team's
+ * inspections (read-only, so only View); `grant`: their role's switches.
+ */
+export type ListViewer = Pick<SessionUser, "id" | "role" | "isLead" | "grant">;
 
 export type PrimaryRowAction = {
   kind: "continue" | "review" | "view";
@@ -40,7 +44,9 @@ export function primaryRowAction(row: Omit<ActionRow, "refNo">, viewer: ListView
     inspectorId: row.inspectorId,
   });
   if (editable) return { kind: "continue", label: "Continue", href: capture };
-  if (row.status === "submitted" && viewer.role === "admin") return { kind: "review", label: "Review", href: review };
+  if (row.status === "submitted" && userCan(viewer, "approve_inspections")) {
+    return { kind: "review", label: "Review", href: review };
+  }
   return { kind: "view", label: "View", href: review };
 }
 
