@@ -90,7 +90,8 @@ export async function loadAiPanel(
       : { ok: false, reason: "unavailable", message: loaded.message };
   }
   const { record } = loaded;
-  if (!canExportInspection(user, record)) return { ok: false, reason: "not_found", message: "Inspection not found." };
+  // Steri-AI stays with the inspector and admins: a lead downloads their team's reports, nothing more (Kenneth, 27 October 2026).
+  if (!canExportInspection({ id: user.id, role: user.role }, record)) return { ok: false, reason: "not_found", message: "Inspection not found." };
 
   // Before the reviews: without results the panel has nothing to show them
   // against, and trying again changes nothing.

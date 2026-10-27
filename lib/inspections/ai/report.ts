@@ -51,7 +51,8 @@ export async function sendInspectionToAiReport(input: SendReportInput): Promise<
     return { ok: false, reason: loaded.reason === "not_found" ? "not_found" : "database_error", message: loaded.message };
   }
   const { record } = loaded;
-  if (!canExportInspection(viewer, record)) return { ok: false, reason: "not_found", message: "Inspection not found." };
+  // The inspector and admins only, never a lead (panel.ts).
+  if (!canExportInspection({ id: viewer.id, role: viewer.role }, record)) return { ok: false, reason: "not_found", message: "Inspection not found." };
   if (!AI_STATUSES.includes(record.status)) return { ok: false, reason: "not_reportable", message: NOT_REPORTABLE };
 
   const evaluation = evaluateRecord(record);

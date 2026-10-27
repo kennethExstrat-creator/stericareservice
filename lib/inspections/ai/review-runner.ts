@@ -93,7 +93,8 @@ export async function startAiReview(input: StartAiReviewInput): Promise<StartAiR
     return { ok: false, reason: loaded.reason === "not_found" ? "not_found" : "database_error", message: loaded.message };
   }
   const { record } = loaded;
-  if (viewer && !canExportInspection(viewer, record)) return { ok: false, reason: "not_found", message: "Inspection not found." };
+  // The inspector and admins only, never a lead (panel.ts).
+  if (viewer && !canExportInspection({ id: viewer.id, role: viewer.role }, record)) return { ok: false, reason: "not_found", message: "Inspection not found." };
   if (!AI_STATUSES.includes(record.status)) return { ok: false, reason: "not_reviewable", message: NOT_REVIEWABLE };
   const version: InspectionVersion = { fingerprint: inspectionFingerprint(record), updatedAt: record.updatedAt };
 
