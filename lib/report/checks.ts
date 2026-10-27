@@ -57,6 +57,11 @@ const CHECK_MODULES: readonly ModuleKey[] = [
 /** Modules that record the order and the sampling: a row only for a failure or a warning. */
 const RECORD_MODULES: readonly ModuleKey[] = ["header", "glove_info", "order_lots", "packing_config", "sampling_plan", "carton_sampling"];
 
+/** A check the report names its own way, not by the step's short name (Kenneth, 27 October 2026: "Freedom from Holes - Watertight Test"). */
+const REPORT_CHECK_NAMES: Readonly<Partial<Record<ModuleKey, string>>> = {
+  watertight: "Freedom From Holes – Watertight Test",
+};
+
 const VISUAL_CLASSES = [
   { key: "critical", word: "Critical" },
   { key: "major", word: "Major" },
@@ -72,7 +77,7 @@ export function checkRows(doc: InspectionExport): CheckRow[] {
     const status = module.result.status;
     const record = RECORD_MODULES.includes(module.key);
     if (status === "info" || (!CHECK_MODULES.includes(module.key) && !(record && (status === "fail" || status === "warn")))) return [];
-    const short = shortTitleFor(module.key, module.title);
+    const short = REPORT_CHECK_NAMES[module.key] ?? shortTitleFor(module.key, module.title);
     const moduleFailed = sizesWhere(doc, module, "fail");
     return rowsOf(module, doc, sizes, short).map((parts) => {
       const rowStatus = parts.status ?? status;

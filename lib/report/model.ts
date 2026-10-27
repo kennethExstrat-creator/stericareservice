@@ -30,6 +30,8 @@ import { STERICARE_LETTERHEAD, type Letterhead } from "./letterhead";
 import { labelOf, moduleOf, num, orderedSizes, rec, sizeLabel, text } from "./read";
 import { sectionBuilder } from "./sections";
 import { photoRecordsOf } from "./sections/photos";
+// Outfit's measured widths, which Section 02 sizes its columns by too.
+import { wrappedLines } from "./sections/order-sampling-layout";
 
 /* ------------------------------------------------------------------ *
  * The model
@@ -863,9 +865,11 @@ export const SUMMARY_ROOM = {
   /** Results by Check's heading and header row. */
   checksFrame: 13.5,
   checkRow: 6.5,
-  /** A row's line more where its check, criterion or result wraps, and the characters a line of each holds. */
+  /** A row's line more where its check, criterion or result wraps, and the characters a line of the last two holds. */
   checkLine: 4.7,
-  checkCharacters: { check: 22, criterion: 30, result: 32 },
+  checkCharacters: { criterion: 30, result: 32 },
+  /** The check's room, measured (9pt semibold): 24% of A4's 184 mm content less the cell's 4 mm; Letter's is wider. */
+  checkText: 40.2,
   /** Between the page's blocks, their headings' leading with it. */
   gap: 5,
 } as const;
@@ -881,9 +885,9 @@ function summaryHeight(text: SummaryText): number {
 
 /** A check's row: a line more for each line its longest cell wraps to. */
 function checkRowHeight(row: CheckRow): number {
-  const { check, criterion, result } = SUMMARY_ROOM.checkCharacters;
+  const { criterion, result } = SUMMARY_ROOM.checkCharacters;
   const lines = Math.max(
-    Math.ceil(row.check.length / check),
+    wrappedLines(row.check, SUMMARY_ROOM.checkText, { pt: 9, bold: true }),
     Math.ceil((row.criterion ?? "").length / criterion),
     Math.ceil(((row.result ?? "").length + (row.sizesNote ? result : 0)) / result),
     1,

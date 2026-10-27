@@ -159,7 +159,7 @@ describe("the results matrix", () => {
       ["Dimension", ["pass"]],
       ["Force at Break", ["pass"]],
       ["Weight", ["warn"]],
-      ["Watertight Test", ["pass"]],
+      ["Freedom From Holes – Watertight Test", ["pass"]],
       ["Visual Inspection: Critical, Major, Minor", ["pass"]],
       ["Packing Check", ["pass"]],
       ["Labeling", ["pass"]],

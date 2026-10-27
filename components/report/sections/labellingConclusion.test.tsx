@@ -75,7 +75,7 @@ describe("Section 08: Packaging Labelling & Conclusion", () => {
 
   it("draws the results matrix: a tick per check and size, the size columns as the design sets them, and its legend", () => {
     expect(text(page)).toContain(
-      "Results Matrix Passed Warning Results matrix: each check by size Check M Dimension Force at Break Weight Watertight Test Visual Inspection: Critical, Major, Minor Packing Check Labeling",
+      "Results Matrix Passed Warning Results matrix: each check by size Check M Dimension Force at Break Weight Freedom From Holes – Watertight Test Visual Inspection: Critical, Major, Minor Packing Check Labeling",
     );
     expect(page).toMatch(/aria-label="Weight, M: Warning"/);
     expect(page).toMatch(/aria-label="Visual Inspection: Critical, Major, Minor, M: Passed"/);
