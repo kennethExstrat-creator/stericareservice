@@ -1,7 +1,8 @@
 // The report's table (the design: Results by Check, the order lots and sampling
 // plan, the measurements by glove, the per-box results): grey column
 // headers over a dark rule, optional header groups in blue over their
-// columns, hairlines between rows or zebra rows, numbers right-aligned in
+// columns, hairlines between rows, zebra rows or neither (page 6's defect
+// tables, with group headings in the body), numbers right-aligned in
 // tabular figures, and a totals row tinted blue.
 import type { ReactNode } from "react";
 import { cn } from "@/lib/utils";
@@ -37,6 +38,8 @@ export type ReportRow = {
    * the aged gloves). The rows it covers leave that column out.
    */
   rowSpans?: Readonly<Record<string, number>>;
+  /** A group's heading inside the body ("Major · AQL 2.5", TG35 page 6): its first column's cell across every column, in blue over a blue rule. */
+  group?: boolean;
 };
 
 export type ReportTableProps = {
@@ -49,6 +52,8 @@ export type ReportTableProps = {
   zebra?: boolean;
   /** Smaller cells and rows, for the dense tables (readings, per box). */
   dense?: boolean;
+  /** No hairlines between rows, each a line tall, and a rule over an emphasised row (a total): the defect tables of TG35 page 6. */
+  plain?: boolean;
   /** What a screen reader hears the table called. */
   caption?: string;
   className?: string;
@@ -76,10 +81,10 @@ function coveredColumns(rows: readonly ReportRow[]): ReadonlySet<string>[] {
   });
 }
 
-export function ReportTable({ columns, rows, groups, totals, zebra = false, dense = false, caption, className }: ReportTableProps) {
-  // A row of the design's Results by Check is about 6.5 mm; a dense row of readings about 5 mm.
-  const cell = dense ? "px-[1.6mm] py-[0.7mm]" : "px-[2mm] py-[0.85mm]";
-  const text = dense ? TYPE.small : cn(TYPE.body, "leading-[1.45]");
+export function ReportTable({ columns, rows, groups, totals, zebra = false, dense = false, plain = false, caption, className }: ReportTableProps) {
+  // A row of the design's Results by Check is about 6.5 mm; a dense row of readings about 5 mm; a plain row about 4.8 mm.
+  const cell = plain ? "px-[1.6mm] py-[0.5mm]" : dense ? "px-[1.6mm] py-[0.7mm]" : "px-[2mm] py-[0.85mm]";
+  const text = dense ? TYPE.small : cn(TYPE.body, plain ? "leading-[1.2]" : "leading-[1.45]");
   const covered = coveredColumns(rows);
   return (
     <table data-slot="report-table" className={cn("relative w-full table-fixed border-collapse", text, className)}>
@@ -115,7 +120,7 @@ export function ReportTable({ columns, rows, groups, totals, zebra = false, dens
               scope="col"
               className={cn(
                 "border-b-[0.4mm] border-slate-900 align-bottom font-medium text-slate-600",
-                dense ? "px-[1.6mm] pt-[1.4mm] pb-[1mm]" : "px-[2mm] pt-[2mm] pb-[1.4mm]",
+                plain ? "px-[1.6mm] pt-[1mm] pb-[1.2mm]" : dense ? "px-[1.6mm] pt-[1.4mm] pb-[1mm]" : "px-[2mm] pt-[2mm] pb-[1.4mm]",
                 TYPE.small,
                 ALIGN_CLASS[alignOf(column)],
                 column.divided && DIVIDER,
@@ -127,39 +132,51 @@ export function ReportTable({ columns, rows, groups, totals, zebra = false, dens
         </tr>
       </thead>
       <tbody>
-        {rows.map((row, index) => (
-          <tr
-            key={row.key}
-            data-row={row.key}
-            className={cn(
-              row.emphasis ? "bg-brand-50 font-semibold" : zebra && index % 2 === 1 ? "bg-slate-50" : "",
-              !zebra && "border-b-[0.25mm] border-slate-200",
-            )}
-          >
-            {columns.map((column, columnIndex) => {
-              if (covered[index].has(column.key)) return null;
-              const Cell = columnIndex === 0 ? "th" : "td";
-              const span = row.rowSpans?.[column.key] ?? 1;
-              return (
-                <Cell
-                  key={column.key}
-                  scope={columnIndex === 0 ? "row" : undefined}
-                  rowSpan={span > 1 ? span : undefined}
-                  className={cn(
-                    cell,
-                    "align-middle [overflow-wrap:anywhere]",
-                    ALIGN_CLASS[alignOf(column)],
-                    column.numeric && "tabular-nums",
-                    column.strong || row.emphasis ? "font-semibold text-slate-900" : column.muted ? "font-normal text-slate-600" : "font-normal text-slate-900",
-                    column.divided && DIVIDER,
-                  )}
-                >
-                  {row.cells[column.key]}
-                </Cell>
-              );
-            })}
-          </tr>
-        ))}
+        {rows.map((row, index) =>
+          row.group ? (
+            <tr key={row.key} data-row={row.key} data-kind="group" className="border-b-[0.3mm] border-brand-200">
+              <th
+                colSpan={columns.length}
+                scope="rowgroup"
+                className={cn(plain ? "px-[1.6mm] pt-[1.4mm] pb-[0.5mm]" : cell, "text-left align-bottom font-semibold text-brand-700")}
+              >
+                {columns[0] ? row.cells[columns[0].key] : null}
+              </th>
+            </tr>
+          ) : (
+            <tr
+              key={row.key}
+              data-row={row.key}
+              className={cn(
+                row.emphasis ? "bg-brand-50 font-semibold" : zebra && index % 2 === 1 ? "bg-slate-50" : "",
+                plain ? row.emphasis && "border-t-[0.3mm] border-slate-300" : !zebra && "border-b-[0.25mm] border-slate-200",
+              )}
+            >
+              {columns.map((column, columnIndex) => {
+                if (covered[index].has(column.key)) return null;
+                const Cell = columnIndex === 0 ? "th" : "td";
+                const span = row.rowSpans?.[column.key] ?? 1;
+                return (
+                  <Cell
+                    key={column.key}
+                    scope={columnIndex === 0 ? "row" : undefined}
+                    rowSpan={span > 1 ? span : undefined}
+                    className={cn(
+                      cell,
+                      "align-middle [overflow-wrap:anywhere]",
+                      ALIGN_CLASS[alignOf(column)],
+                      column.numeric && "tabular-nums",
+                      column.strong || row.emphasis ? "font-semibold text-slate-900" : column.muted ? "font-normal text-slate-600" : "font-normal text-slate-900",
+                      column.divided && DIVIDER,
+                    )}
+                  >
+                    {row.cells[column.key]}
+                  </Cell>
+                );
+              })}
+            </tr>
+          ),
+        )}
       </tbody>
       {totals && (
         <tfoot>

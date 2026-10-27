@@ -17,6 +17,7 @@ import { measurementsPages } from "./measurements";
 import { orderSamplingPages } from "./order-sampling";
 import { labellingConclusionPages } from "./labellingConclusion";
 import { photosPages } from "./photos";
+import { holesVisualPages } from "./holes-visual";
 
 export type SectionPagesProps<K extends ReportSlotKey> = {
   model: ReportModel;
@@ -48,6 +49,7 @@ export const SECTION_PAGES: readonly AnySectionPages[] = [
   measurementsPages,
   labellingConclusionPages,
   photosPages,
+  holesVisualPages,
 ];
 
 /** The pages of a slot, if listed. */

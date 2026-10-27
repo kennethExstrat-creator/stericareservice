@@ -414,7 +414,7 @@ export type ForceAtBreakPart =
 
 export type ForceAtBreakPage = { parts: ForceAtBreakPart[] };
 /** Section 06, Freedom From Holes & Visual Inspection: defects against the limits (TrackBar), pinholes, defects by class, photos. */
-export type HolesVisualSection = ReportSectionContent;
+export type HolesVisualSection = ReportSectionContent & import("./sections/holes-visual").HolesVisualContent;
 /** Section 07, Glove Packing & Dispensing: average layering and dispensing (GroupedHBars), each box, the aged gloves, stickiness. */
 export type PackingSection = ReportSectionContent & {
   /** Under the title, from the config: what was opened and why, the minimums, the stickiness grades that pass and fail. */
