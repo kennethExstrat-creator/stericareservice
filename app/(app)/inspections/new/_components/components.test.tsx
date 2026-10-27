@@ -2,17 +2,24 @@
 // database cannot show on demand: a draft or unreadable template, ties, an
 // admin's choice, and Source Documents before and after the first document.
 // The page and its flows run end to end in e2e/new.
+import type { ReactNode } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+
+// The Adds run end to end in reference-actions.test.ts; here only the markup.
+vi.mock("../reference-actions", () => ({ addClientFromDocument: vi.fn(), addManufacturerFromDocument: vi.fn() }));
+
 import { FILE_ACCEPT } from "@/components/capture/files/file-add-controls";
 import { chooseTemplate, type TemplateChoice } from "@/lib/inspections/create";
+import { directoryFromRows, manufacturerDraft } from "@/lib/inspections/reference-match";
 import { buildSeedBundle, SAFEDON_EG_SEED, STD_EG_REPORT_SEED, STD_SG_SEED } from "@/lib/templates/definitions";
 import { MODULE_REGISTRY } from "@/modules/registry";
 import { toTemplateOption } from "../_lib/options";
 import type { TemplateOption } from "../_lib/types";
 import type { HeldDocument } from "../_lib/sources";
 import { ChoiceCard } from "./choice-card";
-import { SourceDocumentsPanel } from "./source-documents-panel";
+import { NewClientEntry, NewManufacturerEntry } from "./new-entries";
+import { SourceDocumentsPanel, type SummaryLine } from "./source-documents-panel";
 import { TemplatePanel, type PickState } from "./template-panel";
 import type { HeldSources } from "./use-held-sources";
 import { RadioGroup } from "@/components/ui/radio-group";
@@ -186,7 +193,7 @@ describe("a choice card", () => {
 describe("Source Documents", () => {
   const order = new File(["%PDF-1.4"], "Purchase Order.pdf", { type: "application/pdf" });
 
-  function panel(documents: HeldDocument[], filled: { label: string; value: string }[] = [], aiReading = true) {
+  function panel(documents: HeldDocument[], filled: SummaryLine[] = [], aiReading = true, entries: ReactNode = null) {
     const sources: HeldSources = {
       documents,
       media: [],
@@ -201,7 +208,7 @@ describe("Source Documents", () => {
       readAgain: noop,
       handOver: async () => {},
     };
-    return renderToStaticMarkup(<SourceDocumentsPanel id="s" sources={sources} disabled={false} filled={filled} unlisted={[]} />);
+    return renderToStaticMarkup(<SourceDocumentsPanel id="s" sources={sources} disabled={false} filled={filled} entries={entries} />);
   }
 
   it("opens on a large drop area to start from (Kenneth, 26 October 2026)", () => {
@@ -249,5 +256,112 @@ describe("Source Documents", () => {
     expect(html).not.toContain("Read after Create");
     expect(html).not.toContain("Read Again");
     expect(panel([], [], false)).toContain("They upload with the inspection on Create.");
+  });
+
+  // Kenneth, 27 October 2026: "the Steri AI should be able to read doc to use existing client and manufacturer or create new one".
+  it("puts New Client and New Manufacturer in the summary, after what it filled in, before what goes in on Create", () => {
+    const html = panel(
+      [{ key: "a", file: order, url: "blob:a", state: { step: "reading" } }],
+      [{ label: "Product Type", value: "Examination Gloves" }],
+      true,
+      <p data-testid="entries">New Client</p>,
+    );
+    const summary = html.slice(html.indexOf('data-testid="fill-summary"'));
+    expect(summary.indexOf("Filled In")).toBeLessThan(summary.indexOf('data-testid="entries"'));
+    // The old warning line is gone: the entry offers to add the company instead.
+    expect(html).not.toContain("is not in the client list");
+    // The entries alone open the summary too.
+    expect(panel([{ key: "a", file: order, url: "blob:a", state: { step: "reading" } }], [], true, <p>New Client</p>)).toContain(
+      'data-testid="fill-summary"',
+    );
+  });
+
+  it("notes under a line why it is filled, and lets focus come to it after an Add", () => {
+    const html = panel(
+      [{ key: "a", file: order, url: "blob:a", state: { step: "reading" } }],
+      [{ label: "Client", value: "Test Buyer Sdn. Bhd.", note: "Added to the clients.", id: "s-filled-client" }],
+    );
+    expect(html).toMatch(/<li id="s-filled-client" tabindex="-1" class="[^"]*focus-ring-inset[^"]*">/);
+    expect(html).toContain('<span class="text-foreground">Test Buyer Sdn. Bhd.</span><span class="block text-muted-foreground">Added to the clients.</span>');
+  });
+});
+
+describe("New Client", () => {
+  const entry = (printed: string, clients = [{ id: "c1", label: "Test Buyer" }]) =>
+    renderToStaticMarkup(<NewClientEntry printed={printed} clients={clients} disabled={false} onAdded={noop} />);
+
+  it("shows the client read as new, its name filled in and editable, with Add Client", () => {
+    const html = entry("New Buyer Sdn. Bhd.");
+    expect(html).toContain('data-testid="new-client"');
+    expect(html).toMatch(/<h3 id="[^"]+" class="text-xs font-semibold tracking-wide text-muted-foreground uppercase">New Client<\/h3>/);
+    expect(html).toContain("“New Buyer Sdn. Bhd.” is not in the client list.");
+    expect(html).toContain(">Name</label>");
+    expect(html).toContain('value="New Buyer Sdn. Bhd."');
+    expect(html).toContain('maxLength="120"');
+    expect(html).toContain("Add Client");
+    expect(html).toContain('type="button"');
+    // Inside the form, but never posted with Create.
+    expect(html).not.toMatch(/<input[^>]* name=/);
+  });
+
+  it("says before Add when the name reads like a listed client", () => {
+    expect(entry("TEST BUYER SDN BHD")).toContain("Already in the list as Test Buyer: Add Client chooses it.");
+    expect(
+      entry("Twin Buyer", [
+        { id: "c1", label: "Twin Buyer Sdn. Bhd." },
+        { id: "c2", label: "Twin Buyer Pte. Ltd." },
+      ]),
+    ).toContain("More than one client in the list reads like this one.");
+  });
+});
+
+describe("New Manufacturer", () => {
+  const directory = directoryFromRows([
+    {
+      id: "b1",
+      name: "Brand A",
+      companies: [
+        {
+          id: "c1",
+          name: "Company A Sdn. Bhd.",
+          factories: [
+            { id: "f1", factory_name: "F-1", country: "Malaysia" },
+            { id: "f2", factory_name: "F-2", country: "Malaysia" },
+          ],
+        },
+      ],
+    },
+  ]);
+  const entry = (details: Parameters<typeof manufacturerDraft>[0], printed = "Company A Sdn. Bhd.") =>
+    renderToStaticMarkup(
+      <NewManufacturerEntry printed={printed} draft={manufacturerDraft(details, printed)} directory={directory} disabled={false} onAdded={noop} />,
+    );
+
+  it("shows what the document prints, editable, and says what Add adds: here only the factory, under the listed company", () => {
+    const html = entry({ brand: null, company: "Company A Sdn. Bhd.", factory: "F-40", address: "Lot 1, Placeholder Park", country: "Malaysia" });
+    expect(html).toContain('data-testid="new-manufacturer"');
+    expect(html).toContain(">New Manufacturer</h3>");
+    expect(html).toContain("“Company A Sdn. Bhd.” is not in the manufacturer list.");
+    for (const label of ["Brand", "Company", "Factory (Optional)", "Country", "Address"]) expect(html, label).toContain(`>${label}</label>`);
+    // The brand from the company's short name, when the document prints none.
+    expect(html).toContain('value="Company A"');
+    expect(html).toContain('value="F-40"');
+    expect(html).toContain(">Lot 1, Placeholder Park</textarea>");
+    expect(html).toContain("Choose a listed brand, or type a new one.");
+    // The brands listed are suggested; a typed one that reads like one of them is that one.
+    expect(html).toMatch(/<datalist id="[^"]+-brands"><option value="Brand A"><\/option><\/datalist>/);
+    expect(html).toContain("Adds the factory F-40 to Company A Sdn. Bhd. (Brand A).");
+    expect(html).toContain("Add Manufacturer");
+    // Two to a row once the summary is wide enough (a size container), the company with the most room; one a row when narrow.
+    expect(html).toContain("@container");
+    expect(html).toContain("@xl:grid-cols-6");
+    expect(html).toMatch(/class="[^"]*@xl:col-span-4"><label[^>]*>Company<\/label>/);
+    expect(html).not.toMatch(/<(input|textarea)[^>]* name=/);
+  });
+
+  it("says under the factory what stops Add when the company has several and none is named", () => {
+    const html = entry({ brand: "Brand A", company: "Company A Sdn. Bhd.", factory: null, address: null, country: null });
+    expect(html).toMatch(/<p data-slot="field-description" class="[^"]*text-warn[^"]*" id="[^"]+-factory-hint">Company A Sdn\. Bhd\. has 2 factories in the list\./);
+    expect(html).not.toContain('data-testid="new-manufacturer-plan"');
   });
 });

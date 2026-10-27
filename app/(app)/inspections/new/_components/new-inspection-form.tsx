@@ -19,6 +19,9 @@
 // filled; a reading fills only what is still empty, and the PO, codes, dates
 // and order lines it read go in with Create (documentFill). For a role
 // without Steri-AI Reading nothing is read or sorted: the files only upload.
+// A client or manufacturer read that neither list has shows as New Client or
+// New Manufacturer (new-entries.tsx; Kenneth, 27 October 2026): one tap on
+// Add adds it, it joins its picker and is chosen.
 //
 // Uploading the documents is where a new inspection starts and Steri-AI
 // fills in the picks from them, so from 1024 px Source Documents is the main
@@ -70,6 +73,7 @@ import {
   readNewInspectionForm,
   type NewInspectionField,
 } from "@/lib/inspections/create";
+import { manufacturerDraft, type ManufacturerDirectory } from "@/lib/inspections/reference-match";
 import { INSPECTIONS_PATH } from "@/lib/inspections/search-params";
 import { ProductTypeSchema, type ProductType } from "@/lib/schemas/common";
 import { createInspection, type CreateInspectionState } from "../actions";
@@ -84,10 +88,12 @@ import {
   writeDraft,
   type NewInspectionChoices,
 } from "../_lib/draft";
+import { matchedNote, withOptions, type ClientAdded, type ManufacturerAdded } from "../_lib/new-entries";
 import { formFill, type DocumentRead } from "../_lib/sources";
 import { templateInSentence } from "../_lib/text";
 import type { Option, TemplateOption } from "../_lib/types";
 import { ChoiceCard } from "./choice-card";
+import { NewClientEntry, NewManufacturerEntry } from "./new-entries";
 import { Panel } from "./panel";
 import { SourceDocumentsPanel, type SummaryLine } from "./source-documents-panel";
 import { TemplatePanel } from "./template-panel";
@@ -140,8 +146,13 @@ type NewInspectionFormProps = {
   aiReading: boolean;
   clients: readonly Option[];
   manufacturers: readonly Option[];
+  /** The manufacturers as brands, companies and factories, for New Manufacturer. */
+  directory: ManufacturerDirectory;
   templates: readonly TemplateOption[];
 };
+
+/** What a summary line notes, for the client or factory it was noted for. */
+type LineNote = { id: string; note: string };
 
 /**
  * The form, starting from the user's draft kept in the tab, as far as the page
@@ -172,7 +183,7 @@ type ChoicesFormProps = NewInspectionFormProps & {
   initial: NewInspectionChoices;
 };
 
-function ChoicesForm({ userId, storageKey, initial, role, aiReading, clients, manufacturers, templates }: ChoicesFormProps) {
+function ChoicesForm({ userId, storageKey, initial, role, aiReading, clients, manufacturers, directory: offeredDirectory, templates }: ChoicesFormProps) {
   const id = useId();
   const router = useRouter();
   const [choices, setChoices] = useState(initial);
@@ -184,6 +195,20 @@ function ChoicesForm({ userId, storageKey, initial, role, aiReading, clients, ma
   const [message, setMessage] = useState<string | null>(null);
   /** What Steri-AI filled in above, as it filled it: the card names what still stands. */
   const [aiFilled, setAiFilled] = useState<Partial<NewInspectionChoices>>({});
+  /**
+   * Clients and factories the pickers did not offer when the page loaded:
+   * added here from a document, or listed since by someone else and named by
+   * a reading.
+   */
+  const [more, setMore] = useState<{ clients: readonly Option[]; manufacturers: readonly Option[] }>({ clients: [], manufacturers: [] });
+  const allClients = withOptions(clients, more.clients);
+  const allManufacturers = withOptions(manufacturers, more.manufacturers);
+  /** The brands, companies and factories New Manufacturer reuses, as the last Add left them. */
+  const [directory, setDirectory] = useState(offeredDirectory);
+  /** Why the summary's Client and Manufacturer lines are filled: added from a document, or found listed by name. */
+  const [notes, setNotes] = useState<{ client?: LineNote; manufacturer?: LineNote }>({});
+  /** The summary line focus goes to once it shows: after an Add, where the Add was. */
+  const focusNext = useRef<string | null>(null);
   const alertRef = useRef<HTMLDivElement>(null);
   /** Hands the Source Documents held to the new inspection (use-held-sources.ts). */
   const handOver = useRef<HeldSources["handOver"] | null>(null);
@@ -279,8 +304,25 @@ function ChoicesForm({ userId, storageKey, initial, role, aiReading, clients, ma
 
   /** A document read fills the pickers and the product name where nothing is chosen or typed yet: the first answer wins. */
   function applyRead(read: DocumentRead) {
-    const change = formFill(latest.current, read.form);
+    const { form } = read;
+    const change = formFill(latest.current, form);
     if (Object.keys(change).length === 0) return;
+    // A client or factory listed since the page loaded joins its picker in the same render, so the value has its option.
+    const listed = {
+      clients: change.clientId && form.clientMatch ? [{ id: change.clientId, label: form.clientMatch.label }] : [],
+      manufacturers: change.manufacturerId && form.manufacturerMatch ? [{ id: change.manufacturerId, label: form.manufacturerMatch.label }] : [],
+    };
+    setMore((current) => ({
+      clients: withOptions(current.clients, listed.clients),
+      manufacturers: withOptions(current.manufacturers, listed.manufacturers),
+    }));
+    // The app found it listed by name where Steri-AI did not: the line says so.
+    const clientNote = change.clientId && form.clientMatch?.by === "name" ? { id: change.clientId, note: matchedNote(form.clientName) } : null;
+    const manufacturerNote =
+      change.manufacturerId && form.manufacturerMatch?.by === "name" ? { id: change.manufacturerId, note: matchedNote(form.manufacturerName) } : null;
+    if (clientNote || manufacturerNote) {
+      setNotes((current) => ({ client: clientNote ?? current.client, manufacturer: manufacturerNote ?? current.manufacturer }));
+    }
     update(change);
     setMessage(null);
     setErrors((current) => ({
@@ -292,6 +334,33 @@ function ChoicesForm({ userId, storageKey, initial, role, aiReading, clients, ma
     }));
     setAiFilled((current) => ({ ...current, ...change }));
   }
+
+  /** New Client added the document's client (or found it listed): it joins its picker, chosen, and focus goes to its line. */
+  function clientAdded(result: ClientAdded) {
+    setMore((current) => ({ ...current, clients: withOptions(current.clients, [result.option]) }));
+    setNotes((current) => ({ ...current, client: { id: result.option.id, note: result.note } }));
+    update({ clientId: result.option.id });
+    changed("clientId");
+    focusNext.current = `${id}-filled-client`;
+  }
+
+  /** New Manufacturer added its factory (or found it listed): the same, with the brands and companies as they are now. */
+  function manufacturerAdded(result: ManufacturerAdded) {
+    setDirectory(result.directory);
+    setMore((current) => ({ ...current, manufacturers: withOptions(current.manufacturers, [result.option]) }));
+    setNotes((current) => ({ ...current, manufacturer: { id: result.option.id, note: result.note } }));
+    update({ manufacturerId: result.option.id });
+    changed("manufacturerId");
+    focusNext.current = `${id}-filled-manufacturer`;
+  }
+
+  // After an Add, its card is gone: focus goes to the summary line in its place.
+  useEffect(() => {
+    const target = focusNext.current;
+    if (!target) return;
+    focusNext.current = null;
+    document.getElementById(target)?.focus();
+  });
 
   // Documents are read until the form has its client, manufacturer, product type and product name.
   const sources = useHeldSources({
@@ -311,27 +380,65 @@ function ChoicesForm({ userId, storageKey, initial, role, aiReading, clients, ma
   }
 
   const names = {
-    client: client ? (clients.find((entry) => entry.id === client)?.label ?? null) : null,
-    manufacturer: manufacturers.find((entry) => entry.id === manufacturerId)?.label ?? null,
+    client: client ? (allClients.find((entry) => entry.id === client)?.label ?? null) : null,
+    manufacturer: allManufacturers.find((entry) => entry.id === manufacturerId)?.label ?? null,
   };
+  /** The note for the chosen client or factory, if it is the one noted. */
+  const noteFor = (note: LineNote | undefined, chosen: string) => (note?.id === chosen ? note.note : undefined);
 
-  // What Steri-AI filled in above, where it still stands; and the companies it read that neither list has.
+  // What Steri-AI filled in above (or New Client and New Manufacturer added), where it still stands.
   const filled: SummaryLine[] = [];
-  if (aiFilled.clientId && aiFilled.clientId === clientId && names.client) filled.push({ label: "Client", value: names.client });
-  if (aiFilled.manufacturerId && aiFilled.manufacturerId === manufacturerId && names.manufacturer) {
-    filled.push({ label: "Manufacturer", value: names.manufacturer });
+  if (client && names.client && (aiFilled.clientId === client || notes.client?.id === client)) {
+    filled.push({ label: "Client", value: names.client, note: noteFor(notes.client, client), id: `${id}-filled-client` });
+  }
+  if (manufacturerId && names.manufacturer && (aiFilled.manufacturerId === manufacturerId || notes.manufacturer?.id === manufacturerId)) {
+    filled.push({
+      label: "Manufacturer",
+      value: names.manufacturer,
+      note: noteFor(notes.manufacturer, manufacturerId),
+      id: `${id}-filled-manufacturer`,
+    });
   }
   if (aiFilled.productType && aiFilled.productType === productType) {
     filled.push({ label: "Product Type", value: PRODUCT_TYPE_LABEL[aiFilled.productType] });
   }
   if (aiFilled.productName && aiFilled.productName === productName && !nameOff) filled.push({ label: "Product Name", value: productName });
-  const readForms = sources.documents.flatMap((document) => (document.state.step === "read" ? [document.state.read.form] : []));
-  const unlisted: SummaryLine[] = [];
-  const clientRead = client === undefined ? readForms.find((form) => !form.clientId && form.clientName)?.clientName : null;
-  if (clientRead) unlisted.push({ label: "Client", value: `“${clientRead}” is not in the client list` });
-  const manufacturerRead =
-    manufacturerId === "" ? readForms.find((form) => !form.manufacturerId && form.manufacturerName)?.manufacturerName : null;
-  if (manufacturerRead) unlisted.push({ label: "Manufacturer", value: `“${manufacturerRead}” is not in the manufacturer list` });
+
+  // A client or manufacturer read that neither list has, while that field is empty: the first document naming one.
+  const reads = sources.documents.flatMap((document) => (document.state.step === "read" ? [{ key: document.key, form: document.state.read.form }] : []));
+  const newClient = client === undefined ? reads.find(({ form }) => !form.clientId && form.clientName) : undefined;
+  const newManufacturer =
+    manufacturerId === ""
+      ? reads
+          .filter(({ form }) => !form.manufacturerId)
+          .map(({ key, form }) => ({ key, printed: form.manufacturerName, draft: manufacturerDraft(form.manufacturerDetails, form.manufacturerName) }))
+          .find(({ draft }) => draft.company !== "")
+      : undefined;
+  const entries =
+    newClient?.form.clientName || newManufacturer ? (
+      <>
+        {newClient?.form.clientName && (
+          <NewClientEntry
+            // Started again from the next document's name when the first one is removed.
+            key={`client-${newClient.key}`}
+            printed={newClient.form.clientName}
+            clients={allClients}
+            disabled={creating}
+            onAdded={clientAdded}
+          />
+        )}
+        {newManufacturer && (
+          <NewManufacturerEntry
+            key={`manufacturer-${newManufacturer.key}`}
+            printed={newManufacturer.printed ?? newManufacturer.draft.company}
+            draft={newManufacturer.draft}
+            directory={directory}
+            disabled={creating}
+            onAdded={manufacturerAdded}
+          />
+        )}
+      </>
+    ) : null;
 
   return (
     <form onSubmit={submit} noValidate aria-busy={creating || undefined} data-testid="new-inspection-form">
@@ -339,7 +446,7 @@ function ChoicesForm({ userId, storageKey, initial, role, aiReading, clients, ma
         <legend className="sr-only">New Inspection</legend>
         <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(20rem,26rem)] min-[80rem]:grid-cols-[minmax(0,1fr)_30rem]">
           <div className="flex min-w-0 flex-col gap-6">
-            <SourceDocumentsPanel id={id} sources={sources} disabled={creating} filled={filled} unlisted={unlisted} />
+            <SourceDocumentsPanel id={id} sources={sources} disabled={creating} filled={filled} entries={entries} />
 
             <TemplatePanel
               id={id}
@@ -371,6 +478,8 @@ function ChoicesForm({ userId, storageKey, initial, role, aiReading, clients, ma
                 <Field data-invalid={errors.clientId ? true : undefined}>
                   <FieldLabel htmlFor={`${id}-client`}>Client</FieldLabel>
                   <Select
+                    // A client added here mounts the picker again, with it chosen: changed to an option not yet in place, it would clear itself.
+                    key={`clients-${allClients.length}`}
                     value={clientId}
                     onValueChange={(value) => {
                       update({ clientId: value });
@@ -386,12 +495,12 @@ function ChoicesForm({ userId, storageKey, initial, role, aiReading, clients, ma
                       <SelectValue placeholder="Choose the client" />
                     </SelectTrigger>
                     <SelectContent>
-                      {clients.map((entry) => (
+                      {allClients.map((entry) => (
                         <SelectItem key={entry.id} value={entry.id}>
                           <span className="truncate">{entry.label}</span>
                         </SelectItem>
                       ))}
-                      {clients.length > 0 && <SelectSeparator />}
+                      {allClients.length > 0 && <SelectSeparator />}
                       <SelectItem value={NO_CLIENT}>No Client</SelectItem>
                     </SelectContent>
                   </Select>
@@ -405,12 +514,14 @@ function ChoicesForm({ userId, storageKey, initial, role, aiReading, clients, ma
                 <Field data-invalid={errors.manufacturerId ? true : undefined}>
                   <FieldLabel htmlFor={`${id}-manufacturer`}>Manufacturer</FieldLabel>
                   <Select
+                    // As the client's picker: mounted again when a factory is added here.
+                    key={`manufacturers-${allManufacturers.length}`}
                     value={manufacturerId}
                     onValueChange={(value) => {
                       update({ manufacturerId: value });
                       changed("manufacturerId");
                     }}
-                    disabled={manufacturers.length === 0}
+                    disabled={allManufacturers.length === 0}
                   >
                     <SelectTrigger
                       id={`${id}-manufacturer`}
@@ -418,10 +529,10 @@ function ChoicesForm({ userId, storageKey, initial, role, aiReading, clients, ma
                       aria-invalid={errors.manufacturerId ? true : undefined}
                       aria-describedby={`${id}-manufacturer-${errors.manufacturerId ? "error" : "hint"}`}
                     >
-                      <SelectValue placeholder={manufacturers.length === 0 ? "No manufacturers yet" : "Choose the manufacturer"} />
+                      <SelectValue placeholder={allManufacturers.length === 0 ? "No manufacturers yet" : "Choose the manufacturer"} />
                     </SelectTrigger>
                     <SelectContent>
-                      {manufacturers.map((entry) => (
+                      {allManufacturers.map((entry) => (
                         <SelectItem key={entry.id} value={entry.id}>
                           <span className="truncate">{entry.label}</span>
                         </SelectItem>
@@ -432,7 +543,7 @@ function ChoicesForm({ userId, storageKey, initial, role, aiReading, clients, ma
                     <FieldError id={`${id}-manufacturer-error`}>{errors.manufacturerId}</FieldError>
                   ) : (
                     <FieldDescription id={`${id}-manufacturer-hint`}>
-                      {manufacturers.length > 0
+                      {allManufacturers.length > 0
                         ? "The factory the gloves come from. Its address goes into the header."
                         : role === "admin"
                           ? "Add the manufacturer under Admin first."

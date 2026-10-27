@@ -24,7 +24,17 @@ function read(fileName: string, header: Partial<DocumentFill["header"]>, sizes: 
     status: "read",
     fileName,
     notes: null,
-    form: { clientId: CLIENT, clientName: null, manufacturerId: MANUFACTURER, manufacturerName: null, productType: "examination", productName: "Nitrile Blue" },
+    form: {
+      clientId: CLIENT,
+      clientName: null,
+      clientMatch: { label: "Client A", by: "steri_ai" },
+      manufacturerId: MANUFACTURER,
+      manufacturerName: null,
+      manufacturerMatch: { label: "Manufacturer A · Factory 1", by: "steri_ai" },
+      manufacturerDetails: null,
+      productType: "examination",
+      productName: "Nitrile Blue",
+    },
     fill: {
       fileName,
       header: { poNo: null, productCode: null, factoryGloveCode: null, inspectionDate: null, mfgDate: null, expiryDate: null, ...header },

@@ -2,7 +2,7 @@
 // pickers' lists and the templates the user may start from, no earlier
 // inspections; and the wording the form's parts share.
 import { describe, expect, it } from "vitest";
-import { MANUFACTURER_NAMES_SELECT } from "@/lib/inspections/format";
+import { DIRECTORY_SELECT } from "@/lib/inspections/reference-match";
 import { buildSeedBundle, SEED_TEMPLATES } from "@/lib/templates/definitions";
 import { FORCE_AT_BREAK_TITLE } from "@/modules/force_at_break/config";
 import { MODULE_REGISTRY } from "@/modules/registry";
@@ -103,11 +103,19 @@ function fakeClient(answers: Partial<Record<string, Answer>>) {
 }
 
 const CLIENTS: Answer = { data: [{ id: "c1", name: "Polyco Healthline" }], error: null };
-/** Factories as the select embeds them (supabase/seed.sql), in no particular order: the page sorts them by label. */
-const MANUFACTURERS: Answer = {
+/** Brands with their companies and factories (supabase/seed.sql), in no particular order: the page sorts the factories by label. */
+const BRANDS: Answer = {
   data: [
-    { id: "m2", factory_name: "TG Factory 40", company: { name: "Terang Nusa Sdn. Bhd.", brand: { name: "Top Glove" } } },
-    { id: "m1", factory_name: null, company: { name: "Hartalega NGC", brand: { name: "Hartalega" } } },
+    {
+      id: "b2",
+      name: "Top Glove",
+      companies: [{ id: "c2", name: "Terang Nusa Sdn. Bhd.", factories: [{ id: "m2", factory_name: "TG Factory 40", country: "Malaysia" }] }],
+    },
+    {
+      id: "b1",
+      name: "Hartalega",
+      companies: [{ id: "c1", name: "Hartalega NGC", factories: [{ id: "m1", factory_name: null, country: null }] }],
+    },
   ],
   error: null,
 };
@@ -115,7 +123,7 @@ describe("loading the page's lists", () => {
   it("reads clients, manufacturers and the active templates, and no earlier inspections", async () => {
     const { client, queries } = fakeClient({
       clients: CLIENTS,
-      manufacturers: MANUFACTURERS,
+      manufacturer_brands: BRANDS,
       templates: { data: [templateRow("STD_EG")], error: null },
     });
     const options = await loadNewInspectionOptions(client, "inspector");
@@ -126,14 +134,30 @@ describe("loading the page's lists", () => {
         { id: "m1", label: "Hartalega NGC" },
         { id: "m2", label: "Top Glove · TG Factory 40" },
       ],
+      // The same as brands, companies and factories, which New Manufacturer matches a document's names against.
+      directory: {
+        brands: [
+          { id: "b2", name: "Top Glove" },
+          { id: "b1", name: "Hartalega" },
+        ],
+        companies: [
+          { id: "c2", brandId: "b2", name: "Terang Nusa Sdn. Bhd." },
+          { id: "c1", brandId: "b1", name: "Hartalega NGC" },
+        ],
+        factories: [
+          { id: "m2", companyId: "c2", factoryName: "TG Factory 40", country: "Malaysia" },
+          { id: "m1", companyId: "c1", factoryName: null, country: null },
+        ],
+      },
       templates: [expect.objectContaining({ code: "STD_EG" })],
     });
-    expect(queries.find((query) => query.table === "manufacturers")!.calls).toEqual([["select", [`id, ${MANUFACTURER_NAMES_SELECT}`]]]);
+    // One query, so brands, companies and factories come from one moment.
+    expect(queries.find((query) => query.table === "manufacturer_brands")!.calls).toEqual([["select", [DIRECTORY_SELECT]]]);
 
     const templates = queries.find((query) => query.table === "templates")!;
     expect(templates.calls).toContainEqual(["eq", ["status", "active"]]);
     // Start From Previous is gone (Kenneth, 26 October 2026): nothing reads the inspections.
-    expect(queries.map((query) => query.table).sort()).toEqual(["clients", "manufacturers", "templates"]);
+    expect(queries.map((query) => query.table).sort()).toEqual(["clients", "manufacturer_brands", "templates"]);
   });
 
   it("offers an admin the drafts as well, never a retired version", async () => {
@@ -148,7 +172,7 @@ describe("loading the page's lists", () => {
     expect(queries.find((query) => query.table === "templates")!.calls).toContainEqual(["neq", ["status", "retired"]]);
   });
 
-  it.each(["clients", "manufacturers", "templates"])(
+  it.each(["clients", "manufacturer_brands", "templates"])(
     "gives nothing when the %s cannot be read",
     async (table) => {
       const { client } = fakeClient({ [table]: { data: null, error: { code: "PGRST000", message: "down" } } });

@@ -1,7 +1,7 @@
 import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { copiedFieldsOff } from "@/lib/inspections/create";
-import { MANUFACTURER_NAMES_SELECT, manufacturerOptions } from "@/lib/inspections/format";
+import { DIRECTORY_SELECT, directoryFromRows, directoryOptions } from "@/lib/inspections/reference-match";
 import { ResolvedTemplateSchema } from "@/lib/schemas/template";
 import type { Database } from "@/lib/supabase/database.types";
 import { templateCandidateFromRow } from "@/lib/templates/select";
@@ -64,22 +64,24 @@ function logFailure(what: string, error: { code?: string; message: string }) {
 
 /**
  * Clients, manufacturers (each factory by its label, as the inspection names
- * it) and the templates the user may start from (active ones; drafts as well
- * for an admin, who can choose one). Null when any of it cannot be read.
+ * it, read as brands with their companies and factories, which New
+ * Manufacturer matches a document's names against) and the templates the
+ * user may start from (active ones; drafts as well for an admin, who can
+ * choose one). Null when any of it cannot be read.
  */
 export async function loadNewInspectionOptions(supabase: Client, role: UserRole): Promise<NewInspectionOptions | null> {
   const templates = supabase.from("templates").select(TEMPLATE_SELECT).order("code").order("version", { ascending: false });
-  const [clients, manufacturers, templateRows] = await Promise.all([
+  const [clients, brands, templateRows] = await Promise.all([
     supabase.from("clients").select("id, name").order("name"),
-    supabase.from("manufacturers").select(`id, ${MANUFACTURER_NAMES_SELECT}` as const),
+    supabase.from("manufacturer_brands").select(DIRECTORY_SELECT),
     role === "admin" ? templates.neq("status", "retired") : templates.eq("status", "active"),
   ]);
   if (clients.error) {
     logFailure("clients", clients.error);
     return null;
   }
-  if (manufacturers.error) {
-    logFailure("manufacturers", manufacturers.error);
+  if (brands.error) {
+    logFailure("manufacturers", brands.error);
     return null;
   }
   if (templateRows.error) {
@@ -87,9 +89,11 @@ export async function loadNewInspectionOptions(supabase: Client, role: UserRole)
     return null;
   }
 
+  const directory = directoryFromRows(brands.data);
   return {
     clients: clients.data.map((client) => ({ id: client.id, label: client.name })),
-    manufacturers: manufacturerOptions(manufacturers.data),
+    manufacturers: directoryOptions(directory),
+    directory,
     templates: templateRows.data.flatMap((row) => toTemplateOption(row) ?? []),
   };
 }

@@ -30,6 +30,8 @@ import { authorizeAction } from "@/lib/auth/session";
 import { evaluateCapture } from "@/lib/inspections/capture/evaluate";
 import { mirroredColumns } from "@/lib/inspections/capture/mirror";
 import { MANUFACTURER_NAMES_SELECT } from "@/lib/inspections/format";
+import { DIRECTORY_SELECT } from "@/lib/inspections/reference-match";
+import type { DocumentReading } from "@/lib/schemas/document-fill";
 import { ResolvedTemplateSchema } from "@/lib/schemas/template";
 import { createAdminClient, isAdminClientConfigured } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
@@ -518,6 +520,37 @@ describe("start from previous (BUILD_SPEC 8)", () => {
   });
 });
 
+const OTHER_FACTORY = "10000000-0000-4000-8000-000000000002";
+
+/** The lists a reading is matched with: Client A, and two brands' factories. */
+function lists() {
+  return fakeClient((query) =>
+    query.table === "clients"
+      ? { data: [{ id: CLIENT, name: "Client A" }], error: null }
+      : {
+          data: [
+            {
+              id: "b1",
+              name: "Manufacturer A",
+              companies: [{ id: "c1", name: "Company A", factories: [{ id: MANUFACTURER, factory_name: "Factory 1", country: null }] }],
+            },
+            {
+              id: "b2",
+              name: "Manufacturer B",
+              companies: [{ id: "c2", name: "Manufacturer B Sdn. Bhd.", factories: [{ id: OTHER_FACTORY, factory_name: null, country: null }] }],
+            },
+          ],
+          error: null,
+        },
+  );
+}
+
+function orderDocument(): FormData {
+  const document = new FormData();
+  document.set("document", new File(["%PDF-1.7"], "PO 0001.pdf", { type: "application/pdf" }));
+  return document;
+}
+
 describe("Source Documents read on the form (docs/AI.md)", () => {
   it("fills the header from what they read and records the files by name; the files themselves come later, through the queue", async () => {
     const rpc = vi.fn(() => Promise.resolve({ data: 1, error: null }));
@@ -543,35 +576,60 @@ describe("Source Documents read on the form (docs/AI.md)", () => {
   });
 
   it("gives Steri-AI every name a document may print for each factory: brand, company and factory", async () => {
-    const OTHER = "10000000-0000-4000-8000-000000000002";
-    use(
-      fakeClient((query) =>
-        query.table === "clients"
-          ? { data: [{ id: CLIENT, name: "Client A" }], error: null }
-          : {
-              data: [
-                { id: MANUFACTURER, ...FACTORY },
-                { id: OTHER, factory_name: null, company: { name: "Manufacturer B Sdn. Bhd.", brand: { name: "Manufacturer B" } } },
-              ],
-              error: null,
-            },
-      ),
-    );
+    use(lists());
     vi.mocked(loadAiEnv).mockResolvedValue({});
     vi.mocked(loadGlossary).mockResolvedValue([]);
     vi.mocked(readOrderDocument).mockResolvedValue({ ok: false, reason: "not_connected", message: "Steri-AI is not connected yet." });
-    const document = new FormData();
-    document.set("document", new File(["%PDF-1.7"], "PO 0001.pdf", { type: "application/pdf" }));
 
-    expect(await readDocument(document)).toEqual({ status: "error", message: "Steri-AI is not connected yet." });
-    expect(argOf(db.queries.find((query) => query.table === "manufacturers"), "select")).toBe(`id, ${MANUFACTURER_NAMES_SELECT}`);
+    expect(await readDocument(orderDocument())).toEqual({ status: "error", message: "Steri-AI is not connected yet." });
+    // Brands with their companies and factories, in one query.
+    expect(argOf(db.queries.find((query) => query.table === "manufacturer_brands"), "select")).toBe(DIRECTORY_SELECT);
     expect(vi.mocked(readOrderDocument).mock.calls[0][1]).toMatchObject({
       clients: [{ id: CLIENT, name: "Client A" }],
       manufacturers: [
         { id: MANUFACTURER, name: "Manufacturer A · Company A · Factory 1" },
-        { id: OTHER, name: "Manufacturer B · Manufacturer B Sdn. Bhd." },
+        { id: OTHER_FACTORY, name: "Manufacturer B · Manufacturer B Sdn. Bhd." },
       ],
     });
+  });
+
+  // Kenneth, 27 October 2026: "the Steri AI should be able to read doc to use existing client and manufacturer or create new one".
+  it("matches by name what Steri-AI missed, and passes on what a document prints about a manufacturer neither list has", async () => {
+    use(lists());
+    vi.mocked(loadAiEnv).mockResolvedValue({ ANTHROPIC_API_KEY: "sk-ant-test-key-0000000000" });
+    vi.mocked(loadGlossary).mockResolvedValue([]);
+    const reading: DocumentReading = {
+      clientId: null,
+      clientName: "CLIENT A SDN. BHD.",
+      manufacturerId: null,
+      manufacturerName: "New Gloves Sdn. Bhd.",
+      manufacturerDetails: { brand: "", company: "New Gloves Sdn. Bhd.", factory: "Plant 2", address: "Lot 1, Placeholder Park", country: "Malaysia" },
+      productType: "examination",
+      productName: null,
+      productCode: null,
+      factoryGloveCode: null,
+      poNo: null,
+      inspectionDate: null,
+      mfgDate: null,
+      expiryDate: null,
+      sizes: [],
+      notes: null,
+    };
+    vi.mocked(readOrderDocument).mockResolvedValue({ ok: true, reading, model: "claude-opus-5-5" });
+
+    const result = await readDocument(orderDocument());
+    expect(result).toMatchObject({
+      status: "read",
+      form: {
+        clientId: CLIENT,
+        clientMatch: { label: "Client A", by: "name" },
+        manufacturerId: null,
+        manufacturerMatch: null,
+        manufacturerDetails: { brand: null, company: "New Gloves Sdn. Bhd.", factory: "Plant 2", address: "Lot 1, Placeholder Park", country: "Malaysia" },
+      },
+    });
+    // Reading writes nothing: adding is New Client's and New Manufacturer's, on a tap.
+    expect(db.queries.every((query) => !query.calls.some(([method]) => method === "insert"))).toBe(true);
   });
 
   // Fill From a Document is the role's Steri-AI Reading, on a page only Create Inspections opens.

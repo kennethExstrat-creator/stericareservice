@@ -2,6 +2,7 @@
 // summaries, never whole template rows (the resolved templates stay on the
 // server, where the Server Action reads them again).
 import type { PreviousCopies } from "@/lib/inspections/create";
+import type { ManufacturerDirectory } from "@/lib/inspections/reference-match";
 import type { ProductType, Standard } from "@/lib/schemas/common";
 import type { TemplateCandidate, TemplateStatus } from "@/lib/templates/select";
 
@@ -29,6 +30,8 @@ export type TemplateOption = TemplateCandidate & {
 export type NewInspectionOptions = {
   clients: Option[];
   manufacturers: Option[];
+  /** The manufacturers as brands, companies and factories, which New Manufacturer matches a document's names against. */
+  directory: ManufacturerDirectory;
   templates: TemplateOption[];
 };
 

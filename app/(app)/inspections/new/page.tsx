@@ -39,6 +39,7 @@ export default async function NewInspectionPage() {
           aiReading={userCan(user, "ai_reading")}
           clients={options.clients}
           manufacturers={options.manufacturers}
+          directory={options.directory}
           templates={options.templates}
         />
       ) : (

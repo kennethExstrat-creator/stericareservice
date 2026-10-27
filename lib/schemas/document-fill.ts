@@ -18,13 +18,28 @@ export type DocumentMediaType = (typeof DOCUMENT_MEDIA_TYPES)[number];
 export const DOCUMENT_MAX_BYTES = 4 * 1024 * 1024;
 
 const text = (description: string) => z.string().nullable().describe(description);
+/**
+ * A part of the manufacturer's details: an empty string, not null, when not
+ * printed. Structured outputs compile at most 16 fields that may be null
+ * (anyOf) per schema, and the reading has 14.
+ */
+const printed = (description: string) => z.string().describe(`${description} An empty string when it is not printed.`);
 
 /** Claude's answer (structured output). A field the document does not give is null. */
 export const DocumentReadingSchema = z.object({
   clientId: text("The id of the client in the client list that the document's client (buyer, customer, consignee) matches; null when none matches."),
-  clientName: text("The client (buyer, customer, consignee) as printed."),
+  clientName: text("The client (buyer, customer, consignee) as printed, its company name in full."),
   manufacturerId: text("The id of the manufacturer in the manufacturer list that the document's manufacturer, supplier or factory matches; null when none matches."),
   manufacturerName: text("The manufacturer, supplier or factory as printed."),
+  manufacturerDetails: z
+    .object({
+      brand: printed("The manufacturer's brand when the document shows one: a logo or a trade name such as Top Glove. Never made up from the company's name."),
+      company: printed("The manufacturer's registered company name as printed, such as a name ending in Sdn. Bhd. or Co., Ltd."),
+      factory: printed("The factory's own name or number as printed, such as TG-F40 or Plant 2."),
+      address: printed("The factory's address as printed (else the manufacturer's), each line of it on a line of its own."),
+      country: printed("The country of that address, as the document states it."),
+    })
+    .describe("What the document prints about the manufacturer, so the inspector can add it when no listed entry matches. Never guessed or completed."),
   productType: ProductTypeSchema.nullable().describe(
     "examination for disposable examination gloves (counted in pieces), surgical for sterile surgical gloves (counted in pairs).",
   ),
@@ -76,12 +91,35 @@ export const DocumentFillSchema = z.object({
 export type DocumentFill = z.infer<typeof DocumentFillSchema>;
 export type DocumentHeaderField = keyof DocumentFill["header"];
 
+/**
+ * A listed client or factory a reading names, with its label for the picker
+ * (a page loaded before someone added it does not offer it yet), and who
+ * matched it: Steri-AI, or the app comparing the names itself
+ * (lib/inspections/reference-match.ts).
+ */
+export type ListedMatch = { label: string; by: "steri_ai" | "name" };
+
+/** What a document prints about its manufacturer, each part null when not printed. */
+export type ManufacturerDetails = {
+  brand: string | null;
+  company: string | null;
+  factory: string | null;
+  address: string | null;
+  country: string | null;
+};
+
 /** The new-inspection form's own fields, as the document filled them. */
 export type DocumentFormFields = {
   clientId: string | null;
   clientName: string | null;
+  /** With clientId. */
+  clientMatch: ListedMatch | null;
   manufacturerId: string | null;
   manufacturerName: string | null;
+  /** With manufacturerId. */
+  manufacturerMatch: ListedMatch | null;
+  /** What it prints about a manufacturer no entry matches, for New Manufacturer; null once one matches. */
+  manufacturerDetails: ManufacturerDetails | null;
   productType: z.infer<typeof ProductTypeSchema> | null;
   productName: string | null;
 };

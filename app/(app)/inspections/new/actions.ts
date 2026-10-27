@@ -21,7 +21,8 @@ import {
   type NewInspectionInput,
 } from "@/lib/inspections/create";
 import { applyDocumentFill, checkReading } from "@/lib/inspections/document-fill";
-import { MANUFACTURER_NAMES_SELECT, manufacturerFullName, manufacturerLabel, personLabel } from "@/lib/inspections/format";
+import { MANUFACTURER_NAMES_SELECT, manufacturerLabel, personLabel } from "@/lib/inspections/format";
+import { DIRECTORY_SELECT, directoryFromRows, directoryFullNames } from "@/lib/inspections/reference-match";
 import { createInspectionRow, serverWriter } from "@/lib/inspections/writes";
 import { DOCUMENT_MAX_BYTES, DocumentFillSchema, type DocumentFill, type DocumentReadResult } from "@/lib/schemas/document-fill";
 import { ResolvedTemplateSchema } from "@/lib/schemas/template";
@@ -296,7 +297,10 @@ const NOT_ALLOWED = "You do not have permission to do that.";
  * Create); its bytes decide what it is, and an Excel or CSV file goes as its
  * text (lib/ai/document-file.ts). The lists
  * are read through the caller's client, so the AI matches only clients and
- * manufacturers the caller can pick.
+ * manufacturers the caller can pick; checkReading then matches by name what
+ * it missed, and passes on what the document prints about a client or
+ * manufacturer neither list has, for New Client and New Manufacturer
+ * (./reference-actions.ts).
  */
 export async function readDocument(formData: FormData): Promise<DocumentReadResult> {
   try {
@@ -314,23 +318,24 @@ export async function readDocument(formData: FormData): Promise<DocumentReadResu
     if (!readable.ok) return { status: "error", message: readable.message };
 
     const supabase = await createClient();
-    const [clients, manufacturers] = await Promise.all([
+    const [clients, brands] = await Promise.all([
       supabase.from("clients").select("id, name"),
-      supabase.from("manufacturers").select(`id, ${MANUFACTURER_NAMES_SELECT}` as const),
+      supabase.from("manufacturer_brands").select(DIRECTORY_SELECT),
     ]);
-    if (clients.error || manufacturers.error) {
-      console.error("[inspections/new] reading the lists failed", clients.error?.message ?? manufacturers.error?.message);
+    if (clients.error || brands.error) {
+      console.error("[inspections/new] reading the lists failed", clients.error?.message ?? brands.error?.message);
       return { status: "error", message: READ_FAILED };
     }
-    const lists = {
-      clients: clients.data,
-      // Each factory by every name a document may print for it: brand, company and factory.
-      manufacturers: manufacturers.data.map((entry) => ({ id: entry.id, name: manufacturerFullName(entry) })),
-    };
+    const lists = { clients: clients.data, directory: directoryFromRows(brands.data) };
 
     const outcome = await readOrderDocument(
       readable.file,
-      { ...lists, glossary: await loadGlossary() },
+      {
+        clients: lists.clients,
+        // Each factory by every name a document may print for it: brand, company and factory.
+        manufacturers: directoryFullNames(lists.directory),
+        glossary: await loadGlossary(),
+      },
       await loadAiEnv(),
       // Its cost (Steri-AI Cost), recorded after the response: no inspection exists before Create.
       recordAiUsageLater({ feature: "new_inspection_read", inspectionId: null, actorId: auth.user.id, itemCount: 1 }),

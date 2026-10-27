@@ -358,6 +358,9 @@ function actionCases(): ActionCase[] {
     { name: "signOut", kind: "signout", path: "/inspections", args: [] },
     // Inspections.
     { name: "createInspection", kind: "user", path: "/inspections/new", args: [{ status: "idle" }, form({ clientId: "none", manufacturerId: NOWHERE, productType: "examination", productName: "", templateId: "", previousId: "" })] },
+    // New Client and New Manufacturer (Create Inspections). Blank names are refused before anything is read or written.
+    { name: "addClientFromDocument", kind: "user", path: "/inspections/new", args: [{ name: "" }] },
+    { name: "addManufacturerFromDocument", kind: "user", path: "/inspections/new", args: [{ brand: "", company: "", factory: "", address: "", country: "" }] },
     { name: "deleteInspection", kind: "user", path: "/inspections", args: [{ inspectionId: i.mDraft.id }] },
     { name: "saveCaptureData", kind: "user", path: capture, args: [{ inspectionId: i.mDraft.id, data: { modules: {}, custom: {} }, baseUpdatedAt: "2000-01-01T00:00:00+00:00" }] },
     { name: "submitInspection", kind: "user", path: capture, args: [{ inspectionId: i.mDraft.id, dataHash: "0000000000000000" }] },

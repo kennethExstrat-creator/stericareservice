@@ -17,6 +17,9 @@ import { callFromError, callFromMessage, reportAiCall, type OnAiCall } from "./u
  * inspection's header and order need (docs/AI.md, "Reading order
  * documents"). Claude reads PDFs and photos itself, so there is no separate
  * OCR step; an Excel or CSV file comes as its text (./document-file.ts).
+ * Claude matches the client and manufacturer with the lists first; for one
+ * no entry matches, it gives what the document prints, from which New Client
+ * and New Manufacturer offer to add it (Kenneth, 27 October 2026).
  * The answer is a suggestion: lib/inspections/document-fill.ts checks every
  * value, and the inspector sees and can change all of it.
  */
@@ -35,13 +38,15 @@ export type ReadDocumentOutcome =
 const TIMEOUT_MS = 120_000;
 const MAX_TOKENS = 8_000;
 
-const SYSTEM_PROMPT = `You read documents for SteriCare, a glove quality-control company, and pick out the details an inspector needs to start an inspection.
+export const DOCUMENT_READER_SYSTEM_PROMPT = `You read documents for SteriCare, a glove quality-control company, and pick out the details an inspector needs to start an inspection.
 
 The documents have no set layout: purchase orders, sales orders, packing lists, inspection requests, invoices, emails, photos of paper forms or labels. Read every page, tables included. ${SPREADSHEET_NOTE}
 
 Rules:
 - Only report what the document states. Never guess or invent a value: leave it null.
-- Client and manufacturer: you get lists with ids. Return the id of the entry that names the same company (ignore case, punctuation, "Sdn Bhd", "Ltd", "Inc" and similar); a manufacturer entry gives its brand, operating company and factory, and the document may print any of them. If no entry clearly matches, return null for the id and still give the name as printed. The client is the buyer; the manufacturer is the factory or supplier that makes the gloves.
+- Client and manufacturer: you get lists with ids. Match a listed entry first: return the id of the entry that names the same company (ignore case, punctuation, "Sdn Bhd", "Ltd", "Inc" and similar). The client is the buyer; the manufacturer is the factory or supplier that makes the gloves.
+- A manufacturer entry is one factory, given by its brand, operating company and factory name, and the document may print any of them. No entry matches when the document names a factory that no entry lists, even under a listed brand or company, or names only a brand or company that several entries share.
+- When no entry matches, return null for the id and give what the document prints, so the inspector can add it: the client's name as printed; the manufacturer's name as printed, and in manufacturerDetails its brand (only one the document shows, such as a logo or "Top Glove"), its registered company name, its factory's name or number (such as TG-F40), and the factory's address and country. Never invent or complete a detail the document does not print: leave it empty.
 - Product type: examination for disposable examination gloves (nitrile, latex, vinyl exam gloves); surgical for sterile surgical gloves. Null when unclear.
 - Sizes: one entry per size ordered, with the cases (cartons) ordered and the lot or batch numbers. Give cases only when the document states cases or cartons, or states the case packing so the count is exact; otherwise null.
 - Dates as YYYY-MM-DD. Read day/month order from the document's own conventions; when only month and year are printed, use the first of the month.
@@ -52,12 +57,14 @@ ${PAPER_FORM_GUIDE}`;
 
 let readingSchema: ReturnType<typeof toStructuredOutputSchema> | undefined;
 
-function readingJsonSchema() {
+/** The JSON schema Claude answers in, from DocumentReadingSchema. */
+export function readingJsonSchema() {
   readingSchema ??= toStructuredOutputSchema(z.toJSONSchema(DocumentReadingSchema, { target: "draft-2020-12" }));
   return readingSchema;
 }
 
-function listsText(context: ReadingContext): string {
+/** The lists Claude matches the document's client and manufacturer against, after the document. */
+export function listsText(context: ReadingContext): string {
   const list = (entries: ReadingContext["clients"]) =>
     entries.length === 0 ? "(none)" : entries.map((entry) => `- ${entry.id}: ${entry.name}`).join("\n");
   const shortforms = context.glossary ? `\n\n${glossaryText(context.glossary)}` : "";
@@ -90,7 +97,7 @@ export async function readOrderDocument(
   const params: MessageCreateParamsNonStreaming = {
     model: model.data,
     max_tokens: MAX_TOKENS,
-    system: SYSTEM_PROMPT,
+    system: DOCUMENT_READER_SYSTEM_PROMPT,
     messages: [{ role: "user", content: [documentBlock(file), { type: "text", text: listsText(context) }] }],
     // Low effort: picking out fields needs little thinking, and the inspector is waiting.
     output_config: { effort: "low", format: { type: "json_schema", schema: readingJsonSchema() } },

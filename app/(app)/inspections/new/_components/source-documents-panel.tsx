@@ -20,7 +20,9 @@
 // on a large drop area, a tap anywhere in it opening the picker, that becomes
 // a row above the list once something is added: the card is only as tall as
 // what it holds, growing as documents come in (Kenneth, 26 October 2026). On
-// a wide card (48rem), what Steri-AI filled in sits beside the files.
+// a wide card (48rem), what Steri-AI filled in sits beside the files, with
+// New Client and New Manufacturer for a client or manufacturer neither list
+// has (new-entries.tsx; Kenneth, 27 October 2026).
 import {
   CheckIcon,
   EyeIcon,
@@ -32,7 +34,6 @@ import {
   RotateCcwIcon,
   SparklesIcon,
   Trash2Icon,
-  TriangleAlertIcon,
   type LucideIcon,
 } from "lucide-react";
 import { useId, useRef, useState, type ChangeEvent, type MouseEvent, type ReactNode } from "react";
@@ -53,7 +54,12 @@ import { createLines, isPdf, type HeldDocument, type HeldMedia, type ReadState }
 import { Panel } from "./panel";
 import type { HeldSources } from "./use-held-sources";
 
-export type SummaryLine = { label: string; value: string };
+/**
+ * A line of what Steri-AI filled in: "Client: Test Buyer", with a note under
+ * it on why (added from the document, or found listed by name). `id` makes
+ * it a place focus can go, after an Add.
+ */
+export type SummaryLine = { label: string; value: string; note?: string; id?: string };
 
 /** Types a browser shows as they are; anything else (a HEIC in Chrome) is offered for download. */
 const SHOWABLE = new Set(["image/jpeg", "image/png", "image/webp", "image/gif"]);
@@ -84,11 +90,11 @@ type SourceDocumentsPanelProps = {
   disabled: boolean;
   /** What Steri-AI filled in above, where it still stands. */
   filled: readonly SummaryLine[];
-  /** Companies it read that are in neither list, while that field is still empty. */
-  unlisted: readonly SummaryLine[];
+  /** New Client and New Manufacturer: a client or manufacturer it read that neither list has, while that field is still empty. */
+  entries?: ReactNode;
 };
 
-export function SourceDocumentsPanel({ id, sources, disabled, filled, unlisted }: SourceDocumentsPanelProps) {
+export function SourceDocumentsPanel({ id, sources, disabled, filled, entries }: SourceDocumentsPanelProps) {
   const [tab, setTab] = useState<SourceTab>("files");
   const [previewing, setPreviewing] = useState<PreviewFile | null>(null);
   const reading = sources.documents.find((document) => document.state.step === "reading");
@@ -109,7 +115,7 @@ export function SourceDocumentsPanel({ id, sources, disabled, filled, unlisted }
           sources={sources}
           disabled={disabled}
           filled={filled}
-          unlisted={unlisted}
+          entries={entries}
           onPreview={({ file, url }) => setPreviewing(heldPreview(file, url))}
         />
       ) : (
@@ -132,13 +138,13 @@ function FilesSide({
   sources,
   disabled,
   filled,
-  unlisted,
+  entries,
   onPreview,
 }: Omit<SourceDocumentsPanelProps, "id"> & { onPreview: (document: HeldDocument) => void }) {
   const { documents, preparing, canRead, aiReading } = sources;
   const lines = createLines(sources.fill);
   const empty = documents.length === 0 && preparing === 0;
-  const summary = filled.length > 0 || unlisted.length > 0 || lines.length > 0;
+  const summary = filled.length > 0 || Boolean(entries) || lines.length > 0;
   return (
     // A size container: the summary goes beside the files once the card is 48rem wide (landscape and desktop), under them in portrait.
     <div className="@container" data-slot="held-files">
@@ -195,19 +201,17 @@ function FilesSide({
             </p>
           )}
         </div>
-        {/* Short: what it filled and what goes in. Steri-AI's note on a file is its badge's tooltip. */}
+        {/* Short: what it filled, what it read that the lists lack, and what goes in. Steri-AI's note on a file is its badge's tooltip. */}
         {summary && (
           <div className="flex flex-col gap-3 rounded-lg bg-muted p-3 text-sm touch:text-base" data-testid="fill-summary">
-            {(filled.length > 0 || unlisted.length > 0) && (
+            {filled.length > 0 && (
               <SummaryList title="Filled In">
                 {filled.map((line) => (
                   <SummaryItem key={line.label} line={line} />
                 ))}
-                {unlisted.map((line) => (
-                  <SummaryItem key={`unlisted-${line.label}`} line={line} warn />
-                ))}
               </SummaryList>
             )}
+            {entries}
             {lines.length > 0 && (
               <SummaryList title="Added on Create">
                 {lines.map((line) => (
@@ -271,17 +275,14 @@ function SummaryList({ title, children }: { title: string; children: ReactNode }
   );
 }
 
-function SummaryItem({ line, warn = false }: { line: SummaryLine; warn?: boolean }) {
+function SummaryItem({ line }: { line: SummaryLine }) {
   return (
-    <li className="flex gap-2">
-      {warn ? (
-        <TriangleAlertIcon aria-hidden className="mt-0.5 size-4 shrink-0 text-warn" />
-      ) : (
-        <CheckIcon aria-hidden className="mt-0.5 size-4 shrink-0 text-pass" />
-      )}
+    <li id={line.id} tabIndex={line.id ? -1 : undefined} className="flex gap-2 rounded-sm outline-none focus-ring-inset">
+      <CheckIcon aria-hidden className="mt-0.5 size-4 shrink-0 text-pass" />
       <span className="min-w-0 break-words">
         <span className="text-muted-foreground">{line.label}: </span>
-        <span className={warn ? "text-warn" : "text-foreground"}>{line.value}</span>
+        <span className="text-foreground">{line.value}</span>
+        {line.note && <span className="block text-muted-foreground">{line.note}</span>}
       </span>
     </li>
   );

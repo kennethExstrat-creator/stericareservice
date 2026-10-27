@@ -20,6 +20,7 @@ vi.mock("./_lib/options", async (importOriginal) => ({
   loadNewInspectionOptions: vi.fn(),
 }));
 vi.mock("./actions", () => ({ createInspection: vi.fn() }));
+vi.mock("./reference-actions", () => ({ addClientFromDocument: vi.fn(), addManufacturerFromDocument: vi.fn() }));
 
 import { requirePermission } from "@/lib/auth/session";
 import { PRODUCT_TYPE_LABEL } from "@/lib/inspections/create";
@@ -31,6 +32,7 @@ import NewInspectionPage, { metadata } from "./page";
 const OPTIONS: NewInspectionOptions = {
   clients: [{ id: "20000000-0000-4000-8000-000000000001", label: "Polyco Healthline" }],
   manufacturers: [{ id: "10000000-0000-4000-8000-000000000001", label: "Hartalega NGC" }],
+  directory: { brands: [], companies: [], factories: [] },
   templates: [],
 };
 
