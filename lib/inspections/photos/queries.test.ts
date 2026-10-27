@@ -20,6 +20,8 @@ type Query = { table: string; calls: Array<[string, unknown[]]> };
 
 let queries: Query[];
 let tables: Record<string, Answer>;
+/** Steri-AI's descriptions: the photos read again for ai_description (migration 20261027200000). */
+let described: Answer;
 let rpcs: Record<string, Answer>;
 let signing: ReturnType<typeof vi.fn>;
 
@@ -34,7 +36,11 @@ function fakeClient() {
         return builder;
       };
     }
-    const answer = () => tables[table] ?? { data: [], error: null };
+    const answer = () => {
+      const columns = query.calls.find(([name]) => name === "select")?.[1][0];
+      if (table === "inspection_photos" && typeof columns === "string" && columns.includes("ai_description")) return described;
+      return tables[table] ?? { data: [], error: null };
+    };
     builder.maybeSingle = () => Promise.resolve(answer());
     builder.then = (resolve: (value: Answer) => unknown, reject: (reason: unknown) => unknown) =>
       Promise.resolve(answer()).then(resolve, reject);
@@ -99,6 +105,7 @@ beforeEach(() => {
     inspection_files: { data: [fileRow], error: null },
     defect_codes: { data: [{ code: "stain", name: "Stain" }], error: null },
   };
+  described = { data: [], error: null };
   rpcs = { can_edit_inspection: { data: true, error: null }, is_admin: { data: false, error: null } };
   signing = vi.fn((paths: string[]) =>
     Promise.resolve({
@@ -168,6 +175,35 @@ describe("loadInspectionMedia", () => {
     const result = await loadInspectionMedia(fakeClient(), INSPECTION);
     if (result.kind !== "ok") throw new Error(result.kind);
     expect(result.media.options.modules.find((entry) => entry.key === "weight")?.title).toBe("Weight (g)");
+  });
+
+  // docs/AI.md, "Describing photos": read apart, so a project without the columns still shows its photos.
+  it("brings Steri-AI's description with each photo, and none, quietly, on a project without descriptions", async () => {
+    const pinhole = { text: "Pinhole, palm area", kind: "defect", defect: "hole_palm", location: "hole_palm", clarity: 0.9, check: "watertight" };
+    described = {
+      data: [
+        { id: PHOTO, ai_description: pinhole, ai_described_at: "2026-10-27T02:00:00+00:00" },
+        { id: FLAGGED, ai_description: { text: "" }, ai_described_at: "2026-10-27T02:00:00+00:00" },
+      ],
+      error: null,
+    };
+    const loaded = await loadInspectionMedia(fakeClient(), INSPECTION);
+    if (loaded.kind !== "ok") throw new Error(loaded.kind);
+    expect(loaded.media.photos.map((photo) => [photo.id, photo.description, photo.describedAt])).toEqual([
+      [PHOTO, pinhole, "2026-10-27T02:00:00+00:00"],
+      // Looked at, but nothing that reads as a description: Steri-AI could not tell.
+      [FLAGGED, null, "2026-10-27T02:00:00+00:00"],
+    ]);
+
+    described = { data: null, error: { code: "42703", message: "column inspection_photos.ai_description does not exist" } };
+    const older = await loadInspectionMedia(fakeClient(), INSPECTION);
+    if (older.kind !== "ok") throw new Error(older.kind);
+    expect(older.media.photos.map((photo) => [photo.id, photo.description, photo.describedAt])).toEqual([
+      [PHOTO, null, null],
+      [FLAGGED, null, null],
+    ]);
+    expect(older.media.problems).toEqual([]);
+    expect(console.error).not.toHaveBeenCalled();
   });
 
   it("reads oldest first, for this inspection only", async () => {

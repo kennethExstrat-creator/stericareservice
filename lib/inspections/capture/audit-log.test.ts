@@ -167,4 +167,19 @@ describe("auditLogEntries: the Audit Log page in plain words (Kenneth, 26 Octobe
       ["The system", "Deleted Something", "Cleared by a job."],
     ]);
   });
+
+  // docs/AI.md, "Describing photos": one row per batch, written with the secret key for the user.
+  it("says Steri-AI described photos, how many, and for whom", () => {
+    const entries = auditLogEntries(
+      [
+        row("photos_described", { by: INSPECTOR, model: "claude-opus-5-5", photos: 4 }, "2026-10-27T03:00:00.000Z", null),
+        row("photos_described", { by: INSPECTOR, photos: 1, unclear: 1, again: true }, "2026-10-27T02:00:00.000Z", null),
+      ],
+      WORDS,
+    );
+    expect(entries.map((entry) => [entry.who, entry.title, entry.detail, entry.special])).toEqual([
+      ["Test Inspector", "Steri-AI Described Photos", "4 photos", false],
+      ["Test Inspector", "Steri-AI Described Photos", "1 photo", false],
+    ]);
+  });
 });

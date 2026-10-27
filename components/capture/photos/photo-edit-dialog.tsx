@@ -12,9 +12,11 @@
 // action and Radix Select and RadioGroup answer that reset by going back to
 // their first value, controlled or not. The caption typed is kept in the tab
 // until it is saved or cancelled (lib/drafts/tab-draft.ts), so a reload loses
-// nothing.
+// nothing. Above the caption, Steri-AI's description, read-only, with
+// Describe Again for a role with Steri-AI Reading (docs/AI.md, "Describing
+// photos"): the inspector's own caption stays theirs and wins in the report.
 import { Fragment, startTransition, useActionState, useContext, useEffect, useId, useRef, useState, type RefObject } from "react";
-import { OctagonXIcon } from "lucide-react";
+import { OctagonXIcon, SparklesIcon } from "lucide-react";
 import { toast } from "sonner";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -64,8 +66,10 @@ import { isMediaCategoryKey } from "@/lib/inspections/source-documents";
 import { parseTarget, type PhotoTarget } from "@/lib/photos/target";
 // The loading module's own caption for its stage picker: its config only, no module code.
 import { LOADING_LABELS } from "@/modules/loading/config";
+import { DESCRIBE_MESSAGES } from "@/lib/inspections/photos/descriptions";
 import { savePhotoEdit } from "./edit-flows";
-import { PhotoUserContext } from "./hooks";
+import { PhotoDescribeContext, PhotoUserContext } from "./hooks";
+import { mediaStore } from "./media-store";
 import type { SlotPhoto } from "./photo-model";
 
 /** Select items cannot have an empty value; this one stands for "none". */
@@ -507,6 +511,8 @@ function EditForm({
           </Field>
         )}
 
+        <SteriAiDescription inspectionId={inspectionId} photo={photo} />
+
         <Field data-invalid={errors.caption ? true : undefined}>
           <FieldLabel htmlFor={`${id}-caption`}>Caption</FieldLabel>
           <Textarea
@@ -548,5 +554,59 @@ function EditForm({
         </Button>
       </DialogFooter>
     </form>
+  );
+}
+
+/** Steri-AI's description of a photo it looked at but could not tell what it shows. */
+export const NOT_IDENTIFIED = "Not Identified";
+/** A photo Steri-AI has not looked at yet. */
+export const NOT_DESCRIBED = "Not Described Yet";
+
+/**
+ * Steri-AI's description of the photo, read-only (docs/AI.md, "Describing
+ * photos"), with Describe (Describe Again once it has looked) for a role with
+ * Steri-AI Reading on an uploaded photo the browser could convert. Nothing at
+ * all without a description or the action. The answer goes into the page's
+ * media store, so this line, the tiles and the report follow at once.
+ */
+function SteriAiDescription({ inspectionId, photo }: { inspectionId: string; photo: SlotPhoto }) {
+  const id = useId();
+  const describe = useContext(PhotoDescribeContext);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const canDescribe = describe !== null && !photo.queued && !photo.pendingRow && !photo.flagged;
+  if (!canDescribe && photo.description === null) return null;
+
+  const onDescribe = async () => {
+    if (!describe || busy) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const result = await describe(inspectionId, [photo.id], { again: true });
+      if (result.ok) mediaStore(inspectionId).applyDescriptions(result.photos);
+      else setError(result.error);
+    } catch {
+      setError(DESCRIBE_MESSAGES.noAnswer);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Field data-slot="photo-ai-description">
+      <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
+        <FieldLabel htmlFor={`${id}-ai`}>Steri-AI Description</FieldLabel>
+        {canDescribe && (
+          <Button type="button" variant="outline" size="sm" onClick={() => void onDescribe()} disabled={busy}>
+            {busy ? <Spinner aria-hidden /> : <SparklesIcon aria-hidden />}
+            {busy ? "Describing…" : photo.describedAt ? "Describe Again" : "Describe"}
+          </Button>
+        )}
+      </div>
+      <output id={`${id}-ai`} aria-live="polite" className={photo.description ? "text-sm text-foreground" : "text-sm text-muted-foreground"}>
+        {photo.description?.text ?? (photo.describedAt ? NOT_IDENTIFIED : NOT_DESCRIBED)}
+      </output>
+      {error && <FieldError>{error}</FieldError>}
+    </Field>
   );
 }

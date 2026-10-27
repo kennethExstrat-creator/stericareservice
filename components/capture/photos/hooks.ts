@@ -5,8 +5,10 @@
 // (and while hydrating) the hooks answer with the first state, or with the
 // copy the gallery page rendered, so the markup always matches.
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useSyncExternalStore } from "react";
+import { photosToDescribe, type DescribePhotos } from "@/lib/inspections/photos/descriptions";
 import type { InspectionMedia } from "@/lib/inspections/photos/queries";
 import { autoTag } from "@/lib/photos/target";
+import { DESCRIBE_IDLE, describeRun, type DescribeRunState } from "./describe-store";
 import { IDLE_MEDIA, mediaStore, type MediaState } from "./media-store";
 import { uploadStatusFor, type PhotoUploadStatus } from "./photo-model";
 import type { PhotoQueueState } from "./queue-state";
@@ -29,6 +31,13 @@ export const PhotoUserContext = createContext<string | null>(null);
 
 /** The gallery's server copy of an inspection's media, seeding the store before hydration. */
 export const MediaSeedContext = createContext<InspectionMedia | null>(null);
+
+/**
+ * Steri-AI's describing of photos (the describePhotos Server Action), from
+ * PhotoQueueProvider: handed over only for a role with Steri-AI Reading, so
+ * null means no Describe and no background run. The action checks again.
+ */
+export const PhotoDescribeContext = createContext<DescribePhotos | null>(null);
 
 const noSubscription = () => () => undefined;
 
@@ -73,6 +82,40 @@ export function useInspectionMedia(inspectionId: string): MediaState {
     store.ensureLoaded();
   }, [store, matching]);
   return state;
+}
+
+/**
+ * Steri-AI describes, in the background, the photos the report can show
+ * that it has not looked at yet (the Report page; docs/AI.md, "Describing
+ * photos"): where the page was handed the action (a role with Steri-AI
+ * Reading) and the user may still change the inspection's photos (the
+ * database's can_edit_inspection, as for Auto-Sort). Each batch's
+ * descriptions go into the media store, so the report follows. The run's
+ * state is for the page's one status line; `retry` is Try Again.
+ */
+export function useBackgroundDescriptions(inspectionId: string): { state: DescribeRunState; retry: () => void } {
+  const describe = useContext(PhotoDescribeContext);
+  const media = useInspectionMedia(inspectionId);
+  const run = useMemo(() => (typeof window === "undefined" ? null : describeRun(inspectionId)), [inspectionId]);
+  const state = useSyncExternalStore(
+    run ? run.subscribe : noSubscription,
+    run ? run.getSnapshot : () => DESCRIBE_IDLE,
+    () => DESCRIBE_IDLE,
+  );
+  const canDescribe = describe !== null && media.media?.access.canEdit === true;
+  const pending = useMemo(
+    () => (canDescribe && media.media ? photosToDescribe(media.media.photos).map((photo) => photo.id) : []),
+    [canDescribe, media.media],
+  );
+  const status = state.status;
+  useEffect(() => {
+    // Each time the photos change, and once a run ends: a photo sent before is never sent twice (describe-store.ts).
+    if (run && describe && pending.length > 0 && status === "idle") void run.run(describe, pending);
+  }, [run, describe, pending, status]);
+  const retry = useCallback(() => {
+    if (run && describe) void run.retry(describe, pending);
+  }, [run, describe, pending]);
+  return { state, retry };
 }
 
 /**

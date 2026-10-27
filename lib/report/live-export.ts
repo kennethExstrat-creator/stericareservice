@@ -15,8 +15,11 @@ import { ExportPhotoSchema, ExportSchema, type InspectionExport } from "@/lib/sc
 import type { ResolvedTemplate } from "@/lib/schemas/template";
 import type { InspectionData } from "@/modules/_framework";
 
-/** A photo as the screen's media store has it, with a link the browser can show. */
-export type LivePhoto = Pick<PhotoRecord, "id" | "moduleKey" | "target" | "caption" | "takenAt" | "includeInReport" | "flagged" | "storagePath" | "createdAt"> & {
+/** A photo as the screen's media store has it, with a link the browser can show, and Steri-AI's description. */
+export type LivePhoto = Pick<
+  PhotoRecord,
+  "id" | "moduleKey" | "target" | "caption" | "takenAt" | "includeInReport" | "flagged" | "storagePath" | "createdAt" | "description"
+> & {
   url: string | null;
 };
 
@@ -80,6 +83,7 @@ export function liveReportExport(input: LiveExportInput): InspectionExport | nul
       includeInReport: photo.includeInReport,
       flagged: photo.flagged,
       createdAt: photo.createdAt,
+      description: photo.description ?? null,
     })),
     files: [],
   };

@@ -230,6 +230,31 @@ describe("buildInspectionExport", () => {
     expect(warn).toHaveBeenCalled();
   });
 
+  // Migration 20261027200000 (docs/AI.md, "Describing photos"): Steri-AI's description goes out with its photo.
+  it("exports Steri-AI's description of a photo, and the photos undescribed on a project without descriptions", async () => {
+    const description = { text: "Thin spot, glove body", kind: "defect", defect: "thin_spot", location: null, clarity: 0.8, check: "visual" };
+    const tables = makeTables();
+    const visual = tables.inspection_photos.find((row) => row.id === IDS.photoVisual);
+    Object.assign(visual ?? {}, { ai_description: description, ai_described_at: "2026-10-05T06:00:00+00:00" });
+    // A description that does not read as one is none.
+    const weight = tables.inspection_photos.find((row) => row.id === IDS.photoWeight);
+    Object.assign(weight ?? {}, { ai_description: { text: "" }, ai_described_at: "2026-10-05T06:00:00+00:00" });
+
+    const described = await exportOf(setup({ tables }));
+    const descriptionOf = (doc: InspectionExport, id: string) => doc.photos.find((photo) => photo.id === id)?.description;
+    expect(descriptionOf(described, IDS.photoVisual)).toEqual(description);
+    expect(descriptionOf(described, IDS.photoWeight)).toBeNull();
+    expect(descriptionOf(described, IDS.photoUntagged)).toBeNull();
+
+    // Before the migration the columns are not there (42703): the photos go out all the same, without a word in the log.
+    const error = vi.spyOn(console, "error");
+    const missing = { code: "42703", message: "column inspection_photos.ai_description does not exist" };
+    const older = await exportOf(setup({ tables, failQuery: (_query, columns) => (columns?.includes("ai_description") ? missing : null) }));
+    expect(older.photos.map((photo) => photo.id)).toEqual(described.photos.map((photo) => photo.id));
+    expect(older.photos.every((photo) => photo.description === null)).toBe(true);
+    expect(error).not.toHaveBeenCalled();
+  });
+
   it("concludes with the computed suggestion and the final result and remark the inspector entered", async () => {
     // The row's remarks column still holds an older copy: the conclusion module is the source.
     const doc = await exportOf();

@@ -7,10 +7,12 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { UUID_PATTERN } from "@/lib/offline/id";
 import { FILE_BUCKET, PHOTO_BUCKET, type MediaBucket } from "@/lib/photos/paths";
 import type { InspectionStatus } from "@/lib/schemas/common";
+import { readPhotoDescription } from "@/lib/schemas/photo-description";
 import { ResolvedTemplateSchema } from "@/lib/schemas/template";
 import type { Database } from "@/lib/supabase/database.types";
 import { parseModuleOverrides } from "@/lib/templates/overrides";
 import { InspectionDataSchema } from "@/modules/_framework/data";
+import type { PhotoDescribed } from "./descriptions";
 import { isNoConnection } from "./messages";
 import {
   FILE_COLUMNS,
@@ -90,12 +92,13 @@ export async function loadInspectionMedia(
   if (!found.data) return { kind: "not_found" };
   const inspection = found.data;
 
-  const [canEdit, isAdmin, approves, photos, files, defects] = await Promise.all([
+  const [canEdit, isAdmin, approves, photos, described, files, defects] = await Promise.all([
     client.rpc("can_edit_inspection", { inspection_id: inspectionId }),
     client.rpc("is_admin"),
     // Choosing the report's photos is part of approving: the role's Approve and Reopen (migration 20261027150000).
     client.rpc("has_permission", { permission: "approve_inspections" }),
     client.from("inspection_photos").select(PHOTO_COLUMNS).eq("inspection_id", inspectionId).order("created_at").order("id"),
+    client.from("inspection_photos").select(DESCRIBED_COLUMNS).eq("inspection_id", inspectionId),
     client.from("inspection_files").select(FILE_COLUMNS).eq("inspection_id", inspectionId).order("created_at").order("id"),
     client.from("defect_codes").select("code, name").eq("active", true).order("name"),
   ]);
@@ -126,6 +129,7 @@ export async function loadInspectionMedia(
   if (!photoUrls.complete || !fileUrls.complete) problems.push(MEDIA_MESSAGES.signFailed);
 
   const template = inspection.template as { resolved: unknown } | null;
+  const descriptions = describedById(described);
   return {
     kind: "ok",
     media: {
@@ -140,7 +144,7 @@ export async function loadInspectionMedia(
         // Every inspection in sight and the switch, as the session's can() reads Approve and Reopen.
         isAdmin: !isAdmin.error && isAdmin.data === true && !approves.error && approves.data === true,
       },
-      photos: photoRows.map((row) => toMediaPhoto(row, photoUrls.urls)),
+      photos: photoRows.map((row) => toMediaPhoto(row, photoUrls.urls, descriptions.get(row.id))),
       files: fileRows.map((row) => toMediaFile(row, fileUrls.urls)),
       options: tagOptionsFromTemplate(
         await templateAsShown(template?.resolved ?? null, inspection.module_overrides, inspection.data),
@@ -251,6 +255,30 @@ export async function signPaths(
     }
   }
   return { urls, complete };
+}
+
+/** Steri-AI's look at each photo (docs/AI.md, "Describing photos"). */
+const DESCRIBED_COLUMNS = "id, ai_description, ai_described_at";
+
+/** Postgres undefined_column: a project that has not run migration 20261027200000. */
+const UNDEFINED_COLUMN = "42703";
+
+/**
+ * Steri-AI's descriptions by photo id, read apart from the photos so that a
+ * project without migration 20261027200000 (42703) shows its photos all the
+ * same, without descriptions. A description that does not read is none.
+ */
+function describedById(answer: {
+  data: { id: string; ai_description: unknown; ai_described_at: string | null }[] | null;
+  error: { code?: string; message: string } | null;
+}): Map<string, PhotoDescribed> {
+  if (answer.error || !answer.data) {
+    if (answer.error && answer.error.code !== UNDEFINED_COLUMN) logFailure("Steri-AI's descriptions", answer.error);
+    return new Map();
+  }
+  return new Map(
+    answer.data.map((row) => [row.id, { description: readPhotoDescription(row.ai_description), describedAt: row.ai_described_at ?? null }]),
+  );
 }
 
 /** A read that never reached the server is a warning (isNoConnection): the store tries again. */

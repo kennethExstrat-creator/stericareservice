@@ -4,31 +4,50 @@
 // straight away, offline included (it needs the user to find the photos
 // this device kept for them). The capture screen wraps itself in
 // PhotoQueueProvider; the gallery also hands over its server copy of the
-// inspection's media with InspectionMediaProvider.
+// inspection's media with InspectionMediaProvider. Both hand over
+// Steri-AI's describing of photos (the describePhotos Server Action) to a
+// role with Steri-AI Reading: the photo's dialog and the Report page use it.
 import { createContext, useEffect, useMemo, useState, type ReactNode } from "react";
+import type { DescribePhotos } from "@/lib/inspections/photos/descriptions";
 import type { InspectionMedia } from "@/lib/inspections/photos/queries";
-import { MediaSeedContext, PhotoUserContext } from "./hooks";
+import { MediaSeedContext, PhotoDescribeContext, PhotoUserContext } from "./hooks";
 import { photoQueueStore } from "./queue-store";
 
-export function PhotoQueueProvider({ userId, children }: { userId: string; children: ReactNode }) {
+export function PhotoQueueProvider({
+  userId,
+  describe,
+  children,
+}: {
+  userId: string;
+  /** describePhotos, for a role with Steri-AI Reading; left out otherwise. */
+  describe?: DescribePhotos;
+  children: ReactNode;
+}) {
   useEffect(() => {
     void photoQueueStore.start(userId);
   }, [userId]);
-  return <PhotoUserContext.Provider value={userId}>{children}</PhotoUserContext.Provider>;
+  return (
+    <PhotoUserContext.Provider value={userId}>
+      <PhotoDescribeContext.Provider value={describe ?? null}>{children}</PhotoDescribeContext.Provider>
+    </PhotoUserContext.Provider>
+  );
 }
 
 /** The gallery page's server copy of an inspection's photos and files, and its user. */
 export function InspectionMediaProvider({
   userId,
   media,
+  describe,
   children,
 }: {
   userId: string;
   media: InspectionMedia;
+  /** describePhotos, for a role with Steri-AI Reading; left out otherwise. */
+  describe?: DescribePhotos;
   children: ReactNode;
 }) {
   return (
-    <PhotoQueueProvider userId={userId}>
+    <PhotoQueueProvider userId={userId} describe={describe}>
       <MediaSeedContext.Provider value={media}>{children}</MediaSeedContext.Provider>
     </PhotoQueueProvider>
   );

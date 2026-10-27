@@ -73,6 +73,8 @@ function photo(id: string, patch: Partial<MediaPhoto> = {}): MediaPhoto {
     thumbPath: `${INSPECTION}/thumbs/${id}.jpg`,
     thumbUrl: `https://old/thumb/${id}`,
     fullUrl: `https://old/full/${id}`,
+    description: null,
+    describedAt: null,
     ...patch,
   };
 }
@@ -412,6 +414,26 @@ describe("changes from the actions", () => {
     store.removePhoto("missing");
     expect(listener).not.toHaveBeenCalled();
     expect(queue.store.forgetSettled).toHaveBeenCalledWith(["missing"]);
+  });
+
+  // docs/AI.md, "Describing photos": the Report page's preview follows each batch at once.
+  it("takes Steri-AI's descriptions, keeping everything else, and tells nobody about photos it does not have", () => {
+    const store = new InspectionMediaStore(INSPECTION);
+    store.seed(media([photo("a"), photo("b", { caption: "Mine" })]));
+    const listener = vi.fn();
+    store.subscribe(listener);
+    const pinhole = { text: "Pinhole, palm area", kind: "defect" as const, defect: "hole_palm", location: "hole_palm", clarity: 0.9, check: "watertight" as const };
+    store.applyDescriptions([
+      { id: "b", description: pinhole, describedAt: "2026-10-27T02:00:00Z" },
+      { id: "missing", description: null, describedAt: "2026-10-27T02:00:00Z" },
+    ]);
+    expect(store.getSnapshot().media?.photos).toEqual([
+      expect.objectContaining({ id: "a", description: null, describedAt: null }),
+      expect.objectContaining({ id: "b", caption: "Mine", description: pinhole, describedAt: "2026-10-27T02:00:00Z", thumbUrl: "https://old/thumb/b" }),
+    ]);
+    expect(listener).toHaveBeenCalledTimes(1);
+    store.applyDescriptions([{ id: "missing", description: null, describedAt: "2026-10-27T02:00:00Z" }]);
+    expect(listener).toHaveBeenCalledTimes(1);
   });
 });
 

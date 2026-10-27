@@ -109,7 +109,7 @@ export function assembleExport({ record, evaluated, links, exportedAt }: Assembl
               takenAt: photo.takenAt,
               includeInReport: photo.includeInReport,
               flagged: photo.flagged,
-              description: null,
+              description: photo.description ?? null,
               markers: [],
               size: null,
             },

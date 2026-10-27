@@ -92,7 +92,7 @@ export const PERMISSION_INFO: readonly PermissionInfo[] = [
     needsAllAccess: true,
   },
   { key: "export_reports", group: "actions", label: "Export Reports", description: "Download the Client Report PDF." },
-  { key: "ai_reading", group: "actions", label: "Steri-AI Reading", description: "Fill From a Document, reading source documents and Auto-Sort." },
+  { key: "ai_reading", group: "actions", label: "Steri-AI Reading", description: "Fill From a Document, reading source documents, Auto-Sort and describing photos." },
   { key: "ai_summary", group: "actions", label: "Steri-AI Summary", description: "Write the Inspection Summary with Steri-AI." },
   {
     key: "ai_second_opinion",

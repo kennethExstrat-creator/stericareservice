@@ -2,6 +2,7 @@
 // store) and photos still in the upload queue, as one list; and the upload
 // state of an inspection, for the pending badge and the submit button. Pure,
 // so the rules are unit-tested without a browser.
+import type { PhotoDescribed } from "@/lib/inspections/photos/descriptions";
 import type { InspectionMedia } from "@/lib/inspections/photos/queries";
 import { showsFullSize, type MediaFile } from "@/lib/inspections/photos/view";
 import type { Failure } from "@/lib/offline/failures";
@@ -41,6 +42,10 @@ export interface SlotPhoto {
    * without the report choice until the row is in.
    */
   pendingRow: boolean;
+  /** What Steri-AI says the photo shows; null until described (always, while queued), and when it could not tell. */
+  description: PhotoDescribed["description"];
+  /** When Steri-AI looked at the photo; null while it has not. */
+  describedAt: string | null;
 }
 
 /**
@@ -165,6 +170,8 @@ export function slotPhotos({
       thumbUrl: queue.previews[photo.id] ?? photo.thumbUrl,
       fullUrl: showsFullSize(photo) ? photo.fullUrl : null,
       pendingRow: false,
+      description: photo.description,
+      describedAt: photo.describedAt,
     }));
 
   // Uploaded, row not read yet: shown from what the queue knew, never missing from the list.
@@ -184,6 +191,8 @@ export function slotPhotos({
     thumbUrl: item.id in queue.previews ? queue.previews[item.id] : undefined,
     fullUrl: null,
     pendingRow: true,
+    description: null,
+    describedAt: null,
   }));
 
   const waiting: SlotPhoto[] = queued.map((item) => {
@@ -203,6 +212,8 @@ export function slotPhotos({
       thumbUrl: item.id in queue.previews ? queue.previews[item.id] : (uploadedCopy?.thumbUrl ?? undefined),
       fullUrl: uploadedCopy && showsFullSize(uploadedCopy) ? uploadedCopy.fullUrl : null,
       pendingRow: false,
+      description: uploadedCopy?.description ?? null,
+      describedAt: uploadedCopy?.describedAt ?? null,
     };
   });
 

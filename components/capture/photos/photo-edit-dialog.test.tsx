@@ -39,8 +39,10 @@ vi.mock("@/components/ui/select", () => {
   };
 });
 
+import type { DescribePhotos } from "@/lib/inspections/photos/descriptions";
 import { moduleTitle } from "@/lib/inspections/photos/view";
-import { captionDraft, captionDraftKey, moduleChoices, PhotoEditDialog } from "./photo-edit-dialog";
+import { PhotoDescribeContext } from "./hooks";
+import { captionDraft, captionDraftKey, moduleChoices, NOT_DESCRIBED, NOT_IDENTIFIED, PhotoEditDialog } from "./photo-edit-dialog";
 import type { SlotPhoto } from "./photo-model";
 
 const USER = "00000000-0000-4000-8000-000000000101";
@@ -87,6 +89,8 @@ describe("PhotoEditDialog", () => {
     thumbUrl: null,
     fullUrl: null,
     pendingRow: false,
+    description: null,
+    describedAt: null,
   };
   const options: PhotoTagOptions = {
     modules: [
@@ -218,5 +222,49 @@ describe("PhotoEditDialog", () => {
     ]);
     expect(moduleChoices("media_proof", options).map((entry) => entry.key)).toEqual(["visual", "labeling", "loading"]);
     expect(moduleChoices(null, options)).toHaveLength(3);
+  });
+
+  // docs/AI.md, "Describing photos" (Kenneth, 27 October 2026): Steri-AI's description, read-only, above the caption.
+  describe("Steri-AI's description", () => {
+    const describePhotos: DescribePhotos = async () => ({ ok: true, photos: [] });
+    const withDescribe = (patch: Partial<SlotPhoto>, describe: DescribePhotos | null = describePhotos) =>
+      renderToStaticMarkup(
+        <PhotoDescribeContext.Provider value={describe}>
+          <PhotoEditDialog inspectionId={INSPECTION} photo={{ ...photo, ...patch }} options={options} alt="Photo" onClose={() => {}} />
+        </PhotoDescribeContext.Provider>,
+      );
+    const pinhole = { text: "Pinhole, palm area", kind: "defect" as const, defect: "hole_palm", location: "hole_palm", clarity: 0.9, check: "watertight" as const };
+    /** The line's value, and its button's words: within the line, up to the Caption's field. */
+    const line = (html: string) => {
+      const start = html.indexOf('data-slot="photo-ai-description"');
+      const block = start === -1 ? "" : html.slice(start, html.indexOf(">Caption</label>", start));
+      return {
+        value: /<output[^>]*>([^<]*)<\/output>/.exec(block)?.[1] ?? null,
+        button: /<button[^>]*>(?:<svg[\s\S]*?<\/svg>)?([^<]*)<\/button>/.exec(block)?.[1] ?? null,
+      };
+    };
+
+    it("shows the description above the caption, with Describe Again for a role with Steri-AI Reading", () => {
+      const html = withDescribe({ description: pinhole, describedAt: "2026-10-27T02:00:00Z" });
+      expect(line(html)).toEqual({ value: "Pinhole, palm area", button: "Describe Again" });
+      expect(html).toContain(">Steri-AI Description</label>");
+      expect(html.indexOf(">Steri-AI Description</label>")).toBeLessThan(html.indexOf(">Caption</label>"));
+    });
+
+    it("says when Steri-AI has not looked yet, or could not tell, and offers Describe", () => {
+      expect(line(withDescribe({}))).toEqual({ value: NOT_DESCRIBED, button: "Describe" });
+      expect(line(withDescribe({ describedAt: "2026-10-27T02:00:00Z" }))).toEqual({ value: NOT_IDENTIFIED, button: "Describe Again" });
+    });
+
+    it("shows a description read-only without Steri-AI Reading, and nothing at all without one", () => {
+      expect(line(withDescribe({ description: pinhole, describedAt: "2026-10-27T02:00:00Z" }, null))).toEqual({ value: "Pinhole, palm area", button: null });
+      expect(withDescribe({}, null)).not.toContain("Steri-AI Description");
+    });
+
+    it("offers no Describe for a photo still on this device, or a flagged original", () => {
+      expect(withDescribe({ queued: true })).not.toContain("Steri-AI Description");
+      expect(withDescribe({ flagged: true })).not.toContain("Steri-AI Description");
+      expect(line(withDescribe({ flagged: true, description: pinhole, describedAt: "2026-10-27T02:00:00Z" })).button).toBeNull();
+    });
   });
 });

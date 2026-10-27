@@ -14,6 +14,7 @@ import {
   signPaths,
   type InspectionMedia,
 } from "@/lib/inspections/photos/queries";
+import type { DescribedPhoto } from "@/lib/inspections/photos/descriptions";
 import type { PhotoChange } from "@/lib/inspections/photos/messages";
 import { photoObjectPaths, previewPath, type MediaPhoto } from "@/lib/inspections/photos/view";
 import { backoffDelay, UPLOAD_BACKOFF, type Backoff } from "@/lib/offline/backoff";
@@ -172,6 +173,18 @@ export class InspectionMediaStore {
       this.askToRead(change.id, "photo");
       void this.readUnread();
     }
+  }
+
+  /** Steri-AI's descriptions just stored (docs/AI.md, "Describing photos"): the report's preview follows at once. */
+  applyDescriptions(described: readonly DescribedPhoto[]): void {
+    const media = this.state.media;
+    const byId = new Map(described.map((photo) => [photo.id, photo] as const));
+    if (!media || !media.photos.some((photo) => byId.has(photo.id))) return;
+    const photos = media.photos.map((photo) => {
+      const next = byId.get(photo.id);
+      return next ? { ...photo, description: next.description, describedAt: next.describedAt } : photo;
+    });
+    this.setState({ ...this.state, media: { ...media, photos } });
   }
 
   /**

@@ -18,6 +18,7 @@ import { readSectionParam } from "@/lib/inspections/capture/schemas";
 import { personLabel } from "@/lib/inspections/format";
 import { createClient } from "@/lib/supabase/server";
 import { CaptureScreen } from "./_components/capture-screen";
+import { describePhotos } from "./describe-actions";
 
 /**
  * Server Actions on this page run as long as the page may: submit starts
@@ -125,8 +126,9 @@ export default async function CapturePage({ params, searchParams }: PageProps<"/
   ]);
 
   return (
-    // The page's upload queue starts for this user at once, offline too (components/capture/photos).
-    <PhotoQueueProvider userId={user.id}>
+    // The page's upload queue starts for this user at once, offline too (components/capture/photos); Steri-AI
+    // describes the report's photos for a role with Steri-AI Reading (docs/AI.md, "Describing photos").
+    <PhotoQueueProvider userId={user.id} describe={userCan(user, "ai_reading") ? describePhotos : undefined}>
       <CaptureScreen
         inspectionId={inspection.id}
         heading={{

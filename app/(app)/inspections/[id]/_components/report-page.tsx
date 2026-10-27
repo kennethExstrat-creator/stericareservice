@@ -18,10 +18,13 @@
 // screen's copy of the inspection as it stands (lib/report/live-export.ts),
 // so they follow every option and entry at once. Download PDF opens the
 // print route in a new tab, what is waiting saved first, and the browser's
-// print dialog saves the PDF there. Read-only, the options show as saved.
+// print dialog saves the PDF there. Steri-AI describes, in the background,
+// the photos the report can show that it has not looked at, in one line
+// under Download PDF (docs/AI.md, "Describing photos"). Read-only, the
+// options show as saved.
 import { ChevronRightIcon, DownloadIcon } from "lucide-react";
-import { useId, useMemo, useState, type MouseEvent, type Ref } from "react";
-import { useInspectionMedia } from "@/components/capture/photos";
+import { useId, useMemo, useState, type MouseEvent, type ReactNode, type Ref } from "react";
+import { useBackgroundDescriptions, useInspectionMedia } from "@/components/capture/photos";
 import { Button } from "@/components/ui/button";
 import { Field, FieldLabel, FieldLegend, FieldSet } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
@@ -53,6 +56,7 @@ import {
   type ReportSectionKey,
 } from "@/lib/schemas/report-options";
 import { cn } from "@/lib/utils";
+import { PhotoDescribeStatus } from "./photo-describe-status";
 import { ReportPagesPreview } from "./report-pages-preview";
 import { SectionFrame } from "./section-frame";
 
@@ -118,6 +122,8 @@ export function ReportPage({
     return doc ? buildReportModel(doc) : null;
   }, [source, photos]);
   const moduleKeys = useMemo(() => source.evaluation.report.modules.map((evaluation) => evaluation.key), [source.evaluation]);
+  // Steri-AI describes the photos the report can show that it has not looked at yet; the preview follows.
+  const describing = useBackgroundDescriptions(inspectionId);
   return (
     <div
       id={id}
@@ -143,6 +149,7 @@ export function ReportPage({
           model={model}
           pageSize={options.pageSize}
           download={download}
+          status={<PhotoDescribeStatus state={describing.state} retry={describing.retry} />}
         />
       </div>
     </div>
@@ -161,6 +168,7 @@ export function livePhotos(photos: readonly MediaPhoto[]): LivePhoto[] {
     flagged: photo.flagged,
     storagePath: photo.storagePath,
     createdAt: photo.createdAt,
+    description: photo.description,
     url: photo.fullUrl ?? photo.thumbUrl,
   }));
 }
@@ -527,6 +535,7 @@ export function ReportPreviewCard({
   model,
   pageSize,
   download,
+  status,
 }: {
   id: string;
   inspectionId: string;
@@ -534,6 +543,8 @@ export function ReportPreviewCard({
   model: ReportModel | null;
   pageSize: ReportPageSize;
   download: ReportDownload;
+  /** One line under the actions: Steri-AI describing the report's photos. */
+  status?: ReactNode;
 }) {
   const titleId = `${id}-title`;
   const paper = REPORT_PAGE_SIZES.find((size) => size.value === pageSize)?.label ?? pageSize;
@@ -558,6 +569,7 @@ export function ReportPreviewCard({
           )}
         </div>
         <ReportActions inspectionId={inspectionId} download={download} />
+        {status}
       </header>
       <div className="min-h-0 flex-1 overflow-y-auto bg-slate-100 p-4">
         {model ? (

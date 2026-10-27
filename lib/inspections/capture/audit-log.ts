@@ -93,6 +93,8 @@ function describe(action: string, changes: Record<string, unknown>, words: Words
     }
     case "media_moved":
       return event("Photo or Video Moved", `From ${category(changes.from)} to ${category(changes.to)}`);
+    case "photos_described":
+      return event("Steri-AI Described Photos", count(changes.photos, "photo"));
     case "module_override": {
       const step = typeof changes.module === "string" ? words.moduleTitle(changes.module) : "A step";
       return changes.include === false

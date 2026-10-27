@@ -269,6 +269,8 @@ describe("toViewerPhoto", () => {
     thumbUrl: "https://signed/thumb",
     fullUrl: "https://signed/full",
     pendingRow: false,
+    description: null,
+    describedAt: null,
   };
 
   it("shows the full photo, else its preview, else the 'No preview' panel (an unconverted HEIC has neither)", () => {

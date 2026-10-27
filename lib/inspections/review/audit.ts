@@ -48,6 +48,7 @@ const EVENT_TITLES: Readonly<Record<string, string>> = {
   "ai_report.sent": "Sent to Steri-AI Report",
   "ai_review.requested": "Steri-AI Second Opinion Requested",
   [REOPEN_EVENT]: "Reason for Reopening",
+  photos_described: "Steri-AI Described Photos",
 };
 
 export function buildAuditTrail(rows: readonly AuditRow[], people: KnownPeople): AuditEntry[] {

@@ -426,6 +426,8 @@ export type Database = {
       }
       inspection_photos: {
         Row: {
+          ai_described_at: string | null
+          ai_description: Json | null
           caption: string | null
           created_at: string
           created_by: string
@@ -443,6 +445,8 @@ export type Database = {
           width: number | null
         }
         Insert: {
+          ai_described_at?: string | null
+          ai_description?: Json | null
           caption?: string | null
           created_at?: string
           created_by?: string
@@ -460,6 +464,8 @@ export type Database = {
           width?: number | null
         }
         Update: {
+          ai_described_at?: string | null
+          ai_description?: Json | null
           caption?: string | null
           created_at?: string
           created_by?: string

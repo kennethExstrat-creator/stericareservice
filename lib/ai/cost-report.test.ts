@@ -111,6 +111,7 @@ describe("buildAiCostReport", () => {
       ["new_inspection_read", 0.1, 2, 2, 0.05],
       ["media_sort", 0, 0, 0, null],
       ["inspection_summary", 0, 0, 0, null],
+      ["photo_description", 0, 0, 0, null],
     ]);
     expect(report.byJob[0].failed).toBe(1);
     expect(report.byJob[0].share).toBeCloseTo(0.6 / 1.1);
@@ -252,6 +253,7 @@ describe("buildAiCostReport", () => {
       "media_sort",
       "new_inspection_read",
       "inspection_summary",
+      "photo_description",
     ]);
   });
 });

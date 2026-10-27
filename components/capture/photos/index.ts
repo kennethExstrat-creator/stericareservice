@@ -10,6 +10,7 @@
 //   if (await photoUploadsSettled(id)) ...   // the last check on submit, other tabs included
 //   if (!(await photoUploadsSettled())) warn; stopPhotoQueue();   // on sign-out
 //   await refreshInspectionMedia(id);         // after this screen submitted, reopened or approved it
+//   const { state, retry } = useBackgroundDescriptions(id); // the Report page: Steri-AI describes the report's photos
 export { PhotoSlot, type PhotoSlotProps } from "./photo-slot";
 export { MediaLoadFailure, ModulePhotos, type ModulePhotosProps } from "./module-photos";
 export { PhotoQueueProvider, InspectionMediaProvider } from "./provider";
@@ -23,8 +24,10 @@ export {
   refreshInspectionMedia,
   stopPhotoQueue,
   useAddPhotos,
+  useBackgroundDescriptions,
   useInspectionMedia,
   usePhotoQueue,
   type PhotoFocus,
 } from "./hooks";
+export type { DescribeRunState } from "./describe-store";
 export { uploadStatusFor, type PhotoUploadStatus } from "./photo-model";

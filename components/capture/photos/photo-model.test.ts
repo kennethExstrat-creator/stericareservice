@@ -41,6 +41,8 @@ function uploaded(id: string, patch: Partial<MediaPhoto> = {}): MediaPhoto {
     thumbPath: `${INSPECTION}/thumbs/${id}.jpg`,
     thumbUrl: `https://signed/thumb/${id}`,
     fullUrl: `https://signed/full/${id}`,
+    description: null,
+    describedAt: null,
     ...patch,
   };
 }

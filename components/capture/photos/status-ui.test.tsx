@@ -162,6 +162,8 @@ describe("PhotoCard", () => {
     thumbUrl: "https://signed/thumb",
     fullUrl: "https://signed/full",
     pendingRow: false,
+    description: null,
+    describedAt: null,
   };
   const card = (photo: Partial<SlotPhoto>, rights: { canEdit?: boolean; canChooseReport?: boolean } = {}) =>
     render(

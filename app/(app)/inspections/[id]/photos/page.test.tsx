@@ -5,7 +5,7 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("@/lib/auth/session", () => ({ requireUser: vi.fn(), authorizeAction: vi.fn() }));
+vi.mock("@/lib/auth/session", () => ({ requireUser: vi.fn(), authorizeAction: vi.fn(), userCan: vi.fn() }));
 vi.mock("@/lib/supabase/server", () => ({ createClient: vi.fn() }));
 vi.mock("@/lib/inspections/photos/queries", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/inspections/photos/queries")>()),
@@ -64,6 +64,8 @@ function photo(id: string, patch: Partial<MediaPhoto> = {}): MediaPhoto {
     thumbPath: `${INSPECTION}/thumbs/${id}.jpg`,
     thumbUrl: `https://storage.example/thumb/${id}`,
     fullUrl: `https://storage.example/full/${id}`,
+    description: null,
+    describedAt: null,
     ...patch,
   };
 }

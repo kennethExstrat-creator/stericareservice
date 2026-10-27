@@ -44,6 +44,8 @@ function photo(id: string, moduleKey: string | null, target: string | null = nul
     thumbPath: `${INSPECTION}/thumbs/${id}.jpg`,
     thumbUrl: `https://storage.example/thumb/${id}`,
     fullUrl: `https://storage.example/full/${id}`,
+    description: null,
+    describedAt: null,
   };
 }
 

@@ -123,12 +123,14 @@ describe("schema guards", { timeout: 30_000 }, () => {
   // profiles guard of 20261007170000; 20261027120000 restates
   // save_inspection_with_events() of 20261026130000; 20261027150000 (roles)
   // restates the profiles guard of 20261008140000 and the ai_usage policy of
-  // 20261013120000.
+  // 20261013120000; 20261027200000 (photo descriptions) restates the ai_usage
+  // job check of 20261013130000.
   it.each([
     "20261006000700_review_fixes.sql",
     "20261007170000_lead_inspectors.sql",
     "20261008140000_profile_uid.sql",
     "20261013120000_ai_usage.sql",
+    "20261013130000_steri_ai_summary.sql",
     "20261026130000_save_inspection_with_events.sql",
   ])(
     "applies %s again where it stands without changing the schema",
@@ -153,10 +155,10 @@ describe("schema guards", { timeout: 30_000 }, () => {
     "20261007151500_delete_draft_inspection.sql",
     "20261007190000_inspector_writes_through_the_app.sql",
     "20261007193000_admins_delete_drafts_only.sql",
-    "20261013130000_steri_ai_summary.sql",
     "20261026120000_source_reading_proposals.sql",
     "20261026140000_source_spreadsheets.sql",
     "20261027120000_code_letter_events.sql",
+    "20261027200000_photo_descriptions.sql",
   ])("applies %s again without changing the schema", async (name) => {
     const before = await schemaSnapshot(db);
     const migration = (await readMigrations()).find((file) => file.name === name);

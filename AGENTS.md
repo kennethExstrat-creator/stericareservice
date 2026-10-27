@@ -24,6 +24,8 @@ QC inspection app for SteriCare glove inspectors: iPad for capture, desktop for 
   and `xlsx` (SheetJS 0.20.3 pinned from cdn.sheetjs.com, not npm's abandoned 0.18.5 with its known vulnerabilities):
   reads Excel and CSV source documents on the server for Steri-AI and the preview; the app imports it only in
   `server-only` modules (`lib/spreadsheets/read.ts`), and tests use it to build workbooks.
+  `sharp` (Next.js's own image library, installed with it; listed directly since 27 October 2026): makes the
+  1,600 px copy of a stored photo Steri-AI describes for the report, only in `lib/ai/photo-image.ts` (`server-only`).
 
 ## Next.js 16 rules
 - Read `node_modules/next/dist/docs/` before writing routing, auth, proxy or server action code.

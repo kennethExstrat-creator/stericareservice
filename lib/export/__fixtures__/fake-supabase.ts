@@ -24,8 +24,8 @@ export type FakeSupabaseOptions = {
   tables?: Record<string, Row[]>;
   /** Object names per bucket that exist and can be signed. */
   objects?: Record<string, string[]>;
-  /** Fail a query: return an error for it instead of running it. */
-  failQuery?: (query: RecordedQuery) => QueryError | null;
+  /** Fail a query: return an error for it instead of running it. `columns`: what select() named. */
+  failQuery?: (query: RecordedQuery, columns?: string) => QueryError | null;
   /** Fail every signing request to a bucket (an outage). */
   failSigning?: (bucket: string) => boolean;
   /** Clock for created_at / updated_at. */
@@ -59,7 +59,7 @@ export function createFakeSupabase(options: FakeSupabaseOptions = {}): FakeSupab
 
   const run = (query: RecordedQuery, modifiers: Modifiers): { data: Row[] | null; error: QueryError | null } => {
     queries.push(query);
-    const failure = options.failQuery?.(query) ?? null;
+    const failure = options.failQuery?.(query, modifiers.columns) ?? null;
     if (failure) return { data: null, error: failure };
     const table = (tables[query.table] ??= []);
     const matches = (row: Row) =>
@@ -105,13 +105,16 @@ export function createFakeSupabase(options: FakeSupabaseOptions = {}): FakeSupab
     return { data: rows.map((row) => ({ ...row })), error: null };
   };
 
-  type Modifiers = { order?: { column: string; ascending: boolean }; limit?: number };
+  type Modifiers = { order?: { column: string; ascending: boolean }; limit?: number; columns?: string };
 
   const from = (table: string) => {
     const query: RecordedQuery = { table, operation: "select", filters: [] };
     const modifiers: Modifiers = {};
     const builder = {
-      select: () => builder,
+      select: (columns?: string) => {
+        modifiers.columns = columns;
+        return builder;
+      },
       insert: (payload: unknown) => {
         query.operation = "insert";
         query.payload = payload;

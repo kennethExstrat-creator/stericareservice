@@ -120,6 +120,12 @@ describe("buildAuditTrail", () => {
     ]);
   });
 
+  it("names Steri-AI's photo descriptions (docs/AI.md, \"Describing photos\")", () => {
+    nextId = 1;
+    const [entry] = buildAuditTrail([row("photos_described", { photos: 4 }, "2026-10-27T01:00:00Z", null)], asAdmin);
+    expect(entry).toMatchObject({ kind: "event", title: "Steri-AI Described Photos", detail: null });
+  });
+
   it("says what changed when a status change is not part of the flow", () => {
     nextId = 1;
     const [entry] = buildAuditTrail([row("status_changed", { from: "approved", to: "nonsense" }, "2026-10-06T01:00:00Z", null)], asAdmin);

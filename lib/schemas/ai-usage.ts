@@ -7,7 +7,8 @@ import type { InspectionStatus } from "./common";
 /**
  * The jobs that call Claude, as ai_usage.feature stores them (its check
  * constraint lists the same, migration 20261013130000 adding the Steri-AI
- * Summary's inspection_summary on 12 October 2026).
+ * Summary's inspection_summary on 12 October 2026, and 20261027200000 the
+ * photo descriptions' photo_description on 27 October 2026).
  */
 export const AI_USAGE_FEATURES = [
   "source_document_read",
@@ -15,6 +16,7 @@ export const AI_USAGE_FEATURES = [
   "media_sort",
   "new_inspection_read",
   "inspection_summary",
+  "photo_description",
 ] as const;
 export type AiUsageFeature = (typeof AI_USAGE_FEATURES)[number];
 
@@ -30,6 +32,8 @@ export const AI_JOB: Readonly<Record<AiUsageFeature, { label: string; unit: stri
   new_inspection_read: { label: "New Inspection", unit: "document", units: "documents" },
   // item_count is 1 for a draft and 0 for its check retry, so "per summary" divides by summaries, not calls.
   inspection_summary: { label: "Inspection Summary", unit: "summary", units: "summaries" },
+  // One call per batch of photos; item_count the photos sent, so "per photo" divides by photos.
+  photo_description: { label: "Photo Descriptions", unit: "photo", units: "photos" },
 };
 
 /** The cost view's periods: the last 7, 30 or 90 Malaysia days, today included, or all time. */

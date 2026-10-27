@@ -3,6 +3,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { z } from "zod";
 import { MANUFACTURER_NAMES_SELECT, manufacturerLabel } from "@/lib/inspections/format";
 import type { InspectionResult, InspectionStatus, ProductType, Standard } from "@/lib/schemas/common";
+import { readPhotoDescription, type PhotoDescription } from "@/lib/schemas/photo-description";
 import type { Database } from "@/lib/supabase/database.types";
 
 /* ------------------------------------------------------------------ *
@@ -21,7 +22,12 @@ export const INSPECTION_RECORD_SELECT =
 
 const PHOTO_SELECT =
   "id, module_key, target, storage_path, thumb_path, caption, taken_at, include_in_report, flagged, created_at";
+/** Steri-AI's descriptions (migration 20261027200000), read apart: a project without them exports its photos all the same. */
+const DESCRIPTION_SELECT = "id, ai_description";
 const FILE_SELECT = "id, module_key, kind, storage_path, name, created_at";
+
+/** Postgres undefined_column: a project that has not run migration 20261027200000. */
+const UNDEFINED_COLUMN = "42703";
 
 export type PhotoRecord = {
   id: string;
@@ -34,6 +40,8 @@ export type PhotoRecord = {
   includeInReport: boolean;
   flagged: boolean;
   createdAt: string;
+  /** What Steri-AI says the photo shows (docs/AI.md, "Describing photos"); null or absent until it has described it. */
+  description?: PhotoDescription | null;
 };
 
 export type FileRecord = {
@@ -106,15 +114,23 @@ export async function loadInspectionRecord(client: ExportClient, inspectionId: s
   const id = parseInspectionId(inspectionId);
   if (!id) return notFound();
 
-  const [row, photos, files] = await Promise.all([
+  const [row, photos, described, files] = await Promise.all([
     client.from("inspections").select(INSPECTION_RECORD_SELECT).eq("id", id).maybeSingle(),
     client.from("inspection_photos").select(PHOTO_SELECT).eq("inspection_id", id),
+    client.from("inspection_photos").select(DESCRIPTION_SELECT).eq("inspection_id", id),
     client.from("inspection_files").select(FILE_SELECT).eq("inspection_id", id),
   ]);
   if (row.error) return databaseError("the inspection", row.error);
   if (!row.data) return notFound();
   if (photos.error) return databaseError("the photos", photos.error);
   if (files.error) return databaseError("the files", files.error);
+  // Without the descriptions (not yet on this project, or not read), the photos go out undescribed.
+  if (described.error && described.error.code !== UNDEFINED_COLUMN) {
+    console.error("[export] reading Steri-AI's descriptions failed", { code: described.error.code, message: described.error.message });
+  }
+  const descriptions = new Map(
+    (described.error ? [] : (described.data ?? [])).map((photo) => [photo.id, readPhotoDescription(photo.ai_description)] as const),
+  );
 
   const inspection = row.data;
   const template = one(inspection.template);
@@ -166,6 +182,7 @@ export async function loadInspectionRecord(client: ExportClient, inspectionId: s
         includeInReport: photo.include_in_report,
         flagged: photo.flagged,
         createdAt: photo.created_at,
+        description: descriptions.get(photo.id) ?? null,
       })),
       files: files.data.map((file) => ({
         id: file.id,

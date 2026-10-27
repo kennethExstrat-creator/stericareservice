@@ -9,6 +9,7 @@
 // server-only imports: the gallery renders it on the server and the capture
 // screen's photo slot on the iPad.
 import { screenShortTitle, screenTitle } from "@/lib/design/screen-names";
+import type { PhotoDescribed } from "@/lib/inspections/photos/descriptions";
 import { isMediaCategoryKey, MEDIA_CATEGORIES, mediaCategory } from "@/lib/inspections/source-documents";
 import type { InspectionFileKind } from "@/lib/photos/files";
 import { MODULE_TARGET_KEYS, parseTarget, type PhotoTarget, type TargetKey } from "@/lib/photos/target";
@@ -82,6 +83,13 @@ export interface MediaPhoto {
   thumbUrl: string | null;
   /** Signed URL of the full photo. */
   fullUrl: string | null;
+  /**
+   * What Steri-AI says the photo shows (docs/AI.md, "Describing photos"): null until it has
+   * described it, and when it could not tell. The inspector's caption wins in the report.
+   */
+  description: PhotoDescribed["description"];
+  /** When Steri-AI looked at the photo; null while it has not. */
+  describedAt: string | null;
 }
 
 /** An uploaded lab report or certificate. */
@@ -116,7 +124,7 @@ export function showsFullSize(photo: { flagged: boolean; storagePath: string }):
   return !photo.flagged || VIEWABLE_ORIGINAL.test(photo.storagePath);
 }
 
-export function toMediaPhoto(row: PhotoRow, urls: ReadonlyMap<string, string>): MediaPhoto {
+export function toMediaPhoto(row: PhotoRow, urls: ReadonlyMap<string, string>, described?: PhotoDescribed): MediaPhoto {
   const preview = previewPath(row);
   return {
     id: row.id,
@@ -135,6 +143,8 @@ export function toMediaPhoto(row: PhotoRow, urls: ReadonlyMap<string, string>): 
     thumbPath: row.thumb_path,
     thumbUrl: preview ? (urls.get(preview) ?? null) : null,
     fullUrl: urls.get(row.storage_path) ?? null,
+    description: described?.description ?? null,
+    describedAt: described?.describedAt ?? null,
   };
 }
 

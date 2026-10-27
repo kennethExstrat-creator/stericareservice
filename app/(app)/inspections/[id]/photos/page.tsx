@@ -6,9 +6,10 @@ import { ArrowLeftIcon } from "lucide-react";
 import { InspectionMediaProvider } from "@/components/capture/photos";
 import { PageHeader } from "@/components/qc";
 import { Button } from "@/components/ui/button";
-import { requireUser } from "@/lib/auth/session";
+import { requireUser, userCan } from "@/lib/auth/session";
 import { loadInspectionMedia } from "@/lib/inspections/photos/queries";
 import { createClient } from "@/lib/supabase/server";
+import { describePhotos } from "../describe-actions";
 import { PhotoGallery } from "./_components/photo-gallery";
 
 /**
@@ -59,7 +60,8 @@ export default async function InspectionPhotosPage({ params }: PageProps<"/inspe
           </Button>
         }
       />
-      <InspectionMediaProvider userId={user.id} media={media}>
+      {/* Describe Again in a photo's dialog for a role with Steri-AI Reading (docs/AI.md, "Describing photos"). */}
+      <InspectionMediaProvider userId={user.id} media={media} describe={userCan(user, "ai_reading") ? describePhotos : undefined}>
         <PhotoGallery inspectionId={id} />
       </InspectionMediaProvider>
     </div>
