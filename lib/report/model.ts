@@ -274,7 +274,63 @@ export type ForceAtBreakPage = { parts: ForceAtBreakPart[] };
 /** Section 06, Freedom From Holes & Visual Inspection: defects against the limits (TrackBar), pinholes, defects by class, photos. */
 export type HolesVisualSection = ReportSectionContent;
 /** Section 07, Glove Packing & Dispensing: average layering and dispensing (GroupedHBars), each box, the aged gloves, stickiness. */
-export type PackingSection = ReportSectionContent;
+export type PackingSection = ReportSectionContent & {
+  /** Under the title, from the config: what was opened and why, the minimums, the stickiness grades that pass and fail. */
+  lead: string;
+  /** The template's words, its labels without their marks: "Layering %" is "Layering"; the per-box table's short forms "Layer" and "Disp.". */
+  words: { layering: string; dispensing: string; stickiness: string; layeringShort: string; dispensingShort: string; boxNo: string; item: string; average: string };
+  /** The minimums in %, each a dashed red line on the chart; null where the template sets none. */
+  minimums: { layering: number | null; dispensing: number | null };
+  /** Average Layering & Dispensing: a row per size on the order, then the aged gloves'. Null while switched off or nothing is ordered. */
+  chart: { rows: PackingChartRow[]; aged: PackingChartRow | null } | null;
+  /** Per-Box Results; null while switched off or nothing is ordered. */
+  perBox: PackingPerBox | null;
+  /** Box-Aged Gloves; null while switched off or no aged sample is entered. */
+  aged: PackingAged | null;
+  /** Stickiness Grades: the template's codes in its order; null while switched off. */
+  grades: PackingGrade[] | null;
+  /** The parts each page prints, pageCount of them: the first page under the section's heading and lead. */
+  pages: { parts: PackingPart[] }[];
+};
+/** A percentage as the page prints it: null until entered; `low` below its minimum, printed in red. */
+export type PackingFigure = { value: number | null; low: boolean };
+/** A stickiness code of the template: its legend, and whether a box graded so passes. */
+export type PackingGrade = { code: string; label: string; pass: boolean };
+/** A row of the chart: a size's boxes, or the aged gloves. */
+export type PackingChartRow = {
+  /** The size, or "aged". */
+  key: string;
+  /** "S", "Aged Gloves". */
+  label: string;
+  /** "8 boxes"; the aged gloves' under their label, after their ageing where the data records it. */
+  sublabel: string;
+  layering: PackingFigure;
+  dispensing: PackingFigure;
+  /** The worst grade given; null while none is. */
+  grade: PackingGrade | null;
+};
+/** A box as the per-box table prints it, by its item. */
+export type PackingBoxRow = { boxNo: number | null; layering: PackingFigure; dispensing: PackingFigure };
+export type PackingPerBox = {
+  /** Each size on the order: its boxes by item (null for a blank row), and their averages. */
+  sizes: { size: string; label: string; boxes: (PackingBoxRow | null)[]; layering: PackingFigure; dispensing: PackingFigure }[];
+  /** Item rows: as many as the size with the most. */
+  items: number;
+  /** At the block's top right: the unit, then every box's grade or the grades given; a failing grade's part in red. */
+  note: { text: string; fail?: boolean }[];
+};
+export type PackingAgedRow = { size: string; label: string; layering: PackingFigure; dispensing: PackingFigure; grade: PackingGrade | null; status: CheckStatus };
+export type PackingAged = {
+  /** "Box-Aged Gloves", with the ageing where the aged samples record it: "Box-Aged Gloves (70 °C, 7 days)". */
+  title: string;
+  rows: PackingAgedRow[];
+  /** The samples' average layering and dispensing, and the worst grade among them. */
+  average: { layering: PackingFigure; dispensing: PackingFigure; grade: PackingGrade | null };
+  /** The rows' one result when they agree, printed once across them as the design does; null when they differ: each row prints its own. */
+  status: CheckStatus | null;
+};
+/** A part of a page: the chart, items `from` to `to` (0-based, `to` left out) of the per-box table, or the aged gloves beside the grades. */
+export type PackingPart = { kind: "chart" } | { kind: "perBox"; from: number; to: number } | { kind: "agedAndGrades" };
 /** Section 08, Packaging Labelling & Conclusion: the label checks, the results matrix (TickMatrix), the conclusion card. */
 export type LabellingConclusionSection = ReportSectionContent;
 /** The photo records: each record's photos (PhotoGrid), a page each unless its builder says more. The plan chooses the photos. */

@@ -87,6 +87,8 @@ export type GroupedHBarRow = {
   label: string;
   /** Beside the label, in grey: "8 boxes". */
   sublabel?: string;
+  /** The sublabel on a line of its own under the label: the aged gloves' "70 °C · 7 days · 4 boxes". */
+  sublabelBelow?: boolean;
   values: Readonly<Record<string, number | null | undefined>>;
   aside?: readonly AsideLine[];
   /** A grade at the row's end, as a chip: the stickiness grade "A". */
@@ -127,10 +129,16 @@ export function GroupedHBars({ rows, series, axis, minimums = {}, format = plain
           <Cell separated={row.separated}>
             <p className={cn("text-slate-900", TYPE.body)}>
               <span className="font-bold">{row.label}</span>
-              {row.sublabel && <span className="text-slate-600"> {row.sublabel}</span>}
+              {row.sublabel && (
+                <span className={cn("text-slate-600", row.sublabelBelow && "block")}>
+                  {row.sublabelBelow ? "" : " "}
+                  {row.sublabel}
+                </span>
+              )}
             </p>
           </Cell>
           <Cell separated={row.separated}>
+            {/* As wide as its column: its bars are placed absolutely and give it no width of their own. */}
             <div className="relative flex w-full flex-col gap-[0.8mm] py-[1.6mm]">
               <GridLines axis={axis} />
               {series.map((entry) => {
