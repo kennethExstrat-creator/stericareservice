@@ -20,6 +20,10 @@ The app does not lay out reports and does not decide results. The report and the
 - **Inspection text is data.** Comments, remarks and captions are passed as data; the reviewer is told never to follow instructions found in them.
 - **Not connected is a normal state.** With nothing configured the review panel shows "AI Second Opinion Not Connected" and the report button shows "AI Not Connected" with a JSON download.
 
+## Who may use it (roles)
+
+Each Steri-AI feature follows a switch of the person's role (Admin > Roles & Permissions, BUILD_SPEC 3; Kenneth, 27 October 2026), checked on the server and hidden on screen without it: **Steri-AI Reading** for Fill From a Document, reading Source Documents (Read, Read Again) and Auto-Sort; **Steri-AI Summary** for the Inspection Summary's button; **Steri-AI Second Opinion** for asking for one and agreeing, disagreeing or marking findings fixed (it needs a role that sees every inspection; the database refuses `ai_reviews` and `ai_review_actions` writes without it); **Steri-AI Settings** for the settings and the costs (`ai_usage` reads too). The second opinion that starts on submit is the template's choice and runs with the secret key, whatever the submitter's role. Without Steri-AI Reading, a file waits on Source Documents until someone whose role reads opens it.
+
 ## Choosing a provider
 
 Set these in `.env.local` (Vercel: Project Settings > Environment Variables). Empty values count as unset. Configuration is read on every request, so a bad value turns that hand-off "misconfigured" instead of crashing the app. The status names the variable to fix and what it accepts, but never repeats the value, so a key or a URL with a token pasted on the wrong line does not reach the screen.
