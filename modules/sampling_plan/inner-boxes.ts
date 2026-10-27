@@ -7,6 +7,13 @@
 // back ("do not under take, over take it to the nearest of 315 ... Always
 // use this method to calculate sample gloves taken per inner box").
 
+/**
+ * The inner boxes Auto Calculate Sampling takes from each case where a size
+ * has no number for it (Kenneth, 27 October 2026, asked how it should fill
+ * Inner Box Taken per Case: "Always 1 per case"); a number entered stays.
+ */
+export const AUTO_INNER_UNITS_PER_CASE = 1;
+
 /** The inner boxes sampled in all: cases × inner boxes per case; null until both are entered. */
 export function innerUnitsFromCases(cases: number | null, perCase: number | null): number | null {
   return cases === null || perCase === null ? null : cases * perCase;

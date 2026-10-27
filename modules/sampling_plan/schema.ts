@@ -190,20 +190,27 @@ export function withCount(
 
 /**
  * `data` with Auto Calculate Sampling's counts in (Capture.tsx): each size's
- * cases, then its gloves where it has a number for them (auto-gloves.ts: a
- * size whose lot is not known keeps its own). Through withCount, so a total
- * of inner units worked out from the cases follows them.
+ * cases, its inner units per case where it has none and `perCase` is given
+ * (AUTO_INNER_UNITS_PER_CASE; null where the template shows no such row),
+ * then its gloves where it has a number for them (auto-gloves.ts: a size
+ * whose lot is not known keeps its own). Through withCount, so a total of
+ * inner units worked out from the cases follows them.
  */
 export function withAutoSampling(
   data: SamplingPlanData,
   sizes: readonly string[],
   cases: Readonly<Record<string, number>>,
   gloves: Readonly<Record<string, number>>,
+  perCase: number | null = null,
 ): SamplingPlanData {
   return sizes.reduce((next, size) => {
     const withCases = withCount(next, size, "cases", cases[size] ?? null);
+    const withPerCase =
+      perCase !== null && (withCases.sizes[size]?.innerUnitsPerCase ?? null) === null
+        ? withCount(withCases, size, "innerUnitsPerCase", perCase)
+        : withCases;
     const count = gloves[size];
-    return count === undefined ? withCases : withCount(withCases, size, "gloves", count);
+    return count === undefined ? withPerCase : withCount(withPerCase, size, "gloves", count);
   }, data);
 }
 

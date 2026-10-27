@@ -122,6 +122,7 @@ import {
   type SizeLot,
 } from "./code-letters";
 import { showsInnerUnitsPerCase, type SamplingPlanConfig } from "./config";
+import { AUTO_INNER_UNITS_PER_CASE, innerUnitsFromCases } from "./inner-boxes";
 import { countGroups, type CountRow, type WorkedRow } from "./rows";
 import {
   isRowSwitch,
@@ -235,7 +236,8 @@ export default function Capture({
 
   // Auto Calculate Sampling, where the template has a Case row: null until every size has its order quantity. It
   // fills # of Gloves too, where the template has the row: the sample size of each size's lot's code letter at the
-  // inspection level in force (auto-gloves.ts).
+  // inspection level in force (auto-gloves.ts), and 1 inner box per case where a size has none and the template shows
+  // that row, so the total inner boxes, the gloves per inner box and the put back follow.
   const hasCases = countRows.some((row) => row.column === "cases");
   const hasGloves = countRows.some((row) => row.column === "gloves");
   const autoCases = hasCases
@@ -246,10 +248,20 @@ export default function Capture({
     autoCases !== null &&
     sizes.some((size) => {
       const row = data.sizes[size];
-      return wouldReplace(row?.cases ?? null, autoCases[size]) || wouldReplace(row?.gloves ?? null, autoGloves.gloves[size]);
+      const total =
+        perCaseShown && (row?.innerUnitsPerCase ?? null) === null
+          ? (innerUnitsFromCases(autoCases[size] ?? null, AUTO_INNER_UNITS_PER_CASE) ?? undefined)
+          : undefined;
+      return (
+        wouldReplace(row?.cases ?? null, autoCases[size]) ||
+        wouldReplace(row?.gloves ?? null, autoGloves.gloves[size]) ||
+        wouldReplace(row?.innerUnits ?? null, total)
+      );
     });
   const applyAutoCases = (cases: Readonly<Record<string, number>>) => {
-    update((current) => withAutoSampling(current, sizes, cases, autoGloves.gloves));
+    update((current) =>
+      withAutoSampling(current, sizes, cases, autoGloves.gloves, perCaseShown ? AUTO_INNER_UNITS_PER_CASE : null),
+    );
     const notice = autoCalculateNotice({
       unknownLot: autoGloves.unknownLot,
       sizeName: sizeHead,

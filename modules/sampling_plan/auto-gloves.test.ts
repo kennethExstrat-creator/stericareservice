@@ -3,6 +3,7 @@ import { makeTestContext } from "@/modules/_framework/testing";
 import { AUTO_CALCULATED_TITLE, autoCalculateNotice, autoSampleGloves } from "./auto-gloves";
 import { resolveInspectionLevel } from "./calc";
 import { SAMPLING_PLAN_DEFAULT_CONFIG } from "./config";
+import { AUTO_INNER_UNITS_PER_CASE } from "./inner-boxes";
 import { emptySamplingPlan, withAutoSampling, withCount } from "./schema";
 
 const lotsOf = (lots: Record<string, number | null>) => Object.entries(lots).map(([size, lot]) => ({ size, lot }));
@@ -75,6 +76,24 @@ describe("withAutoSampling: what Auto Calculate Sampling writes", () => {
       innerUnitsPerCase: 2,
       innerUnits: 70,
       gloves: 315,
+    });
+  });
+
+  it("takes 1 inner box per case where a size has none, so the total inner boxes follow the cases (Kenneth, 27 October 2026)", () => {
+    const next = withAutoSampling(emptySamplingPlan(), ["S", "XL"], { S: 15, XL: 10 }, { S: 500, XL: 315 }, AUTO_INNER_UNITS_PER_CASE);
+    expect(next.sizes.S).toMatchObject({ cases: 15, innerUnitsPerCase: 1, innerUnits: 15, gloves: 500 });
+    expect(next.sizes.XL).toMatchObject({ cases: 10, innerUnitsPerCase: 1, innerUnits: 10, gloves: 315 });
+  });
+
+  it("keeps an inner boxes per case already entered, and fills none where the template shows no such row", () => {
+    const worked = withCount(withCount(emptySamplingPlan(), "M", "cases", 10), "M", "innerUnitsPerCase", 2);
+    expect(withAutoSampling(worked, ["M"], { M: 35 }, { M: 315 }, AUTO_INNER_UNITS_PER_CASE).sizes.M).toMatchObject({
+      innerUnitsPerCase: 2,
+      innerUnits: 70,
+    });
+    expect(withAutoSampling(emptySamplingPlan(), ["M"], { M: 35 }, { M: 315 }, null).sizes.M).toMatchObject({
+      innerUnitsPerCase: null,
+      innerUnits: null,
     });
   });
 
