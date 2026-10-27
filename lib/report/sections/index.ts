@@ -17,6 +17,8 @@ import { packing } from "./packing";
 import { dimensions } from "./dimensions";
 import { measurements } from "./measurements";
 import { orderSampling } from "./order-sampling";
+import { labellingConclusion } from "./labellingConclusion";
+import { photos } from "./photos";
 
 export type SectionBuilder<K extends ReportSlotKey> = {
   key: K;
@@ -43,6 +45,8 @@ export const SECTION_BUILDERS: readonly AnySectionBuilder[] = [
   packing,
   dimensions,
   measurements,
+  labellingConclusion,
+  photos,
 ];
 
 /** The builder of a slot, if one is listed. */

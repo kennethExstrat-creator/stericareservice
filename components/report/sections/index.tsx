@@ -15,6 +15,8 @@ import { packingPages } from "./packing";
 import { dimensionsPages } from "./dimensions";
 import { measurementsPages } from "./measurements";
 import { orderSamplingPages } from "./order-sampling";
+import { labellingConclusionPages } from "./labellingConclusion";
+import { photosPages } from "./photos";
 
 export type SectionPagesProps<K extends ReportSlotKey> = {
   model: ReportModel;
@@ -44,6 +46,8 @@ export const SECTION_PAGES: readonly AnySectionPages[] = [
   packingPages,
   dimensionsPages,
   measurementsPages,
+  labellingConclusionPages,
+  photosPages,
 ];
 
 /** The pages of a slot, if listed. */

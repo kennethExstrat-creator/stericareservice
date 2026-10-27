@@ -23,10 +23,12 @@ export type TickMatrixProps = {
   /** The first column's header. */
   heading?: string;
   caption?: string;
+  /** Each size column's width as CSS ("10.5%", TG35 page 8's); 16% each when left out. */
+  columnWidth?: string;
   className?: string;
 };
 
-export function TickMatrix({ columns, rows, heading = "Check", caption, className }: TickMatrixProps) {
+export function TickMatrix({ columns, rows, heading = "Check", caption, columnWidth, className }: TickMatrixProps) {
   return (
     <table data-slot="report-tick-matrix" className={cn("relative w-full border-collapse", TYPE.body, className)}>
       {caption && <caption className="sr-only">{caption}</caption>}
@@ -39,7 +41,12 @@ export function TickMatrix({ columns, rows, heading = "Check", caption, classNam
             <th
               key={column}
               scope="col"
-              className={cn("w-[16%] border-b-[0.4mm] border-slate-900 px-[2mm] pt-[2mm] pb-[1.4mm] text-center font-medium text-slate-600", TYPE.small)}
+              style={columnWidth ? { width: columnWidth } : undefined}
+              className={cn(
+                !columnWidth && "w-[16%]",
+                "border-b-[0.4mm] border-slate-900 px-[2mm] pt-[2mm] pb-[1.4mm] text-center font-medium text-slate-600",
+                TYPE.small,
+              )}
             >
               {column}
             </th>

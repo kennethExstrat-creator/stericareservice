@@ -474,9 +474,98 @@ export type PackingAged = {
 /** A part of a page: the chart, items `from` to `to` (0-based, `to` left out) of the per-box table, or the aged gloves beside the grades. */
 export type PackingPart = { kind: "chart" } | { kind: "perBox"; from: number; to: number } | { kind: "agedAndGrades" };
 /** Section 08, Packaging Labelling & Conclusion: the label checks, the results matrix (TickMatrix), the conclusion card. */
-export type LabellingConclusionSection = ReportSectionContent;
-/** The photo records: each record's photos (PhotoGrid), a page each unless its builder says more. The plan chooses the photos. */
-export type PhotosSection = ReportSectionContent;
+export type LabellingConclusionSection = ReportSectionContent & {
+  /** The heading's title: the plan entry's, or the conclusion's own where the template inspects no labels. */
+  title: string;
+  /** Under the title, what the labels were checked for and the limit; null without the cards. */
+  lead: string | null;
+  /** The sizes on the order, as the template shows them: the cards' and the matrix's columns. */
+  sizes: { value: string; label: string }[];
+  /** A card per labelling level the template inspects, in its wording (Dispenser Box, Carton Box); none while switched off. */
+  levels: LabelLevelCard[];
+  /** Every check the inspection judged by size; null while switched off or with no size on the order. */
+  matrix: ResultsMatrix | null;
+  conclusion: FinalConclusion;
+  /** The blocks each page prints, in order: one page, or two where one cannot hold them. */
+  pages: LabellingBlock[][];
+};
+
+export type LabellingBlock = "levels" | "matrix" | "conclusion";
+
+/** A count in a card, red when it fails the size, amber when fewer boxes were inspected than planned; null when nothing is recorded. */
+export type LabelCell = { value: number | null; tone: "fail" | "warn" | null };
+
+export type LabelLevelCard = {
+  level: "inner" | "carton";
+  /** The level in the template's wording: "Dispenser Box", "Carton Boxes". */
+  title: string;
+  /** The computed limits in the template's words: "Accept 0 · Reject 1". */
+  limit: string;
+  /** Boxes inspected, per size. */
+  inspected: LabelCell[];
+  /** A row per check the level lists, in the template's order and wording. */
+  checks: { code: string; label: string; cells: LabelCell[] }[];
+  /** Blank rows after the checks, so two cards side by side line up their totals. */
+  padding: number;
+  /** Defects found over the level's checks, per size. */
+  defects: LabelCell[];
+  /** "Passed, All Sizes", or the sizes that failed. */
+  result: { status: Extract<CheckStatus, "pass" | "fail" | "not_done">; label: string };
+};
+
+/** The results matrix: a row per check, a cell per size on the order (null where it does not apply). */
+export type ResultsMatrix = {
+  rows: { key: string; label: string; cells: (CheckStatus | null)[] }[];
+  /** What the cells show, in the legend's order; "none" for a dash. */
+  legend: (CheckStatus | "none")[];
+};
+
+/** The signature as drawn on the iPad: SVG path data in the pad's own box. */
+export type SignatureDrawing = { width: number; height: number; paths: string[] };
+
+/** The conclusion card's parts besides the result, which is the Summary's (SummaryModel.conclusion). */
+export type FinalConclusion = {
+  /** The template's word for the conclusion: the card's kicker. */
+  heading: string;
+  dateLabel: string;
+  /** The conclusion's date as the design writes it, "12/04/2025"; null until dated. */
+  date: string | null;
+  /** Null while switched off. `drawing` is null until signed, or while the report is to be signed by hand (`byHand`). */
+  signature: { label: string; drawing: SignatureDrawing | null; byHand: boolean } | null;
+  /** Null while switched off; `text` null for none recorded. */
+  remark: { label: string; text: string | null } | null;
+};
+
+/** The photo records: each record's photos in the design's groups (PhotoGrid), a page each, or more where one cannot hold them. */
+export type PhotosSection = ReportSectionContent & {
+  /** One per page, in print order. */
+  pages: PhotoRecordPage[];
+};
+
+export type PhotoRecordPage = {
+  key: ReportPhotoGroupKey;
+  /** "Photo Record 1 of 3", numbered among the records the report shows. */
+  kicker: string;
+  /** The record's title; a page it continues on says so. */
+  title: string;
+  blocks: PhotoBlock[];
+};
+
+/** One group of photos under its heading: "Finished Goods Sampling", "Carton Labels". */
+export type PhotoBlock = {
+  key: string;
+  title: string;
+  /** At the heading's right, from the data: where and when, what the photos show. */
+  note: string | null;
+  columns: 4 | 5;
+  aspect: "3/2" | "4/3" | "1/1";
+  /** The first photo over two rows and two columns. */
+  lead: boolean;
+  photos: PhotoTile[];
+};
+
+/** A photo as its record prints it: the caption bold where it names a defect. */
+export type PhotoTile = { id: string; url: string; caption: string | null; strong: boolean; alt: string };
 
 /** One slot per section after the Summary, by the report options' section keys and "photos". */
 export type ReportSections = {

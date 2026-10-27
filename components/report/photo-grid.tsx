@@ -11,13 +11,15 @@ export type GridPhoto = {
   caption?: string | null;
   /** What a screen reader hears; the caption, else "Photo". */
   alt?: string;
+  /** This photo's caption in bold, or not, whatever `strongCaptions` says: a defect named among other photos (TG35 pages 10 and 11). */
+  strong?: boolean;
 };
 
 export type PhotoGridProps = {
   photos: readonly GridPhoto[];
   columns?: 2 | 3 | 4 | 5;
-  /** The tiles' shape. */
-  aspect?: "4/3" | "1/1";
+  /** The tiles' shape: 3/2 for the photo records' sampling and labels (TG35 page 9). */
+  aspect?: "3/2" | "4/3" | "1/1";
   /** The first photo over two rows and two columns. */
   lead?: boolean;
   /** Captions in bold: a defect named ("Pinhole, palm"). */
@@ -26,7 +28,7 @@ export type PhotoGridProps = {
 };
 
 const COLUMNS_CLASS = { 2: "grid-cols-2", 3: "grid-cols-3", 4: "grid-cols-4", 5: "grid-cols-5" } as const;
-const ASPECT_CLASS = { "4/3": "aspect-[4/3]", "1/1": "aspect-square" } as const;
+const ASPECT_CLASS = { "3/2": "aspect-[3/2]", "4/3": "aspect-[4/3]", "1/1": "aspect-square" } as const;
 
 export function PhotoGrid({ photos, columns = 4, aspect = "4/3", lead = false, strongCaptions = false, className }: PhotoGridProps) {
   return (
@@ -41,7 +43,7 @@ export function PhotoGrid({ photos, columns = 4, aspect = "4/3", lead = false, s
               <img src={photo.url} alt={photo.alt ?? photo.caption ?? "Photo"} className="absolute inset-0 size-full object-cover" />
             </div>
             {photo.caption && !isLead && (
-              <p className={cn("text-slate-900", strongCaptions ? "font-semibold" : "text-slate-600", TYPE.small)}>{photo.caption}</p>
+              <p className={cn("text-slate-900", (photo.strong ?? strongCaptions) ? "font-semibold" : "text-slate-600", TYPE.small)}>{photo.caption}</p>
             )}
           </li>
         );
