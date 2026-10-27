@@ -1,4 +1,4 @@
-// Section 06, Freedom From Holes & Visual Inspection, from the placeholder
+// Section 06, Freedom from Holes & Visual Inspection, from the placeholder
 // example reports (STD_EG: size M only; SAFEDON_EG: sizes XS to L) and the
 // four-size inspection on STD_EG's template (sizes S to XL) as the model
 // builds it, and from those exports changed the way an inspection can be: a
@@ -45,9 +45,9 @@ describe("STD_EG: one size", () => {
     expect(section.lead).toBe("Watertight and visual checks on the same 500 gloves. Size M stayed inside every acceptance limit.");
   });
 
-  it("sets each check against its limit: the watertight test and the visual classes, by the template's words, with calc's limits", () => {
+  it("sets each check against its limit: the watertight test and the visual classes, by the design's names, with calc's limits", () => {
     expect(section.limits?.columns.map((column) => [column.label, column.aql])).toEqual([
-      ["Freedom From Holes", "AQL 1.5"],
+      ["Freedom from Holes", "AQL 1.5"],
       ["Visual: Major", "AQL 2.5"],
       ["Visual: Minor", "AQL 4.0"],
       ["Visual: Critical", "AQL 0.0"],
@@ -67,15 +67,15 @@ describe("STD_EG: one size", () => {
     ]);
   });
 
-  it("lists the pinholes by the template's locations, an empty 'Other :' as Other, with the total and the limits", () => {
+  it("lists the pinholes by the template's locations, an empty 'Other :' as Other, the rows around them in the design's words", () => {
     expect(rowsOf(section.tables.pinholes)).toEqual([
-      ["samples", "No. of Sample Tested", "500"],
+      ["samples", "Samples Tested", "500"],
       ["defect", "Between Fingers (Crotch)", "0"],
       ["defect", "Palm", "0"],
       ["defect", "Finger", "1"],
       ["defect", "Cuff", "0"],
       ["defect", "Other", "0"],
-      ["total", "Total Number of Defects Found", "1"],
+      ["total", "Total Found", "1"],
       ["limits", "Accept / Reject", "14 / 15"],
     ]);
     expect(row(section.tables.pinholes, "Finger")?.values[0].tone).toBe("found");
@@ -87,23 +87,23 @@ describe("STD_EG: one size", () => {
     expect(rowsOf(section.tables.critical)).toEqual([
       ["defect", "Embedded Insects", "0"],
       ["defect", "Embedded Metal Debris", "0"],
-      ["total", 'Total Number of "Critical Defects" Found', "0"],
+      ["total", "Total Critical", "0"],
     ]);
     const visual = section.tables.visual;
     expect(visual).toMatchObject({ title: "Visual: Major & Minor Defects", firstHeader: "Defect" });
     expect(rowsOf(visual).slice(0, 3)).toEqual([
-      ["samples", "No. of Sample Inspected", "500"],
+      ["samples", "Samples Inspected", "500"],
       ["group", "Major"],
       ["defect", "Thin Area Between Fingers (Crotch)", "2"],
     ]);
     expect(visual?.rows.find((entry) => entry.kind === "group")?.detail).toBe("AQL 2.5");
     expect(rowsOf(visual).filter(([kind]) => kind !== "defect")).toEqual([
-      ["samples", "No. of Sample Inspected", "500"],
+      ["samples", "Samples Inspected", "500"],
       ["group", "Major"],
-      ["total", 'Total Number of "Major Defects" Found', "8"],
+      ["total", "Total Major", "8"],
       ["limits", "Accept / Reject", "21 / 22"],
       ["group", "Minor"],
-      ["total", 'Total Number of "Minor Defects" Found', "0"],
+      ["total", "Total Minor", "0"],
       ["limits", "Accept / Reject", "21 / 22"],
     ]);
     // Every defect the template lists, in its order and words, the class's own wording for one it shares.
@@ -150,47 +150,72 @@ describe("SAFEDON_EG: four sizes", () => {
     expect(rowsOf(section.tables.pinholes)).toContainEqual(["limits", "Accept / Reject", "3 / 4", "7 / 8", "7 / 8", "3 / 4"]);
   });
 
-  it("continues on a second page, the visual table breaking between its classes: Major beside the holes, Minor after", () => {
-    expect(section.pageCount).toBe(2);
-    expect(section.pages.map((page) => page.columns.map(slotsOf))).toEqual([
+  it("fits one page: the grid's 11 mm rows leave the right column room for the visual table whole", () => {
+    expect(section.pageCount).toBe(1);
+    expect(section.pages.map((page) => page.columns.map(slotsOf))).toEqual([[["pinholes", "critical"], ["visual"]]]);
+    const visual = section.pages[0].columns[1][0];
+    if (visual.kind !== "table") throw new Error("A table expected.");
+    expect(visual.table.rows.at(-1)?.key).toBe("minor:limits");
+    // The size columns are wide enough for the widest figure, "14 / 15".
+    expect(visual.widths.value * 4 + visual.widths.label).toBeCloseTo(100, 1);
+    expect(visual.widths.value).toBeGreaterThan(14);
+  });
+
+  it("continues on a second page on Letter, the visual table breaking between its classes: Major beside the holes, Minor after", () => {
+    const letter = sectionOf(withReportOptions(makeSafedonExport(), { pageSize: "letter" }));
+    expect(letter.pages.map((page) => page.columns.map(slotsOf))).toEqual([
       [["pinholes", "critical"], ["visual"]],
       [["visual (continued)"], []],
     ]);
-    const [first, second] = [section.pages[0].columns[1][0], section.pages[1].columns[0][0]];
+    const [first, second] = [letter.pages[0].columns[1][0], letter.pages[1].columns[0][0]];
     if (first.kind !== "table" || second.kind !== "table") throw new Error("Tables expected.");
     expect(first.table.rows.at(-1)?.key).toBe("major:limits");
     expect(second.table.rows[0]).toMatchObject({ kind: "group", label: "Minor", detail: "AQL 4.0" });
     expect(second.table.rows[0].continued).toBeUndefined();
-    // The size columns are wide enough for the widest figure, "14 / 15", in either column.
-    expect(second.widths.value * 4 + second.widths.label).toBeCloseTo(100, 1);
-    expect(second.widths.value).toBeGreaterThan(14);
+    // On a page of its own, a class keeps the table's heading.
+    expect(second.heading).toBe(true);
   });
 });
 
 describe("four sizes on STD_EG's template: S to XL, 200, 315, 200 and 125 gloves", () => {
-  const section = sectionOf(fourSizeExport());
+  const defects = (section: HolesVisualContent, cls: string) => (section.tables.visual?.rows ?? []).filter((entry) => entry.kind === "defect" && entry.key.startsWith(`${cls}:`));
+  /** The first page's columns, a table's piece by its first and last rows. */
+  const firstPage = (section: HolesVisualContent) =>
+    section.pages[0].columns.map((column) => column.map((slot) => (slot.kind === "table" ? `${slot.table.key}: ${slot.table.rows[0].key} to ${slot.table.rows.at(-1)?.key}` : "photos")));
 
-  it("lists the template's eleven major, six minor and two critical defects, and the defect not in the list", () => {
+  it("lists version 6's eleven major defects and its ring mark not in the list, six minor and two critical", () => {
+    const section = sectionOf(fourSizeExport());
     expect(section.limits?.rows.map((entry) => [entry.label, entry.n])).toEqual([
       ["S", "n = 200"],
       ["M", "n = 315"],
       ["L", "n = 200"],
       ["XL", "n = 125"],
     ]);
-    const defects = (cls: string) => (section.tables.visual?.rows ?? []).filter((entry) => entry.kind === "defect" && entry.key.startsWith(`${cls}:`));
-    expect(defects("major")).toHaveLength(12);
-    expect(defects("major").at(-1)).toMatchObject({ label: FOUR_SIZE_ONE_OFF, note: "Defect Not in the List" });
-    expect(defects("minor")).toHaveLength(6);
+    expect(defects(section, "major")).toHaveLength(12);
+    expect(defects(section, "major").at(-1)).toMatchObject({ label: FOUR_SIZE_ONE_OFF, note: "Defect Not in the List" });
+    expect(defects(section, "minor")).toHaveLength(6);
     expect(rowsOf(section.tables.critical).filter(([kind]) => kind === "defect")).toHaveLength(2);
   });
 
-  it("keeps the Minor class whole on the next page: it fits in neither column of the first", () => {
-    // Under the critical defects the Minor class takes 66 mm and its gap 5 mm; the left column has 22 mm left by the
-    // estimates (39 mm as Chrome draws it), the right 12 mm under the major defects.
-    expect(section.pages.map((page) => page.columns.map(slotsOf))).toEqual([
-      [["pinholes", "critical"], ["visual"]],
-      [["visual (continued)"], []],
+  it("prints one page, the Minor class under the critical defects without the table's heading (Kenneth, 27 October 2026)", () => {
+    const section = sectionOf(fourSizeExport());
+    expect(section.pageCount).toBe(1);
+    expect(firstPage(section)).toEqual([
+      ["pinholes: pinholes:tested to pinholes:limits", "critical: critical:embedded_insect to critical:total", "visual: minor:group to minor:limits"],
+      ["visual: visual:inspected to major:limits"],
     ]);
+    const [major, minor] = [section.pages[0].columns[1][0], section.pages[0].columns[0][2]];
+    if (major.kind !== "table" || minor.kind !== "table") throw new Error("Tables expected.");
+    expect([major.heading, minor.heading]).toEqual([true, false]);
+    expect(minor.table.rows[0]).toMatchObject({ kind: "group", label: "Minor", detail: "AQL 4.0" });
+  });
+
+  it("prints one page on version 7 too, Ring Mark a major of the template's", () => {
+    const section = sectionOf(fourSizeExport({ version: 7 }));
+    expect(defects(section, "major").at(-1)).toMatchObject({ key: "major:ring_mark", label: "Ring Mark" });
+    expect(defects(section, "major").some((entry) => entry.note)).toBe(false);
+    expect(section.pageCount).toBe(1);
+    expect(firstPage(section)[0].at(-1)).toBe("visual: minor:group to minor:limits");
   });
 });
 
@@ -234,7 +259,7 @@ describe("a size over its limit", () => {
 
   it("names the sizes that failed and the checks they failed, and says the hands are counted together", () => {
     expect(section.lead).toBe(
-      "Watertight and visual checks on the same 560 gloves, right and left hands counted together. Size S failed Visual: Critical; size M failed Freedom From Holes; size L failed Visual: Major.",
+      "Watertight and visual checks on the same 560 gloves, right and left hands counted together. Size S failed Visual: Critical; size M failed Freedom from Holes; size L failed Visual: Major.",
     );
   });
 
@@ -242,9 +267,9 @@ describe("a size over its limit", () => {
     const cells = section.limits?.rows.map((entry) => entry.cells.map((cell) => cell.status));
     expect(cells?.[1]).toEqual(["pass", "pass", "pass", "fail"]);
     expect(cells?.[2]).toEqual(["fail", "pass", "pass", "pass"]);
-    expect(row(section.tables.pinholes, "Total Number of Defects Found")?.values.map((value) => value.tone)).toEqual(["total", "total", "fail", "total"]);
+    expect(row(section.tables.pinholes, "Total Found")?.values.map((value) => value.tone)).toEqual(["total", "total", "fail", "total"]);
     expect(row(section.tables.critical, "Embedded Insects")?.values.map((value) => value.tone)).toEqual(["zero", "fail", "zero", "zero"]);
-    expect(row(section.tables.visual, 'Total Number of "Major Defects" Found')?.values.map((value) => value.tone)).toEqual(["total", "total", "total", "fail"]);
+    expect(row(section.tables.visual, "Total Major")?.values.map((value) => value.tone)).toEqual(["total", "total", "total", "fail"]);
   });
 
   it("adds both hands up, says where the 'Other :' holes were, and notes the hand split by each table", () => {
@@ -261,7 +286,7 @@ describe("a size over its limit", () => {
     expect(row(visual, "Torn cuff edge")?.values.map((value) => value.text)).toEqual(["0", "0", "0", "1"]);
     // Both after the template's own defects, before the class's total.
     const labels = (visual?.rows ?? []).map((entry) => entry.label);
-    expect(labels.indexOf("Torn cuff edge")).toBe(labels.indexOf('Total Number of "Major Defects" Found') - 1);
+    expect(labels.indexOf("Torn cuff edge")).toBe(labels.indexOf("Total Major") - 1);
   });
 });
 
@@ -320,7 +345,7 @@ describe("the options and the template", () => {
     visual.computed.classes.minor.include = false;
     visual.labels.majorCounts = "Major Defect";
     const section = sectionOf(doc);
-    expect(section.limits?.columns.map((column) => column.label)).toEqual(["Freedom From Holes", "Visual: Major", "Visual: Critical"]);
+    expect(section.limits?.columns.map((column) => column.label)).toEqual(["Freedom from Holes", "Visual: Major", "Visual: Critical"]);
     expect(section.tables.visual?.title).toBe("Visual: Major Defect");
     expect(section.tables.visual?.rows.filter((entry) => entry.kind === "group").map((entry) => entry.label)).toEqual(["Major"]);
   });
@@ -331,7 +356,7 @@ describe("the options and the template", () => {
     doc.photos = doc.photos.filter((photo) => photo.moduleKey !== "visual");
     const section = sectionOf(doc);
     expect(section.lead).toBe("Watertight test on 500 gloves. Size M stayed inside every acceptance limit.");
-    expect(section.limits?.columns.map((column) => column.label)).toEqual(["Freedom From Holes"]);
+    expect(section.limits?.columns.map((column) => column.label)).toEqual(["Freedom from Holes"]);
     expect(section.tables.critical).toBeNull();
     expect(section.pages[0].columns.map(slotsOf)).toEqual([["pinholes"], ["photos 1"]]);
     // Photos that open a column are headed.
@@ -352,15 +377,16 @@ describe("the options and the template", () => {
   });
 
   it("plan with the paper and the footer note: a shorter page holds less", () => {
-    // Three defects not in the list make STD_EG's visual table about 157 mm: an A4 page holds it, Letter with a footer note does not.
+    // Three defects not in the list make STD_EG's visual table about 162 mm: an A4 page holds it whole, Letter with a footer
+    // note does not, so its Minor class moves under the critical defects, and the photos, after the tables, go on.
     const doc = makeStdEgExport();
     const visual = moduleJson(doc, "visual");
     visual.computed.sizes.M.major.unmapped = ["Torn cuff edge", "Black speck", "Sticky fingertip"].map((label) => ({ label, count: 1, hand: null }));
     expect(sectionOf(doc).pageCount).toBe(1);
     const letter = sectionOf(withReportOptions(doc, { pageSize: "letter", footerNote: "F".repeat(250) }));
     expect(letter.pages.map((page) => page.columns.map(slotsOf))).toEqual([
-      [["pinholes", "critical", "photos 2"], ["visual"]],
-      [["visual (continued)"], []],
+      [["pinholes", "critical", "visual (continued)"], ["visual"]],
+      [["photos 2"], []],
     ]);
   });
 });
@@ -403,7 +429,7 @@ describe("the first page's columns, filled before the section goes on", () => {
     doc.photos = [];
     const visual = moduleJson(doc, "visual");
     visual.computed.sizes.M.major.unmapped = fiveMajor;
-    visual.computed.sizes.M.critical.unmapped = oneOffs(...Array.from({ length: 11 }, (_, index) => `Foreign body ${index + 1}`));
+    visual.computed.sizes.M.critical.unmapped = oneOffs(...Array.from({ length: 14 }, (_, index) => `Foreign body ${index + 1}`));
     expect(sectionOf(doc).pages.map((page) => page.columns.map(slotsOf))).toEqual([
       [["pinholes"], ["visual"]],
       [["critical"], ["visual (continued)"]],
@@ -412,7 +438,7 @@ describe("the first page's columns, filled before the section goes on", () => {
 
   it("put the photos under the visual table once it has ended, when the left column cannot hold them", () => {
     const doc = makeStdEgExport();
-    moduleJson(doc, "watertight").computed.sizes.M.unmapped = oneOffs("Thumb tip", "Wrist band", "Knuckle", "Fingertip seam", "Back of hand");
+    moduleJson(doc, "watertight").computed.sizes.M.unmapped = oneOffs("Thumb tip", "Wrist band", "Knuckle", "Fingertip seam", "Back of hand", "Palm crease");
     moduleJson(doc, "visual").computed.classes.minor.include = false;
     const section = sectionOf(doc);
     expect(section.pages.map((page) => page.columns.map(slotsOf))).toEqual([[["pinholes", "critical"], ["visual", "photos 2"]]]);

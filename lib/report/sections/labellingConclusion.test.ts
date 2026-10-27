@@ -160,7 +160,7 @@ describe("the results matrix", () => {
       ["Dimension", ["pass"]],
       ["Force at Break", ["pass"]],
       ["Weight", ["warn"]],
-      ["Freedom From Holes – Watertight Test", ["pass"]],
+      ["Freedom from Holes – Watertight Test", ["pass"]],
       ["Visual Inspection: Critical, Major, Minor", ["pass"]],
       ["Packing Check", ["pass"]],
       // The fixture's placeholder aged sample (the report printed none).

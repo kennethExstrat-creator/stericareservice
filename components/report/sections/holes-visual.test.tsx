@@ -1,9 +1,10 @@
 // Section 06's pages as server-rendered markup (TG35 page 6): the heading
 // and lead, the grid of defects against each limit (a track per check, a
 // chip for a limit of 0), the defect tables, the photos, a failing size in
-// red, a section continued on a second page, a class moved under the
-// critical defects; and the primitives' props the section added (TrackBar's
-// words alone and in red, ReportTable's plain look with a group's heading).
+// red, a section continued on a second page, the Minor class moved under
+// the critical defects; and the primitives' props the section added
+// (TrackBar's words alone and in red, ReportTable's plain look with a
+// group's heading).
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { ReportDocument, ReportTable, TrackBar } from "@/components/report";
@@ -58,14 +59,16 @@ describe("STD_EG's Section 06, on one page", () => {
     // Of the report's 11: Section 08 runs on to a second page (its matrix holds the packing check's aged sample).
     expect(page).toContain("Page 6 of 11</p>");
     expect(text(part(page, 'data-slot="report-section-heading"'))).toBe(
-      "Section 06 Freedom From Holes & Visual Inspection Watertight and visual checks on the same 500 gloves. Size M stayed inside every acceptance limit.",
+      "Section 06 Freedom from Holes & Visual Inspection Watertight and visual checks on the same 500 gloves. Size M stayed inside every acceptance limit.",
     );
   });
 
   it("draws the defects against each limit: a track to the reject number, a chip where nothing may be found", () => {
     const grid = part(page, 'data-slot="report-defect-limits"');
     expect(text(grid)).toContain("Defects Found against Acceptance Limit Found Reject point Track ends at reject number");
-    expect(text(grid)).toContain("Size Freedom From Holes AQL 1.5 Visual: Major AQL 2.5 Visual: Minor AQL 4.0 Visual: Critical AQL 0.0");
+    expect(text(grid)).toContain("Size Freedom from Holes AQL 1.5 Visual: Major AQL 2.5 Visual: Minor AQL 4.0 Visual: Critical AQL 0.0");
+    // A size's row is 11 mm with its hairline (Kenneth, 27 October 2026).
+    expect(part(grid, 'data-row="M"')).toContain('<div class="h-[10.75mm] pt-[0.8mm]">');
     expect(text(grid)).toContain("M n = 500 1 found · accept ≤ 14 8 found · accept ≤ 21 0 found · accept ≤ 21 0 found · accept 0 None");
     const holes = part(grid, 'data-cell="holes"');
     // 1 found of a track that ends at 15: a fifteenth filled, the last step tinted.
@@ -79,7 +82,7 @@ describe("STD_EG's Section 06, on one page", () => {
   it("lists the pinholes, the critical defects and the major and minor defects in the plain tables, a class under its blue heading", () => {
     const pinholes = part(page, 'data-table="pinholes"');
     expect(text(pinholes)).toBe(
-      "Pinholes by Location Pinholes by Location Location M No. of Sample Tested 500 Between Fingers (Crotch) 0 Palm 0 Finger 1 Cuff 0 Other 0 Total Number of Defects Found 1 Accept / Reject 14 / 15",
+      "Pinholes by Location Pinholes by Location Location M Samples Tested 500 Between Fingers (Crotch) 0 Palm 0 Finger 1 Cuff 0 Other 0 Total Found 1 Accept / Reject 14 / 15",
     );
     // A defect found in bold, a zero in grey, the total's row tinted under a rule, no hairlines between the rows.
     expect(pinholes).toMatch(/<span class="whitespace-nowrap font-bold text-slate-900">1<\/span>/);
@@ -88,9 +91,9 @@ describe("STD_EG's Section 06, on one page", () => {
     expect(pinholes).not.toContain("border-b-[0.25mm]");
     const visual = part(page, 'data-table="visual"');
     expect(visual).toMatch(/<tr data-row="major:group" data-kind="group" class="border-b-\[0\.3mm\] border-brand-200"><th colSpan="2" scope="rowgroup"/);
-    expect(text(visual)).toContain("No. of Sample Inspected 500 Major · AQL 2.5 Thin Area Between Fingers (Crotch) 2");
-    expect(text(visual)).toContain('Total Number of "Major Defects" Found 8 Accept / Reject 21 / 22 Minor · AQL 4.0 Small Dirt / Stain 0');
-    expect(text(part(page, 'data-table="critical"'))).toContain('AQL 0.0 · Accept 0 M Embedded Insects 0 Embedded Metal Debris 0 Total Number of "Critical Defects" Found 0');
+    expect(text(visual)).toContain("Samples Inspected 500 Major · AQL 2.5 Thin Area Between Fingers (Crotch) 2");
+    expect(text(visual)).toContain("Total Major 8 Accept / Reject 21 / 22 Minor · AQL 4.0 Small Dirt / Stain 0");
+    expect(text(part(page, 'data-table="critical"'))).toContain("AQL 0.0 · Accept 0 M Embedded Insects 0 Embedded Metal Debris 0 Total Critical 0");
   });
 
   it("shows the defect photos with their captions, and lays the parts out in the design's two columns", () => {
@@ -132,18 +135,18 @@ describe("a failing size", () => {
   it("prints the total over its limit and any critical defect in red, and says so in the lead", () => {
     expect(part(page, 'data-row="pinholes:total"')).toMatch(/<span class="whitespace-nowrap font-bold text-fail">15<\/span>/);
     expect(part(page, 'data-row="critical:embedded_metal"')).toMatch(/<span class="whitespace-nowrap font-bold text-fail">1<\/span>/);
-    expect(text(part(page, 'data-slot="report-section-heading"'))).toContain("Size M failed Freedom From Holes and Visual: Critical.");
+    expect(text(part(page, 'data-slot="report-section-heading"'))).toContain("Size M failed Freedom from Holes and Visual: Critical.");
   });
 });
 
-describe("SAFEDON_EG's Section 06, continued on a second page", () => {
-  const pages = sectionPages(makeSafedonExport());
+describe("SAFEDON_EG's Section 06 on Letter, continued on a second page", () => {
+  const pages = sectionPages(withReportOptions(makeSafedonExport(), { pageSize: "letter" }));
 
-  it("prints two pages, the second headed as continued, the visual table going on from its Minor class", () => {
+  it("prints two pages, the second headed as continued, the visual table going on from its Minor class under its heading", () => {
     expect(pages).toHaveLength(2);
-    expect(pages[0]).toContain("Page 6 of 9</p>");
-    expect(pages[1]).toContain("Page 7 of 9</p>");
-    expect(text(part(pages[1], 'data-slot="report-section-heading"'))).toBe("Section 06 · Continued Freedom From Holes & Visual Inspection");
+    expect(pages[0]).toContain("Page 8 of 12</p>");
+    expect(pages[1]).toContain("Page 9 of 12</p>");
+    expect(text(part(pages[1], 'data-slot="report-section-heading"'))).toBe("Section 06 · Continued Freedom from Holes & Visual Inspection");
     const continued = part(pages[1], 'data-table="visual"');
     expect(continued).toContain('data-continued="true"');
     expect(text(continued)).toMatch(/^Visual: Major & Minor Defects Continued Visual: Major & Minor Defects, continued Defect XS S M L Minor · AQL 4\.0 Small Dirt \/ Stain 0 0 0 0/);
@@ -151,22 +154,24 @@ describe("SAFEDON_EG's Section 06, continued on a second page", () => {
   });
 });
 
-describe("four sizes with Pinholes by Location off: the Minor class under the critical defects", () => {
-  const doc = fourSizeExport();
-  const blocks = { ...doc.report.sections.holesVisual.blocks, pinholesByLocation: false };
-  const pages = sectionPages(withReportOptions(doc, { sections: { ...doc.report.sections, holesVisual: { include: true, blocks } } }));
+describe("four sizes, S to XL: the Minor class under the critical defects", () => {
+  const pages = sectionPages(fourSizeExport());
 
-  it("prints one page: the critical defects and the Minor class down the left column, the major defects down the right", () => {
+  it("prints one page: the holes, the critical defects and the Minor class down the left column, the major defects down the right", () => {
     expect(pages).toHaveLength(1);
     expect(pages[0]).toContain("Page 7 of 10</p>");
     const columns = part(pages[0], 'data-slot="report-holes-visual-columns"');
     const [left, right] = [part(columns, 'data-column="1"'), part(columns, 'data-column="2"')];
+    expect(left).toContain('data-table="pinholes"');
     expect(left).toContain('data-table="critical"');
     const minor = part(left, 'data-table="visual"');
-    expect(minor).toContain('data-continued="true"');
-    expect(text(minor)).toMatch(/^Visual: Major & Minor Defects Continued Visual: Major & Minor Defects, continued Defect S M L XL Minor · AQL 4\.0 Small Dirt \/ Stain 2 1 0 0 /);
-    expect(text(minor)).toMatch(/ Accept \/ Reject 14 \/ 15 21 \/ 22 14 \/ 15 10 \/ 11$/);
-    expect(text(part(right, 'data-table="visual"'))).toMatch(/ Total Number of "Major Defects" Found 3 5 1 1 Accept \/ Reject 10 \/ 11 14 \/ 15 10 \/ 11 7 \/ 8$/);
+    // No heading over it: the table's own header row and the class's heading.
+    expect(minor).not.toContain("<h3");
+    expect(text(minor)).toMatch(/^Visual: Major & Minor Defects, continued Defect S M L XL Minor · AQL 4\.0 Small Dirt \/ Stain 2 1 0 0 /);
+    expect(text(minor)).toMatch(/ Total Minor 2 2 0 1 Accept \/ Reject 14 \/ 15 21 \/ 22 14 \/ 15 10 \/ 11$/);
+    const major = text(part(right, 'data-table="visual"'));
+    expect(major).toMatch(/^Visual: Major & Minor Defects Visual: Major & Minor Defects Defect S M L XL Samples Inspected 200 315 200 125 /);
+    expect(major).toMatch(/ Ring mark Defect Not in the List 0 1 0 0 Total Major 3 5 1 1 Accept \/ Reject 10 \/ 11 14 \/ 15 10 \/ 11 7 \/ 8$/);
   });
 });
 

@@ -61,10 +61,13 @@ describe("lowerCaseWords (docs/DESIGN.md, Capitalisation)", () => {
     expect(lowerCaseWords("Stay Signed in")).toEqual(["in"]);
   });
 
-  it("keeps the rule's eighteen small words", () => {
+  it("keeps the rule's nineteen small words, from among them (Kenneth, 27 October 2026: Freedom from Holes)", () => {
     expect([...SMALL_WORDS]).toEqual(
-      "a an the and but or nor of in on at to by for per via vs as".split(" "),
+      "a an the and but or nor of in on at to by for from per via vs as".split(" "),
     );
+    expect(lowerCaseWords("Freedom from Holes & Visual Inspection")).toEqual([]);
+    // A small word may still start with a capital in the middle.
+    expect(lowerCaseWords("Start From Previous")).toEqual([]);
   });
 
   it.each(["Weight (g)", "Weight (g) - Average of 13 Gloves per Size", "Finger Thickness (mm)", "Gloves (pcs)", "Unit: pairs"])(

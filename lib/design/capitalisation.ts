@@ -11,7 +11,7 @@
 // their own case wherever they stand ("Weight (g)", UNITS). Codes and names
 // keep theirs too (px, brand-500, iPad) and are not for this check.
 
-/** The words that stay lower case in the middle of a label: "Inspector in Charge", "Gloves per Case". */
+/** The words that stay lower case in the middle of a label: "Inspector in Charge", "Gloves per Case", "Freedom from Holes". */
 export const SMALL_WORDS: ReadonlySet<string> = new Set([
   "a",
   "an",
@@ -27,6 +27,7 @@ export const SMALL_WORDS: ReadonlySet<string> = new Set([
   "to",
   "by",
   "for",
+  "from",
   "per",
   "via",
   "vs",

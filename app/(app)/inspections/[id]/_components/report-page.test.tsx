@@ -140,7 +140,7 @@ describe("the Report page", () => {
       ["dimensions", "Dimensions & Weight"],
       ["measurements", "Measurements by Glove"],
       ["forceAtBreak", "Force at Break"],
-      ["holesVisual", "Freedom From Holes & Visual Inspection"],
+      ["holesVisual", "Freedom from Holes & Visual Inspection"],
       ["packing", "Glove Packing & Dispensing"],
       ["labellingConclusion", "Packaging Labelling & Conclusion"],
     ]);

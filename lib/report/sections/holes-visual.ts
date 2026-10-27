@@ -1,4 +1,4 @@
-// Section 06 of the report, Freedom From Holes & Visual Inspection (the TG35
+// Section 06 of the report, Freedom from Holes & Visual Inspection (the TG35
 // design's page 6, Kenneth, 27 October 2026), from the watertight and visual
 // modules' computed values: a lead that says what was checked and whether
 // every size stayed inside its limits; Defects Found against Acceptance
@@ -6,8 +6,10 @@
 // visual classes), each cell the count found over a track that ends at the
 // reject number; Pinholes by Location; the critical defects; photos of the
 // defects; and the major and minor defects, class by class with their totals
-// and limits. Labels, locations, defects and classes are the template's
-// words; the limits and results are calc's (modules/watertight/calc.ts,
+// and limits. Locations, defects and classes are the template's words, the
+// rows around them the design's ("Samples Tested", "Total Found", "Total
+// Major", "Accept / Reject": Kenneth, 27 October 2026), the check "Freedom
+// from Holes"; the limits and results are calc's (modules/watertight/calc.ts,
 // modules/visual/calc.ts), never worked out again here. With a hand split
 // (surgical gloves) the counts are both hands added together, as calc counts
 // them against one limit per size, and the section says so.
@@ -18,19 +20,20 @@
 // before anything goes on, the tables before the photos: the visual table
 // breaks between its classes where it can (and starts again under its
 // class's heading where it cannot), and a class the right column cannot
-// hold moves, whole, under the critical defects where it fits; photos the
-// left column cannot hold go under the visual table once it has ended. What
-// fits in neither column (long defect lists, long template labels) follows
-// on the next page; more than four sizes stack the parts across the page
-// instead. The pages are planned here, from the room each part takes
-// (HOLES_VISUAL_ROOM, the sizes components/report/sections/holes-visual.tsx
-// draws at), so the page count is known before anything is drawn.
+// hold moves, whole, under the critical defects where it fits, headed by
+// its own header row and class heading; photos the left column cannot hold
+// go under the visual table once it has ended. What fits in neither column
+// (long defect lists, long template labels) follows on the next page; more
+// than four sizes stack the parts across the page instead. The pages are
+// planned here, from the room each part takes (HOLES_VISUAL_ROOM, the sizes
+// components/report/sections/holes-visual.tsx draws at, checked against
+// Chrome's drawing and kept just above it), so the page count is known
+// before anything is drawn.
 import { formatCount } from "@/lib/format";
 import { mediaCategory, type MediaCategoryKey } from "@/lib/inspections/source-documents";
 import { parseTarget, type PhotoTarget } from "@/lib/photos/target";
 import type { ExportModule, ExportPhoto, InspectionExport } from "@/lib/schemas/export";
 import { REPORT_PAGE_SIZES } from "@/lib/schemas/report-options";
-import { withoutNote } from "@/lib/templates/short-titles";
 import { humanize } from "@/lib/zod-form/labels";
 import { HAND_LABEL } from "@/modules/_framework/hands";
 import type { DefectClass } from "@/modules/visual/schema";
@@ -50,7 +53,7 @@ export type DefectStatus = "pass" | "fail" | "not_done";
 /** A column of the grid: the watertight test, or a visual class. */
 export type DefectLimitColumn = {
   key: "holes" | DefectClass;
-  /** "Freedom From Holes", "Visual: Major": the template's words. */
+  /** "Freedom from Holes", "Visual: Major": the design's names, the class in the template's words. */
   label: string;
   /** "AQL 1.5"; null when the module gives none. */
   aql: string | null;
@@ -94,7 +97,7 @@ export type DefectRow = {
   key: string;
   /** The gloves tested or inspected, a defect or location, a class's heading, its total, its Accept / Reject. */
   kind: "samples" | "defect" | "group" | "total" | "limits";
-  /** In the template's words: "No. of Sample Tested", "Palm", "Major". */
+  /** A defect, location or class in the template's words ("Palm", "Major"); the rows around them in the design's ("Samples Tested"). */
   label: string;
   /** Under a one-off's label: the template's "Defect Not in the List". */
   note?: string;
@@ -119,9 +122,14 @@ export type DefectTable = {
 
 export type DefectPhoto = { id: string; url: string; caption: string | null };
 
-/** A table's or the photos' part on a page: a table's widths in percent of its column; the photos' heading where they open a column. */
+/**
+ * A table's or the photos' part on a page: a table's widths in percent of its
+ * column, and whether its heading prints (not over a class moved under the
+ * left column's tables, which its own header row and class heading head);
+ * the photos' heading where they open a column.
+ */
 export type HolesVisualSlot =
-  | { kind: "table"; table: DefectTable; continued: boolean; widths: { label: number; value: number } }
+  | { kind: "table"; table: DefectTable; continued: boolean; heading: boolean; widths: { label: number; value: number } }
   | { kind: "photos"; title: string | null; photos: DefectPhoto[]; columns: 2 | 4 };
 
 /** One page of the section: two columns under the grid (the design), or one across the page (more than four sizes). */
@@ -152,8 +160,10 @@ const PRODUCT_DEFECTS: MediaCategoryKey = "media_defects";
 const CLASS_ORDER: readonly DefectClass[] = ["major", "minor", "critical"];
 const CLASS_WORD: Readonly<Record<DefectClass, string>> = { critical: "Critical", major: "Major", minor: "Minor" };
 
-/** The design's name for a visual check: "Visual: Major". */
+/** The design's names: the watertight check, a visual check ("Visual: Major"), the rows around the defects (TG35 page 6). */
+const HOLES = "Freedom from Holes";
 const VISUAL = "Visual";
+const WORDS = { tested: "Samples Tested", inspected: "Samples Inspected", found: "Total Found", limits: "Accept / Reject" } as const;
 const HANDS_TOGETHER = "Right and left hands together";
 const DASH = "—";
 
@@ -245,8 +255,7 @@ function holesOf(module: ExportModule, sizes: readonly string[]): Check {
   const config = rec(module.config);
   return {
     key: "holes",
-    // The result's label names the check as the template does: "Freedom From Holes (Passed / Failed)".
-    label: withoutNote(labelOf(module, "result", "Freedom From Holes")),
+    label: HOLES,
     aql: num(module.computed.aql) ?? num(config.aql),
     list: entriesOf(module.computed.locations ?? config.locations),
     sizes: sizes.map((size) => {
@@ -477,12 +486,12 @@ function totalRow(key: string, label: string, check: Check): DefectRow {
   };
 }
 
-/** "Accept / Reject" in the template's words, and calc's limits per size: "10 / 11". */
-function limitsRow(key: string, module: ExportModule, check: Check): DefectRow {
+/** "Accept / Reject", and calc's limits per size: "10 / 11". */
+function limitsRow(key: string, check: Check): DefectRow {
   return {
     key,
     kind: "limits",
-    label: `${labelOf(module, "accept", "Accept")} / ${labelOf(module, "reject", "Reject")}`,
+    label: WORDS.limits,
     values: check.sizes.map((entry) => (entry && entry.accept !== null && entry.reject !== null ? { text: `${entry.accept} / ${entry.reject}`, tone: "muted" } : MISSING)),
   };
 }
@@ -497,13 +506,13 @@ function pinholesTable(module: ExportModule, reading: Reading): DefectTable | nu
     aside: splitsHands(module) ? HANDS_TOGETHER : null,
     firstHeader: "Location",
     rows: [
-      samplesRow("pinholes:tested", labelOf(module, "tested", "No. of Sample Tested"), check),
+      samplesRow("pinholes:tested", WORDS.tested, check),
       ...defectRows(check, "pinholes", labelOf(module, "unmapped", "Defect Not in the List"), {
         // "Other :" says where its holes were, as the reports print it ("Other : Glove Burst"); with nothing said, "Other".
         rename: (code, label) => (code !== OTHER_LOCATION ? label : descriptions.length > 0 ? `${label.trimEnd()} ${descriptions.join(", ")}` : label.replace(/\s*:\s*$/, "")),
       }),
-      totalRow("pinholes:total", labelOf(module, "totalDefects", "Total Found"), check),
-      limitsRow("pinholes:limits", module, check),
+      totalRow("pinholes:total", WORDS.found, check),
+      limitsRow("pinholes:limits", check),
     ],
   };
 }
@@ -533,7 +542,7 @@ function criticalTable(module: ExportModule, reading: Reading): DefectTable | nu
     firstHeader: `${aqlText(check.aql ?? 0)} · ${labelOf(module, "accept", "Accept")} 0`,
     rows: [
       ...defectRows(check, "critical", labelOf(module, "unmapped", "Defect Not in the List"), { critical: true }),
-      totalRow("critical:total", labelOf(module, "criticalTotal", "Total Critical"), check),
+      totalRow("critical:total", `Total ${classWord(module, "critical")}`, check),
     ],
   };
 }
@@ -555,14 +564,14 @@ function visualTable(module: ExportModule, reading: Reading): DefectTable | null
     aside: splitsHands(module) ? HANDS_TOGETHER : null,
     firstHeader: "Defect",
     rows: [
-      samplesRow("visual:inspected", labelOf(module, "inspected", "No. of Sample Inspected"), checks[0]),
+      samplesRow("visual:inspected", WORDS.inspected, checks[0]),
       ...checks.flatMap((check, index): DefectRow[] => {
         const cls = check.key as DefectClass;
         return [
           { key: `${cls}:group`, kind: "group", label: words[index], ...(check.aql === null ? {} : { detail: aqlText(check.aql) }), values: [] },
           ...defectRows(check, cls, note),
-          totalRow(`${cls}:total`, labelOf(module, `${cls}Total`, `Total ${CLASS_WORD[cls]}`), check),
-          limitsRow(`${cls}:limits`, module, check),
+          totalRow(`${cls}:total`, `Total ${words[index]}`, check),
+          limitsRow(`${cls}:limits`, check),
         ];
       }),
     ],
@@ -649,15 +658,16 @@ function defectName(modules: readonly ExportModule[], defect: string): string {
 const MM_PER_PT = 25.4 / 72;
 
 export const HOLES_VISUAL_ROOM = {
-  /** The header band and the footer with the content's padding (components/report/report-page.tsx). */
-  chrome: 61,
+  /** The header band and the footer with the content's padding (components/report/report-page.tsx): 56.6 mm as Chrome draws them, 1 mm over. */
+  chrome: 57.6,
   /** A line of the footer note (7.5 pt, two at most), and about as many characters as it holds. */
   footerNoteLine: 3.7,
   footerNoteCharacters: 100,
   /** Kept free at the foot of every page, for what the estimates miss. */
   safety: 3,
-  /** Between the page's parts, and between the parts of a column. */
+  /** Between the page's parts (the heading, the grid, the columns), and between the parts of a column (the design's 4 mm between its tables). */
   gap: 5,
+  partGap: 4,
   /** Between the two columns, the left one 84 parts of 177 and the right 93 (the design's 84 and 93 mm). */
   columnGap: 7,
   leftShare: 84 / 177,
@@ -667,29 +677,44 @@ export const HOLES_VISUAL_ROOM = {
   titleLine: 8.52,
   leadLine: 5.03,
   leadWidth: 175,
-  /** A block's heading (12 pt × 1.25), another line of it, and a line of its aside (8.5 pt × 1.4) wrapped under it. */
-  blockHeading: 5.6,
+  /**
+   * A block's heading (12 pt × 1.25: 5.3 mm as Chrome draws it), another
+   * line of it, and a line of its aside (8.5 pt × 1.4) wrapped under it;
+   * then the design's 1 mm to its table.
+   */
+  blockHeading: 5.4,
   blockTitleLine: 5.29,
   blockAsideLine: 4.2,
+  /** An aside beside the title sits on its baseline, and its line reaches lower: 5.5 mm in all as drawn. */
+  asideBeside: 0.2,
   /** The grid's legend (7.5 pt × 1.3) wrapped under its title. */
   legendWrap: 1 + 3.44,
-  tableGap: 1.5,
+  tableGap: 1,
   gridGap: 2.4,
-  /** The grid: a line of a check's name (9.5 pt × 1.3), then its AQL (8.5 pt × 1.4), padding and rule; a size's row. */
+  /**
+   * The grid: a line of a check's name (9.5 pt × 1.3), then its AQL (8.5 pt ×
+   * 1.4), padding and rule (10.4 mm in all as Chrome draws them); a size's
+   * row with its hairline (Kenneth, 27 October 2026: about 11 mm).
+   */
   gridLabelLine: 4.36,
-  gridHeaderRest: 4.2 + 1.6 + 0.4 + 0.3,
-  gridRow: 13.8,
+  gridHeaderRest: 6.1,
+  gridRow: 11,
   /** The grid's size column and the gap between its columns. */
   gridSizeColumn: 17,
   gridColumnGap: 4.6,
-  /** A table: the header row's padding and rule and a line of it (8.5 pt × 1.4), a line of a cell (9 pt × 1.2), a row's padding, a class's heading row, a total's rule, a one-off's note (7.5 pt × 1.3). */
-  tableHeaderPad: 1 + 1.2 + 0.4,
+  /**
+   * A table: the header row's padding and rule and a line of it (8.5 pt ×
+   * 1.4; 6.5 mm as Chrome draws a row of one line), a line of a cell (9 pt ×
+   * 1.2), a row's padding, a class's heading row, a total's rule, a one-off's
+   * note (7.5 pt × 1.3; 3.6 mm under its label as drawn).
+   */
+  tableHeaderPad: 2.4,
   tableHeaderLine: 4.2,
   tableLine: 3.81,
   rowPad: 1,
   groupRow: 1.4 + 3.81 + 0.5 + 0.3,
   totalRule: 0.3,
-  noteLine: 3.44,
+  noteLine: 3.6,
   /** A cell's padding either side. */
   cellPad: 1.6,
   /** A size's column: its share of what a 40 mm label leaves, 10.5 to 15 mm, and as wide as its widest figure ("14 / 15") with 2 mm to spare, while the label keeps 26 mm. */
@@ -698,10 +723,10 @@ export const HOLES_VISUAL_ROOM = {
   valueMin: 10.5,
   valueMax: 15,
   figureGap: 2,
-  /** Photos (4:3): the gap between tiles and between rows, a caption's gap and lines (8.5 pt × 1.4). */
+  /** Photos (4:3): the gap between tiles and between rows, a caption's gap (0.1 mm over) and lines (8.5 pt × 1.4). */
   photoGap: 3,
   photoRowGap: 2.4,
-  captionGap: 1.4,
+  captionGap: 1.5,
   captionLine: 4.2,
 } as const;
 
@@ -775,7 +800,8 @@ function tableWidths(width: number, sizes: number, rows: readonly DefectRow[]): 
 function blockHeadingHeight(title: string, aside: string | null, width: number): number {
   const lines = lineCount(title, width, 12, "bold");
   const height = ROOM.blockHeading + (lines - 1) * ROOM.blockTitleLine;
-  if (!aside || (lines === 1 && textWidth(title, 12, "bold") + 6 + textWidth(aside, 8.5) <= width)) return height;
+  if (!aside) return height;
+  if (lines === 1 && textWidth(title, 12, "bold") + 6 + textWidth(aside, 8.5) <= width) return height + ROOM.asideBeside;
   return height + 1 + lineCount(aside, width, 8.5) * ROOM.blockAsideLine;
 }
 
@@ -786,11 +812,12 @@ function rowHeight(row: DefectRow, labelWidth: number): number {
   return lines * ROOM.tableLine + ROOM.rowPad + note + (row.kind === "total" ? ROOM.totalRule : 0);
 }
 
-function tableHeight(table: DefectTable, rows: readonly DefectRow[], width: number, sizes: number, continued: boolean): number {
+/** A table's piece: its heading (unless `headed` is false), its header row and its rows. */
+function tableHeight(table: DefectTable, rows: readonly DefectRow[], width: number, sizes: number, continued: boolean, headed = true): number {
   const labelWidth = tableWidths(width, sizes, table.rows).label - 2 * ROOM.cellPad;
   const header = ROOM.tableHeaderPad + lineCount(table.firstHeader, labelWidth, 8.5, "bold") * ROOM.tableHeaderLine;
-  const heading = blockHeadingHeight(table.title, continued ? "Continued" : table.aside, width);
-  return heading + ROOM.tableGap + header + rows.reduce((sum, row) => sum + rowHeight(row, labelWidth), 0);
+  const heading = headed ? blockHeadingHeight(table.title, continued ? "Continued" : table.aside, width) + ROOM.tableGap : 0;
+  return heading + header + rows.reduce((sum, row) => sum + rowHeight(row, labelWidth), 0);
 }
 
 function photosHeight(photos: readonly DefectPhoto[], width: number, columns: number): number {
@@ -824,7 +851,8 @@ function headingHeight(title: string, lead: string | null, width: number): numbe
  * The pages
  * ------------------------------------------------------------------ */
 
-type TablePart = { kind: "table"; table: DefectTable; rows: DefectRow[]; continued: boolean; keep: boolean };
+/** A table's piece; `headed` false for a class moved under the left column's tables, which prints without the table's heading. */
+type TablePart = { kind: "table"; table: DefectTable; rows: DefectRow[]; continued: boolean; keep: boolean; headed: boolean };
 /** The photos, headed by `title` where they open a column rather than follow a table. */
 type PhotosPart = { kind: "photos"; photos: DefectPhoto[]; title: string };
 type Part = TablePart | PhotosPart;
@@ -835,12 +863,12 @@ type Placed = { frame: Frame; slot: HolesVisualSlot };
 
 /** A table as a part: one to `keep` whole moves on rather than split while a frame can hold it. */
 function tablePart(table: DefectTable, keep = true): TablePart {
-  return { kind: "table", table, rows: table.rows, continued: false, keep };
+  return { kind: "table", table, rows: table.rows, continued: false, keep, headed: true };
 }
 
 /** A part's height in a column `width` mm wide; `opening` the column, photos take their heading. */
 function partHeight(part: Part, width: number, sizes: number, photoColumns: 2 | 4, opening: boolean): number {
-  if (part.kind === "table") return tableHeight(part.table, part.rows, width, sizes, part.continued);
+  if (part.kind === "table") return tableHeight(part.table, part.rows, width, sizes, part.continued, part.headed);
   return (opening ? blockHeadingHeight(part.title, null, width) + ROOM.tableGap : 0) + photosHeight(part.photos, width, photoColumns);
 }
 
@@ -848,7 +876,13 @@ function slotOf(part: Part, width: number, sizes: number, photoColumns: 2 | 4, o
   if (part.kind === "photos") return { kind: "photos", title: opening ? part.title : null, photos: part.photos, columns: photoColumns };
   const widths = tableWidths(width, sizes, part.table.rows);
   const percent = (mm: number) => Math.round((mm / width) * 100000) / 1000;
-  return { kind: "table", table: { ...part.table, rows: part.rows }, continued: part.continued, widths: { label: percent(widths.label), value: percent(widths.value) } };
+  return {
+    kind: "table",
+    table: { ...part.table, rows: part.rows },
+    continued: part.continued,
+    heading: part.headed,
+    widths: { label: percent(widths.label), value: percent(widths.value) },
+  };
 }
 
 /**
@@ -900,10 +934,11 @@ type Poured = { placed: Placed[]; rest: Part[]; used: number[] };
  * Pours the parts into frames in order (each a column of a page, from
  * `frameAt`), at most `frames` of them: a part goes under the last while it
  * fits. One that does not moves to the next frame, or splits there if it is
- * a table that may split or that no frame could hold whole; photos that do
- * not fit keep their first row. What the frames cannot hold comes back as
- * the rest. With no limit an empty frame always takes a first piece, so
- * every part lands.
+ * a table that may split or that no frame could hold whole (under other
+ * parts, inside a class only when no frame could); photos that do not fit
+ * keep their first row. What the frames cannot hold comes back as the rest.
+ * With no limit an empty frame always takes a first piece, so every part
+ * lands.
  */
 function pour(
   parts: readonly Part[],
@@ -920,7 +955,7 @@ function pour(
   const height = (part: Part, frame: Frame) => partHeight(part, frame.width, sizes, photoColumns, used === 0);
   const put = (part: Part, frame: Frame) => {
     placed.push({ frame, slot: slotOf(part, frame.width, sizes, photoColumns, used === 0) });
-    used += (used > 0 ? ROOM.gap : 0) + height(part, frame);
+    used += (used > 0 ? ROOM.partGap : 0) + height(part, frame);
     fill[index] = used;
   };
   const advance = () => {
@@ -933,7 +968,7 @@ function pour(
     while (part) {
       if (index >= frames) return { placed, rest: [part, ...parts.slice(at + 1)], used: fill };
       const frame = frameAt(index);
-      const free = frame.room - used - (used > 0 ? ROOM.gap : 0);
+      const free = frame.room - used - (used > 0 ? ROOM.partGap : 0);
       if (height(part, frame) <= free) {
         put(part, frame);
         part = null;
@@ -947,10 +982,12 @@ function pour(
         advance();
       } else {
         const pieces: [TablePart, TablePart] | null = splitTable(part, free, frame.width, sizes) ?? (used === 0 && force ? smallestPieces(part) : null);
-        if (pieces) {
+        // Under other parts, a table that would break inside a class moves on whole while a frame can hold it.
+        const movesOn = pieces !== null && used > 0 && pieces[1].rows[0]?.continued === true && partHeight(part, frame.width, sizes, photoColumns, true) <= frame.room;
+        if (pieces && !movesOn) {
           put(pieces[0], frame);
           part = pieces[1];
-        } else if (used === 0 && force) {
+        } else if (!pieces && used === 0 && force) {
           // A table that cannot split at all takes the empty frame whole.
           put(part, frame);
           part = null;
@@ -964,9 +1001,11 @@ function pour(
 
 /**
  * The longest run of whole classes from the start of a piece of the visual
- * table that fits `room` in a column `width` mm wide, and what is left of
- * the piece; null when the piece starts inside a class (its heading
- * restarted) or its first class does not fit.
+ * table that fits `room` in a column `width` mm wide, to move under the left
+ * column's tables, and what is left of the piece; null when the piece starts
+ * inside a class (its heading restarted) or its first class does not fit.
+ * The run prints without the table's heading: its header row and its first
+ * class's heading ("Minor · AQL 4.0") head it.
  */
 function wholeClasses(part: TablePart, room: number, width: number, sizes: number): [TablePart, TablePart | null] | null {
   const { rows } = part;
@@ -975,11 +1014,11 @@ function wholeClasses(part: TablePart, room: number, width: number, sizes: numbe
   for (let end = 1; end <= rows.length; end += 1) {
     // A class ends where the next one's heading begins, or with the piece.
     if (end < rows.length && rows[end].kind !== "group") continue;
-    if (tableHeight(part.table, rows.slice(0, end), width, sizes, part.continued) > room) break;
+    if (tableHeight(part.table, rows.slice(0, end), width, sizes, part.continued, false) > room) break;
     take = end;
   }
   if (take === 0) return null;
-  return [{ ...part, rows: rows.slice(0, take) }, take < rows.length ? { ...part, rows: rows.slice(take) } : null];
+  return [{ ...part, rows: rows.slice(0, take), headed: false }, take < rows.length ? { ...part, rows: rows.slice(take) } : null];
 }
 
 function planPages(doc: InspectionExport, entry: ReportPlanEntryFor<"holesVisual">, content: Omit<HolesVisualContent, "pages">): HolesVisualPage[] {
@@ -1007,7 +1046,7 @@ function planPages(doc: InspectionExport, entry: ReportPlanEntryFor<"holesVisual
   const widthOf = (column: number) => (column === 0 ? leftWidth : width - ROOM.columnGap - leftWidth);
   const frameOf = (page: number, column: number): Frame => ({ page, column, width: widthOf(column), room: room(page) });
   const stacked = (parts: readonly Part[], column: number) =>
-    parts.reduce((sum, part, index) => sum + (index > 0 ? ROOM.gap : 0) + partHeight(part, widthOf(column), sizes, 2, index === 0), 0);
+    parts.reduce((sum, part, index) => sum + (index > 0 ? ROOM.partGap : 0) + partHeight(part, widthOf(column), sizes, 2, index === 0), 0);
   const twoPhotos = (parts: readonly Part[]) => parts.map((part) => (part.kind === "photos" ? { ...part, photos: part.photos.slice(0, 2) } : part));
 
   /** From `page` on: two streams, the left parts down the left columns and the visual table down the right; one alone shares both columns. */
@@ -1030,7 +1069,7 @@ function planPages(doc: InspectionExport, entry: ReportPlanEntryFor<"holesVisual
   };
 
   /** Whether a part fits under `used` mm of a frame. */
-  const fits = (part: Part, frame: Frame, used: number) => partHeight(part, frame.width, sizes, 2, used === 0) <= frame.room - used - (used > 0 ? ROOM.gap : 0);
+  const fits = (part: Part, frame: Frame, used: number) => partHeight(part, frame.width, sizes, 2, used === 0) <= frame.room - used - (used > 0 ? ROOM.partGap : 0);
 
   /**
    * The design's first page, its two columns filled before anything goes
@@ -1039,8 +1078,9 @@ function planPages(doc: InspectionExport, entry: ReportPlanEntryFor<"holesVisual
    * the left column, the visual table down the right, whole where it fits,
    * else breaking between its classes as before. A class the right column
    * cannot hold moves, whole, under the left column's tables where it fits
-   * there (Kenneth, 27 October 2026: the Minor table under the critical
-   * defects, not alone on a page), once they are all on the page. Then the
+   * there, without the table's heading (Kenneth, 27 October 2026: the Minor
+   * table under the critical defects, not alone on a page), once they are
+   * all on the page. Then the
    * photos: the left column where they fit, else the right once the visual
    * table has ended, else their first row. Nothing goes above what a column
    * already holds. What fits in neither column comes back, the left parts'
@@ -1055,10 +1095,10 @@ function planPages(doc: InspectionExport, entry: ReportPlanEntryFor<"holesVisual
     let leftUsed = holes.used[0];
     let rest = visualFirst.rest;
     const [next] = rest;
-    const moved = next?.kind === "table" && leftUsed > 0 && holes.rest.length === 0 ? wholeClasses(next, leftFrame.room - leftUsed - ROOM.gap, leftFrame.width, sizes) : null;
+    const moved = next?.kind === "table" && leftUsed > 0 && holes.rest.length === 0 ? wholeClasses(next, leftFrame.room - leftUsed - ROOM.partGap, leftFrame.width, sizes) : null;
     if (moved) {
       placed.push({ frame: leftFrame, slot: slotOf(moved[0], leftFrame.width, sizes, 2, false) });
-      leftUsed += ROOM.gap + partHeight(moved[0], leftFrame.width, sizes, 2, false);
+      leftUsed += ROOM.partGap + partHeight(moved[0], leftFrame.width, sizes, 2, false);
       rest = moved[1] ? [moved[1]] : [];
     }
     if (!photos) return { placed, left: holes.rest, right: rest };

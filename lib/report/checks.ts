@@ -60,7 +60,7 @@ const RECORD_MODULES: readonly ModuleKey[] = ["header", "glove_info", "order_lot
 
 /** A check the report names its own way, not by the step's short name (Kenneth, 27 October 2026: "Freedom from Holes - Watertight Test"). */
 const REPORT_CHECK_NAMES: Readonly<Partial<Record<ModuleKey, string>>> = {
-  watertight: "Freedom From Holes – Watertight Test",
+  watertight: "Freedom from Holes – Watertight Test",
 };
 
 const VISUAL_CLASSES = [

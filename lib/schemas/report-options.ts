@@ -127,7 +127,7 @@ export const REPORT_SECTIONS = [
   },
   {
     key: "holesVisual",
-    title: "Freedom From Holes & Visual Inspection",
+    title: "Freedom from Holes & Visual Inspection",
     modules: ["watertight", "visual"],
     blocks: [
       { key: "defectsAgainstLimit", label: "Defects Against Acceptance Limit" },

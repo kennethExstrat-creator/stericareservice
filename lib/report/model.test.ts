@@ -192,7 +192,7 @@ describe("the Summary", () => {
       ["Dimension", "Length ≥ 240 mm; Width 95 ± 10 mm", "Median Length 245 mm", "pass"],
       ["Force at Break", "Median ≥ 6 N", "Median 6.537 N", "pass"],
       ["Weight", "Within 10% of the indicative 3.5 g", "Average 2.90 g", "warn"],
-      ["Freedom From Holes – Watertight Test", "Watertight test, AQL 1.5", "1 pinhole in 500 gloves", "pass"],
+      ["Freedom from Holes – Watertight Test", "Watertight test, AQL 1.5", "1 pinhole in 500 gloves", "pass"],
       ["Visual Inspection: Critical", "AQL 0.0, accept 0", "0 in 500 gloves", "pass"],
       ["Visual Inspection: Major", "AQL 2.5", "8 in 500 gloves", "pass"],
       ["Visual Inspection: Minor", "AQL 4.0", "0 in 500 gloves", "pass"],

@@ -416,7 +416,7 @@ export type ForceAtBreakPart =
   | { kind: "tensileSummary" };
 
 export type ForceAtBreakPage = { parts: ForceAtBreakPart[] };
-/** Section 06, Freedom From Holes & Visual Inspection: defects against the limits (TrackBar), pinholes, defects by class, photos. */
+/** Section 06, Freedom from Holes & Visual Inspection: defects against the limits (TrackBar), pinholes, defects by class, photos. */
 export type HolesVisualSection = ReportSectionContent & import("./sections/holes-visual").HolesVisualContent;
 /**
  * Section 07's slot: the packing check's content (PackingSection), or, for a

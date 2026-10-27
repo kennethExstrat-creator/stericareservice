@@ -1,4 +1,4 @@
-// Section 06's pages, Freedom From Holes & Visual Inspection (TG35 page 6),
+// Section 06's pages, Freedom from Holes & Visual Inspection (TG35 page 6),
 // from the content lib/report/sections/holes-visual.ts builds and plans:
 // the heading and lead; Defects Found against Acceptance Limit, a table of
 // the sizes against each check, each cell the count found over a track that
@@ -54,6 +54,9 @@ export const holesVisualPages = defineSectionPages({ key: "holesVisual", Pages: 
 /** The legend's swatches: the track's own parts. */
 const SWATCH = "h-[1.8mm] w-[3.6mm] rounded-full";
 
+/** A size's row: 11 mm with its hairline (HOLES_VISUAL_ROOM.gridRow; Kenneth, 27 October 2026). */
+const ROW = "h-[10.75mm] pt-[0.8mm]";
+
 /**
  * The sizes down, the checks across, at least three columns wide so a
  * single check's track keeps the design's length. A real table: its cells
@@ -105,14 +108,14 @@ function LimitsGrid({ limits }: { limits: DefectLimits }) {
           {limits.rows.map((row) => (
             <tr key={row.size} data-row={row.size}>
               <th scope="row" className="border-b-[0.25mm] border-slate-200 p-0 text-left align-top font-normal">
-                <div className="h-[13.8mm] pt-[2.2mm]">
+                <div className={ROW}>
                   <span className="block text-[12pt] leading-[1.15] font-bold text-slate-900">{row.label}</span>
-                  <span className={cn("mt-[0.8mm] block text-slate-600 tabular-nums", TYPE.small)}>{row.n}</span>
+                  <span className="mt-[0.6mm] block text-[8.5pt] leading-[1.25] text-slate-600 tabular-nums">{row.n}</span>
                 </div>
               </th>
               {row.cells.map((cell) => (
                 <td key={cell.key} data-cell={cell.key} data-status={cell.status} className="border-b-[0.25mm] border-slate-200 p-0 align-top">
-                  <div className="h-[13.8mm] pt-[2.2mm]">
+                  <div className={ROW}>
                     <LimitCell cell={cell} />
                   </div>
                 </td>
@@ -128,14 +131,14 @@ function LimitsGrid({ limits }: { limits: DefectLimits }) {
   );
 }
 
-/** "2 found · accept ≤ 10" over its track; a limit of 0 with its chip; Not Done until calc can judge the size. */
+/** "2 found · accept ≤ 10" over its track; a limit of 0 with its chip; Not Done until calc can judge the size. Set close, for the row's 11 mm. */
 function LimitCell({ cell }: { cell: DefectLimitCell }) {
-  const nowrap = "[&>p]:whitespace-nowrap";
+  const words = "[&>p]:whitespace-nowrap [&>p]:leading-[1.15]";
   if (cell.status === "not_done" || cell.accept === null) {
     return (
-      <div className="flex flex-col items-start gap-[1.2mm]">
+      <div className="flex flex-col items-start gap-[0.8mm]">
         {cell.found > 0 && (
-          <p className={cn("whitespace-nowrap text-slate-900 tabular-nums", TYPE.small)}>
+          <p className="text-[8.5pt] leading-[1.15] whitespace-nowrap text-slate-900 tabular-nums">
             <span className="text-[11pt] font-bold">{cell.found}</span> found
           </p>
         )}
@@ -146,13 +149,13 @@ function LimitCell({ cell }: { cell: DefectLimitCell }) {
   const failed = cell.status === "fail";
   if (cell.accept === 0) {
     return (
-      <div className="flex flex-col items-start gap-[1.2mm]">
-        <TrackBar found={cell.found} accept={0} reject={cell.reject} bar={false} failed={failed} className={nowrap} />
+      <div className="flex flex-col items-start gap-[0.8mm]">
+        <TrackBar found={cell.found} accept={0} reject={cell.reject} bar={false} failed={failed} className={words} />
         <StatusChip status={failed ? "fail" : "pass"} label={failed ? undefined : "None"} size="sm" />
       </div>
     );
   }
-  return <TrackBar found={cell.found} accept={cell.accept} reject={cell.reject} failed={failed} className={nowrap} />;
+  return <TrackBar found={cell.found} accept={cell.accept} reject={cell.reject} failed={failed} className={words} />;
 }
 
 /* ------------------------------------------------------------------ *
@@ -162,7 +165,7 @@ function LimitCell({ cell }: { cell: DefectLimitCell }) {
 function PageColumns({ page, sizes }: { page: HolesVisualPage; sizes: Sizes }) {
   if (page.columns.every((column) => column.length === 0)) return null;
   const column = (slots: readonly HolesVisualSlot[], index: number) => (
-    <div key={index} data-column={index + 1} className="flex min-w-0 flex-col gap-[5mm]">
+    <div key={index} data-column={index + 1} className="flex min-w-0 flex-col gap-[4mm]">
       {slots.map((slot, position) => (
         <Slot key={slot.kind === "table" ? `${slot.table.key}-${slot.table.rows[0]?.key ?? position}` : `photos-${position}`} slot={slot} sizes={sizes} />
       ))}
@@ -179,7 +182,7 @@ function PageColumns({ page, sizes }: { page: HolesVisualPage; sizes: Sizes }) {
 function Slot({ slot, sizes }: { slot: HolesVisualSlot; sizes: Sizes }) {
   if (slot.kind === "photos") {
     return (
-      <section data-slot="report-defect-photos" aria-label={slot.title ?? "Defect photos"} className="flex flex-col gap-[1.5mm]">
+      <section data-slot="report-defect-photos" aria-label={slot.title ?? "Defect photos"} className="flex flex-col gap-[1mm]">
         {slot.title && <BlockHeading title={slot.title} />}
         <PhotoGrid columns={slot.columns} photos={slot.photos.map(({ id, url, caption }) => ({ id, url, caption }))} />
       </section>
@@ -202,8 +205,9 @@ const TONE: Readonly<Record<DefectValue["tone"], string>> = {
   missing: "text-slate-400",
 };
 
+/** A defect table's piece under its heading; a class moved under the critical defects without it, its header row and class heading enough. */
 function DefectTableView({ slot, sizes }: { slot: Extract<HolesVisualSlot, { kind: "table" }>; sizes: Sizes }) {
-  const { table, widths, continued } = slot;
+  const { table, widths, continued, heading } = slot;
   const columns: ReportColumn[] = [
     { key: LABEL, label: table.firstHeader, width: `${widths.label}%` },
     ...sizes.map((size) => ({ key: sizeKey(size.size), label: size.label, numeric: true, width: `${widths.value}%` })),
@@ -221,8 +225,8 @@ function DefectTableView({ slot, sizes }: { slot: Extract<HolesVisualSlot, { kin
         },
   );
   return (
-    <section data-slot="report-defect-table" data-table={table.key} data-continued={continued || undefined} className="flex flex-col gap-[1.5mm]">
-      <BlockHeading title={table.title} aside={continued ? "Continued" : (table.aside ?? undefined)} />
+    <section data-slot="report-defect-table" data-table={table.key} data-continued={continued || undefined} className="flex flex-col gap-[1mm]">
+      {heading && <BlockHeading title={table.title} aside={continued ? "Continued" : (table.aside ?? undefined)} />}
       <ReportTable plain caption={continued ? `${table.title}, continued` : table.title} columns={columns} rows={rows} />
     </section>
   );
