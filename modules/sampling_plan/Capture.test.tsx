@@ -58,6 +58,13 @@ const redCells = (html: string): string[] =>
   tagsWith(html, "data-enter-field").filter((tag) => /class="([^"]*)"/.exec(tag)?.[1].split(/\s+/).includes("ring-fail"));
 
 describe("sampling_plan Capture", () => {
+  it("offers a swap on the Order Qty row to each size's share of the cases, cases by default (Kenneth, 27 October 2026)", () => {
+    const html = render(props(STD_EG_EXAMPLE, LEVEL_I, SAMPLING_PLAN_LABELS));
+    expect(html).toMatch(/<button type="button" aria-pressed="false" aria-label="Show Weighted Average \(%\)"[^>]*\bsize-7\b[^>]*\btouch:size-11\b/);
+    expect(html).toContain(">Order Qty (Case)</span>");
+    expect(html).not.toContain("data-order-share");
+  });
+
   it("offers Auto Calculate Sampling while it can write, top right of the card in the capture screen (Kenneth, 26 October 2026)", () => {
     // Outside the capture screen's frame it sits at the top of the body; the frame puts it in its header.
     const html = render(props(SAFEDON_EG_EXAMPLE));

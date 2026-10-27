@@ -78,7 +78,7 @@
 // 2026): switched off, the row is greyed, never hidden, its cells take no
 // typing and nothing in it is asked for. No template shows a row of gloves
 // for weight any more (shownColumns).
-import { ArrowDownIcon, CalculatorIcon, ChevronDownIcon, ChevronUpIcon, Settings2Icon, TableIcon } from "lucide-react";
+import { ArrowDownIcon, ArrowLeftRightIcon, CalculatorIcon, ChevronDownIcon, ChevronUpIcon, Settings2Icon, TableIcon } from "lucide-react";
 import { useEffect, useId, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { toast } from "sonner";
 import {
@@ -160,6 +160,7 @@ import {
 import { showsInnerUnitsPerCase, type SamplingPlanConfig } from "./config";
 import { AUTO_INNER_UNITS_PER_CASE, glovesFormula } from "./inner-boxes";
 import { letterSample, letterSteps, type LetterSteps } from "./letter-steps";
+import { orderShareText, orderShareTotalText } from "./order-share";
 import { countGroups, type CountRow, type LetterRow, type WorkedRow } from "./rows";
 import {
   autoSamplingReplaces,
@@ -222,6 +223,9 @@ const FORMULA_ROOM = {
 // The Code Letter cell's Reduce and Raise: the whole button is the target, 28 px (44 px on any touchscreen), its fill
 // a circle inside its padding, quiet until hovered or focused, as a measurement grid's pencil (docs/DESIGN.md). Its
 // negative margins reach into the cell's padding, so the row keeps the others' height.
+// The Order Qty row swapped to each size's share of the cases ordered (Kenneth, 27 October 2026).
+const ORDER_SHARE_LABEL = "Weighted Average (%)";
+
 const STEP =
   "-my-1 inline-flex size-7 shrink-0 items-center justify-center rounded-full bg-clip-content p-0.5 text-muted-foreground outline-none transition-colors hover:bg-brand-100 hover:text-brand-700 focus-visible:text-brand-700 focus-ring-inset active:bg-brand-200 disabled:pointer-events-none disabled:opacity-40 touch:-my-2 touch:size-11 touch:p-1 [&_svg]:size-4 touch:[&_svg]:size-5";
 // A letter below its lot's: an amber badge with the lot's letter, "↓ N", just before it on the same line (Kenneth, 27
@@ -253,6 +257,8 @@ export default function Capture({
   // reports its own size.
   useReportShownSize(sizes.length === 1 ? sizes[0] : null, onFocusChange);
   const [rejected, setRejected] = useState<Readonly<Record<string, RejectedEntry>>>({});
+  // The Order Qty row as cases, or as each size's share of them (its swap button): a view, never saved.
+  const [orderShare, setOrderShare] = useState(false);
   // Every write starts from the latest data, so a pasted run of counts keeps every value (docs/CAPTURE_KIT.md).
   const update = useDataUpdater(data, onChange);
 
@@ -447,6 +453,9 @@ export default function Capture({
   const order = (size: string) => context.order[size]?.qtyCases ?? null;
   const factValue = (key: "orderQty" | "lotSizeGloves", size: string) => (key === "orderQty" ? order(size) : lot(size));
   const factTotal = (key: "orderQty" | "lotSizeGloves") => sumOf(sizes.map((size) => factValue(key, size)));
+  // Swapped, the Order Qty row reads as weighted average %: each size's share of the cases ordered (order-share.ts).
+  const shared = (key: "orderQty" | "lotSizeGloves") => key === "orderQty" && orderShare;
+  const factLabel = (key: "orderQty" | "lotSizeGloves") => (shared(key) ? ORDER_SHARE_LABEL : label(key));
   // Why a lot shows a dash, for the pointer's hover and screen readers: the line under the row is for the eye.
   const factNote = (key: "orderQty" | "lotSizeGloves", value: number | null) =>
     key === "lotSizeGloves" && value === null ? lotNote : null;
@@ -468,8 +477,20 @@ export default function Capture({
         );
       case "fact":
         return (
-          <div key={line.key} style={at(row, 1)} className={cn(CELL, LABEL_CELL, "text-muted-foreground")}>
-            {label(line.key)}
+          <div key={line.key} style={at(row, 1)} className={cn(CELL, LABEL_CELL, "gap-1 text-muted-foreground")}>
+            <span className="min-w-0 flex-1">{factLabel(line.key)}</span>
+            {line.key === "orderQty" && (
+              <button
+                type="button"
+                aria-pressed={orderShare}
+                aria-label={orderShare ? `Show ${label("orderQty")}` : `Show ${ORDER_SHARE_LABEL}`}
+                title={orderShare ? `Show ${label("orderQty")}` : `Show ${ORDER_SHARE_LABEL}`}
+                onClick={() => setOrderShare((shown) => !shown)}
+                className={STEP}
+              >
+                <ArrowLeftRightIcon aria-hidden />
+              </button>
+            )}
           </div>
         );
       case "note":
@@ -548,15 +569,17 @@ export default function Capture({
         case "fact": {
           const value = factValue(line.key, size);
           const note = factNote(line.key, value);
+          const share = shared(line.key) ? orderShareText(value, factTotal(line.key)) : undefined;
           return (
             <div
               key={line.key}
+              data-order-share={share === undefined ? undefined : ""}
               style={at(row, column)}
               title={note ?? undefined}
               className={cn(CELL, VALUE_CELL, "text-muted-foreground")}
             >
-              <span className="sr-only">{label(line.key)}: </span>
-              <Figure value={value} grouping />
+              <span className="sr-only">{factLabel(line.key)}: </span>
+              {share === undefined ? <Figure value={value} grouping /> : (share ?? <Figure value={null} />)}
               {note && <span className="sr-only">{` ${note}.`}</span>}
             </div>
           );
@@ -715,10 +738,11 @@ export default function Capture({
       case "fact": {
         const total = factTotal(line.key);
         const note = factNote(line.key, total);
+        const share = shared(line.key) ? orderShareTotalText(total) : undefined;
         return (
           <div key={line.key} style={at(row, totalColumn)} title={note ?? undefined} className={cell}>
-            <span className="sr-only">{label(line.key)}: </span>
-            <Figure value={total} grouping />
+            <span className="sr-only">{factLabel(line.key)}: </span>
+            {share === undefined ? <Figure value={total} grouping /> : (share ?? <Figure value={null} />)}
             {note && <span className="sr-only">{` ${note}.`}</span>}
           </div>
         );
