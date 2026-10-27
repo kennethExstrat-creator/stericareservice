@@ -549,13 +549,21 @@ export type FinalConclusion = {
   remark: { label: string; text: string | null } | null;
 };
 
-/** The photo records: each record's photos in the design's groups (PhotoGrid), a page each, or more where one cannot hold them. */
+/**
+ * The photo records: each record's photos in the design's groups (PhotoGrid),
+ * flowing from page to page, a record starting under the one before where
+ * its opening fits (lib/report/sections/photos.ts, photoPages).
+ */
 export type PhotosSection = ReportSectionContent & {
   /** One per page, in print order. */
   pages: PhotoRecordPage[];
 };
 
-export type PhotoRecordPage = {
+/** A page of the photo records: the records it holds, in order, one or more. */
+export type PhotoRecordPage = { records: PhotoRecordPart[] };
+
+/** A record on a page: its heading, and the groups the page holds of it. */
+export type PhotoRecordPart = {
   key: ReportPhotoGroupKey;
   /** "Photo Record 1 of 3", numbered among the records the report shows. */
   kicker: string;
@@ -574,6 +582,8 @@ export type PhotoBlock = {
   aspect: "3/2" | "4/3" | "1/1";
   /** The first photo over two rows and two columns. */
   lead: boolean;
+  /** The rest of a group its page could not hold, on the next page: headed "Continued" in place of its note. */
+  continued: boolean;
   photos: PhotoTile[];
 };
 
@@ -644,7 +654,7 @@ export type ReportPhotoRecord = {
   photos: ReportPhoto[];
 };
 
-/** The photo records after the sections, one entry for all of them: a page each until built. */
+/** The photo records after the sections, one entry for all of them: a page each until built, then the builder's pages, records sharing them. */
 export type ReportPhotosPlanEntry = {
   kind: "photos";
   key: "photos";

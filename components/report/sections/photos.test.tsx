@@ -1,11 +1,13 @@
 // The photo records' pages as server-rendered markup, in the report's own
 // frame (TG35 pages 9 to 11): the kicker and title, each group under its
 // heading with its note, the design's grids, the export's images, a defect
-// named in bold among plain captions.
+// named in bold among plain captions; records sharing a page, each under
+// its own heading, and a group's rest headed "Continued" on the next page.
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { makeStdEgExport, withReportOptions } from "@/lib/report/__fixtures__/exports";
 import { buildReportModel } from "@/lib/report/model";
+import { describedDefectsExport } from "@/lib/report/sections/__fixtures__/holes-visual";
 import type { ExportPhoto, InspectionExport } from "@/lib/schemas/export";
 import { PhotoGrid } from "../photo-grid";
 import { ReportDocument } from "../report-document";
@@ -21,6 +23,25 @@ const text = (html: string) =>
 
 const recordPages = (doc: InspectionExport) =>
   pagesOf(renderToStaticMarkup(<ReportDocument model={buildReportModel(doc)} />)).filter((page) => page.includes('data-slot="report-photo-record"'));
+
+/** The markup of the element carrying `marker` (an attribute), from its opening tag to its closing one. */
+function part(html: string, marker: string): string {
+  const start = html.indexOf(marker);
+  if (start === -1) throw new Error(`No ${marker}.`);
+  const tag = html.lastIndexOf("<", start);
+  const name = /^<(\w+)/.exec(html.slice(tag))?.[1] ?? "div";
+  let depth = 0;
+  const pattern = new RegExp(`<(/?)${name}\\b[^>]*>`, "g");
+  pattern.lastIndex = tag;
+  for (let match = pattern.exec(html); match; match = pattern.exec(html)) {
+    depth += match[1] ? -1 : 1;
+    if (depth === 0) return html.slice(tag, match.index + match[0].length);
+  }
+  return html.slice(tag);
+}
+
+/** Each record printed on a page, by its key, in order. */
+const recordsOn = (page: string) => [...page.matchAll(/data-slot="report-photo-record" data-record="(\w+)"/g)].map((match) => match[1]);
 
 let next = 0;
 function photo(moduleKey: string, target: string | null = null, caption: string | null = null): ExportPhoto {
@@ -46,21 +67,48 @@ describe("the photo records' pages", () => {
   const pages = pagesOf(renderToStaticMarkup(<ReportDocument model={model} />));
   const records = pages.filter((page) => page.includes('data-slot="report-photo-record"'));
 
-  it("print after the sections, a page per record, numbered across the report", () => {
-    expect(records).toHaveLength(2);
-    expect(pages.slice(-2)).toEqual(records);
-    expect(records[1]).toContain(`Page ${model.pageCount} of ${model.pageCount}</p>`);
+  it("print after the sections, the two records sharing the last page, numbered across the report", () => {
+    expect(records).toHaveLength(1);
+    expect(pages.slice(-1)).toEqual(records);
+    expect(records[0]).toContain(`Page ${model.pageCount} of ${model.pageCount}</p>`);
+    expect(pages).toHaveLength(model.pageCount);
+    // One body, the records one under the other, 8 mm apart (PHOTO_ROOM.recordGap).
+    expect(records[0]).toMatch(/<div data-slot="report-photo-record-page" class="flex flex-col gap-\[8mm\]"><div data-slot="report-photo-record" data-record="packingVisualAgeing"/);
+    expect(recordsOn(records[0])).toEqual(["packingVisualAgeing", "watertightLaboratory"]);
   });
 
-  it("head each with its record and title, then each group under its heading with its note, the export's images and captions", () => {
-    expect(text(records[0])).toContain("Photo Record 1 of 2 Packing, Visual & Ageing Glove Visual Inspection Thin spot on glove body");
-    expect(text(records[1])).toContain(
-      "Photo Record 2 of 2 Watertight & Laboratory Testing Watertight Testing for Pinholes 1 pinhole in 500 gloves Pin hole on a finger after the watertight test",
+  it("head each record with its own kicker and title, then each group under its heading with its note, the export's images and captions", () => {
+    expect(text(records[0])).toContain(
+      "Photo Record 1 of 2 Packing, Visual & Ageing Glove Visual Inspection Thin spot on glove body Photo Record 2 of 2 Watertight & Laboratory Testing Watertight Testing for Pinholes 1 pinhole in 500 gloves Pin hole on a finger after the watertight test",
     );
+    expect(text(part(records[0], 'data-record="watertightLaboratory"'))).toMatch(/^Photo Record 2 of 2 Watertight & Laboratory Testing /);
     const visual = doc.photos.find((entry) => entry.moduleKey === "visual");
     expect(records[0]).toContain(`<img src="${visual?.url.replace(/&/g, "&amp;")}" alt="Glove Visual Inspection, Size M, Thin spot on glove body"`);
     // A defect named, in bold.
     expect(records[0]).toMatch(/<p class="text-slate-900 font-semibold[^"]*">Thin spot on glove body<\/p>/);
+  });
+
+  it("print INS-2026-2442's records on one page, Section 06's photos among them again, as TG35 repeats page 6's", () => {
+    const ins = buildReportModel(describedDefectsExport());
+    const [page] = recordPages(describedDefectsExport());
+    expect(recordsOn(page)).toEqual(["packingVisualAgeing", "watertightLaboratory"]);
+    expect(page).toContain(`Page ${ins.pageCount} of ${ins.pageCount}</p>`);
+    for (const shown of ins.sections.holesVisual?.photos ?? []) expect(page).toContain(`data-photo="${shown.id}"`);
+    expect(ins.sections.holesVisual?.photos).toHaveLength(2);
+  });
+
+  it("head a group's rest on the next page with Continued, under its record's heading again", () => {
+    const many = makeStdEgExport();
+    many.photos = [...Array.from({ length: 12 }, () => photo("media_warehouse")), ...Array.from({ length: 10 }, () => photo("watertight", "size:M"))];
+    const pagesWith = recordPages(withReportOptions(many, { photos: { groups: { samplingPackaging: true, packingVisualAgeing: true, watertightLaboratory: true }, perGroup: 12 } }));
+    // The watertight record starts under the sampling photos with its first row; its second row goes on.
+    expect(pagesWith.map(recordsOn)).toEqual([["samplingPackaging", "watertightLaboratory"], ["watertightLaboratory"]]);
+    expect(text(pagesWith[1])).toMatch(/Photo Record 2 of 2 Watertight & Laboratory Testing \(Continued\) Watertight Testing for Pinholes Continued/);
+    expect(pagesWith[1]).toMatch(/<section data-slot="report-photo-block" data-block="watertight" data-continued="true"/);
+    expect(pagesWith[1]).toContain('<span class="whitespace-nowrap">Continued</span>');
+    expect(part(pagesWith[0], 'data-block="watertight"')).not.toContain("data-continued");
+    expect(part(pagesWith[0], 'data-block="watertight"').match(/<li /g)).toHaveLength(5);
+    expect(part(pagesWith[1], 'data-block="watertight"').match(/<li /g)).toHaveLength(5);
   });
 
   it("lay each group in the design's grid: the warehouse large beside four, labels four across, the watertight photos square five across", () => {
@@ -71,7 +119,8 @@ describe("the photo records' pages", () => {
       photo("watertight", "size:M", "Test rig"),
       photo("watertight", "size:M/defect:hole_palm"),
     ];
-    const [sampling, watertight] = recordPages(withReportOptions(sampled, { photos: { groups: { samplingPackaging: true, packingVisualAgeing: true, watertightLaboratory: true }, perGroup: 12 } }));
+    const html = recordPages(withReportOptions(sampled, { photos: { groups: { samplingPackaging: true, packingVisualAgeing: true, watertightLaboratory: true }, perGroup: 12 } })).join("");
+    const [sampling, watertight] = [part(html, 'data-record="samplingPackaging"'), part(html, 'data-record="watertightLaboratory"')];
     expect(sampling).toMatch(/data-block="finishedGoods"[^>]*>.*?<ul data-slot="report-photo-grid" class="[^"]*grid-cols-4"><li data-photo="[^"]+" class="[^"]*col-span-2 row-span-2/);
     expect(sampling).toMatch(/data-block="cartonLabels".*?aspect-\[3\/2\].*?Size M<\/p>/);
     expect(text(sampling)).toContain("Finished Goods Sampling Manufacturer A · Factory A1 warehouse, 11 April 2025");

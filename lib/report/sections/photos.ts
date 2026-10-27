@@ -1,6 +1,11 @@
-// The photo records (TG35 pages 9 to 11): after the sections, a page per
-// record the options switch on, each in the design's groups of photos under
-// their headings, "Photo Record 1 of 3" numbered among the records shown.
+// The photo records (TG35 pages 9 to 11): after the sections, each record
+// the options switch on under its heading, "Photo Record 1 of 3" numbered
+// among the records shown, in the design's groups of photos under their
+// headings. The records flow from page to page, a page filling before the
+// next starts: one starts under the record before where its opening fits, so
+// a record of one row never leaves a page two-thirds blank, nor a record of
+// one photo takes a page alone (Kenneth, 27 October 2026, of INS-2026-2442:
+// "The layout should be more seamless"; "the photo section is wasting space").
 //
 // - Sampling & Packaging: Finished Goods Sampling (the warehouse first, as
 //   the large photo, then the sampling, the samples and the inspection under
@@ -34,7 +39,7 @@
 // and one with nothing to say has none. A group's note beside its heading is
 // from the data and stays on one line: a shorter wording where the full one
 // would wrap. A group with no photos is left out, and a record with none. A
-// record its page cannot hold continues on the next.
+// record its page cannot hold continues on the next (photoPages).
 //
 // Typed by SectionBuilder, never importing the registry at run time (as
 // ./labellingConclusion.ts explains).
@@ -47,7 +52,7 @@ import { shortTitleFor } from "@/lib/templates/short-titles";
 import { AGEING_SENTENCE, andList, counted, longDate } from "../format";
 import { hasRings } from "../markers";
 import { clipToLines, lineCount, textWidth } from "../measure";
-import type { PhotoBlock, PhotoRecordPage, PhotosSection, PhotoTile } from "../model";
+import type { PhotoBlock, PhotoRecordPage, PhotoRecordPart, PhotosSection, PhotoTile } from "../model";
 import { describedCheck, describedFamily, photoShows, photoWords, type PhotoShows } from "../photo-reading";
 import { at, labelOf, list, moduleOf, num, orderedSizes, rec, sizeLabel, text } from "../read";
 import type { SectionBuilder } from "./index";
@@ -275,6 +280,7 @@ function blockOf(doc: InspectionExport, definition: BlockDefinition, entries: re
     columns: definition.columns,
     aspect: definition.aspect,
     lead: definition.lead === true && entries.length >= LEAD_PHOTOS,
+    continued: false,
     photos: entries.map((entry) => tileOf(doc, definition.key, title, entry, tile)),
   };
 }
@@ -437,19 +443,30 @@ function sentenceCase(words: string): string {
 /* ------------------------------------------------------------------ *
  * The pages
  *
- * A record is a page in the design. Its groups are estimated from the
- * components' sizes (PhotoGrid, BlockHeading, SectionHeading, in
- * millimetres, at the paper's content width, the words by Outfit's own
- * widths: ../measure.ts) and laid in order; a group the page cannot hold
- * starts the next page, under the record's heading again ("(Continued)").
- * A group is never split: Photos per Group keeps a record to twelve photos.
+ * The records flow from page to page, a page filling before the next starts
+ * (Kenneth, 27 October 2026, of a record of one row on a page two-thirds
+ * blank and the next of one photo: "the photo section is wasting space").
+ * A record starts under the record before, a gap between them, where its
+ * heading, its first group's heading and that group's first row of tiles
+ * fit what the page has left; else it starts the next page. Each record
+ * keeps its heading where it starts. Its groups follow in order: a group the
+ * page cannot hold whole breaks between its rows of tiles (the large photo's
+ * two rows go together), the rest going on at the top of the next page,
+ * under the record's heading again ("(Continued)") and the group's, with
+ * "Continued" beside it; a group whose first row does not fit starts the
+ * next page. The heights are estimated from the components' sizes
+ * (PhotoGrid, BlockHeading, SectionHeading, in millimetres, at the paper's
+ * content width, the words by Outfit's own widths: ../measure.ts), each a
+ * little over Chrome's drawing, against the room paperRoom leaves.
  * ------------------------------------------------------------------ */
 
 export const PHOTO_ROOM = {
-  /** The kicker and the title (SectionHeading). */
+  /** The kicker and the title (SectionHeading: 14.0 mm as Chrome draws them). */
   heading: 14.1,
   /** Between the heading and the groups, and between groups. */
   gap: 4.6,
+  /** Between a record and the next on the same page: more than between groups, so the next record's heading reads as a new start. */
+  recordGap: 8,
   /** A group's heading (BlockHeading, its title and note on one baseline) and the space under it; a line more where its note wraps. */
   blockHeading: 5.6,
   blockLine: 4.2,
@@ -464,63 +481,130 @@ export const PHOTO_ROOM = {
   captionLines: 3,
 } as const;
 
+/** Beside the heading of a group's rest on the next page, in place of its note (as Section 06's tables say it). */
+export const CONTINUED_GROUP = "Continued";
+
 const ASPECT_RATIO: Readonly<Record<PhotoBlock["aspect"], number>> = { "3/2": 1.5, "4/3": 4 / 3, "1/1": 1 };
 
 function tileWidth(columns: number, width: number): number {
   return (width - (columns - 1) * PHOTO_ROOM.columnGap) / columns;
 }
 
-/** A group's height in millimetres: its heading, and its grid laid out as CSS lays it (the lead over two rows and two columns). */
-export function photoBlockHeight(block: PhotoBlock, width: number): number {
+/**
+ * A group's rows of tiles as the grid lays them, each with how many photos
+ * it holds and its height (its tiles, and its longest caption, at most three
+ * lines). The large photo spans two rows and two columns, the photos beside
+ * it filling the other columns of those rows: those two rows are one here,
+ * as a group never breaks inside them.
+ */
+export function photoRows(block: PhotoBlock, width: number): { count: number; height: number }[] {
   const tile = tileWidth(block.columns, width);
-  const rows: number[] = [];
-  let row = 0;
-  let column = 0;
-  const step = () => {
-    column += 1;
-    if (column >= block.columns) {
-      column = 0;
-      row += 1;
-    }
-  };
-  block.photos.forEach((photo, index) => {
-    if (block.lead && index === 0) {
-      rows[0] = 0;
-      rows[1] = 0;
-      return;
-    }
-    while (block.lead && row < 2 && column < 2) step();
-    const captionLines = photo.caption ? Math.min(PHOTO_ROOM.captionLines, lineCount(photo.caption, tile, 8.5, photo.strong ? "bold" : "regular")) : 0;
-    rows[row] = Math.max(rows[row] ?? 0, captionLines);
-    step();
-  });
-  const grid =
-    rows.reduce((sum, captionLines) => sum + tile / ASPECT_RATIO[block.aspect] + (captionLines > 0 ? PHOTO_ROOM.captionGap + captionLines * PHOTO_ROOM.captionLine : 0), 0) +
-    Math.max(0, rows.length - 1) * PHOTO_ROOM.rowGap;
-  // fitNote keeps a note beside its title; a line more only for a title too long for its line with it.
-  const heading = textWidth(block.title, 12, "bold") + (block.note ? PHOTO_ROOM.noteGap + textWidth(block.note, 8.5) : 0);
-  return PHOTO_ROOM.blockHeading + (heading > width ? PHOTO_ROOM.blockLine : 0) + PHOTO_ROOM.blockGap + grid;
+  const caption = (photo: PhotoTile) =>
+    photo.caption ? PHOTO_ROOM.captionGap + Math.min(PHOTO_ROOM.captionLines, lineCount(photo.caption, tile, 8.5, photo.strong ? "bold" : "regular")) * PHOTO_ROOM.captionLine : 0;
+  const row = (photos: readonly PhotoTile[]) => tile / ASPECT_RATIO[block.aspect] + Math.max(0, ...photos.map(caption));
+  const rows: { count: number; height: number }[] = [];
+  let start = 0;
+  if (block.lead && block.photos.length > 1) {
+    // The large photo's caption is not drawn; beside it, two rows of the columns it leaves.
+    const across = block.columns - 2;
+    const beside = block.photos.slice(1, 1 + 2 * across);
+    rows.push({ count: 1 + beside.length, height: row(beside.slice(0, across)) + PHOTO_ROOM.rowGap + row(beside.slice(across)) });
+    start = 1 + beside.length;
+  }
+  for (; start < block.photos.length; start += block.columns) {
+    const photos = block.photos.slice(start, start + block.columns);
+    rows.push({ count: photos.length, height: row(photos) });
+  }
+  return rows;
 }
 
-/** The records' pages: each record's groups in order, a group its page cannot hold starting the next. */
+/** A group's heading and the space under it: a line more only for a title too long for its line with what stands beside it (fitNote keeps a note to it). */
+function blockHeadHeight(block: PhotoBlock, width: number): number {
+  const aside = block.continued ? CONTINUED_GROUP : block.note;
+  const heading = textWidth(block.title, 12, "bold") + (aside ? PHOTO_ROOM.noteGap + textWidth(aside, 8.5) : 0);
+  return PHOTO_ROOM.blockHeading + (heading > width ? PHOTO_ROOM.blockLine : 0) + PHOTO_ROOM.blockGap;
+}
+
+/** A group's height in millimetres: its heading, and its grid laid out as CSS lays it (the lead over two rows and two columns). */
+export function photoBlockHeight(block: PhotoBlock, width: number): number {
+  const rows = photoRows(block, width);
+  return blockHeadHeight(block, width) + rows.reduce((sum, row) => sum + row.height, 0) + Math.max(0, rows.length - 1) * PHOTO_ROOM.rowGap;
+}
+
+/** A group's first `take` rows, and the rest (null when nothing is left), headed "Continued" on its page, a plain grid. */
+function blockPieces(block: PhotoBlock, rows: readonly { count: number }[], take: number): [PhotoBlock, PhotoBlock | null] {
+  const count = rows.slice(0, take).reduce((sum, row) => sum + row.count, 0);
+  if (count >= block.photos.length) return [block, null];
+  return [
+    { ...block, photos: block.photos.slice(0, count) },
+    { ...block, note: null, lead: false, continued: true, photos: block.photos.slice(count) },
+  ];
+}
+
+/**
+ * The records' pages, each record's heading where it starts: under the
+ * record before when its heading, its first group's heading and first row
+ * fit there, else on the next page; its groups in order, a group the page
+ * cannot hold breaking between its rows, the rest on the next page under
+ * the record's heading again ("(Continued)").
+ */
 export function photoPages(records: readonly PhotoRecord[], room: number, width: number): PhotoRecordPage[] {
   const pages: PhotoRecordPage[] = [];
+  let page: PhotoRecordPart[] = [];
+  let used = 0;
+  const open = (part: PhotoRecordPart) => {
+    used += (page.length > 0 ? PHOTO_ROOM.recordGap : 0) + PHOTO_ROOM.heading;
+    page.push(part);
+  };
+  const turn = () => {
+    pages.push({ records: page });
+    page = [];
+    used = 0;
+  };
   records.forEach((record, index) => {
     const kicker = `Photo Record ${index + 1} of ${records.length}`;
-    let page: PhotoRecordPage = { key: record.key, kicker, title: record.title, blocks: [] };
-    let used = PHOTO_ROOM.heading;
+    const [first] = record.blocks;
+    const opening = PHOTO_ROOM.heading + (first ? PHOTO_ROOM.gap + blockHeadHeight(first, width) + (photoRows(first, width)[0]?.height ?? 0) : 0);
+    if (page.length > 0 && used + PHOTO_ROOM.recordGap + opening > room) turn();
+    let part: PhotoRecordPart = { key: record.key, kicker, title: record.title, blocks: [] };
+    open(part);
     for (const block of record.blocks) {
-      const height = PHOTO_ROOM.gap + photoBlockHeight(block, width);
-      if (page.blocks.length > 0 && used + height > room) {
-        pages.push(page);
-        page = { key: record.key, kicker, title: `${record.title} (Continued)`, blocks: [] };
-        used = PHOTO_ROOM.heading;
+      let rest: PhotoBlock | null = block;
+      while (rest) {
+        const rows = photoRows(rest, width);
+        let take = 0;
+        let height = blockHeadHeight(rest, width);
+        for (; take < rows.length; take += 1) {
+          const longer = height + (take > 0 ? PHOTO_ROOM.rowGap : 0) + rows[take].height;
+          if (used + PHOTO_ROOM.gap + longer > room) break;
+          height = longer;
+        }
+        if (take === 0 && part.blocks.length === 0) {
+          if (page.length > 1) {
+            // Only its heading would fit under the record before: the record starts the next page.
+            page.pop();
+            turn();
+            open(part);
+            continue;
+          }
+          // Alone on its page, a row goes on it whatever the room, so every photo lands.
+          take = 1;
+        }
+        if (take > 0) {
+          const [piece, after] = blockPieces(rest, rows, take);
+          part.blocks.push(piece);
+          used += PHOTO_ROOM.gap + photoBlockHeight(piece, width);
+          rest = after;
+        }
+        if (rest) {
+          turn();
+          part = { key: record.key, kicker, title: `${record.title} (Continued)`, blocks: [] };
+          open(part);
+        }
       }
-      page.blocks.push(block);
-      used += height;
     }
-    pages.push(page);
   });
+  if (page.length > 0) pages.push({ records: page });
   return pages;
 }
 

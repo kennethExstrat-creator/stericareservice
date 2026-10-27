@@ -5,15 +5,16 @@
 // size over its limit, a critical defect, a hand split, a defect not in the
 // list, nothing entered yet, five sizes, the blocks switched off, lists long
 // enough to fill a column. The defect photos: which (described by Steri-AI,
-// rings drawn, tagged or named; never the setting), in what order (the
-// clearest first, one per defect), captioned how, and where (only the room
-// the tables leave, never a page of their own: INS-2026-2442's four Product
-// Defects photos).
+// rings drawn, tagged or named; never the setting), in what order (a pinhole
+// and a visual defect first, then the clearest, one per defect), captioned
+// how, and where (only the room the tables leave, never a page of their own:
+// INS-2026-2442's four Product Defects photos; a row of 3:2 tiles where no
+// 4:3 row fits, as INS-2026-2442 has it now).
 import { describe, expect, it } from "vitest";
 import { buildReportModel, type ReportSectionPlanEntry } from "../model";
 import { makeSafedonExport, makeStdEgExport, withReportOptions } from "../__fixtures__/exports";
 import type { InspectionExport } from "@/lib/schemas/export";
-import { FOUR_SIZE_ONE_OFF, fourSizeExport, fourSizeProductDefectsExport, PHOTO_SIZE, placeholderPhoto } from "./__fixtures__/holes-visual";
+import { describedDefectsExport, FOUR_SIZE_ONE_OFF, fourSizeExport, fourSizeProductDefectsExport, PHOTO_SIZE, placeholderPhoto } from "./__fixtures__/holes-visual";
 import { DEFECT_PHOTOS_MAX, defectPhotosOf, lineCount, type DefectRow, type DefectTable, type HolesVisualContent, type HolesVisualSlot } from "./holes-visual";
 
 function sectionOf(doc: InspectionExport): HolesVisualContent & { pageCount: number } {
@@ -567,6 +568,28 @@ describe("the defect photos Steri-AI describes, rings drawn, and the inspector's
     expect(defectPhotosOf(doc).map((entry) => entry.id)).not.toContain(tagged.id);
   });
 
+  it("lead with the clearest pinhole and the clearest visual defect, then the clearest of the rest: INS-2026-2442's six photos", () => {
+    // Four pinholes (0.8, 0.8, 0.75, 0.7), the thin area (0.7) and the watertight test's setting: a row of two shows both checks.
+    expect(captions(describedDefectsExport())).toEqual(["Pinhole, cuff", "Thin area, glove body", "Pinhole, palm area", "Pinhole, between fingers"]);
+  });
+
+  it("put the pinhole first and the visual defect beside it, whichever is clearer, and one only a tag names where none is described", () => {
+    const clearer = withPhotos(
+      makeStdEgExport(),
+      photo("media_defects", null, { description: defect("Thin spot", "thin_spot", null, 0.95) }),
+      photo("media_defects", null, { description: defect("Stain, cuff", "stain", null, 0.9) }),
+      photo("media_defects", null, { description: defect("Pinhole, palm area", "hole_palm", "hole_palm", 0.6) }),
+    );
+    expect(captions(clearer)).toEqual(["Pinhole, palm area", "Thin spot", "Stain, cuff"]);
+    const tagged = withPhotos(
+      makeStdEgExport(),
+      photo("media_defects", null, { description: defect("Pinhole, palm area", "hole_palm", "hole_palm", 0.9) }),
+      photo("media_defects", null, { description: defect("Pinhole, cuff", "hole_cuff", "hole_cuff", 0.8) }),
+      photo("visual", "size:M/defect:thin_spot"),
+    );
+    expect(captions(tagged)).toEqual(["Pinhole, palm area", "Thin Spot on Glove Body · Size M", "Pinhole, cuff"]);
+  });
+
   it("let Steri-AI's setting overrule a defect tagged as the photo was taken, but never a ring the inspector drew", () => {
     const doc = withPhotos(
       makeStdEgExport(),
@@ -640,13 +663,48 @@ describe("the defect photos' place on the section's own pages", () => {
     expect(noPhotoPage(section)).toBe(true);
   });
 
-  it("offer INS-2026-2442's photos once described: the two pinholes and the ringed mark, the clearest first, the test rig never; no room, so the records", () => {
+  it("offer INS-2026-2442's first four photos once described: the clearest pinhole and the ringed mark lead, the test rig never; no room on version 6, so the records", () => {
     const doc = fourSizeProductDefectsExport({ described: true });
-    expect(defectPhotosOf(doc).map((entry) => entry.caption)).toEqual(["Pinhole, between fingers", "Pinhole, palm area", "Ringed mark, thin area"]);
-    // The four sizes fill both columns: a row of two would need 43 mm under the major defects, which have 41 mm left.
+    expect(defectPhotosOf(doc).map((entry) => entry.caption)).toEqual(["Pinhole, between fingers", "Ringed mark, thin area", "Pinhole, palm area"]);
+    // Version 6's ring mark, a defect not in the list on two lines, leaves the right column 37 mm by the estimate under the
+    // major defects: short of a row of two, 43.5 mm in 4:3 tiles with the gap over it, 39.7 mm in 3:2.
     const section = sectionOf(doc);
     expect(section.pageCount).toBe(1);
     expect(section.photos).toEqual([]);
+  });
+
+  it("print a row of two under the major defects on INS-2026-2442 as it stands: 3:2 tiles, a 4:3 row too tall for the room, a pinhole and the thin area", () => {
+    // Version 7, Ring Mark on one line: 40.6 mm left by the estimate (45.0 mm as Chrome draws the page).
+    const doc = describedDefectsExport();
+    const section = sectionOf(doc);
+    expect(section.pageCount).toBe(1);
+    expect(section.pages[0].columns.map(slotsOf)).toEqual([
+      ["pinholes", "critical", "visual (continued)"],
+      ["visual", "photos 2"],
+    ]);
+    // Under the major defects, so untitled; two across in 3:2 tiles.
+    expect(section.pages[0].columns[1][1]).toMatchObject({ kind: "photos", title: null, columns: 2, aspect: "3/2" });
+    expect(section.photos.map((photo) => [photo.caption, photo.strong])).toEqual([
+      ["Pinhole, cuff", false],
+      ["Thin area, glove body", false],
+    ]);
+    expect(noPhotoPage(section)).toBe(true);
+  });
+
+  it("keep the design's 4:3 tiles wherever a row of them fits, a 3:2 row only where none does", () => {
+    const aspects = (doc: InspectionExport) => sectionOf(doc).pages.flatMap((page) => page.columns.flat()).flatMap((slot) => (slot.kind === "photos" ? [`${slot.photos.length} ${slot.aspect}`] : []));
+    expect(aspects(makeStdEgExport())).toEqual(["2 4/3"]);
+    const letter = withReportOptions(makeSafedonExport(), { pageSize: "letter" });
+    letter.photos = makeStdEgExport().photos;
+    expect(aspects(letter)).toEqual(["2 4/3"]);
+    expect(aspects(describedDefectsExport())).toEqual(["2 3/2"]);
+    // With a footer note the Minor class goes on to a second page, whose empty right column takes two rows of 4:3.
+    const noted = withReportOptions(describedDefectsExport(), { footerNote: "Placeholder footer note for the report, long enough to take one line." });
+    expect(sectionOf(noted).pages.map((page) => page.columns.map(slotsOf))).toEqual([
+      [["pinholes", "critical"], ["visual"]],
+      [["visual (continued)"], ["photos 4"]],
+    ]);
+    expect(aspects(noted)).toEqual(["4 4/3"]);
   });
 
   it("keep the four sizes on one page with four defect photos added: they wait in the photo records", () => {

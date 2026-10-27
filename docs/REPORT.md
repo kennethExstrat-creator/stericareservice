@@ -154,6 +154,20 @@ document frames each body. The photo records are one slot (`photos`) whose entry
 chosen: the photos marked In Report, or every photo while none is, by their modules' group, at most Photos per Group, a
 flagged original left out.
 
+The photo records flow from page to page, a page filling before the next starts (Kenneth, 27 October 2026: "the photo
+section is wasting space"; `photoPages` in `lib/report/sections/photos.ts`). A record starts under the one before, 8 mm
+below it, where its heading ("Photo Record 2 of 3" and its title), its first group's heading and that group's first row
+of tiles fit what the page has left; else it starts the next page. Each record keeps its heading where it starts. A
+group the page cannot hold whole breaks between its rows (the large photo's two rows go together); its rest starts the
+next page under the record's heading again ("(Continued)") and its own, "Continued" beside it in place of its note. A
+page of the records holds one or more of them (`PhotoRecordPage.records`); the plan takes the pages the builder made.
+
+Section 06 places its defect photos only where its tables leave room, never on a page of their own (`photoSpot` in
+`lib/report/sections/holes-visual.ts`): the column holding the most of them in the design's 4:3 tiles, or, where no
+column takes a row of those, a row of 3:2 tiles (the four sizes' right column under the major defects). A pinhole and a
+visual defect lead, so a row of two shows both checks as TG35 page 6 does; the rest follow, the described first and the
+clearest first. Every defect photo prints in the photo records too.
+
 ## Printing
 
 - **Download PDF** on the Report page opens `/inspections/[id]/report/print?print=1` in a new tab: a plain click opens

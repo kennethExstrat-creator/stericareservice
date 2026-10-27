@@ -5,7 +5,8 @@
 // inspection whose Minor table went alone onto a continued page while the
 // left column had room under the critical defects (Kenneth, 27 October
 // 2026). On STD_EG version 6 the ring mark is a defect not in the list, as
-// the inspector typed it; version 7 lists Ring Mark last of its majors.
+// the inspector typed it; version 7 lists Ring Mark last of its majors, as
+// INS-2026-2442 has it now with its Product Defects photos described.
 // Placeholder data (docs/FIXTURES.md: lots, counts and cases are made up),
 // run through the real modules and the export's own assembly, so every limit
 // is calc's.
@@ -186,5 +187,52 @@ export function productDefectPhotos({ described = false }: { described?: boolean
 export function fourSizeProductDefectsExport({ described = false }: { described?: boolean } = {}): InspectionExport {
   const doc = fourSizeExport();
   doc.photos = productDefectPhotos({ described });
+  return doc;
+}
+
+/* ------------------------------------------------------------------ *
+ * INS-2026-2442 as it stands now (its shape, placeholder data)
+ *
+ * The four sizes on STD_EG version 7, Ring Mark one of its majors on one
+ * line (no defect not in the list), so the Minor class sits under the
+ * critical defects and the major defects leave the right column's foot
+ * free. Its Product Defects photos are all described by Steri-AI, none
+ * captioned by the inspector: four pinholes, a thin area of the glove body
+ * and the watertight test's setting, in the order taken.
+ * ------------------------------------------------------------------ */
+
+/** What Steri-AI says each of the six shows, in the order taken. */
+export const DESCRIBED_DEFECT_PHOTOS: readonly Description[] = [
+  { text: "Pinhole, cuff", kind: "defect", defect: "hole_cuff", location: "hole_cuff", clarity: 0.8, check: "watertight" },
+  { text: "Pinhole, palm area", kind: "defect", defect: "hole_palm", location: "hole_palm", clarity: 0.8, check: "watertight" },
+  { text: "Pinhole, between fingers", kind: "defect", defect: "hole_crotch", location: "hole_crotch", clarity: 0.75, check: "watertight" },
+  { text: "Pinhole, side of thumb", kind: "defect", defect: "hole_finger", location: "hole_finger", clarity: 0.7, check: "watertight" },
+  { text: "Thin area, glove body", kind: "defect", defect: "thin_body_area", location: null, clarity: 0.7, check: "visual" },
+  { text: "Watertight test", kind: "context", defect: null, location: null, clarity: 0.9, check: "watertight" },
+];
+
+/** What Steri-AI says of the three photos in Media's Product and Package Samples: the setting, of no test. */
+export const DESCRIBED_SAMPLE_PHOTOS: readonly Description[] = ["Carton label, size M", "Carton label, size L", "Dispenser box artwork"].map((text) => ({
+  text,
+  kind: "context",
+  defect: null,
+  location: null,
+  clarity: 0.9,
+  check: null,
+}));
+
+/**
+ * INS-2026-2442's shape now: the four sizes on version 7 with the six
+ * described Product Defects photos; `sampling`, its three described photos
+ * of the samples besides, a row of a Sampling & Packaging record (its page
+ * 10 of 12, two-thirds blank under them, Kenneth, 27 October 2026).
+ */
+export function describedDefectsExport({ sampling = false }: { sampling?: boolean } = {}): InspectionExport {
+  const doc = fourSizeExport({ version: 7 });
+  const described = DESCRIBED_DEFECT_PHOTOS.map((description, index) => placeholderPhoto(index + 1, { moduleKey: "media_defects", description: { ...description } }));
+  const samples = sampling
+    ? DESCRIBED_SAMPLE_PHOTOS.map((description, index) => placeholderPhoto(DESCRIBED_DEFECT_PHOTOS.length + index + 1, { moduleKey: "media_samples", description: { ...description } }))
+    : [];
+  doc.photos = [...samples, ...described];
   return doc;
 }

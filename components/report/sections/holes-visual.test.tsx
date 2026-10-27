@@ -10,7 +10,7 @@ import { describe, expect, it } from "vitest";
 import { ReportDocument, ReportTable, TrackBar } from "@/components/report";
 import { makeSafedonExport, makeStdEgExport, withReportOptions } from "@/lib/report/__fixtures__/exports";
 import { buildReportModel } from "@/lib/report/model";
-import { fourSizeExport, fourSizeProductDefectsExport, placeholderPhoto } from "@/lib/report/sections/__fixtures__/holes-visual";
+import { describedDefectsExport, fourSizeExport, fourSizeProductDefectsExport, placeholderPhoto } from "@/lib/report/sections/__fixtures__/holes-visual";
 import type { InspectionExport } from "@/lib/schemas/export";
 
 /** The text of some markup, tags dropped and spaces collapsed. */
@@ -56,8 +56,9 @@ describe("STD_EG's Section 06, on one page", () => {
 
   it("prints one page, numbered across the report, headed by the kicker, the title and the lead", () => {
     expect(pages).toHaveLength(1);
-    // Of the report's 11: Section 08 runs on to a second page (its matrix holds the packing check's aged sample).
-    expect(page).toContain("Page 6 of 11</p>");
+    // Of the report's 10: Section 08 runs on to a second page (its matrix holds the packing check's aged sample), and the
+    // two photo records share the last.
+    expect(page).toContain("Page 6 of 10</p>");
     expect(text(part(page, 'data-slot="report-section-heading"'))).toBe(
       "Section 06 Freedom from Holes & Visual Inspection Watertight and visual checks on the same 500 gloves. Size M stayed inside every acceptance limit.",
     );
@@ -176,6 +177,22 @@ describe("four sizes, S to XL: the Minor class under the critical defects", () =
 });
 
 describe("the defect photos: never a page of their own, captioned as the design captions them", () => {
+  it("print a row of two 3:2 tiles under the major defects on INS-2026-2442 as it stands: a pinhole and the thin area, plain", () => {
+    const pages = sectionPages(describedDefectsExport());
+    expect(pages).toHaveLength(1);
+    const columns = part(pages[0], 'data-slot="report-holes-visual-columns"');
+    const right = part(columns, 'data-column="2"');
+    const photos = part(right, 'data-slot="report-defect-photos"');
+    // After the major defects' table, with no heading of its own.
+    expect(right.indexOf('data-table="visual"')).toBeLessThan(right.indexOf('data-slot="report-defect-photos"'));
+    expect(photos).not.toContain("<h3");
+    expect(photos).toMatch(/<ul data-slot="report-photo-grid" class="[^"]*grid-cols-2">/);
+    expect(photos.match(/aspect-\[3\/2\]/g)).toHaveLength(2);
+    expect(text(photos)).toBe("Pinhole, cuff Thin area, glove body");
+    expect(photos).toMatch(/<p class="text-slate-600[^"]*">Pinhole, cuff<\/p>/);
+    expect(part(columns, 'data-column="1"')).not.toContain("report-defect-photos");
+  });
+
   it("leave INS-2026-2442's four Product Defects photos to the photo records: one page, no 'Section 06 · Continued' of photos", () => {
     for (const described of [false, true]) {
       const doc = fourSizeProductDefectsExport({ described });

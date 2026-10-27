@@ -2,7 +2,10 @@
 // photos, two marked In Report and a flagged HEIC original; SAFEDON_EG has
 // none) and placeholder photos tagged as the capture screen and Source
 // Documents' Media tag them: each photo in its group, the captions, the
-// notes, Photos per Group, the numbering and the pages.
+// notes, Photos per Group, the numbering and the pages: the records sharing
+// them (INS-2026-2442's two records on one page, three with its sampling
+// photos), a record starting the next page where its opening does not fit,
+// and a group breaking between its rows.
 import { describe, expect, it } from "vitest";
 import { counted } from "@/lib/report/format";
 import { textWidth } from "@/lib/report/measure";
@@ -10,10 +13,11 @@ import { at, num } from "@/lib/report/read";
 import type { ExportPhoto, InspectionExport } from "@/lib/schemas/export";
 import { REPORT_PHOTO_GROUPS, type ReportPhotoGroupKey } from "@/lib/schemas/report-options";
 import { makeSafedonExport, makeStdEgExport, withReportOptions } from "../__fixtures__/exports";
-import { buildReportModel, type PhotoBlock } from "../model";
-import { fourSizeProductDefectsExport } from "./__fixtures__/holes-visual";
+import { buildReportModel, type PhotoBlock, type PhotosSection } from "../model";
+import { describedDefectsExport, fourSizeProductDefectsExport } from "./__fixtures__/holes-visual";
 import {
   buildPhotos,
+  CONTINUED_GROUP,
   MEDIA_PHOTO_BLOCK,
   MODULE_PHOTO_BLOCK,
   PHOTO_BLOCKS,
@@ -21,6 +25,7 @@ import {
   photoBlockHeight,
   photoPages,
   photoRecordsOf,
+  photoRows,
   photos,
   shared,
 } from "./photos";
@@ -59,6 +64,9 @@ function withPhotos(list: ExportPhoto[], perGroup: 4 | 8 | 12 = 12, groups: Part
 const layoutOf = (doc: InspectionExport) =>
   Object.fromEntries(photoRecordsOf(doc).map((record) => [record.key, Object.fromEntries(record.blocks.map((block) => [block.key, block.photos.map((tile) => tile.id)]))]));
 
+/** The records as the pages print them, page after page: a record going on to the next page comes twice. */
+const partsOf = (section: PhotosSection | null) => (section?.pages ?? []).flatMap((page) => page.records);
+
 const blockIn = (doc: InspectionExport, key: string): PhotoBlock => {
   const found = photoRecordsOf(doc)
     .flatMap((record) => record.blocks)
@@ -68,26 +76,30 @@ const blockIn = (doc: InspectionExport, key: string): PhotoBlock => {
 };
 
 describe("the photo records", () => {
-  it("print STD_EG's photos marked In Report in the design's groups, a page each, numbered among those shown", () => {
+  it("print STD_EG's photos marked In Report in the design's groups, numbered among those shown, the two records on one page", () => {
     const doc = makeStdEgExport();
     const section = buildPhotos(doc);
-    expect(section?.pageCount).toBe(2);
+    expect(section?.pageCount).toBe(1);
     expect(
-      section?.pages.map((page) => [
-        page.kicker,
-        page.title,
-        page.blocks.map((block) => [block.key, block.title, block.note, block.photos.map((tile) => [tile.caption, tile.strong])]),
-      ]),
+      section?.pages.map((page) =>
+        page.records.map((record) => [
+          record.kicker,
+          record.title,
+          record.blocks.map((block) => [block.key, block.title, block.note, block.photos.map((tile) => [tile.caption, tile.strong])]),
+        ]),
+      ),
     ).toEqual([
-      ["Photo Record 1 of 2", "Packing, Visual & Ageing", [["visual", "Glove Visual Inspection", null, [["Thin spot on glove body", true]]]]],
       [
-        "Photo Record 2 of 2",
-        "Watertight & Laboratory Testing",
-        [["watertight", "Watertight Testing for Pinholes", "1 pinhole in 500 gloves", [["Pin hole on a finger after the watertight test", true]]]],
+        ["Photo Record 1 of 2", "Packing, Visual & Ageing", [["visual", "Glove Visual Inspection", null, [["Thin spot on glove body", true]]]]],
+        [
+          "Photo Record 2 of 2",
+          "Watertight & Laboratory Testing",
+          [["watertight", "Watertight Testing for Pinholes", "1 pinhole in 500 gloves", [["Pin hole on a finger after the watertight test", true]]]],
+        ],
       ],
     ]);
     // The export's own signed link, as the print route renders it.
-    expect(section?.pages[0].blocks[0].photos[0].url).toBe(doc.photos.find((entry) => entry.moduleKey === "visual")?.url);
+    expect(section?.pages[0].records[0].blocks[0].photos[0].url).toBe(doc.photos.find((entry) => entry.moduleKey === "visual")?.url);
   });
 
   it("take every photo the browser can show until some are marked, a flagged original never", () => {
@@ -229,12 +241,12 @@ describe("Photos per Group and the numbering", () => {
 
   it("numbers the records among those shown, leaving out one switched off or with no photos", () => {
     const list = [photo("media_warehouse"), photo("visual"), photo("watertight")];
-    expect(buildPhotos(withPhotos(list))?.pages.map((page) => page.kicker)).toEqual(["Photo Record 1 of 3", "Photo Record 2 of 3", "Photo Record 3 of 3"]);
-    expect(buildPhotos(withPhotos(list, 8, { samplingPackaging: false }))?.pages.map((page) => [page.kicker, page.key])).toEqual([
+    expect(partsOf(buildPhotos(withPhotos(list))).map((record) => record.kicker)).toEqual(["Photo Record 1 of 3", "Photo Record 2 of 3", "Photo Record 3 of 3"]);
+    expect(partsOf(buildPhotos(withPhotos(list, 8, { samplingPackaging: false }))).map((record) => [record.kicker, record.key])).toEqual([
       ["Photo Record 1 of 2", "packingVisualAgeing"],
       ["Photo Record 2 of 2", "watertightLaboratory"],
     ]);
-    expect(buildPhotos(withPhotos([photo("visual"), photo("watertight")]))?.pages.map((page) => page.key)).toEqual(["packingVisualAgeing", "watertightLaboratory"]);
+    expect(partsOf(buildPhotos(withPhotos([photo("visual"), photo("watertight")]))).map((record) => record.key)).toEqual(["packingVisualAgeing", "watertightLaboratory"]);
   });
 });
 
@@ -247,10 +259,12 @@ describe("the pages", () => {
       columns: 4,
       aspect: "3/2",
       lead: true,
+      continued: false,
       photos: Array.from({ length: 6 }, (_, index) => ({ id: String(index), url: "https://storage.example.com/p.jpg", caption: null, strong: false, alt: "Photo", markers: [], size: null })),
     };
     const tile = (184 - 3 * PHOTO_ROOM.columnGap) / 4 / 1.5;
-    // The large photo and four beside it fill two rows; the sixth starts a third.
+    // The large photo and four beside it fill two rows, one row to break at; the sixth starts a third.
+    expect(photoRows(block, 184).map((row) => row.count)).toEqual([5, 1]);
     expect(photoBlockHeight(block, 184)).toBeCloseTo(PHOTO_ROOM.blockHeading + PHOTO_ROOM.blockGap + 3 * tile + 2 * PHOTO_ROOM.rowGap);
     const captioned = { ...block, lead: false, photos: block.photos.slice(0, 4).map((entry) => ({ ...entry, caption: "Size M" })) };
     expect(photoBlockHeight(captioned, 184)).toBeCloseTo(PHOTO_ROOM.blockHeading + PHOTO_ROOM.blockGap + tile + PHOTO_ROOM.captionGap + PHOTO_ROOM.captionLine);
@@ -259,22 +273,95 @@ describe("the pages", () => {
   it("continue a record on the next page where its groups outrun the page, under its heading again", () => {
     const doc = withPhotos([photo("media_warehouse"), photo("labeling", "size:M/level:carton"), photo("labeling", "size:M/level:inner")]);
     const records = photoRecordsOf(doc);
-    expect(photoPages(records, 236, 184).map((page) => page.blocks.length)).toEqual([3]);
+    expect(photoPages(records, 236, 184).map((page) => page.records.map((record) => record.blocks.length))).toEqual([[3]]);
     const pages = photoPages(records, 70, 184);
-    expect(pages.map((page) => [page.kicker, page.title, page.blocks.map((block) => block.key)])).toEqual([
-      ["Photo Record 1 of 1", "Sampling & Packaging", ["finishedGoods"]],
-      ["Photo Record 1 of 1", "Sampling & Packaging (Continued)", ["cartonLabels"]],
-      ["Photo Record 1 of 1", "Sampling & Packaging (Continued)", ["dispenserArtwork"]],
+    expect(pages.map((page) => page.records.map((record) => [record.kicker, record.title, record.blocks.map((block) => block.key)]))).toEqual([
+      [["Photo Record 1 of 1", "Sampling & Packaging", ["finishedGoods"]]],
+      [["Photo Record 1 of 1", "Sampling & Packaging (Continued)", ["cartonLabels"]]],
+      [["Photo Record 1 of 1", "Sampling & Packaging (Continued)", ["dispenserArtwork"]]],
     ]);
   });
 
-  it("are planned as built, a page each, and drawn from the same slot", () => {
+  it("let a record start under the one before: INS-2026-2442's two records share a page, three with its sampling photos", () => {
+    const two = buildPhotos(describedDefectsExport());
+    expect(two?.pages.map((page) => page.records.map((record) => [record.kicker, record.title, record.blocks.map((block) => [block.key, block.photos.length])]))).toEqual([
+      [
+        ["Photo Record 1 of 2", "Packing, Visual & Ageing", [["visual", 1]]],
+        ["Photo Record 2 of 2", "Watertight & Laboratory Testing", [["watertight", 5]]],
+      ],
+    ]);
+    // On the inspection, a row of samples on a page two-thirds blank, then "Thin area, glove body" on a page of its own:
+    // now one page, a record under another.
+    const three = buildPhotos(describedDefectsExport({ sampling: true }));
+    expect(three?.pageCount).toBe(1);
+    expect(three?.pages[0].records.map((record) => [record.kicker, record.title, record.blocks.map((block) => block.photos.map((tile) => tile.caption))])).toEqual([
+      ["Photo Record 1 of 3", "Sampling & Packaging", [["Carton label, size M", "Carton label, size L", "Dispenser box artwork"]]],
+      ["Photo Record 2 of 3", "Packing, Visual & Ageing", [["Thin area, glove body"]]],
+      ["Photo Record 3 of 3", "Watertight & Laboratory Testing", [["Pinhole, cuff", "Pinhole, palm area", "Pinhole, between fingers", "Pinhole, side of thumb", "Watertight test"]]],
+    ]);
+  });
+
+  it("start a record on the next page where its heading, its first group's heading and first row do not fit under the one before", () => {
+    const records = photoRecordsOf(describedDefectsExport());
+    const [visual, watertight] = records.map((record) => record.blocks[0]);
+    const first = PHOTO_ROOM.heading + PHOTO_ROOM.gap + photoBlockHeight(visual, 184);
+    // The watertight photos are one row of five: the group whole is the record's opening.
+    expect(photoRows(watertight, 184)).toHaveLength(1);
+    const both = first + PHOTO_ROOM.recordGap + PHOTO_ROOM.heading + PHOTO_ROOM.gap + photoBlockHeight(watertight, 184);
+    const titles = (room: number) => photoPages(records, room, 184).map((page) => page.records.map((record) => record.title));
+    expect(titles(both + 0.01)).toEqual([["Packing, Visual & Ageing", "Watertight & Laboratory Testing"]]);
+    expect(titles(both - 0.01)).toEqual([["Packing, Visual & Ageing"], ["Watertight & Laboratory Testing"]]);
+  });
+
+  it("break a group between its rows where the page cannot hold it whole: the rest on the next page under both headings again, Continued beside the group's", () => {
+    const thin = photo("visual", "size:M/defect:thin_spot");
+    const tested = Array.from({ length: 10 }, () => photo("watertight", "size:M"));
+    const records = photoRecordsOf(withPhotos([thin, ...tested]));
+    const [visual, watertight] = records.map((record) => record.blocks[0]);
+    expect(photoRows(watertight, 184).map((row) => row.count)).toEqual([5, 5]);
+    // Room under the visual record for the watertight record's heading, its group's heading and first row, not its second.
+    const firstRow = photoBlockHeight({ ...watertight, photos: watertight.photos.slice(0, 5) }, 184);
+    const room = PHOTO_ROOM.heading + PHOTO_ROOM.gap + photoBlockHeight(visual, 184) + PHOTO_ROOM.recordGap + PHOTO_ROOM.heading + PHOTO_ROOM.gap + firstRow + 1;
+    const pages = photoPages(records, room, 184);
+    expect(pages.map((page) => page.records.map((record) => [record.kicker, record.title, record.blocks.map((block) => [block.key, block.photos.length, block.continued, block.note])]))).toEqual([
+      [
+        ["Photo Record 1 of 2", "Packing, Visual & Ageing", [["visual", 1, false, null]]],
+        ["Photo Record 2 of 2", "Watertight & Laboratory Testing", [["watertight", 5, false, "1 pinhole in 500 gloves"]]],
+      ],
+      [["Photo Record 2 of 2", "Watertight & Laboratory Testing (Continued)", [["watertight", 5, true, null]]]],
+    ]);
+    // The photos in their order across the break.
+    expect(pages.flatMap((page) => page.records.flatMap((record) => record.blocks.filter((block) => block.key === "watertight").flatMap((block) => block.photos.map((tile) => tile.id))))).toEqual(
+      tested.map((entry) => entry.id),
+    );
+    // A group's rest is headed "Continued" in place of its note, as Section 06's tables are.
+    expect(CONTINUED_GROUP).toBe("Continued");
+  });
+
+  it("keep the large photo's two rows together, the rest a plain grid", () => {
+    const records = photoRecordsOf(withPhotos(Array.from({ length: 7 }, () => photo("media_warehouse"))));
+    const [goods] = records[0].blocks;
+    expect(goods.lead).toBe(true);
+    expect(photoRows(goods, 184).map((row) => row.count)).toEqual([5, 2]);
+    const room = PHOTO_ROOM.heading + PHOTO_ROOM.gap + photoBlockHeight({ ...goods, photos: goods.photos.slice(0, 5) }, 184) + 1;
+    const pages = photoPages(records, room, 184);
+    expect(pages.map((page) => page.records.map((record) => record.blocks.map((block) => [block.photos.length, block.lead, block.continued])))).toEqual([
+      [[[5, true, false]]],
+      [[[2, false, true]]],
+    ]);
+  });
+
+  it("are planned as built, the records sharing a page, and drawn from the same slot", () => {
     const doc = makeStdEgExport();
     const model = buildReportModel(doc);
-    expect(model.plan.find((entry) => entry.key === "photos")).toMatchObject({ kind: "photos", built: true, pageCount: 2 });
+    expect(model.plan.find((entry) => entry.key === "photos")).toMatchObject({ kind: "photos", built: true, pageCount: 1 });
     expect(model.sections.photos).toEqual(buildPhotos(doc));
     const entry = model.plan.find((candidate) => candidate.kind === "photos");
     if (entry?.kind === "photos") expect(photos.build(doc, entry)).toEqual(buildPhotos(doc));
+    // INS-2026-2442's shape: the plan counts the one page its two records share, and the report its pages.
+    const ins = buildReportModel(describedDefectsExport());
+    expect(ins.plan.find((candidate) => candidate.kind === "photos")).toMatchObject({ built: true, pageCount: 1 });
+    expect(ins.pageCount).toBe(ins.plan.reduce((sum, candidate) => sum + candidate.pageCount, 0));
   });
 });
 
@@ -372,7 +459,7 @@ describe("the captions, the design's way (TG35 pages 10 and 11)", () => {
   it("are never Media's category on every tile: INS-2026-2442's four Product Defects photos, undescribed, print uncaptioned", () => {
     const doc = fourSizeProductDefectsExport();
     const section = buildPhotos(doc);
-    expect(section?.pages.map((page) => [page.title, page.blocks.map((block) => [block.title, block.note, block.photos.map((tile) => tile.caption)])])).toEqual([
+    expect(partsOf(section).map((record) => [record.title, record.blocks.map((block) => [block.title, block.note, block.photos.map((tile) => tile.caption)])])).toEqual([
       ["Packing, Visual & Ageing", [["Glove Visual Inspection", null, [null, null, null, null]]]],
     ]);
     expect(JSON.stringify(section)).not.toContain("Product Defects");
@@ -380,7 +467,7 @@ describe("the captions, the design's way (TG35 pages 10 and 11)", () => {
 
   it("place and caption INS-2026-2442's photos once described: the pinholes and the rig with the watertight photos, the rig plain, the ringed mark in bold", () => {
     const doc = fourSizeProductDefectsExport({ described: true });
-    expect(buildPhotos(doc)?.pages.map((page) => [page.title, page.blocks.map((block) => [block.title, block.photos.map((tile) => [tile.caption, tile.strong])])])).toEqual([
+    expect(partsOf(buildPhotos(doc)).map((record) => [record.title, record.blocks.map((block) => [block.title, block.photos.map((tile) => [tile.caption, tile.strong])])])).toEqual([
       ["Packing, Visual & Ageing", [["Glove Visual Inspection", [["Ringed mark, thin area", true]]]]],
       ["Watertight & Laboratory Testing", [["Watertight Testing for Pinholes", [["Pinhole, palm area", true], ["Test rig", false], ["Pinhole, between fingers", true]]]]],
     ]);

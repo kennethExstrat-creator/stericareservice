@@ -310,7 +310,8 @@ describe("the photo records", () => {
     expect(records.find((record) => record.key === "samplingPackaging")?.photos.map((photo) => photo.moduleKey)).toEqual(["labeling"]);
     const few = recordsOf(withReportOptions(doc, { photos: { perGroup: 4, groups: { samplingPackaging: false, packingVisualAgeing: true, watertightLaboratory: true } } }));
     expect(few?.records.map((record) => record.key)).toEqual(["packingVisualAgeing", "watertightLaboratory"]);
-    expect(few?.pageCount).toBe(2);
+    // The two records share a page (lib/report/sections/photos.ts): the plan counts the pages the builder made.
+    expect(few?.pageCount).toBe(1);
   });
 
   it("print none without photos", () => {

@@ -33,10 +33,16 @@
 // data"). They sit where the tables leave room on the section's own pages,
 // as TG35 page 6 has them under the critical defects: a column the tables
 // have finished in, under them, or a column they leave empty on a page that
-// exists anyway. Only photos that show a defect (lib/report/photo-reading.ts:
-// a ring drawn, Steri-AI's description, a defect tagged or named), one per
-// defect, the described first and the clearest first; what finds no room is
-// in the photo records, as every defect photo is.
+// exists anyway. The design's tiles are 4:3; where no column takes a row of
+// those, a row of 3:2 tiles goes where one fits (shorter, landscape still,
+// as TG35's photos are), so the four sizes' right column, with about 45 mm
+// under the major defects, still shows a pinhole and a visual defect. Only
+// photos that show a defect (lib/report/photo-reading.ts: a ring drawn,
+// Steri-AI's description, a defect tagged or named), one per defect: the
+// first pinhole and the first visual defect lead, so a row of two shows both
+// checks as TG35 page 6 does, then the rest, the described first and the
+// clearest first; what finds no room is in the photo records, as every
+// defect photo is.
 import { formatCount } from "@/lib/format";
 import { isMediaCategoryKey } from "@/lib/inspections/source-documents";
 import { parseTarget, type PhotoTarget } from "@/lib/photos/target";
@@ -50,7 +56,7 @@ import { andList, aqlText, counted } from "../format";
 import type { PhotoMarker, PhotoSize } from "../markers";
 import { lineCount, textWidth } from "../measure";
 import type { ReportPlanEntryFor } from "../model";
-import { defectKey, describedFamily, photoShows, photoWords, PRODUCT_DEFECTS } from "../photo-reading";
+import { defectFamily, defectKey, describedCheck, describedFamily, photoShows, photoWords, PRODUCT_DEFECTS, type DefectFamily } from "../photo-reading";
 import { at, isRecord, labelOf, list, moduleOf, num, orderedSizes, rec, sizeLabel, text } from "../read";
 import { defineSection } from "./index";
 
@@ -141,16 +147,19 @@ export type DefectTable = {
  */
 export type DefectPhoto = { id: string; url: string; caption: string | null; strong: boolean; markers: PhotoMarker[]; size: PhotoSize | null };
 
+/** The defect photos' tiles: the design's 4:3, or 3:2 for a row the room holds only so. */
+export type DefectPhotoAspect = "4/3" | "3/2";
+
 /**
  * A table's or the photos' part on a page: a table's widths in percent of its
  * column, and whether its heading prints (not over a class moved under the
  * left column's tables, which its own header row and class heading head);
  * the photos' heading where they open a column, two across in a column and
- * four across a stacked page.
+ * four across a stacked page, and their tiles' shape.
  */
 export type HolesVisualSlot =
   | { kind: "table"; table: DefectTable; continued: boolean; heading: boolean; widths: { label: number; value: number } }
-  | { kind: "photos"; title: string | null; photos: DefectPhoto[]; columns: 2 | 4 };
+  | { kind: "photos"; title: string | null; photos: DefectPhoto[]; columns: 2 | 4; aspect: DefectPhotoAspect };
 
 /** One page of the section: two columns under the grid (the design), or one across the page (more than four sizes). */
 export type HolesVisualPage = { layout: "columns" | "stack"; columns: HolesVisualSlot[][] };
@@ -623,9 +632,13 @@ export function defectPhotosOf(doc: InspectionExport): DefectPhoto[] {
  * rings drawn, in the order taken; then the rest, holes, visual defects and
  * Media's taking turns, each in the order taken. One photo per defect
  * (defectKey): a later photo of a defect already shown waits in the photo
- * records. As for the photo records (photoGroupsOf, lib/report/model.ts),
- * once an admin has marked photos In Report only those print, and a flagged
- * original (a HEIC the browser could not convert) never does.
+ * records. Of what is left, the first pinhole and the first visual defect
+ * lead (the clearest of each where Steri-AI describes them), in the
+ * section's order, so a row of two shows both checks, as TG35 page 6 shows
+ * a pinhole beside a ringed mark; the rest follow in order. As for the photo
+ * records (photoGroupsOf, lib/report/model.ts), once an admin has marked
+ * photos In Report only those print, and a flagged original (a HEIC the
+ * browser could not convert) never does.
  */
 function chooseDefectPhotos(doc: InspectionExport, holes: ExportModule | null, visual: ExportModule | null): DefectPhoto[] {
   const usable = doc.photos.filter((photo) => !photo.flagged);
@@ -649,18 +662,28 @@ function chooseDefectPhotos(doc: InspectionExport, holes: ExportModule | null, v
   const turns: Candidate[] = [];
   for (let round = 0; queues.some((queue) => round < queue.length); round += 1) for (const queue of queues) if (queue[round]) turns.push(queue[round]);
   const shown = new Set<string>();
-  const picked: DefectPhoto[] = [];
-  for (const entry of [...described, ...ringed, ...turns]) {
+  const each = [...described, ...ringed, ...turns].filter((entry) => {
     const key = defectKey(entry.photo, entry.target);
-    if (picked.length >= DEFECT_PHOTOS_MAX || shown.has(key)) continue;
+    if (shown.has(key)) return false;
     shown.add(key);
+    return true;
+  });
+  const leads = (["holes", "visual"] as const).flatMap((check) => each.find((entry) => checkOf(doc, entry) === check) ?? []);
+  return [...leads, ...each.filter((entry) => !leads.includes(entry))].slice(0, DEFECT_PHOTOS_MAX).map((entry) => {
     // Plain on Section 06's own page, as TG35 page 6 sets them; the photo records bold a defect's caption.
     const { caption } = captionOf(doc, entry);
-    const strong = false;
     const { markers, size } = entry.photo;
-    picked.push({ id: entry.photo.id, url: entry.photo.url, caption, strong, markers: markers.map((marker) => ({ ...marker })), size: size ? { ...size } : null });
-  }
-  return picked;
+    return { id: entry.photo.id, url: entry.photo.url, caption, strong: false, markers: markers.map((marker) => ({ ...marker })), size: size ? { ...size } : null };
+  });
+}
+
+/**
+ * The check a defect photo shows a defect of: the one Steri-AI's defect code
+ * belongs to; else the step it was taken in; else, a Media photo, its tagged
+ * defect's, or the test Steri-AI says it belongs to; null when none says.
+ */
+function checkOf(doc: InspectionExport, { photo, target, source }: Candidate): DefectFamily | null {
+  return describedFamily(doc, photo) ?? (source !== "media" ? source : (defectFamily(doc, target.defect) ?? describedCheck(photo)));
 }
 
 /** A photo's source among the defect photos; null for one of another step, or a Media photo of neither check. */
@@ -778,7 +801,7 @@ export const HOLES_VISUAL_ROOM = {
   valueMin: 10.5,
   valueMax: 15,
   figureGap: 2,
-  /** Photos (4:3): the gap between tiles and between rows, a caption's gap (0.1 mm over) and lines (8.5 pt × 1.4). */
+  /** Photos: the gap between tiles and between rows, a caption's gap (0.1 mm over) and lines (8.5 pt × 1.4). */
   photoGap: 3,
   photoRowGap: 2.4,
   captionGap: 1.5,
@@ -786,6 +809,9 @@ export const HOLES_VISUAL_ROOM = {
 } as const;
 
 const ROOM = HOLES_VISUAL_ROOM;
+
+/** Each tile shape's width over its height. */
+const PHOTO_ASPECT: Readonly<Record<DefectPhotoAspect, number>> = { "4/3": 4 / 3, "3/2": 3 / 2 };
 
 /** A table's label column and each size's column, in mm, in a column `width` mm wide; `rows` are the whole table's, so its pieces line up. */
 function tableWidths(width: number, sizes: number, rows: readonly DefectRow[]): { label: number; value: number } {
@@ -823,15 +849,15 @@ function tableHeight(table: DefectTable, rows: readonly DefectRow[], width: numb
   return heading + header + rows.reduce((sum, row) => sum + rowHeight(row, labelWidth), 0);
 }
 
-/** The photos' rows (4:3 tiles, `columns` across a column `width` mm wide), each row as tall as its longest caption, a bold one by bold widths. */
-function photosHeight(photos: readonly DefectPhoto[], width: number, columns: number): number {
+/** The photos' rows (`columns` tiles of `aspect` across a column `width` mm wide), each row as tall as its longest caption, a bold one by bold widths. */
+function photosHeight(photos: readonly DefectPhoto[], width: number, columns: number, aspect: DefectPhotoAspect): number {
   const tile = (width - (columns - 1) * ROOM.photoGap) / columns;
   let height = 0;
   for (let start = 0; start < photos.length; start += columns) {
     const captions = photos
       .slice(start, start + columns)
       .map((photo) => (photo.caption ? ROOM.captionGap + lineCount(photo.caption, tile, 8.5, photo.strong ? "bold" : "regular") * ROOM.captionLine : 0));
-    height += (start > 0 ? ROOM.photoRowGap : 0) + tile * 0.75 + Math.max(0, ...captions);
+    height += (start > 0 ? ROOM.photoRowGap : 0) + tile / PHOTO_ASPECT[aspect] + Math.max(0, ...captions);
   }
   return height;
 }
@@ -1121,12 +1147,16 @@ function planTables(
 
 /**
  * Where the defect photos go: the column of the section's pages that holds
- * the most of them, in whole rows (two across a column, four across a
- * stacked page), then the earlier page, then the column with more room left;
- * under its tables, or heading it where the tables leave it empty. Only a
- * column the tables have finished in: none of its tables goes on to a later
- * page, so photos never come before a table's end. Null where no row fits:
- * a page is never added for photos, which print in the photo records too.
+ * the most of them in the design's 4:3 tiles, in whole rows (two across a
+ * column, four across a stacked page), then the earlier page, then the
+ * column with more room left; under its tables, or heading it where the
+ * tables leave it empty. Where no column holds a row of 4:3 tiles, the one
+ * that holds a row of 3:2 the same way (shorter, landscape still), so a
+ * page with room for a row under its tables shows one (Kenneth, 27 October
+ * 2026, of the photos: "The layout should be more seamless"). Only a column
+ * the tables have finished in: none of its tables goes on to a later page,
+ * so photos never come before a table's end. Null where no row fits: a page
+ * is never added for photos, which print in the photo records too.
  */
 function photoSpot(
   placed: readonly Placed[],
@@ -1138,26 +1168,31 @@ function photoSpot(
   if (photos.length === 0) return null;
   const lastPage = new Map<Stream, number>();
   for (const { stream, frame } of placed) if (stream) lastPage.set(stream, Math.max(lastPage.get(stream) ?? 0, frame.page));
-  let best: { frame: Frame; count: number; free: number; across: 2 | 4; opening: boolean } | null = null;
-  for (let page = 0; page < pages.length; page += 1) {
-    const across = pages[page].layout === "stack" ? 4 : 2;
-    for (let column = 0; column < pages[page].columns.length; column += 1) {
-      const frame = frameAt(page, column);
-      const here = placed.filter((entry) => entry.frame.page === page && entry.frame.column === column);
-      if (here.some((entry) => entry.stream !== null && (lastPage.get(entry.stream) ?? page) > page)) continue;
-      const used = here.reduce((sum, entry, index) => sum + (index > 0 ? ROOM.partGap : 0) + entry.height, 0);
-      const free = frame.room - used - (used > 0 ? ROOM.partGap : 0);
+  // The columns the photos may go in, with the room each leaves and the heading they would need there.
+  const spots = pages.flatMap((page, index) =>
+    page.columns.flatMap((_, column) => {
+      const frame = frameAt(index, column);
+      const here = placed.filter((entry) => entry.frame.page === index && entry.frame.column === column);
+      if (here.some((entry) => entry.stream !== null && (lastPage.get(entry.stream) ?? index) > index)) return [];
+      const used = here.reduce((sum, entry, at) => sum + (at > 0 ? ROOM.partGap : 0) + entry.height, 0);
       const heading = used === 0 ? blockHeadingHeight(title, null, frame.width) + ROOM.tableGap : 0;
+      return [{ frame, free: frame.room - used - (used > 0 ? ROOM.partGap : 0), heading, across: page.layout === "stack" ? (4 as const) : (2 as const), opening: used === 0 }];
+    }),
+  );
+  const bestIn = (aspect: DefectPhotoAspect) => {
+    let best: ((typeof spots)[number] & { count: number }) | null = null;
+    for (const spot of spots) {
       let count = photos.length;
-      while (count > 0 && heading + photosHeight(photos.slice(0, count), frame.width, across) > free) count -= 1;
-      if (count > 0 && (!best || count > best.count || (count === best.count && page === best.frame.page && free > best.free))) {
-        best = { frame, count, free, across, opening: used === 0 };
-      }
+      while (count > 0 && spot.heading + photosHeight(photos.slice(0, count), spot.frame.width, spot.across, aspect) > spot.free) count -= 1;
+      if (count > 0 && (!best || count > best.count || (count === best.count && spot.frame.page === best.frame.page && spot.free > best.free))) best = { ...spot, count };
     }
-  }
+    return best ? { ...best, aspect } : null;
+  };
+  // Two rows of 3:2 are taller than one of 4:3: a column that takes no 4:3 row takes one row of 3:2 at most.
+  const best = bestIn("4/3") ?? bestIn("3/2");
   if (!best) return null;
   const shown = photos.slice(0, best.count);
-  return { frame: best.frame, photos: shown, slot: { kind: "photos", title: best.opening ? title : null, photos: shown, columns: best.across } };
+  return { frame: best.frame, photos: shown, slot: { kind: "photos", title: best.opening ? title : null, photos: shown, columns: best.across, aspect: best.aspect } };
 }
 
 /** The parts split between a page's two columns, in order, the taller column as short as it can be; null when no split fits. */
