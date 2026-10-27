@@ -284,9 +284,10 @@ describe("the photo records", () => {
     return entry?.kind === "photos" ? entry : null;
   };
 
-  it("print the photos marked In Report by their modules' group, a page each, a flagged original left out", () => {
+  it("print the photos marked In Report by their modules' group, a flagged original left out, on the builder's pages", () => {
+    const model = buildReportModel(makeStdEgExport());
     const entry = recordsOf(makeStdEgExport());
-    expect(entry).toMatchObject({ key: "photos", pageCount: 2, built: false });
+    expect(entry).toMatchObject({ key: "photos", built: true, pageCount: model.sections.photos?.pageCount });
     expect(entry?.records.map((record) => [record.kicker, record.title, record.photos.map((photo) => photo.moduleKey)])).toEqual([
       ["Photo Record 1 of 2", "Packing, Visual & Ageing", ["visual"]],
       ["Photo Record 2 of 2", "Watertight & Laboratory Testing", ["watertight"]],

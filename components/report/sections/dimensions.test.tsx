@@ -53,7 +53,10 @@ describe("Section 03 in the report", () => {
     expect(text(page)).toContain(
       "Section 03 Dimensions & Weight 13 gloves measured per size. Length must reach 240 mm and palm width must sit inside each size's tolerance. Thickness and weight are recorded for information.",
     );
-    expect(page).toContain("Page 3 of");
+    // After the Summary and Section 02, however many pages those take (this fixture's four strips give Section 02 two).
+    const plan = buildReportModel(stdEgWith(fourSizes)).plan;
+    const before = plan.slice(0, plan.findIndex((entry) => entry.key === "dimensions")).reduce((sum, entry) => sum + entry.pageCount, 0);
+    expect(page).toContain(`Page ${before + 1} of`);
   });
 
   it("draws each glove's length as a dot per size, the median's mark, the minimum's line over its tinted zone, the key and the notes", () => {

@@ -4,7 +4,7 @@
 // geometry, empty data and one size included.
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
-import { makeStdEgExport, withReportOptions } from "@/lib/report/__fixtures__/exports";
+import { makeSafedonExport, makeStdEgExport, withReportOptions } from "@/lib/report/__fixtures__/exports";
 import { STERICARE_LETTERHEAD } from "@/lib/report/letterhead";
 import { buildReportModel, paperOf, type PageChrome } from "@/lib/report/model";
 import type { InspectionExport } from "@/lib/schemas/export";
@@ -157,12 +157,21 @@ describe("the chrome on every page", () => {
 });
 
 describe("the pages still to come", () => {
-  it("print each planned section's heading, '<title>: coming next' and the parts the options keep", () => {
-    const html = renderToStaticMarkup(<ReportDocument model={buildReportModel(makeStdEgExport())} />);
-    const pages = pagesOf(html);
-    expect(text(pages[2])).toContain("Section 03 Dimensions & Weight Dimensions & Weight: coming next Glove Length Chart Palm Width Chart Median Results by Size Weight per Glove");
-    expect(text(pages[3])).toContain("Section 04 Measurements by Glove Measurements by Glove: coming next");
-    expect(text(pages[8])).toContain("Photo Record 1 of 2 Packing, Visual & Ageing Packing, Visual & Ageing: coming next 1 photo");
+  it("are none once every section's builder has landed: each planned page is built", () => {
+    for (const doc of [makeStdEgExport(), makeSafedonExport()]) {
+      const model = buildReportModel(doc);
+      const html = renderToStaticMarkup(<ReportDocument model={model} />);
+      expect(pagesOf(html)).toHaveLength(model.pageCount);
+      for (const entry of model.plan) if (entry.kind !== "summary" && entry.key !== "packing") expect(entry.built, entry.key).toBe(true);
+    }
+  });
+
+  it("print an entry its builder left empty as its heading, '<title>: coming next' and the parts the options keep", () => {
+    const model = buildReportModel(makeStdEgExport());
+    const plan = model.plan.map((entry) => (entry.kind === "section" && entry.key === "dimensions" ? { ...entry, pageCount: 1, built: false } : entry));
+    const pages = pagesOf(renderToStaticMarkup(<ReportDocument model={{ ...model, plan }} />));
+    const placeholder = pages.find((page) => text(page).includes("Dimensions & Weight: coming next")) ?? "";
+    expect(text(placeholder)).toContain("Section 03 Dimensions & Weight Dimensions & Weight: coming next Glove Length Chart Palm Width Chart Median Results by Size Weight per Glove");
   });
 
   it("follow the options at once: a section switched off leaves its page out", () => {

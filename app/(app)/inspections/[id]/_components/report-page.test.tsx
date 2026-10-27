@@ -220,7 +220,8 @@ describe("the preview: the report's own pages", () => {
     expect(html).toMatch(/data-slot="report-page-count"[^>]*>8 pages · A4<\/p>/);
     pages.forEach((markup, index) => expect(markup).toContain(`Page ${index + 1} of 8</p>`));
     expect(pages[0]).toContain('data-slot="report-conclusion" data-status="pass"');
-    expect(pages[2]).toContain("Dimensions &amp; Weight: coming next");
+    expect(pages[2]).toContain("Dimensions &amp; Weight");
+    expect(html).not.toContain("coming next");
     expect(html).toContain(PREVIEW_CAPTION);
   });
 
@@ -232,11 +233,14 @@ describe("the preview: the report's own pages", () => {
         sections: { ...DEFAULT_REPORT_OPTIONS.sections, measurements: { include: false, blocks: {} } },
       },
     });
-    expect(pagesOf(html)).toHaveLength(7);
+    // Measurements out, and Section 08 on two pages: Letter is shorter than A4.
+    expect(pagesOf(html)).toHaveLength(8);
     expect(html).toContain("w-[215.9mm] h-[279.4mm]");
-    expect(html).toMatch(/data-slot="report-page-count"[^>]*>7 pages · Letter<\/p>/);
+    expect(html).toMatch(/data-slot="report-page-count"[^>]*>8 pages · Letter<\/p>/);
     expect(html).toMatch(/data-slot="report-band-title"[^>]*>Lot Release Report<\/span>/);
-    expect(html).not.toContain("Measurements by Glove: coming next");
+    // Its switch keeps its label in the settings; no page of the preview is headed by it.
+    expect(html).toMatch(/data-slot="report-section-heading"[^>]*>(?:(?!<\/header>)[\s\S])*Dimensions &amp; Weight/);
+    expect(html).not.toMatch(/data-slot="report-section-heading"[^>]*>(?:(?!<\/header>)[\s\S])*Measurements by Glove/);
   });
 
   it("tags every page Draft until the inspection is approved", () => {

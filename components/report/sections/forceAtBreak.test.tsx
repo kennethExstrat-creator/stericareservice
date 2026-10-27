@@ -51,8 +51,10 @@ describe("four sizes, as the design lays them out", () => {
   const { pages, numbers } = sectionPages(forceExport(FOUR_SIZES));
   const page = pages[0];
 
-  it("prints one page, fifth in the report, headed by the section's kicker, title and lead", () => {
-    expect(numbers).toEqual([5]);
+  it("prints one page, after the sections before it, headed by the section's kicker, title and lead", () => {
+    const plan = buildReportModel(forceExport(FOUR_SIZES)).plan;
+    const before = plan.slice(0, plan.findIndex((entry) => entry.key === "forceAtBreak")).reduce((sum, entry) => sum + entry.pageCount, 0);
+    expect(numbers).toEqual([before + 1]);
     expect(text(slot(page, "report-section-heading"))).toBe("Section 05 Force at Break Lab test to EN 455-2. The median of 13 specimens per size must reach 6 N.");
   });
 

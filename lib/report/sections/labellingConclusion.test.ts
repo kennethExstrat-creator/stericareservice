@@ -111,6 +111,8 @@ describe("the labelling cards", () => {
     const without = makeStdEgExport();
     without.modules = without.modules.filter((module) => module.key !== "labeling");
     expect(sectionOf(without)).toMatchObject({ title: "Conclusion", lead: null, levels: [] });
+    // The plan, and so the Report page's settings, say the same.
+    expect(buildReportModel(without).plan.find((entry) => entry.key === "labellingConclusion")).toMatchObject({ title: "Conclusion" });
 
     const levelsOff = makeStdEgExport();
     const config = moduleIn(levelsOff, "labeling").config;

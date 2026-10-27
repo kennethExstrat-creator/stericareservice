@@ -285,3 +285,12 @@ describe("the groups", () => {
     });
   });
 });
+
+describe("an inspection whose photos are all in Source Documents' Media", () => {
+  it("still prints its photo records: the plan finds them as the builder does", () => {
+    const doc = withPhotos([photo("media_warehouse"), photo("media_defects", null, "Stain on the cuff")]);
+    const entry = buildReportModel(doc).plan.find((candidate) => candidate.kind === "photos");
+    expect(entry).toMatchObject({ key: "photos", built: true });
+    expect(entry?.pageCount).toBeGreaterThanOrEqual(1);
+  });
+});

@@ -29,6 +29,7 @@ import { longDate, sharesOf, weekdayDate } from "./format";
 import { STERICARE_LETTERHEAD, type Letterhead } from "./letterhead";
 import { labelOf, moduleOf, num, orderedSizes, rec, sizeLabel, text } from "./read";
 import { sectionBuilder } from "./sections";
+import { photoRecordsOf } from "./sections/photos";
 
 /* ------------------------------------------------------------------ *
  * The model
@@ -917,6 +918,8 @@ export function summaryPlacement(
 const TITLE_FOR_ONE_MODULE: Partial<Record<ModuleKey, string>> = {
   tensile: "Physical Properties",
   dispensing_safedon: "Glove Dispensing",
+  // Section 08 with no labelling in the template: the conclusion alone.
+  conclusion: "Conclusion",
 };
 
 export function sectionTitle(key: ReportSectionKey, moduleKeys: readonly ModuleKey[]): string {
@@ -960,7 +963,8 @@ function planOf(doc: InspectionExport, summary: SummaryModel): { plan: ReportPla
     plan.push(withContent(doc, entry, sections));
   }
   const groups = photoGroupsOf(doc);
-  if (groups.length > 0) {
+  // Source Documents' Media photos fill records too (photoRecordsOf, the builder's own choice), with no module of theirs.
+  if (groups.length > 0 || photoRecordsOf(doc).length > 0) {
     const entry: ReportPhotosPlanEntry = {
       kind: "photos",
       key: "photos",
@@ -972,7 +976,7 @@ function planOf(doc: InspectionExport, summary: SummaryModel): { plan: ReportPla
         title: group.title,
         photos: group.photos,
       })),
-      pageCount: groups.length,
+      pageCount: Math.max(1, groups.length),
       built: false,
     };
     plan.push(withContent(doc, entry, sections));
