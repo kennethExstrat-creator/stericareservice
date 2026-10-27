@@ -10,6 +10,7 @@ import { getAiStatus } from "@/lib/ai";
 import { loadSummaryMenu } from "@/lib/ai/settings";
 import { HOME_PATH } from "@/lib/auth/routes";
 import { requireUser } from "@/lib/auth/session";
+import { canExportInspection } from "@/lib/export/access";
 import { AI_STATUSES } from "@/lib/inspections/ai";
 import { captureAccess } from "@/lib/inspections/capture/access";
 import { loadDefectUsage, type DefectUsage } from "@/lib/inspections/capture/defect-usage";
@@ -59,8 +60,10 @@ export async function generateMetadata({ params }: PageProps<"/inspections/[id]"
  * before, so the defect lists open on the most-used ones, where the
  * inspection can be changed here, the Steri-AI Summary's menu from the house
  * style (docs/AI.md, "Steri-AI Summary"), and for the Report page, whether
- * Generate Report may run (the AI report's rules, BUILD_SPEC 9.1) and the
- * report last made.
+ * Send to Steri-AI Report may run (the AI report's rules, BUILD_SPEC 9.1),
+ * the report last made, whether this user may download the PDF (the
+ * export's rule, which the print route checks again) and the template
+ * version's facts its preview needs.
  */
 export default async function CapturePage({ params, searchParams }: PageProps<"/inspections/[id]">) {
   const user = await requireUser();
@@ -122,7 +125,7 @@ export default async function CapturePage({ params, searchParams }: PageProps<"/
     // Never throws: without it, Open Last Report does not show.
     loadLastReport(supabase, inspection.id),
   ]);
-  // Generate Report runs the AI report as the review's Send to Steri-AI Report does, which checks all three again.
+  // The Report page's Send to Steri-AI Report is the review's action, which checks all three again.
   const generate = generateAvailability({
     isAdmin: user.role === "admin",
     reportable: AI_STATUSES.includes(inspection.status),
@@ -157,7 +160,18 @@ export default async function CapturePage({ params, searchParams }: PageProps<"/
         reopenNote={reopen}
         defectUsage={defectUsage}
         summaryMenu={summaryMenu}
-        reportPage={{ generate, lastReport }}
+        reportPage={{
+          generate,
+          lastReport,
+          // A lead inspector reads a team member's inspection here, but only its inspector and admins export it.
+          canDownload: canExportInspection({ id: user.id, role: user.role }, { inspectorId: inspection.inspectorId }),
+          record: {
+            standard: inspection.template.standard,
+            productType: inspection.template.productType,
+            submittedAt: inspection.submittedAt,
+            result: inspection.result,
+          },
+        }}
       />
     </PhotoQueueProvider>
   );

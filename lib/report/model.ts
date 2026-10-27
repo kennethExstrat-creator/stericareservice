@@ -1,0 +1,648 @@
+// The app's own report (Kenneth, 27 October 2026: the new pre-shipment
+// design, "inside the report, there are charts and infographics, try to use
+// the data to those charts in the report too"; docs/REPORT.md). One pure
+// function turns the export (lib/schemas/export.ts, everything the
+// inspection holds with its options in `report`) into a typed model that the
+// components in components/report draw: the chrome every page shares, the
+// Summary (page 1), one slot per later section and the plan of pages in
+// print order, numbered. Client-safe: the print route builds it from the
+// export on the server, and the Report page from the screen's own copy
+// (live-export.ts), so the preview and the PDF are the same pages.
+import { formatCount } from "@/lib/format";
+import { inspectionSummaryOf } from "@/lib/export/conclusion";
+import { richTextPlain } from "@/lib/rich-text";
+import type { InspectionResult, InspectionStatus } from "@/lib/schemas/common";
+import type { ExportPhoto, InspectionExport } from "@/lib/schemas/export";
+import type { ModuleKey } from "@/lib/schemas/module-result";
+import {
+  REPORT_PAGE_SIZES,
+  REPORT_PHOTO_GROUPS,
+  REPORT_SECTIONS,
+  type ReportBlockKey,
+  type ReportPageSize,
+  type ReportPhotoGroupKey,
+  type ReportSectionKey,
+} from "@/lib/schemas/report-options";
+import type { RichTextDoc } from "@/lib/schemas/rich-text";
+import { checkRows, checksVerdict, type CheckRow, type CheckStatus } from "./checks";
+import { longDate, sharesOf, weekdayDate } from "./format";
+import { STERICARE_LETTERHEAD, type Letterhead } from "./letterhead";
+import { labelOf, moduleOf, num, orderedSizes, rec, sizeLabel, text } from "./read";
+import { sectionBuilder } from "./sections";
+
+/* ------------------------------------------------------------------ *
+ * The model
+ * ------------------------------------------------------------------ */
+
+/** A status as the report shows it, with the app's status colours: a check's, or the conclusion's. */
+export type ReportStatus = CheckStatus | "hold";
+
+export type ReportOrientation = "portrait" | "landscape";
+
+/** The paper as it lies, in millimetres: a landscape page is the portrait one turned. */
+export type ReportPaper = { size: ReportPageSize; orientation: ReportOrientation; label: string; width: number; height: number };
+
+/**
+ * What a page shows around its content, as each document fills it: the
+ * report ("Pre-Shipment Inspection Report", the PO and the inspection day,
+ * a Draft tag until approved, "Prepared for …", numbered pages) and the
+ * sampling plan sent to a manufacturer ("Sampling Plan", no tag, its own
+ * footer line, no numbers). components/report/report-page.tsx draws it.
+ */
+export type PageChrome = {
+  letterhead: Letterhead;
+  /** The header band's line, set in spaced capitals. */
+  bandTitle: string;
+  /** The band's right side: "PO-0001 · Inspected 11 April 2025". */
+  bandAside: string | null;
+  /** A Draft tag beside the band's title. */
+  draft: boolean;
+  /** The footer's left: "Prepared for Client A · Brand A PC-A01 Blue Nitrile". */
+  footerLeft: string | null;
+  /** A smaller line under it: the report's footer note. */
+  footerNote: string | null;
+  /** The footer's right, in place of the page number: "Computer-generated document. No signature required." */
+  footerRight: string | null;
+  /** "Page 1 of 9" at the footer's right, while footerRight is null. */
+  numbered: boolean;
+};
+
+/** What every page of the report shows around its content (the header band and the footer). */
+export type ReportChrome = {
+  letterhead: Letterhead;
+  /** The report's title (the Report page's option): the header band's line, set in capitals. */
+  title: string;
+  /** The PO as the header band names it, the bracketed reference left out: "PO-0001". Null when none is entered. */
+  po: string | null;
+  /** The inspection day in full: "11 April 2025". */
+  inspectedOn: string | null;
+  /** "Prepared for" in the footer; null while Show Client is off or no client is recorded. */
+  client: string | null;
+  /** The product, in the footer: the header's product name. */
+  product: string | null;
+  footerNote: string | null;
+  /** Every page carries a Draft tag until the inspection is approved. */
+  draft: boolean;
+  status: InspectionStatus;
+  refNo: string;
+};
+
+/** One detail in the Summary's card: the template's label, the value or "Not stated". */
+export type ReportFact = {
+  key: "client" | "poNo" | "manufacturer" | "inspectionDate" | "factoryAddress" | "mfgDate" | "expiryDate";
+  label: string;
+  value: string;
+  /** False when nothing is entered: the value reads "Not stated". */
+  stated: boolean;
+  /** Across both columns (the factory address). */
+  wide: boolean;
+};
+
+export type OrderMixRow = { size: string; label: string; cases: number; share: number };
+
+/** Order Mix by Size: each size's share of the cartons, and the totals. */
+export type OrderMix = {
+  rows: OrderMixRow[];
+  totalCases: number;
+  /** Null until the gloves per case are known. */
+  totalGloves: number | null;
+  glovesPerCase: number | null;
+  /** "gloves", or "pairs" for a template counted in pairs. */
+  unitWord: "gloves" | "pairs";
+};
+
+/** The Inspection Summary as written: formatted (drawn as the app draws it), plain text, or none yet. */
+export type SummaryText = { kind: "rich"; doc: RichTextDoc } | { kind: "plain"; paragraphs: string[] } | { kind: "empty" };
+
+/** The overall conclusion card. */
+export type ReportConclusion = {
+  /** The inspector's final result; not_done until it is chosen. */
+  status: ReportStatus;
+  result: InspectionResult | null;
+  /** The template's conclusion word (PASSED, FAILED, HOLD), or "Not Concluded". */
+  label: string;
+  /** From the checks: "All 9 checks passed for every size on the order: S, M, L and XL." */
+  verdict: string;
+  /** "12 April 2025": the conclusion's date. */
+  date: string | null;
+};
+
+/** Page 1 (the design's page 1). */
+export type SummaryModel = {
+  /** "Preshipment Inspection · Nitrile Disposable Examination Gloves": the template's report title. */
+  kicker: string;
+  /** The product name, else the template's words. */
+  title: string;
+  conclusion: ReportConclusion;
+  facts: ReportFact[];
+  /** Null while switched off, or with nothing ordered. */
+  orderMix: OrderMix | null;
+  /** Null while switched off. */
+  inspectionSummary: SummaryText | null;
+  /** Null while switched off. */
+  checks: CheckRow[] | null;
+  /**
+   * Where the Inspection Summary prints: on page 1, or on a page of its own
+   * after it when page 1 cannot hold it with the rest (summaryPlacement).
+   */
+  summaryPlacement: "first" | "own";
+};
+
+/**
+ * What every built section carries: the pages it prints. Each section's
+ * builder (lib/report/sections/<key>.ts, listed in lib/report/sections;
+ * docs/REPORT.md "Adding a section") widens its own type below with the
+ * content its pages draw (components/report/sections/<key>.tsx).
+ */
+export type ReportSectionContent = { pageCount: number };
+
+/** Section 02, Order, Product & Sampling: Glove Information, packing, the order lots and sampling plan, the sampled box/carton numbers. */
+export type OrderSamplingSection = ReportSectionContent;
+/** Section 03, Dimensions & Weight: glove length (DotPlot), palm width (RangeBand), the medians, weight per glove (HBars). */
+export type DimensionsSection = ReportSectionContent;
+/** Section 04, Measurements by Glove: every glove's readings, size by size. */
+export type MeasurementsSection = ReportSectionContent;
+/** Section 05, Force at Break (or Physical Properties): the lab's details, each specimen (DotPlot), the readings, the lab's summary. */
+export type ForceAtBreakSection = ReportSectionContent;
+/** Section 06, Freedom From Holes & Visual Inspection: defects against the limits (TrackBar), pinholes, defects by class, photos. */
+export type HolesVisualSection = ReportSectionContent;
+/** Section 07, Glove Packing & Dispensing: average layering and dispensing (GroupedHBars), each box, the aged gloves, stickiness. */
+export type PackingSection = ReportSectionContent;
+/** Section 08, Packaging Labelling & Conclusion: the label checks, the results matrix (TickMatrix), the conclusion card. */
+export type LabellingConclusionSection = ReportSectionContent;
+/** The photo records: each record's photos (PhotoGrid), a page each unless its builder says more. The plan chooses the photos. */
+export type PhotosSection = ReportSectionContent;
+
+/** One slot per section after the Summary, by the report options' section keys and "photos". */
+export type ReportSections = {
+  orderSampling?: OrderSamplingSection;
+  dimensions?: DimensionsSection;
+  measurements?: MeasurementsSection;
+  forceAtBreak?: ForceAtBreakSection;
+  holesVisual?: HolesVisualSection;
+  packing?: PackingSection;
+  labellingConclusion?: LabellingConclusionSection;
+  photos?: PhotosSection;
+};
+
+/** A slot's key: a section's (the report options' keys), or the photo records'. */
+export type ReportSlotKey = keyof ReportSections;
+
+export type ReportSummaryPlanEntry = { kind: "summary"; key: "summary"; pageCount: 1 | 2 };
+
+export type ReportSectionPlanEntry<K extends ReportSectionKey = ReportSectionKey> = {
+  kind: "section";
+  key: K;
+  /** 2 for the first section after the Summary, then on: a section left out leaves no gap. */
+  number: number;
+  /** "Section 02". */
+  kicker: string;
+  /** The design's title, or the module's where the inspection shows another test: "Physical Properties". */
+  title: string;
+  /** The blocks switched on, in print order. */
+  blocks: { key: ReportBlockKey<K>; label: string }[];
+  /** The section's modules the inspection includes, in report order. */
+  moduleKeys: ModuleKey[];
+  /** Its content's page count once built; 1 ("coming next") until then. */
+  pageCount: number;
+  /** False until the section's builder fills its slot: the page then says "coming next". */
+  built: boolean;
+};
+
+/** A photo as the report prints it. */
+export type ReportPhoto = Pick<ExportPhoto, "id" | "url" | "moduleKey" | "target" | "caption" | "takenAt">;
+
+/** One photo record: a group switched on that has photos. */
+export type ReportPhotoRecord = {
+  key: ReportPhotoGroupKey;
+  /** 1, 2 or 3 among the photo records the report shows. */
+  index: number;
+  of: number;
+  /** "Photo Record 1 of 3". */
+  kicker: string;
+  title: string;
+  /** The group's photos, at most Photos per Group, in capture order. */
+  photos: ReportPhoto[];
+};
+
+/** The photo records after the sections, one entry for all of them: a page each until built. */
+export type ReportPhotosPlanEntry = {
+  kind: "photos";
+  key: "photos";
+  records: ReportPhotoRecord[];
+  pageCount: number;
+  built: boolean;
+};
+
+export type ReportPlanEntry = ReportSummaryPlanEntry | ReportSectionPlanEntry | ReportPhotosPlanEntry;
+
+/** The plan entry a slot's builder and pages are given. */
+export type ReportPlanEntryFor<K extends ReportSlotKey> = K extends "photos"
+  ? ReportPhotosPlanEntry
+  : K extends ReportSectionKey
+    ? ReportSectionPlanEntry<K>
+    : never;
+
+export type ReportModel = {
+  paper: ReportPaper;
+  chrome: ReportChrome;
+  /** Every size the template lists, in its order, as it shows them: what sizes are coloured by (sizeTone). */
+  sizes: { value: string; label: string }[];
+  summary: SummaryModel;
+  sections: ReportSections;
+  /** Every page in print order: the Summary, the sections, the photo records. */
+  plan: ReportPlanEntry[];
+  pageCount: number;
+};
+
+/* ------------------------------------------------------------------ *
+ * Building it
+ * ------------------------------------------------------------------ */
+
+/** The words a conclusion takes where the template gives none. */
+const CONCLUSION_WORDS: Readonly<Record<InspectionResult, string>> = { pass: "PASSED", fail: "FAILED", hold: "HOLD" };
+
+export const NOT_STATED = "Not stated";
+export const NOT_CONCLUDED = "Not Concluded";
+
+export function buildReportModel(doc: InspectionExport): ReportModel {
+  const paper = paperOf(doc.report.pageSize);
+  const chrome = chromeOf(doc);
+  const summary = summaryOf(doc, paper);
+  const { plan, sections } = planOf(doc, summary);
+  const sizes = (doc.template.sizes ?? []).map(({ value, label }) => ({ value, label }));
+  return { paper, chrome, sizes, summary, sections, plan, pageCount: plan.reduce((sum, entry) => sum + entry.pageCount, 0) };
+}
+
+/** The paper at a size, upright or turned: A4 landscape is 297 × 210 mm. */
+export function paperOf(size: ReportPageSize, orientation: ReportOrientation = "portrait"): ReportPaper {
+  const paper = REPORT_PAGE_SIZES.find((entry) => entry.value === size) ?? REPORT_PAGE_SIZES[0];
+  const turned = orientation === "landscape";
+  return {
+    size: paper.value,
+    orientation,
+    label: paper.label,
+    width: turned ? paper.height : paper.width,
+    height: turned ? paper.width : paper.height,
+  };
+}
+
+/** The report's chrome as its pages draw it. */
+export function reportPageChrome(chrome: ReportChrome): PageChrome {
+  return {
+    letterhead: chrome.letterhead,
+    bandTitle: chrome.title,
+    bandAside: bandReference(chrome),
+    draft: chrome.draft,
+    footerLeft: preparedFor(chrome),
+    footerNote: chrome.footerNote,
+    footerRight: null,
+    numbered: true,
+  };
+}
+
+function chromeOf(doc: InspectionExport): ReportChrome {
+  const header = moduleOf(doc, "header");
+  return {
+    letterhead: STERICARE_LETTERHEAD,
+    title: doc.report.title,
+    po: poOf(text(header?.data.poNo)),
+    inspectedOn: longDate(inspectionDateOf(doc)),
+    client: doc.report.showClient ? clientOf(doc) : null,
+    product: text(header?.data.productName),
+    footerNote: doc.report.footerNote,
+    draft: doc.status !== "approved",
+    status: doc.status,
+    refNo: doc.refNo,
+  };
+}
+
+/** "PO-0001 (SO-0001)" as "PO-0001"; a PO without the letters gets them: "77/99" as "PO 77/99". */
+export function poOf(poNo: string | null): string | null {
+  if (!poNo) return null;
+  const bare = poNo.replace(/\s*\([^()]*\)\s*$/, "").trim() || poNo;
+  return /^P\.?O\b/i.test(bare) ? bare : `PO ${bare}`;
+}
+
+function inspectionDateOf(doc: InspectionExport): string | null {
+  const header = moduleOf(doc, "header");
+  return text(header?.computed.inspectionDate) ?? text(header?.data.inspectionDate);
+}
+
+function clientOf(doc: InspectionExport): string | null {
+  return text(moduleOf(doc, "header")?.computed.client) ?? text(doc.template.client?.name);
+}
+
+function summaryOf(doc: InspectionExport, paper: ReportPaper): SummaryModel {
+  const header = moduleOf(doc, "header");
+  const [lead, rest] = splitTitle(doc.template.reportTitle);
+  const rows = checkRows(doc);
+  const summary: Omit<SummaryModel, "summaryPlacement"> = {
+    kicker: rest ? `${lead} · ${rest}` : lead,
+    title: text(header?.data.productName) ?? rest ?? lead,
+    conclusion: conclusionOf(doc, rows),
+    facts: factsOf(doc),
+    orderMix: doc.report.summary.orderMix ? orderMixOf(doc) : null,
+    inspectionSummary: doc.report.summary.inspectionSummary ? summaryTextOf(doc) : null,
+    checks: doc.report.summary.resultsByCheck ? rows : null,
+  };
+  return { ...summary, summaryPlacement: summaryPlacement(summary, paper, { footerNote: doc.report.footerNote !== null }) };
+}
+
+/** "Preshipment Inspection: Nitrile Disposable Examination Gloves" as its two halves. */
+function splitTitle(title: string): [string, string | null] {
+  const index = title.indexOf(":");
+  if (index === -1) return [title.trim(), null];
+  return [title.slice(0, index).trim(), title.slice(index + 1).trim() || null];
+}
+
+function conclusionOf(doc: InspectionExport, rows: readonly CheckRow[]): ReportConclusion {
+  const conclusion = moduleOf(doc, "conclusion");
+  const result = doc.conclusion.finalResult;
+  const word = (value: InspectionResult) => labelOf(conclusion, value, CONCLUSION_WORDS[value]);
+  const sizes = orderedSizes(doc).map((size) => sizeLabel(doc, size));
+  const verdict = checksVerdict(rows, sizes);
+  const suggested = doc.conclusion.suggestedResult;
+  return {
+    status: result ?? "not_done",
+    result,
+    label: result ? word(result) : NOT_CONCLUDED,
+    // Until the inspector concludes, the line says what the app suggests.
+    verdict: result || !suggested ? verdict : `${verdict} ${labelOf(conclusion, "suggestedResult", "Suggested Result")}: ${word(suggested)}.`,
+    date: longDate(doc.conclusion.date),
+  };
+}
+
+/** The details card, in the design's order, by the header's labels; a field the template switches off is left out. */
+function factsOf(doc: InspectionExport): ReportFact[] {
+  const header = moduleOf(doc, "header");
+  const fields = rec(header?.config?.fields);
+  const on = (field: string) => fields[field] !== false;
+  const fact = (key: ReportFact["key"], fallback: string, value: string | null, wide = false): ReportFact => ({
+    key,
+    label: labelOf(header, key, fallback),
+    value: value ?? NOT_STATED,
+    stated: value !== null,
+    wide,
+  });
+  const computed = header?.computed ?? {};
+  const data = header?.data ?? {};
+  const facts: ReportFact[] = [];
+  // The client shows while Show Client is on, whatever the header's own field: it is the inspection's.
+  if (doc.report.showClient) facts.push(fact("client", "Client", clientOf(doc)));
+  if (on("poNo")) facts.push(fact("poNo", "PO / SO Number", text(data.poNo)));
+  if (on("manufacturer")) facts.push(fact("manufacturer", "Manufacturer / Supplier", text(computed.manufacturer) ?? text(doc.template.manufacturer?.name)));
+  if (on("inspectionDate")) facts.push(fact("inspectionDate", "Inspection Date", weekdayDate(inspectionDateOf(doc))));
+  if (on("factoryAddress")) facts.push(fact("factoryAddress", "Factory Address", text(data.factoryAddress), true));
+  if (on("mfgDate")) facts.push(fact("mfgDate", "Manufacturing Date", longDate(text(computed.mfgDate) ?? text(data.mfgDate))));
+  if (on("expiryDate")) facts.push(fact("expiryDate", "Expiry Date", longDate(text(computed.expiryDate) ?? text(data.expiryDate))));
+  return facts;
+}
+
+/** Each ordered size's cases and share, the shares adding up to 100%; null with nothing ordered. */
+export function orderMixOf(doc: InspectionExport): OrderMix | null {
+  const order = moduleOf(doc, "order_lots");
+  const sizes = orderedSizes(doc);
+  if (!order || sizes.length === 0) return null;
+  const lines = rec(order.data.sizes);
+  const cases = sizes.map((size) => num(rec(lines[size]).qtyCases) ?? 0);
+  const shares = sharesOf(cases);
+  const totalCases = cases.reduce((sum, value) => sum + value, 0);
+  const packing = moduleOf(doc, "packing_config");
+  const glovesPerCase = num(packing?.data.glovesPerCase) ?? num(packing?.computed.glovesPerCaseCheck);
+  const totalGloves = num(order.computed.totalGloves) ?? (glovesPerCase === null ? null : totalCases * glovesPerCase);
+  return {
+    rows: sizes.map((size, index) => ({ size, label: sizeLabel(doc, size), cases: cases[index], share: shares[index] })),
+    totalCases,
+    totalGloves,
+    glovesPerCase,
+    unitWord: doc.template.unit === "pairs" ? "pairs" : "gloves",
+  };
+}
+
+/**
+ * The inspector's summary: the formatted document from the conclusion's
+ * data, drawn as the app draws it (components/qc/rich-text-view.tsx, no
+ * HTML strings), else the export's plain text, else none.
+ */
+function summaryTextOf(doc: InspectionExport): SummaryText {
+  const formatted = inspectionSummaryOf(moduleOf(doc, "conclusion")?.data ?? null);
+  if (formatted) return { kind: "rich", doc: formatted };
+  const plain = doc.conclusion.inspectionSummary?.text.trim();
+  if (plain) return { kind: "plain", paragraphs: plain.split(/\n{2,}/) };
+  return { kind: "empty" };
+}
+
+/* ------------------------------------------------------------------ *
+ * Page 1's room
+ *
+ * The Summary is one fixed page. The Inspection Summary is the one part
+ * that grows (up to 5,000 characters), so its height is estimated from its
+ * lines; when page 1 cannot hold it with the rest, it prints on a page of
+ * its own after page 1. Estimates in millimetres, measured on the pages as
+ * drawn (components/report, A4): a page's header and footer, the title, the
+ * conclusion row, the order mix, a check row (a line more where its words
+ * wrap), a line of the summary.
+ * ------------------------------------------------------------------ */
+
+export const SUMMARY_ROOM = {
+  /** The header band and the footer, with the content's padding. */
+  chrome: 61,
+  /** A footer note's second line in the footer. */
+  footerNote: 4,
+  kicker: 5.5,
+  titleLine: 9.2,
+  titleCharacters: 40,
+  /** The conclusion card beside the details card. */
+  conclusionRow: 53,
+  orderMix: 20,
+  /** A legend of more than four sizes wraps to a second line. */
+  orderLegendLine: 4.2,
+  /** The summary card's padding and heading. */
+  summaryFrame: 17.5,
+  summaryLine: 4.9,
+  summaryCharacters: 118,
+  /** Between paragraphs and lists, and between a list's items. */
+  paragraphGap: 2.4,
+  itemGap: 0.8,
+  /** Results by Check's heading and header row. */
+  checksFrame: 13.5,
+  checkRow: 6.5,
+  /** A row's line more where its check, criterion or result wraps, and the characters a line of each holds. */
+  checkLine: 4.7,
+  checkCharacters: { check: 22, criterion: 30, result: 32 },
+  /** Between the page's blocks, their headings' leading with it. */
+  gap: 5,
+} as const;
+
+/** The summary's lines, as wrapped, and its gaps: between its paragraphs and lists, and between a list's items. */
+function summaryHeight(text: SummaryText): number {
+  const plain = text.kind === "rich" ? richTextPlain(text.doc) : text.kind === "plain" ? text.paragraphs.join("\n\n") : "";
+  const blocks = plain.split(/\n{2,}/).map((block) => block.split("\n").map((line) => line.trim()).filter((line) => line !== "")).filter((block) => block.length > 0);
+  const lines = blocks.flat().reduce((sum, line) => sum + Math.max(1, Math.ceil(line.length / SUMMARY_ROOM.summaryCharacters)), 0);
+  const items = blocks.reduce((sum, block) => sum + block.length - 1, 0);
+  return lines * SUMMARY_ROOM.summaryLine + Math.max(0, blocks.length - 1) * SUMMARY_ROOM.paragraphGap + items * SUMMARY_ROOM.itemGap;
+}
+
+/** A check's row: a line more for each line its longest cell wraps to. */
+function checkRowHeight(row: CheckRow): number {
+  const { check, criterion, result } = SUMMARY_ROOM.checkCharacters;
+  const lines = Math.max(
+    Math.ceil(row.check.length / check),
+    Math.ceil((row.criterion ?? "").length / criterion),
+    Math.ceil(((row.result ?? "").length + (row.sizesNote ? result : 0)) / result),
+    1,
+  );
+  return SUMMARY_ROOM.checkRow + (lines - 1) * SUMMARY_ROOM.checkLine;
+}
+
+/** Page 1 holds the Inspection Summary when the estimate fits the paper; else the summary moves to a page of its own. */
+export function summaryPlacement(
+  summary: Omit<SummaryModel, "summaryPlacement">,
+  paper: Pick<ReportPaper, "height">,
+  { footerNote = false }: { footerNote?: boolean } = {},
+): "first" | "own" {
+  if (!summary.inspectionSummary || summary.inspectionSummary.kind === "empty") return "first";
+  const room = paper.height - SUMMARY_ROOM.chrome - (footerNote ? SUMMARY_ROOM.footerNote : 0);
+  const title = SUMMARY_ROOM.kicker + Math.max(1, Math.ceil(summary.title.length / SUMMARY_ROOM.titleCharacters)) * SUMMARY_ROOM.titleLine;
+  const order = summary.orderMix
+    ? SUMMARY_ROOM.orderMix + (summary.orderMix.rows.length > 4 ? SUMMARY_ROOM.orderLegendLine : 0) + SUMMARY_ROOM.gap
+    : 0;
+  const checks = summary.checks
+    ? SUMMARY_ROOM.checksFrame + summary.checks.reduce((sum, row) => sum + checkRowHeight(row), 0) + SUMMARY_ROOM.gap
+    : 0;
+  const text = SUMMARY_ROOM.summaryFrame + summaryHeight(summary.inspectionSummary) + SUMMARY_ROOM.gap;
+  return title + SUMMARY_ROOM.gap + SUMMARY_ROOM.conclusionRow + SUMMARY_ROOM.gap + order + checks + text <= room ? "first" : "own";
+}
+
+/* ------------------------------------------------------------------ *
+ * The plan of pages
+ * ------------------------------------------------------------------ */
+
+/** A section's title: the design's, or the one test it shows where that test has its own name (STD_EG's flow since 26 October 2026). */
+const TITLE_FOR_ONE_MODULE: Partial<Record<ModuleKey, string>> = {
+  tensile: "Physical Properties",
+  dispensing_safedon: "Glove Dispensing",
+};
+
+export function sectionTitle(key: ReportSectionKey, moduleKeys: readonly ModuleKey[]): string {
+  const section = REPORT_SECTIONS.find((entry) => entry.key === key);
+  const only = moduleKeys.length === 1 ? TITLE_FOR_ONE_MODULE[moduleKeys[0]] : undefined;
+  return only ?? section?.title ?? key;
+}
+
+/**
+ * The pages in print order: the Summary, each section the report shows
+ * (REPORT_SECTIONS' order, numbered from 02 without gaps), then the photo
+ * records. Each entry is planned first, then its builder (SECTION_BUILDERS,
+ * lib/report/sections) fills its slot from the export and the entry, and
+ * the entry takes the content's page count; an entry with no builder, or
+ * whose builder gives nothing, prints "coming next" (a page per section, a
+ * page per photo record).
+ */
+function planOf(doc: InspectionExport, summary: SummaryModel): { plan: ReportPlanEntry[]; sections: ReportSections } {
+  const sections: ReportSections = {};
+  const plan: ReportPlanEntry[] = [{ kind: "summary", key: "summary", pageCount: summary.summaryPlacement === "own" ? 2 : 1 }];
+  let number = 1;
+  for (const section of REPORT_SECTIONS) {
+    const options = doc.report.sections[section.key];
+    const moduleKeys = section.modules.filter((key) => moduleOf(doc, key) !== null);
+    const switches = options.blocks as Record<string, boolean>;
+    const blocks = section.blocks.filter((block) => switches[block.key] !== false);
+    // In the report: switched on, in the inspection, and one of its blocks on (a section of none has its switch alone).
+    if (!options.include || moduleKeys.length === 0 || (section.blocks.length > 0 && blocks.length === 0)) continue;
+    number += 1;
+    const entry = {
+      kind: "section",
+      key: section.key,
+      number,
+      kicker: `Section ${String(number).padStart(2, "0")}`,
+      title: sectionTitle(section.key, moduleKeys),
+      blocks: blocks.map(({ key, label }) => ({ key, label })),
+      moduleKeys,
+      pageCount: 1,
+      built: false,
+    } as ReportSectionPlanEntry;
+    plan.push(withContent(doc, entry, sections));
+  }
+  const groups = photoGroupsOf(doc);
+  if (groups.length > 0) {
+    const entry: ReportPhotosPlanEntry = {
+      kind: "photos",
+      key: "photos",
+      records: groups.map((group, index) => ({
+        key: group.key,
+        index: index + 1,
+        of: groups.length,
+        kicker: `Photo Record ${index + 1} of ${groups.length}`,
+        title: group.title,
+        photos: group.photos,
+      })),
+      pageCount: groups.length,
+      built: false,
+    };
+    plan.push(withContent(doc, entry, sections));
+  }
+  return { plan, sections };
+}
+
+/** The entry with its builder's content in the model's slot and its page count; as planned without a builder. */
+function withContent<E extends ReportSectionPlanEntry | ReportPhotosPlanEntry>(doc: InspectionExport, entry: E, sections: ReportSections): E {
+  const builder = sectionBuilder(entry.key);
+  const content = builder ? builder.build(doc, entry as never) : null;
+  if (!content) return entry;
+  (sections as Record<string, ReportSectionContent>)[entry.key] = content;
+  return { ...entry, pageCount: Math.max(1, content.pageCount), built: true };
+}
+
+/**
+ * The photo records the report prints: each group switched on with a photo,
+ * its photos those of its modules (a custom module's go with the module it
+ * follows), at most Photos per Group, in capture order. Once an admin has
+ * marked photos In Report, only those print; until then every photo the
+ * browser can show is a candidate. A flagged original (a HEIC the browser
+ * could not convert) is left out.
+ */
+export function photoGroupsOf(doc: InspectionExport): { key: ReportPhotoGroupKey; title: string; photos: ReportPhoto[] }[] {
+  const usable = doc.photos.filter((photo) => !photo.flagged);
+  const chosen = usable.some((photo) => photo.includeInReport) ? usable.filter((photo) => photo.includeInReport) : usable;
+  const after = new Map(doc.custom.map((custom) => [custom.key, custom.after ?? null]));
+  const moduleFor = (key: string | null): string | null => (key === null ? null : after.has(key) ? (after.get(key) ?? null) : key);
+  return REPORT_PHOTO_GROUPS.flatMap((group) => {
+    if (!doc.report.photos.groups[group.key]) return [];
+    const modules: readonly string[] = group.modules;
+    const photos = chosen
+      .filter((photo) => {
+        const key = moduleFor(photo.moduleKey);
+        return key !== null && modules.includes(key);
+      })
+      .slice(0, doc.report.photos.perGroup)
+      .map(({ id, url, moduleKey, target, caption, takenAt }) => ({ id, url, moduleKey, target, caption, takenAt }));
+    return photos.length === 0 ? [] : [{ key: group.key, title: group.title, photos }];
+  });
+}
+
+/* ------------------------------------------------------------------ *
+ * Words the pages share
+ * ------------------------------------------------------------------ */
+
+/** "4,551 cartons · 4,551,000 gloves · 1,000 gloves per carton": the order mix's totals. */
+export function orderTotals(mix: OrderMix): string[] {
+  return [
+    `${formatCount(mix.totalCases)} ${mix.totalCases === 1 ? "carton" : "cartons"}`,
+    ...(mix.totalGloves === null ? [] : [`${formatCount(mix.totalGloves)} ${mix.unitWord}`]),
+    ...(mix.glovesPerCase === null ? [] : [`${formatCount(mix.glovesPerCase)} ${mix.unitWord} per carton`]),
+  ];
+}
+
+/** "Prepared for Client A · Brand A PC-A01 Blue Nitrile": the footer's line. */
+export function preparedFor(chrome: Pick<ReportChrome, "client" | "product">): string | null {
+  const parts = [chrome.client ? `Prepared for ${chrome.client}` : null, chrome.product].filter((part): part is string => part !== null);
+  return parts.length > 0 ? parts.join(" · ") : null;
+}
+
+/** The header band's right side: "PO-0001 · Inspected 11 April 2025". */
+export function bandReference(chrome: Pick<ReportChrome, "po" | "inspectedOn">): string | null {
+  const parts = [chrome.po, chrome.inspectedOn ? `Inspected ${chrome.inspectedOn}` : null].filter((part): part is string => part !== null);
+  return parts.length > 0 ? parts.join(" · ") : null;
+}

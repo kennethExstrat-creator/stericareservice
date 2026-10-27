@@ -248,7 +248,7 @@ describe("saveCaptureData", () => {
     useClient((query) =>
       isUpdate(query) ? { data: { updated_at: NEXT_VERSION }, error: null } : { data: row(), error: null },
     );
-    const withOptions = { ...COMPLETE, report: { ...DEFAULT_REPORT_OPTIONS, pageSize: "letter", omittedSteps: ["weight"] } };
+    const withOptions = { ...COMPLETE, report: { ...DEFAULT_REPORT_OPTIONS, pageSize: "letter", summary: { ...DEFAULT_REPORT_OPTIONS.summary, orderMix: false } } };
     await expect(saveCaptureData(request(withOptions))).resolves.toMatchObject({ ok: true, updatedAt: NEXT_VERSION });
     expect(updatePayload(client.queries.find(isUpdate))).toMatchObject({ data: withOptions });
 

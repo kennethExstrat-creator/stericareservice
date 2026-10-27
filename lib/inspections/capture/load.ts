@@ -1,7 +1,7 @@
 import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { z } from "zod";
-import type { InspectionResult, InspectionStatus } from "@/lib/schemas/common";
+import type { InspectionResult, InspectionStatus, ProductType, Standard } from "@/lib/schemas/common";
 import { aiReviewOnSubmit, ResolvedTemplateSchema, type ModuleOverrides, type ResolvedTemplate } from "@/lib/schemas/template";
 import type { Database } from "@/lib/supabase/database.types";
 import { parseModuleOverrides } from "@/lib/templates";
@@ -19,9 +19,13 @@ import type { CaptureMeta } from "./evaluate";
 
 type Client = SupabaseClient<Database>;
 
-/** The inspector embed names its foreign key because approved_by also points at profiles. */
+/**
+ * The inspector embed names its foreign key because approved_by also points
+ * at profiles. The template's standard and product type are for the Report
+ * page's preview, which builds an export from the screen's copy.
+ */
 export const CAPTURE_SELECT =
-  "id, ref_no, status, data, module_overrides, updated_at, inspection_date, inspector_id, submitted_at, result, template:templates(id, code, version, resolved), client:clients(id, name), manufacturer:manufacturers(id, name, factory_name), inspector:profiles!inspections_inspector_id_fkey(id, full_name, email)";
+  "id, ref_no, status, data, module_overrides, updated_at, inspection_date, inspector_id, submitted_at, result, template:templates(id, code, version, standard, product_type, resolved), client:clients(id, name), manufacturer:manufacturers(id, name, factory_name), inspector:profiles!inspections_inspector_id_fkey(id, full_name, email)";
 
 type CaptureRow = {
   id: string;
@@ -34,7 +38,7 @@ type CaptureRow = {
   inspector_id: string;
   submitted_at: string | null;
   result: InspectionResult | null;
-  template: { id: string; code: string; version: number; resolved: unknown } | null;
+  template: { id: string; code: string; version: number; standard: Standard; product_type: ProductType; resolved: unknown } | null;
   client: { id: string; name: string } | null;
   manufacturer: { id: string; name: string; factory_name: string | null } | null;
   inspector: { id: string; full_name: string | null; email: string | null } | null;
@@ -56,6 +60,8 @@ export type CaptureInspection = {
     id: string;
     code: string;
     version: number;
+    standard: Standard;
+    productType: ProductType;
     resolved: ResolvedTemplate;
     /** The template asks for the AI second opinion when an inspection is submitted (BUILD_SPEC 9.2). */
     aiReviewOnSubmit: boolean;
@@ -143,6 +149,8 @@ export function toCaptureLoad(row: CaptureRow): CaptureLoad {
         id: row.template.id,
         code: row.template.code,
         version: row.template.version,
+        standard: row.template.standard,
+        productType: row.template.product_type,
         resolved: resolved.data,
         aiReviewOnSubmit: aiReviewOnSubmit(resolved.data),
       },

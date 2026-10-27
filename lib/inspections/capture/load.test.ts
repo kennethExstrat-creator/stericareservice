@@ -26,7 +26,7 @@ function row(overrides: Record<string, unknown> = {}) {
     inspector_id: INSPECTOR,
     submitted_at: null,
     result: null,
-    template: { id: "t1", code: "TEST_EG", version: 4, resolved: testTemplate() },
+    template: { id: "t1", code: "TEST_EG", version: 4, standard: "EN455" as const, product_type: "examination" as const, resolved: testTemplate() },
     client: { id: "20000000-0000-4000-8000-0000000000c1", name: "Client A" },
     manufacturer: { id: "10000000-0000-4000-8000-0000000000f1", name: "Manufacturer A", factory_name: "Factory 1" },
     inspector: { id: INSPECTOR, full_name: null, email: "inspector@test.local" },
@@ -47,7 +47,8 @@ describe("toCaptureLoad", () => {
       updatedAt: "2026-10-06T09:14:03.123456+00:00",
       inspectorId: INSPECTOR,
       manufacturerLabel: "Manufacturer A · Factory 1",
-      template: { id: "t1", code: "TEST_EG", version: 4 },
+      // The standard and product type too: the Report page's preview builds an export from the screen's copy.
+      template: { id: "t1", code: "TEST_EG", version: 4, standard: "EN455", productType: "examination" },
     });
     expect(Object.keys(inspection.overrides)).toEqual(["weight"]);
     expect(inspection.meta).toEqual({
@@ -99,7 +100,7 @@ describe("normaliseData", () => {
   });
 
   it("keeps the Report page's options as stored, so the screen's copy hashes as the saved one (Kenneth, 27 October 2026)", () => {
-    const report = { pageSize: "letter", omittedSteps: ["weight"] };
+    const report = { pageSize: "letter", sections: { dimensions: { include: false } } };
     expect(normaliseData({ modules: {}, custom: {}, report })).toEqual({ modules: {}, custom: {}, report });
     // As stored, readable or not: they are read with their defaults where they are shown.
     expect(normaliseData({ modules: {}, custom: {}, report: "corrupt" })).toEqual({ modules: {}, custom: {}, report: "corrupt" });

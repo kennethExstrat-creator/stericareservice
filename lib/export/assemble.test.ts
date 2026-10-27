@@ -3,6 +3,7 @@
 // fixed size rows, whatever was ordered.
 import { describe, expect, it } from "vitest";
 import { ExportSchema } from "@/lib/schemas/export";
+import { DEFAULT_REPORT_OPTIONS } from "@/lib/schemas/report-options";
 import type { ResolvedTemplate } from "@/lib/schemas/template";
 import { assembleExport, templateDetails } from "./assemble";
 import { STD_EG_IDS as IDS, stdEgRecord } from "./__fixtures__/std-eg";
@@ -70,59 +71,58 @@ describe("assembleExport: the Report page's options (Kenneth, 27 October 2026)",
     return assembleExport({ record, evaluated: evaluation.evaluated, links: LINKS, exportedAt: "2025-04-12T09:15:00.000Z" });
   }
 
-  it("gives an inspection saved before the Report page its defaults", () => {
-    expect(assembled().report).toEqual({
-      template: "standard_preshipment",
-      pageSize: "a4",
-      omittedSections: [],
-      includePhotos: true,
-      photosPerStep: 4,
-      photoSize: "medium",
-      title: "Pre-Shipment Inspection Report",
-      showClientName: true,
-      includeSummary: true,
-      includeSignature: true,
-      footerNote: null,
-    });
+  it("gives an inspection saved before the Report page its defaults: everything shown", () => {
+    const report = ExportSchema.parse(assembled()).report;
+    expect(report).toEqual({ ...DEFAULT_REPORT_OPTIONS, footerNote: null });
   });
 
   it("carries the options saved with the inspection, the title and footer note trimmed", () => {
     const doc = withOptions({
       pageSize: "letter",
-      includePhotos: false,
-      photosPerStep: 6,
-      photoSize: "small",
       title: "  Lot Release Report ",
-      showClientName: false,
-      includeSummary: false,
-      includeSignature: false,
+      showClient: false,
       footerNote: " Prepared for the client only. ",
+      summary: { orderMix: false },
+      sections: { packing: { blocks: { agedGloves: false } } },
+      photos: { perGroup: 12, groups: { samplingPackaging: false } },
     });
     expect(doc.report).toMatchObject({
       pageSize: "letter",
-      includePhotos: false,
-      photosPerStep: 6,
-      photoSize: "small",
       title: "Lot Release Report",
-      showClientName: false,
-      includeSummary: false,
-      includeSignature: false,
+      showClient: false,
       footerNote: "Prepared for the client only.",
+      summary: { orderMix: false, inspectionSummary: true, resultsByCheck: true },
+      photos: { perGroup: 12, groups: { samplingPackaging: false, packingVisualAgeing: true, watertightLaboratory: true } },
+    });
+    expect(doc.report?.sections?.packing).toEqual({
+      include: true,
+      blocks: { averageLayeringDispensing: true, perBoxResults: true, agedGloves: false, stickinessGrades: true },
     });
     expect(ExportSchema.parse(doc).report).toEqual(doc.report);
     // A blank title is the default one.
     expect(withOptions({ title: "  " }).report?.title).toBe("Pre-Shipment Inspection Report");
   });
 
-  it("leaves out every section on the page of a step switched off, by key, in export order", () => {
-    const doc = withOptions({ omittedSteps: ["weight", "order_lots", "source_documents"] });
-    // The order's page holds Glove Information and packing configuration; Source Documents' holds General Information.
-    expect(doc.report?.omittedSections).toEqual(["header", "glove_info", "order_lots", "packing_config", "weight"]);
-    const sections = doc.modules.map((module) => module.key as string);
-    expect(doc.report?.omittedSections?.every((key) => sections.includes(key))).toBe(true);
-    // Packing configuration switched off for the inspection: not in the report anyway, so not listed.
-    const off = withOptions({ omittedSteps: ["order_lots"] }, { packing_config: { reason: "Not ordered.", by: IDS.inspector, at: "2025-04-11T01:00:00.000Z" } });
-    expect(off.report?.omittedSections).toEqual(["glove_info", "order_lots"]);
-    expect(off.excludedModules.map((module) => module.key)).toEqual(["packing_config"]);
+  it("says what the report shows: a section switched off, or none of whose modules the inspection includes, goes out off", () => {
+    const off = withOptions({ sections: { dimensions: { include: false } } });
+    expect(off.report?.sections?.dimensions?.include).toBe(false);
+    expect(off.report?.sections?.measurements?.include).toBe(true);
+    // STD_EG versions 1 to 4 have force at break and the packing check: both sections are its own.
+    expect(off.report?.sections?.forceAtBreak?.include).toBe(true);
+    // Every module of Section 03 switched off for the inspection: out, whatever its switch says.
+    const switchedOff = withOptions({}, {
+      dimensions: { reason: "Calipers out.", by: IDS.inspector, at: "2025-04-11T01:00:00.000Z" },
+      weight: { reason: "Scale out.", by: IDS.inspector, at: "2025-04-11T01:00:00.000Z" },
+    });
+    expect(switchedOff.report?.sections?.dimensions?.include).toBe(false);
+    expect(switchedOff.report?.sections?.measurements?.include).toBe(false);
+    expect(switchedOff.report?.sections?.holesVisual?.include).toBe(true);
+  });
+
+  it("reads options saved in the first shape (a switch per capture step) into the design's", () => {
+    const doc = withOptions({ omittedSteps: ["weight"], showClientName: false, includePhotos: false });
+    expect(doc.report?.showClient).toBe(false);
+    expect(doc.report?.sections?.dimensions?.blocks).toMatchObject({ weightPerGlove: false, gloveLength: true });
+    expect(doc.report?.photos?.groups).toEqual({ samplingPackaging: false, packingVisualAgeing: false, watertightLaboratory: false });
   });
 });

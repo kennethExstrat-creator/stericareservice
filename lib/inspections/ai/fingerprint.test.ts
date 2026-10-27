@@ -57,7 +57,7 @@ describe("inspectionFingerprint", () => {
     const record = stdEgRecord();
     const withOptions: InspectionRecord = {
       ...record,
-      data: { ...(record.data as object), report: { pageSize: "letter", omittedSteps: ["weight"], includePhotos: false } },
+      data: { ...(record.data as object), report: { pageSize: "letter", sections: { dimensions: { include: false } }, photos: { perGroup: 4 } } },
     };
     expect(inspectionFingerprint(withOptions)).toBe(fingerprint());
   });

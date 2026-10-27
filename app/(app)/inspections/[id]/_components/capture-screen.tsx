@@ -20,8 +20,9 @@
 // not list, which no step shows, says so at its top, with Open Order to that
 // size's row (SectionPart; Kenneth, 27 October 2026). After the Conclusion,
 // the Report page: the report's options, saved in the data (`report`)
-// through the same autosave, a layout preview and Generate Report
-// (report-page.tsx; Kenneth, 27 October 2026); then the Audit Log.
+// through the same autosave, the report's own pages built from this screen's
+// copy, and Download PDF (report-page.tsx; Kenneth, 27 October 2026); then
+// the Audit Log.
 //
 // Layout: below 1280 px (the iPad) a section tab bar sticks under the shell's
 // top bar with the save pill, and the form runs full width; from 1280 px a
@@ -126,11 +127,9 @@ import type { ReopenNote } from "@/lib/inspections/capture/reopen";
 import {
   GENERATE_REASONS,
   readReportOptions,
-  reportSteps,
   writeReportOptions,
   type GenerateAvailability,
   type LastReport,
-  type ReportStep,
 } from "@/lib/inspections/capture/report";
 import {
   AUDIT_LOG_KEY,
@@ -157,6 +156,7 @@ import { summaryBasisHash } from "@/lib/inspections/capture/summary-basis";
 import type { StartResult } from "@/lib/offline";
 import { contentHash } from "@/lib/offline/stable-json";
 import { isModuleKey } from "@/lib/schemas/module-result";
+import type { InspectionResult, ProductType, Standard } from "@/lib/schemas/common";
 import { ReportOptionsSchema, type ReportOptions } from "@/lib/schemas/report-options";
 import { SUMMARY_MESSAGES, type SummaryMenu } from "@/lib/schemas/summary-style";
 import type { ModuleOverrides, ResolvedTemplate } from "@/lib/schemas/template";
@@ -184,7 +184,7 @@ import { ConflictDialog } from "./conflict-dialog";
 import { IssuesSheet } from "./issues-sheet";
 import { leaveAnswer } from "./leave-answer";
 import { SwitchedOffPanel, SwitchOffDialog } from "./module-switch";
-import { ReportPage, type ReportFacts } from "./report-page";
+import { ReportPage, type ReportSource } from "./report-page";
 import { SaveIndicator } from "./save-indicator";
 import { CustomBody, ModuleBody, preloadCaptures } from "./section-body";
 import { PagePanel, SectionFrame } from "./section-frame";
@@ -226,20 +226,34 @@ export type CaptureScreenProps = {
    */
   summaryMenu?: SummaryMenu | null;
   /**
-   * The Report page's Generate Report, as the server found it (an admin, a
-   * submitted or approved inspection, a report service), and the report last
-   * made. Left out: Generate Report waits, and there is no last report.
+   * The Report page's server facts: whether Send to Steri-AI Report may run
+   * (an admin, a submitted or approved inspection, a report service), the
+   * report last made, whether this user may download the PDF, and the
+   * template version's and the row's facts the preview's export needs. Left
+   * out: no AI report, no last report, no download.
    */
   reportPage?: CaptureReport;
 };
 
 /** What the Report page needs from the server. */
-export type CaptureReport = { generate: GenerateAvailability; lastReport: LastReport | null };
+export type CaptureReport = {
+  generate: GenerateAvailability;
+  lastReport: LastReport | null;
+  /** Download PDF: the export's rule (the inspection's inspector or an admin), which the print route checks again. */
+  canDownload: boolean;
+  /** The template version's standard and product type, the row's submit time and result: for the preview's export. */
+  record: { standard: Standard; productType: ProductType; submittedAt: string | null; result: InspectionResult | null } | null;
+};
 
 type FocusRequest = { sectionKey: string; path: IssuePath };
 
 const NO_USAGE: DefectUsage = {};
-const NO_REPORT: CaptureReport = { generate: { allowed: false, reason: GENERATE_REASONS.notYet }, lastReport: null };
+const NO_REPORT: CaptureReport = {
+  generate: { allowed: false, reason: GENERATE_REASONS.notYet },
+  lastReport: null,
+  canDownload: false,
+  record: null,
+};
 /** Nothing in focus: what a section's photo tags, and the kept size, start from. */
 const NO_FOCUS: CaptureFocus = {};
 
@@ -480,11 +494,46 @@ export function CaptureScreen({
   useEffect(() => {
     pagesRef.current = pages;
   }, [pages]);
-  // The Report page's switches, one per step, in step order: the steps the progress tracker shows.
-  const steps = useMemo(() => reportSteps(pages), [pages]);
-  const reportFacts = useMemo<ReportFacts>(
-    () => ({ refNo: heading.refNo, clientName: heading.clientName, inspectorName: heading.inspectorName }),
-    [heading.refNo, heading.clientName, heading.inspectorName],
+  // What the Report page's preview is built from: this screen's copy as it stands, its evaluation and the data it
+  // was made from, so the pages follow every option and entry at once (lib/report/live-export.ts), with the
+  // template version's facts the server read. Built into pages only while the Report page is open.
+  const reportRecord = reportPage.record;
+  const reportSource = useMemo<ReportSource>(
+    () => ({
+      inspectionId,
+      refNo: heading.refNo,
+      status: serverStatus,
+      inspectionDate: liveMeta.inspectionDate ?? heading.inspectionDate,
+      updatedAt: initialUpdatedAt,
+      submittedAt: reportRecord?.submittedAt ?? null,
+      result: reportRecord?.result ?? null,
+      template: {
+        code: template.code,
+        version: heading.templateVersion,
+        // Only a screen given no server facts (a test) stands these in.
+        standard: reportRecord?.standard ?? "custom",
+        productType: reportRecord?.productType ?? "examination",
+        resolved: template,
+      },
+      evaluation,
+      data: deferredData,
+      meta: liveMeta,
+      manufacturerLabel: heading.manufacturerLabel,
+    }),
+    [
+      inspectionId,
+      heading.refNo,
+      heading.inspectionDate,
+      heading.templateVersion,
+      heading.manufacturerLabel,
+      serverStatus,
+      initialUpdatedAt,
+      reportRecord,
+      template,
+      evaluation,
+      deferredData,
+      liveMeta,
+    ],
   );
 
   // The section asked for (?module=, an issue link, a switch) or the page chosen: the screen shows the page it is on.
@@ -1179,7 +1228,7 @@ export function CaptureScreen({
               }}
               onOverridesChange={onSwitched}
               saveFirst={() => autosave.flush({ timeoutMs: LEAVE_FLUSH_MS })}
-              reportPage={{ ...reportPage, options: reportOptions, steps, facts: reportFacts, onChange: writeReport }}
+              reportPage={{ ...reportPage, options: reportOptions, source: reportSource, onChange: writeReport }}
             />
           )}
 
@@ -1288,17 +1337,19 @@ type ActivePageProps = SharedSectionProps & {
   onUnreadableRemoved: (sectionKey: string) => void;
   /** A section was switched off or back on here. */
   onOverridesChange: (overrides: ModuleOverrides, sectionKey: string) => void;
-  /** Saves what is waiting: the Audit Log reads after it, so the last change is in the list. */
+  /**
+   * Saves what is waiting: the Audit Log reads after it, so the last change
+   * is in the list, and Download PDF, so the printed report has it.
+   */
   saveFirst: () => Promise<unknown>;
-  /** The Report page's options, its steps and what it names, and Generate Report. */
+  /** The Report page's options, what its preview is built from, and its actions. */
   reportPage: ReportPageData;
 };
 
-/** What the Report page shows and changes: the options as saved, one switch per step, Generate Report. */
+/** What the Report page shows and changes: the options as saved, the screen's copy for the preview, the server's facts. */
 type ReportPageData = CaptureReport & {
   options: ReportOptions;
-  steps: readonly ReportStep[];
-  facts: ReportFacts;
+  source: ReportSource;
   onChange: (options: ReportOptions) => void;
 };
 
@@ -1342,7 +1393,7 @@ function ActivePage({
   reportPage,
   ...shared
 }: ActivePageProps) {
-  // The Report page: the report's options and a layout preview, no section of its own.
+  // The Report page: the report's options and its pages, no section of its own.
   if (page.kind === "report") {
     return (
       <ReportPage
@@ -1351,11 +1402,11 @@ function ActivePage({
         titleRef={titleRef}
         inspectionId={shared.inspectionId}
         options={reportPage.options}
-        steps={reportPage.steps}
-        facts={reportPage.facts}
+        source={reportPage.source}
         readOnly={shared.readOnly}
         generate={reportPage.generate}
         lastReport={reportPage.lastReport}
+        download={{ allowed: reportPage.canDownload, saveFirst }}
         onChange={reportPage.onChange}
       />
     );

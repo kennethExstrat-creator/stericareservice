@@ -14,13 +14,8 @@ import { sectionOrder } from "@/lib/templates";
 import { exportIssuesOf } from "@/lib/validation";
 import { readModuleEntry, type ModuleEvaluation } from "@/modules/_framework";
 import { z } from "zod";
-import {
-  evaluatedReportSteps,
-  omittedSectionKeys,
-  readReportOptions,
-  reportFooterNote,
-  reportTitle,
-} from "@/lib/inspections/capture/report";
+import { readReportOptions, reportFooterNote, reportSectionsAvailable, reportTitle } from "@/lib/inspections/capture/report";
+import { REPORT_SECTIONS } from "@/lib/schemas/report-options";
 import { richTextHtml, richTextPlain } from "@/lib/rich-text";
 import { conclusionDataForExport, inspectionSummaryOf, inspectorDecision, signAfterExportOf } from "./conclusion";
 import type { EvaluatedInspection } from "./evaluate";
@@ -130,31 +125,30 @@ export function assembleExport({ record, evaluated, links, exportedAt }: Assembl
 /**
  * How the report is to be made (Kenneth, 27 October 2026): the Report page's
  * options as saved with the inspection, each with its default where none is
- * saved (lib/inspections/capture/report.ts). A step switched off there
- * leaves out every section on its page on the capture screen, so the steps
- * are worked out as the screen lists them, from this evaluation; the sections
- * go by key, in export order. A blank title is the default title, a blank
- * footer note none.
+ * saved (lib/inspections/capture/report.ts), in the report's structure. A
+ * section the inspection includes none of the modules of (switched off for
+ * it, or not in its template) goes out with `include` false, whatever its
+ * switch says, so the block says what the report shows. A blank title is the
+ * default title, a blank footer note none.
  */
-export function reportOptionsOf(evaluated: Pick<EvaluatedInspection, "template" | "report" | "data">): ExportReport {
+export function reportOptionsOf(evaluated: Pick<EvaluatedInspection, "report" | "data">): ExportReport {
   const options = readReportOptions(evaluated.data);
-  const omitted = new Set(omittedSectionKeys(options, evaluatedReportSteps(evaluated)));
-  const sections = [
-    ...evaluated.report.modules.map((evaluation): string => evaluation.key),
-    ...evaluated.report.custom.map((evaluation) => evaluation.custom.key),
-  ];
+  const available = reportSectionsAvailable(evaluated.report.modules.map((evaluation) => evaluation.key));
+  const sections = Object.fromEntries(
+    REPORT_SECTIONS.map(({ key }) => {
+      const section = options.sections[key];
+      return [key, { ...section, include: section.include && available[key] }];
+    }),
+  ) as ExportReport["sections"];
   return {
     template: options.template,
     pageSize: options.pageSize,
-    omittedSections: sections.filter((key) => omitted.has(key)),
-    includePhotos: options.includePhotos,
-    photosPerStep: options.photosPerStep,
-    photoSize: options.photoSize,
     title: reportTitle(options),
-    showClientName: options.showClientName,
-    includeSummary: options.includeSummary,
-    includeSignature: options.includeSignature,
+    showClient: options.showClient,
     footerNote: reportFooterNote(options),
+    summary: options.summary,
+    sections,
+    photos: options.photos,
   };
 }
 

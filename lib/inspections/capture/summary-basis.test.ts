@@ -41,7 +41,7 @@ describe("summaryBasisHash", () => {
   it("leaves the Report page's options out: how the report is laid out is nothing the summary is written from (27 October 2026)", () => {
     const basis = summaryBasisHash(data({ finalResult: "pass", inspectionSummary: summary }));
     expect(summaryBasisHash({ ...data({ finalResult: "pass", inspectionSummary: summary }), report: { pageSize: "letter" } })).toBe(basis);
-    expect(summaryBasisHash({ ...data(undefined), report: { includePhotos: false } })).toBe(contentHash(data(undefined)));
+    expect(summaryBasisHash({ ...data(undefined), report: { photos: { perGroup: 4 } } })).toBe(contentHash(data(undefined)));
   });
 
   it("is the data's own hash without a conclusion, whatever the key order", () => {

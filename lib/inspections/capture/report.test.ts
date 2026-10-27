@@ -1,45 +1,22 @@
 // The Report page's rules (Kenneth, 27 October 2026): its options read and
-// written in the data, what the save refuses, one switch per step the
-// inspection includes, what a step switched off leaves out, and when
-// Generate Report may run.
+// written in the data (the morning's first shape read into the design's),
+// what the save refuses, which sections an inspection can show, and when the
+// AI report may run.
 import { describe, expect, it } from "vitest";
 import { DEFAULT_REPORT_OPTIONS, ReportOptionsSchema, type ReportOptions } from "@/lib/schemas/report-options";
-import type { ModuleOverrides } from "@/lib/schemas/template";
-import { emptyData, filledData, TEST_ADMIN_ID, TEST_META, TEST_REGISTRY, testTemplate } from "./__fixtures__/capture";
-import { evaluateCapture } from "./evaluate";
+import { emptyData, filledData } from "./__fixtures__/capture";
 import {
-  evaluatedReportSteps,
   GENERATE_REASONS,
   generateAvailability,
-  omittedSectionKeys,
+  NOT_IN_INSPECTION,
   readReportOptions,
   reportFooterNote,
   reportOptionsProblem,
-  reportSteps,
+  reportSectionsAvailable,
   reportTitle,
-  stepInReport,
-  withStepInReport,
+  withFirstShape,
   writeReportOptions,
 } from "./report";
-import { capturePages, captureSections, leadPagesFirst, withAuditLog, withReport, withSourceDocuments } from "./sections";
-
-const OFF: ModuleOverrides = {
-  packing_config: { reason: "Not in this order.", by: TEST_ADMIN_ID, at: "2026-10-06T08:00:00.000Z" },
-};
-
-function evaluated(data = filledData(), overrides: ModuleOverrides = {}) {
-  const evaluation = evaluateCapture({ template: testTemplate(), overrides, data, meta: TEST_META }, TEST_REGISTRY);
-  return { template: evaluation.template, report: evaluation.report, data };
-}
-
-/** The capture screen's pages, as it builds them: Source Documents first, the Report page and the Audit Log last. */
-function screenPages(data = filledData(), overrides: ModuleOverrides = {}) {
-  const evaluation = evaluated(data, overrides);
-  const files = { key: "source_documents", title: "Source Documents", shortTitle: "Source Documents", status: "pass", progress: "done" } as const;
-  return withAuditLog(
-    withReport(withSourceDocuments(files, leadPagesFirst(capturePages(captureSections(evaluation.template, evaluation.report, data))))),
-  );
-}
 
 const options = (patch: Partial<ReportOptions> = {}): ReportOptions => ({ ...DEFAULT_REPORT_OPTIONS, ...patch });
 
@@ -51,23 +28,80 @@ describe("readReportOptions and writeReportOptions: the options in the data", ()
   });
 
   it("reads what is saved, an option saved before another existed taking that one's default", () => {
-    expect(readReportOptions({ report: { pageSize: "letter", photosPerStep: 6 } })).toEqual(options({ pageSize: "letter", photosPerStep: 6 }));
+    const read = readReportOptions({ report: { pageSize: "letter", photos: { perGroup: 12 } } });
+    expect(read).toEqual({ ...DEFAULT_REPORT_OPTIONS, pageSize: "letter", photos: { ...DEFAULT_REPORT_OPTIONS.photos, perGroup: 12 } });
   });
 
-  it("keeps the options it can read when one cannot be read: that one takes its default", () => {
-    expect(readReportOptions({ report: { pageSize: "a3", photoSize: "large", omittedSteps: ["weight"] } })).toEqual(
-      options({ photoSize: "large", omittedSteps: ["weight"] }),
-    );
+  it("keeps the options it can read when one cannot be read: that one, or that switch, takes its default", () => {
+    const read = readReportOptions({
+      report: {
+        pageSize: "a3",
+        showClient: false,
+        sections: { packing: { include: "maybe", blocks: { agedGloves: false, perBoxResults: 3 } } },
+        photos: { perGroup: 5, groups: { samplingPackaging: false } },
+      },
+    });
+    expect(read.pageSize).toBe("a4");
+    expect(read.showClient).toBe(false);
+    expect(read.sections.packing).toEqual({
+      include: true,
+      blocks: { averageLayeringDispensing: true, perBoxResults: true, agedGloves: false, stickinessGrades: true },
+    });
+    expect(read.photos).toEqual({ groups: { samplingPackaging: false, packingVisualAgeing: true, watertightLaboratory: true }, perGroup: 8 });
   });
 
   it("writes the options whole beside the modules, leaving the modules as they are", () => {
     const data = filledData();
-    const written = writeReportOptions(data, options({ includePhotos: false }));
-    expect(written.report).toEqual(options({ includePhotos: false }));
+    const next = options({ showClient: false });
+    const written = writeReportOptions(data, next);
+    expect(written.report).toEqual(next);
     expect(written.modules).toBe(data.modules);
     expect(written.custom).toBe(data.custom);
-    expect(readReportOptions(written)).toEqual(options({ includePhotos: false }));
+    expect(readReportOptions(written)).toEqual(next);
     expect(data.report).toBeUndefined();
+  });
+});
+
+describe("options saved in the first shape (the morning's switch per capture step)", () => {
+  it("map onto the design's options: client, summary, signature, photos", () => {
+    const read = readReportOptions({
+      report: { showClientName: false, includeSummary: false, includeSignature: false, includePhotos: false, photosPerStep: 6, photoSize: "large" },
+    });
+    expect(read.showClient).toBe(false);
+    expect(read.summary).toEqual({ orderMix: true, inspectionSummary: false, resultsByCheck: true });
+    expect(read.sections.labellingConclusion.blocks.inspectorSignature).toBe(false);
+    expect(read.photos).toEqual({ groups: { samplingPackaging: false, packingVisualAgeing: false, watertightLaboratory: false }, perGroup: 12 });
+    // Photos per Step doubles into Photos per Group: the old default is the new default.
+    expect(readReportOptions({ report: { photosPerStep: 4 } }).photos.perGroup).toBe(8);
+    expect(readReportOptions({ report: { photosPerStep: 2 } }).photos.perGroup).toBe(4);
+  });
+
+  it("switch off the blocks a step's page held, and a section once none of its blocks is left", () => {
+    const weight = readReportOptions({ report: { omittedSteps: ["weight"] } });
+    expect(weight.sections.dimensions).toEqual({
+      include: true,
+      blocks: { gloveLength: true, palmWidth: true, medianResults: true, weightPerGlove: false },
+    });
+    const dimension = readReportOptions({ report: { omittedSteps: ["dimensions"] } });
+    expect(dimension.sections.measurements.include).toBe(false);
+    expect(dimension.sections.dimensions.blocks).toMatchObject({ gloveLength: false, palmWidth: false, medianResults: false, weightPerGlove: true });
+    expect(readReportOptions({ report: { omittedSteps: ["dimensions", "weight"] } }).sections.dimensions.include).toBe(false);
+    // Either test of a kind leaves its section out: an inspection has one of them.
+    expect(readReportOptions({ report: { omittedSteps: ["tensile"] } }).sections.forceAtBreak.include).toBe(false);
+    expect(readReportOptions({ report: { omittedSteps: ["dispensing_safedon"] } }).sections.packing.include).toBe(false);
+    // The defects chart shows both tests: it goes only with both.
+    const watertight = readReportOptions({ report: { omittedSteps: ["watertight"] } }).sections.holesVisual;
+    expect(watertight).toMatchObject({ include: true, blocks: { defectsAgainstLimit: true, pinholesByLocation: false } });
+    expect(readReportOptions({ report: { omittedSteps: ["watertight", "visual"] } }).sections.holesVisual.include).toBe(false);
+    // Source Documents and the Conclusion held no section of their own.
+    expect(readReportOptions({ report: { omittedSteps: ["source_documents", "conclusion"] } }).sections).toEqual(DEFAULT_REPORT_OPTIONS.sections);
+  });
+
+  it("leaves options in the design's shape as they are, and lets what that shape saves win", () => {
+    const current = { ...DEFAULT_REPORT_OPTIONS, showClient: false };
+    expect(withFirstShape(current)).toBe(current);
+    expect(readReportOptions({ report: { showClient: true, showClientName: false } }).showClient).toBe(true);
+    expect(withFirstShape({ omittedSteps: ["weight"], pageSize: "letter" })).not.toHaveProperty("omittedSteps");
   });
 });
 
@@ -85,7 +119,9 @@ describe("reportOptionsProblem: what the save refuses", () => {
     expect(reportOptionsProblem(before, { ...before, report: { ...options(), footerNote: "x".repeat(301) } })).toBe(
       "Report: Keep the footer note to 300 characters.",
     );
-    expect(reportOptionsProblem(before, { ...before, report: { ...options(), photosPerStep: 5 } })).toBe("Report: Choose 2, 4 or 6 photos per step.");
+    expect(reportOptionsProblem(before, { ...before, report: { ...options(), photos: { ...options().photos, perGroup: 5 } } })).toBe(
+      "Report: Choose 4, 8 or 12 photos per group.",
+    );
     expect(reportOptionsProblem(before, { ...before, report: "corrupt" })).toMatch(/^Report: /);
   });
 
@@ -105,64 +141,21 @@ describe("reportTitle and reportFooterNote", () => {
   });
 });
 
-describe("reportSteps: one switch per step the inspection includes, in step order", () => {
-  it("lists Source Documents and the included pages as the progress steps do, never the Report page, the Audit Log or a switched-off step", () => {
-    const pages = screenPages(filledData(), OFF);
-    const steps = reportSteps(pages);
-    expect(steps.map((step) => step.key)).toEqual(["source_documents", "order_lots", "site_notes", "weight", "size_checks", "conclusion"]);
-    expect(pages.map((page) => page.key)).toEqual(expect.arrayContaining(["packing_config", "report", "audit_log"]));
-    expect(steps.map((step) => step.key)).not.toContain("packing_config");
-  });
-
-  it("names each step by its short name, with its full title for the hover, as the sidebar does", () => {
-    const pages = screenPages();
-    const steps = reportSteps(pages);
-    for (const step of steps) {
-      const page = pages.find((entry) => entry.key === step.key);
-      expect(step).toMatchObject({ title: page?.title, shortTitle: page?.shortTitle });
-    }
-    expect(steps[0]).toMatchObject({ key: "source_documents", shortTitle: "Source Documents" });
-  });
-
-  it("gives each step the sections on its page: General Information on Source Documents', the modules shown on the order's", () => {
-    const steps = reportSteps(screenPages());
-    expect(steps.find((step) => step.key === "source_documents")?.sectionKeys).toEqual(["header", "source_documents"]);
-    expect(steps.find((step) => step.key === "order_lots")?.sectionKeys).toEqual(["order_lots", "glove_info", "packing_config"]);
-    expect(steps.find((step) => step.key === "weight")?.sectionKeys).toEqual(["weight"]);
-    // Packing configuration switched off for the inspection: no longer on the order's page.
-    expect(reportSteps(screenPages(filledData(), OFF)).find((step) => step.key === "order_lots")?.sectionKeys).toEqual(["order_lots", "glove_info"]);
-  });
-
-  it("are the same steps from an evaluation alone, as the export works them out", () => {
-    for (const overrides of [{}, OFF]) {
-      expect(evaluatedReportSteps(evaluated(filledData(), overrides))).toEqual(reportSteps(screenPages(filledData(), overrides)));
-    }
-  });
-});
-
-describe("switching a step off or on", () => {
-  it("switches one step, every step on by default", () => {
-    expect(stepInReport(options(), "weight")).toBe(true);
-    const off = withStepInReport(options(), "weight", false);
-    expect(off.omittedSteps).toEqual(["weight"]);
-    expect(stepInReport(off, "weight")).toBe(false);
-    expect(stepInReport(off, "order_lots")).toBe(true);
-    // Twice off is once; back on, it goes.
-    expect(withStepInReport(off, "weight", false).omittedSteps).toEqual(["weight"]);
-    expect(withStepInReport(off, "weight", true).omittedSteps).toEqual([]);
-  });
-
-  it("leaves out every section on the page of a step switched off, in step order", () => {
-    const steps = reportSteps(screenPages());
-    expect(omittedSectionKeys(options(), steps)).toEqual([]);
-    expect(omittedSectionKeys(options({ omittedSteps: ["weight", "order_lots"] }), steps)).toEqual([
-      "order_lots",
-      "glove_info",
-      "packing_config",
-      "weight",
-    ]);
-    // A step the inspection no longer has is no section.
-    expect(omittedSectionKeys(options({ omittedSteps: ["dye_leak"] }), steps)).toEqual([]);
+describe("reportSectionsAvailable: the sections an inspection can show", () => {
+  it("offers a section when the inspection includes one of its modules, and says why it does not", () => {
+    const stdSg = reportSectionsAvailable(["header", "order_lots", "sampling_plan", "watertight", "visual", "dimensions", "dye_leak", "conclusion"]);
+    expect(stdSg).toEqual({
+      orderSampling: true,
+      dimensions: true,
+      measurements: true,
+      forceAtBreak: false,
+      holesVisual: true,
+      packing: false,
+      labellingConclusion: true,
+    });
+    // Physical properties stand in for force at break, Safedon dispensing for the packing check.
+    expect(reportSectionsAvailable(["tensile", "dispensing_safedon"])).toMatchObject({ forceAtBreak: true, packing: true });
+    expect(NOT_IN_INSPECTION).toBe("Not in this inspection");
   });
 });
 

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { FIXTURE_IDS, makeStdEgExport } from "@/lib/ai/__fixtures__/std-eg-export";
 import { ExportSchema, type InspectionExport } from "./export";
+import { DEFAULT_REPORT_OPTIONS } from "./report-options";
 
 function parse(doc: unknown) {
   return ExportSchema.safeParse(doc);
@@ -242,39 +243,41 @@ describe("ExportSchema", () => {
     expect(issuePaths(header)).toContain("template.pageHeader");
   });
 
-  it("carries the Report page's options, and reads a document written before them with the defaults (Kenneth, 27 October 2026)", () => {
+  it("carries the Report page's options in the report's structure, and reads a document written before them with the defaults (Kenneth, 27 October 2026)", () => {
     const doc = makeStdEgExport();
-    // The example saves none: the defaults.
-    expect(doc.report).toEqual({
-      template: "standard_preshipment",
-      pageSize: "a4",
-      omittedSections: [],
-      includePhotos: true,
-      photosPerStep: 4,
-      photoSize: "medium",
-      title: "Pre-Shipment Inspection Report",
-      showClientName: true,
-      includeSummary: true,
-      includeSignature: true,
-      footerNote: null,
-    });
-    doc.report = { ...doc.report, pageSize: "letter", omittedSections: ["weight"], photoSize: "large", footerNote: "Confidential." };
+    // The example saves none: the defaults, everything shown.
+    expect(doc.report).toEqual({ ...DEFAULT_REPORT_OPTIONS, footerNote: null });
+    doc.report = {
+      ...doc.report,
+      pageSize: "letter",
+      footerNote: "Confidential.",
+      sections: { ...doc.report.sections, measurements: { include: false, blocks: {} } },
+    };
     expect(ExportSchema.parse(JSON.parse(JSON.stringify(doc))).report).toEqual(doc.report);
 
     const older: Record<string, unknown> = { ...makeStdEgExport() };
     delete older.report;
     expect(ExportSchema.parse(older).report).toEqual(makeStdEgExport().report);
-    // An option added later reads as its default, too.
-    expect(ExportSchema.parse({ ...makeStdEgExport(), report: { pageSize: "letter" } }).report).toEqual({ ...makeStdEgExport().report, pageSize: "letter" });
+    // An option added later reads as its default, too, block by block.
+    const partial = ExportSchema.parse({ ...makeStdEgExport(), report: { pageSize: "letter", sections: { packing: { include: false } } } }).report;
+    expect(partial).toEqual({
+      ...makeStdEgExport().report,
+      pageSize: "letter",
+      sections: { ...makeStdEgExport().report.sections, packing: { ...DEFAULT_REPORT_OPTIONS.sections.packing, include: false } },
+    });
+    // The first shape's keys are no part of the block: an older document reads as the defaults.
+    expect(ExportSchema.parse({ ...makeStdEgExport(), report: { omittedSections: ["weight"], includePhotos: false } }).report).toEqual(
+      makeStdEgExport().report,
+    );
   });
 
   it("rejects report options it cannot carry", () => {
     const paths = (report: Record<string, unknown>) => issuePaths({ ...makeStdEgExport(), report: { ...makeStdEgExport().report, ...report } });
     expect(paths({ pageSize: "a3" })).toContain("report.pageSize");
-    expect(paths({ photosPerStep: 5 })).toContain("report.photosPerStep");
+    expect(paths({ photos: { perGroup: 5 } })).toContain("report.photos.perGroup");
     expect(paths({ title: "" })).toContain("report.title");
     expect(paths({ footerNote: "" })).toContain("report.footerNote");
-    expect(paths({ omittedSections: [""] })).toContain("report.omittedSections.0");
+    expect(paths({ sections: { dimensions: { include: "yes" } } })).toContain("report.sections.dimensions.include");
   });
 });
 
