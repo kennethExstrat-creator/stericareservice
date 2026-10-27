@@ -12,12 +12,12 @@ import {
 } from "./support";
 
 /**
- * The panel on the review screen with nothing connected (BUILD_SPEC 9.1,
- * 9.2): "AI Second Opinion Not Connected", and "AI Not Connected" with the
- * JSON download. Run against a dev server with the second opinion switched
- * off and no report service (an empty variable counts as not set):
+ * The panel on the review screen with nothing connected (BUILD_SPEC 9.2):
+ * "Steri-AI Second Opinion Not Connected", and no Steri-AI Report (removed:
+ * Kenneth, 27 October 2026, "we already have Client Report"). Run against a
+ * dev server with the second opinion switched off:
  *
- *   AI_REVIEW_PROVIDER=off AI_REPORT_WEBHOOK_URL= npx next dev -p <port>
+ *   AI_REVIEW_PROVIDER=off npx next dev -p <port>
  *   E2E_EXPORT_AI=off PLAYWRIGHT_BASE_URL=http://localhost:<port> npx playwright test e2e/export/not-connected.spec.ts
  *
  * The panel is found on /inspections/{id}/review; E2E_AI_PANEL_PATH points
@@ -39,11 +39,7 @@ test.afterAll(async () => {
   await fixture?.cleanup();
 });
 
-test("an admin sees that neither hand-off is connected, and can still download the export", async ({
-  page,
-  context,
-  baseURL,
-}) => {
+test("an admin sees that the second opinion is not connected, and no Steri-AI Report", async ({ page, context, baseURL }) => {
   const hydration = watchConsole(page);
   await signIn(context, baseURL!, TEST_ACCOUNTS.admin);
   await page.goto(panelPath(fixture.inspectionId));
@@ -55,13 +51,8 @@ test("an admin sees that neither hand-off is connected, and can still download t
     "It is switched off on the server: AI_REVIEW_PROVIDER is set to off.",
   );
   await expect(panel.getByRole("button", { name: /Second Opinion/ })).toHaveCount(0);
-  const report = panel.getByTestId("ai-report");
-  await expect(report).toContainText("Steri-AI Not Connected");
-  await expect(report.getByRole("button", { name: /Send to Steri-AI Report/ })).toHaveCount(0);
-  await expect(report.getByRole("link", { name: "Download JSON" })).toHaveAttribute(
-    "href",
-    `/api/inspections/${fixture.inspectionId}/export`,
-  );
+  await expect(panel.getByTestId("ai-report")).toHaveCount(0);
+  await expect(page.getByRole("link", { name: "Download JSON" })).toHaveCount(0);
   await expectNoPageScroll(page);
   await shot(page, "admin-not-connected");
   expect(hydration()).toEqual([]);

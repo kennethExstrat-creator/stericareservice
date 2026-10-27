@@ -2,8 +2,9 @@
 
 The app renders the pre-shipment inspection report itself, in SteriCare's design (Kenneth, 27 October 2026: the new
 design, "inside the report, there are charts and infographics, try to use the data to those charts in the report
-too"), and the browser's print dialog saves it as a PDF. The AI report service (BUILD_SPEC 9.1) stays an option beside
-it. This page is how the report is built, how to add a section, and the rules its data follows.
+too"), and the browser's print dialog saves it as a PDF. It is the only client report: the Steri-AI Report hand-off that
+stood beside it is gone (Kenneth, 27 October 2026: "no need Steri-AI report, because we already have Client Report";
+BUILD_SPEC 9.1). This page is how the report is built, how to add a section, and the rules its data follows.
 
 ## Architecture
 

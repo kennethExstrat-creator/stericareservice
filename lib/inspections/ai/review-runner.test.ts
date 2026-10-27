@@ -166,10 +166,10 @@ describe("startAiReview", () => {
     expect(reviews(db)).toHaveLength(1);
   });
 
-  it("keeps to one review of the same content when the inspection was saved again (approved, a report link)", async () => {
+  it("keeps to one review of the same content when the inspection was saved again (approved)", async () => {
     const db = fake();
     await startAiReview({ client: db.client, inspectionId: IDS.inspection, trigger: "admin", viewer: ADMIN, now: () => NOW });
-    Object.assign(inspectionRow(db), { status: "approved", updated_at: LATER, report_url: "https://reports.example.com/r.pdf" });
+    Object.assign(inspectionRow(db), { status: "approved", updated_at: LATER });
     const again = await startAiReview({ client: db.client, inspectionId: IDS.inspection, trigger: "admin", viewer: ADMIN, now: () => NOW });
     expect(again).toEqual({ ok: false, reason: "pending", message: `${ALREADY_PENDING} It appears here when it is ready.` });
     expect(reviews(db)).toHaveLength(1);

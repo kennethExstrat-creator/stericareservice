@@ -16,14 +16,12 @@ vi.mock("@/lib/inspections/ai", () => ({ loadAiPanel: vi.fn() }));
 vi.mock("@/lib/inspections/ai/actions", () => ({
   requestAiSecondOpinion: vi.fn(),
   recordAiFindingDecision: vi.fn(),
-  sendToAiReport: vi.fn(),
   getAiReviewProgress: vi.fn(),
 }));
 
 import { requireUser } from "@/lib/auth/session";
 import { CLAUDE_MAX_TOKENS } from "@/lib/ai/providers/claude-request";
 import { claudeTimeoutMs } from "@/lib/ai/providers/claude";
-import { REPORT_WEBHOOK_TIMEOUT_MS } from "@/lib/ai/report";
 import { loadAiPanel, type AiPanelLoad } from "@/lib/inspections/ai";
 import { loadFixture, MOCK_STATUS, NOW, reviewHistory } from "@/lib/inspections/ai/__fixtures__/panel";
 import { buildAiPanelModel } from "@/lib/inspections/ai/panel-model";
@@ -47,7 +45,7 @@ beforeAll(async () => {
       aiStatus: MOCK_STATUS,
       viewerId: ADMIN_ID,
       isAdmin: true,
-      allows: { secondOpinion: true, exportReports: true },
+      allows: { secondOpinion: true },
       now: NOW,
     }),
   };
@@ -235,13 +233,16 @@ describe("/inspections/[id]/review", () => {
     expect(html).not.toContain("<main");
   });
 
-  it("reads the AI panel as the signed-in user, and shows the three columns with the AI report", async () => {
+  it("reads the AI panel as the signed-in user, and shows the three columns, with no Steri-AI Report", async () => {
     const html = await render(reviewData());
     expect(loadAiPanel).toHaveBeenCalledWith(ADMIN_USER, INSPECTION_ID);
     expect(html).toContain('data-testid="ai-comparison"');
     for (const column of ["System (Computed)", "Inspector", "Steri-AI Second Opinion"]) expect(html).toContain(column);
-    expect(html).toContain('data-testid="ai-report"');
-    expect(link(html, "Download JSON")).toBe(true);
+    // Kenneth, 27 October 2026: "no need Steri-AI report, because we already have Client Report".
+    expect(html).not.toContain('data-testid="ai-report"');
+    expect(html).not.toContain("Steri-AI Report");
+    expect(link(html, "Download JSON")).toBe(false);
+    expect(html).toContain('id="client-report"');
   });
 
   it("says when the AI panel could not be loaded, and leaves the rest of the review in place", async () => {
@@ -253,7 +254,7 @@ describe("/inspections/[id]/review", () => {
     expect(html).toContain('id="modules"');
   });
 
-  it("says quietly that the AI hand-offs need the results when they cannot be worked out, and leaves the cause to the review", async () => {
+  it("says quietly that the second opinion needs the results when they cannot be worked out, and leaves the cause to the review", async () => {
     const cause =
       "The template version this inspection uses could not be read, so its results cannot be worked out. Ask a developer to check the template.";
     vi.mocked(loadAiPanel).mockResolvedValue({
@@ -270,21 +271,19 @@ describe("/inspections/[id]/review", () => {
     const ai = html.slice(start, html.indexOf("</section>", start));
     expect(ai).toContain("Steri-AI Second Opinion");
     expect(ai).toContain("Not Available");
-    expect(ai).toContain("Steri-AI&#x27;s second opinion and report need this inspection&#x27;s results, which could not be worked out.");
+    expect(ai).toContain("Steri-AI&#x27;s second opinion needs this inspection&#x27;s results, which could not be worked out.");
     // Not-done slate, not fail red: the review's checks and module results give the cause, and only they do.
     expect(ai).not.toMatch(/fail/);
     expect(html).not.toContain("Steri-AI Panel Could Not Be Loaded");
     expect(html).not.toContain("which could not be read.");
     expect(html.split(cause)).toHaveLength(3);
-    // Nothing to request or download: the export needs the results too.
-    expect(link(html, "Download JSON")).toBe(false);
+    // Nothing to request: the second opinion needs the results too.
     expect(button(html, "Request Steri-AI Second Opinion")).toBe(false);
   });
 
-  it("runs its Server Actions longer than the AI hand-offs may take at the default effort", () => {
-    // Claude at high effort (the default) and the report webhook, with a minute to spare for the rest.
+  it("runs its Server Actions longer than a second opinion may take at the default effort", () => {
+    // Claude at high effort (the default), with a minute to spare for the rest.
     expect(maxDuration * 1000).toBeGreaterThanOrEqual(claudeTimeoutMs(CLAUDE_MAX_TOKENS.high) + 60_000);
-    expect(maxDuration * 1000).toBeGreaterThan(REPORT_WEBHOOK_TIMEOUT_MS);
     // The most Vercel allows a function on Pro: a higher value would fail the deployment.
     expect(maxDuration).toBeLessThanOrEqual(800);
   });

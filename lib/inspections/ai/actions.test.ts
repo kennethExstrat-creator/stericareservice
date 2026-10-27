@@ -17,7 +17,7 @@ import { authorizeAction } from "@/lib/auth/session";
 import { createFakeSupabase, type FakeSupabase } from "@/lib/export/__fixtures__/fake-supabase";
 import { IDS, makeObjects, makeTables } from "@/lib/export/__fixtures__/inspection";
 import { createClient } from "@/lib/supabase/server";
-import { getAiReviewProgress, recordAiFindingDecision, requestAiSecondOpinion, sendToAiReport } from "./actions";
+import { getAiReviewProgress, recordAiFindingDecision, requestAiSecondOpinion } from "./actions";
 import { AI_ACTION_IDLE } from "./types";
 
 const ADMIN_USER = { id: IDS.admin, email: "admin@test.local", fullName: "Admin A", role: "admin" as const };
@@ -34,7 +34,6 @@ function form(fields: Record<string, string>): FormData {
 beforeEach(() => {
   vi.stubEnv("NODE_ENV", "test");
   vi.stubEnv("AI_REVIEW_PROVIDER", "mock");
-  vi.stubEnv("AI_REPORT_WEBHOOK_URL", "");
   db = createFakeSupabase({ tables: makeTables(), objects: makeObjects() });
   vi.mocked(createClient).mockResolvedValue(db.client as Awaited<ReturnType<typeof createClient>>);
   vi.mocked(authorizeAction).mockResolvedValue({ ok: true, user: ADMIN_USER });
@@ -123,43 +122,6 @@ describe("recordAiFindingDecision", () => {
       fieldErrors: { note: "Add a note explaining why you disagree." },
     });
     expect(refresh).not.toHaveBeenCalled();
-  });
-});
-
-describe("sendToAiReport", () => {
-  it("offers the JSON download when no report service is connected", async () => {
-    expect(await sendToAiReport(AI_ACTION_IDLE, form({ inspectionId: IDS.inspection }))).toEqual({
-      status: "not_connected",
-      message: "Steri-AI not connected.",
-      downloadHref: `/api/inspections/${IDS.inspection}/export`,
-    });
-    expect(refresh).not.toHaveBeenCalled();
-  });
-
-  it("is admin work", async () => {
-    vi.mocked(authorizeAction).mockResolvedValue({ ok: false, error: "Your session has ended. Sign in again." });
-    expect(await sendToAiReport(AI_ACTION_IDLE, form({ inspectionId: IDS.inspection }))).toEqual({
-      status: "error",
-      message: "Your session has ended. Sign in again.",
-    });
-  });
-
-  // Roles and permissions (migration 20261027150000): the role's Export Reports, and every inspection in sight.
-  it("needs the role's Export Reports, and the role level that writes the link", async () => {
-    vi.mocked(authorizeAction).mockResolvedValue({ ok: false, error: "You do not have permission to do that." });
-    expect(await sendToAiReport(AI_ACTION_IDLE, form({ inspectionId: IDS.inspection }))).toEqual({
-      status: "error",
-      message: "You do not have permission to do that.",
-    });
-    expect(authorizeAction).toHaveBeenCalledWith({ permission: "export_reports" });
-
-    // An inspector exports their own inspection, but never writes a submitted one's report link.
-    vi.mocked(authorizeAction).mockResolvedValue({ ok: true, user: { ...ADMIN_USER, id: IDS.inspector, role: "inspector" } });
-    expect(await sendToAiReport(AI_ACTION_IDLE, form({ inspectionId: IDS.inspection }))).toEqual({
-      status: "error",
-      message: "You do not have permission to do that.",
-    });
-    expect(db.queries).toEqual([]);
   });
 });
 

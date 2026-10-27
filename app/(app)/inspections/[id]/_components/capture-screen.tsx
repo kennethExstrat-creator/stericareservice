@@ -126,13 +126,7 @@ import {
 import { canBeSwitchedOff } from "@/lib/inspections/capture/overrides";
 import { refusedTaskIssues } from "@/lib/inspections/capture/refused";
 import type { ReopenNote } from "@/lib/inspections/capture/reopen";
-import {
-  GENERATE_REASONS,
-  readReportOptions,
-  writeReportOptions,
-  type GenerateAvailability,
-  type LastReport,
-} from "@/lib/inspections/capture/report";
+import { readReportOptions, writeReportOptions } from "@/lib/inspections/capture/report";
 import {
   AUDIT_LOG_KEY,
   capturePages,
@@ -230,19 +224,15 @@ export type CaptureScreenProps = {
    */
   summaryMenu?: SummaryMenu | null;
   /**
-   * The Report page's server facts: whether Send to Steri-AI Report may run
-   * (an admin, a submitted or approved inspection, a report service), the
-   * report last made, whether this user may download the PDF, and the
-   * template version's and the row's facts the preview's export needs. Left
-   * out: no AI report, no last report, no download.
+   * The Report page's server facts: whether this user may download the PDF,
+   * and the template version's and the row's facts the preview's export
+   * needs. Left out: no download.
    */
   reportPage?: CaptureReport;
 };
 
 /** What the Report page needs from the server. */
 export type CaptureReport = {
-  generate: GenerateAvailability;
-  lastReport: LastReport | null;
   /** Download PDF: the export's rule (the inspection's inspector, their lead inspector or an admin), which the print route checks again. */
   canDownload: boolean;
   /** The template version's standard and product type, the row's submit time and result: for the preview's export. */
@@ -253,8 +243,6 @@ type FocusRequest = { sectionKey: string; path: IssuePath };
 
 const NO_USAGE: DefectUsage = {};
 const NO_REPORT: CaptureReport = {
-  generate: { allowed: false, reason: GENERATE_REASONS.notYet },
-  lastReport: null,
   canDownload: false,
   record: null,
 };
@@ -1419,8 +1407,6 @@ function ActivePage({
         options={reportPage.options}
         source={reportPage.source}
         readOnly={shared.readOnly}
-        generate={reportPage.generate}
-        lastReport={reportPage.lastReport}
         download={{ allowed: reportPage.canDownload, saveFirst }}
         onChange={reportPage.onChange}
       />

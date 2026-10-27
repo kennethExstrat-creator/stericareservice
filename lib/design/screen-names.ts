@@ -3,7 +3,7 @@
 // "call this general information": the header module is General Information
 // on every screen, its card heading and its short name alike, in every
 // template, versions already in use included. The template keeps its
-// wording, and so do the export, the Steri-AI Report and anything else the
+// wording, and so do the export, the Client Report and anything else the
 // client reads (BUILD_SPEC 6.2 rule 11).
 import type { ModuleKey } from "@/lib/schemas/module-result";
 import { shortTitleFor } from "@/lib/templates/short-titles";

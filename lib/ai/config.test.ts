@@ -47,7 +47,6 @@ describe("review provider resolution", () => {
   it("treats empty and blank strings as unset, as a copied .env.example has them", () => {
     const env = { AI_REVIEW_PROVIDER: "", AI_REVIEW_WEBHOOK_URL: "  ", ANTHROPIC_API_KEY: "", AI_REVIEW_MODEL: "" };
     expect(review(env)).toEqual({ provider: "off" });
-    expect(readAiConfig(env).report).toEqual({ provider: "off" });
   });
 
   it("marks AI_REVIEW_PROVIDER=off as switched off on purpose, whatever else is set", () => {
@@ -156,26 +155,25 @@ describe("webhook URLs and the signing secret", () => {
     expect(review({ AI_REVIEW_WEBHOOK_URL: "http://192.168.1.20:5678/webhook" }).provider).toBe("webhook");
   });
 
-  it("rejects a short secret for both hand-offs", () => {
-    const config = readAiConfig({
-      AI_REVIEW_WEBHOOK_URL: WEBHOOK_URL,
-      AI_REPORT_WEBHOOK_URL: "https://reports.example.com/hook",
-      AI_WEBHOOK_SECRET: "changeme",
-    });
+  it("rejects a short secret", () => {
+    const config = readAiConfig({ AI_REVIEW_WEBHOOK_URL: WEBHOOK_URL, AI_WEBHOOK_SECRET: "changeme" });
     expect(problemsOf(config.review)).toContain("AI_WEBHOOK_SECRET");
-    expect(problemsOf(config.report)).toContain("AI_WEBHOOK_SECRET");
     expect(config.webhookSecret.ok).toBe(false);
   });
 
   it("never echoes URLs, keys or secrets in problems", () => {
-    const config = readAiConfig({
+    const claude = readAiConfig({
       AI_REVIEW_PROVIDER: "claude",
       ANTHROPIC_API_KEY: API_KEY,
       AI_REVIEW_EFFORT: "extreme",
-      AI_REPORT_WEBHOOK_URL: "https://user:url-secret-token@reports.example.com/hook",
       AI_WEBHOOK_SECRET: "short-secret",
     });
-    const text = JSON.stringify([config.review, config.report]);
+    const webhook = readAiConfig({
+      AI_REVIEW_WEBHOOK_URL: "https://user:url-secret-token@ai.example.com/review",
+      AI_WEBHOOK_SECRET: "short-secret",
+    });
+    expect(problemsOf(webhook.review)).toContain("AI_REVIEW_WEBHOOK_URL");
+    const text = JSON.stringify([claude.review, webhook.review]);
     expect(text).not.toContain(API_KEY);
     expect(text).not.toContain("url-secret-token");
     expect(text).not.toContain("short-secret");
@@ -205,19 +203,12 @@ describe("a secret pasted on the wrong line", () => {
   });
 });
 
-describe("report resolution", () => {
-  it("is off without a URL and a webhook with one", () => {
-    expect(readAiConfig({}).report).toEqual({ provider: "off" });
-    expect(readAiConfig({ AI_REPORT_WEBHOOK_URL: "https://reports.example.com/hook" }).report).toEqual({
-      provider: "webhook",
-      webhook: { url: "https://reports.example.com/hook", secret: null },
-    });
-  });
-
-  it("resolves independently of a misconfigured review", () => {
-    const config = readAiConfig({ AI_REVIEW_PROVIDER: "bogus", AI_REPORT_WEBHOOK_URL: "https://reports.example.com/hook" });
-    expect(config.review.provider).toBe("misconfigured");
-    expect(config.report.provider).toBe("webhook");
+// No Steri-AI Report (Kenneth, 27 October 2026: "we already have Client Report"): its variable is not read.
+describe("AI_REPORT_WEBHOOK_URL", () => {
+  it("changes nothing: the second opinion is the only webhook", () => {
+    const config = readAiConfig({ AI_REPORT_WEBHOOK_URL: "https://reports.example.com/hook" });
+    expect(config).toEqual(readAiConfig({}));
+    expect(config).not.toHaveProperty("report");
   });
 });
 

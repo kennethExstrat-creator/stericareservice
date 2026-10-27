@@ -46,8 +46,8 @@ function model(overrides: Partial<PanelModelInput> = {}) {
     aiStatus: MOCK_STATUS,
     viewerId: IDS.admin,
     isAdmin,
-    // The built-in roles as made: admins ask and decide; whoever reads the panel exports.
-    allows: { secondOpinion: isAdmin, exportReports: true },
+    // The built-in roles as made: admins ask and decide.
+    allows: { secondOpinion: isAdmin },
     now: NOW,
     ...overrides,
   });
@@ -235,27 +235,18 @@ describe("AiReviewPanelView for an admin", () => {
     // Each question's screen-reader prefix follows the label above it.
     expect(content).toContain("Question Q1 for the Inspector: Is the spec sheet on its way?");
     expect(content).toContain("Show This Opinion");
-    expect(content).toContain("Download JSON");
   });
 
-  it("offers the JSON download and says the report service is not connected", () => {
-    const html = render();
-    const content = text(html);
-    expect(content).toContain("Steri-AI Report");
-    // The pill in Title Case; the line under the heading is a sentence.
-    expect(content).toContain("Steri-AI Not Connected");
-    expect(content).toContain("Steri-AI not connected. Download the export (JSON)");
-    expect(html).toContain(`href="/api/inspections/${IDS.inspection}/export"`);
-    expect(html).toMatch(/<a[^>]*download=""[^>]*>|<a[^>]*download[^>]*>/);
-    expect(content).not.toContain("Send to Steri-AI Report");
-  });
-
-  it("sends to the AI report when a report service is connected", () => {
-    const content = text(
-      render({ aiStatus: { ...MOCK_STATUS, report: { connected: true, provider: "webhook", label: "Steri-AI Report Connected (Webhook)" } } }),
-    );
-    expect(content).toContain("Send to Steri-AI Report");
-    expect(content).not.toMatch(/Steri-AI not connected/i);
+  // Kenneth, 27 October 2026: "no need Steri-AI report, because we already have Client Report".
+  it("has no Steri-AI Report: no card, no send, no JSON download", () => {
+    for (const html of [render(), render({ isAdmin: false, decisions: [] })]) {
+      const content = text(html);
+      expect(html).not.toContain('data-testid="ai-report"');
+      expect(content).not.toContain("Steri-AI Report");
+      expect(content).not.toContain("Steri-AI Not Connected");
+      expect(content).not.toContain("Download JSON");
+      expect(html).not.toContain(`/api/inspections/${IDS.inspection}/export`);
+    }
   });
 
   it("keeps screen-reader text inside its component", () => {
@@ -297,39 +288,26 @@ describe("AiReviewPanelView for an admin", () => {
 });
 
 describe("AiReviewPanelView for the inspector", () => {
-  it("shows the opinions read-only: no decisions, no requests, no report button", () => {
+  it("shows the opinions read-only: no decisions, no requests", () => {
     const html = render({ isAdmin: false, decisions: [] });
     const content = text(html);
     expect(content).toContain("Finding F1");
     expect(content).toContain("An admin decides on each finding.");
     expect(content).not.toContain("Save Decision");
     expect(content).not.toMatch(/Request (Steri-AI|a New) Second Opinion/);
-    expect(content).not.toContain("Send to Steri-AI Report");
     expect(html).not.toContain("Change your decision");
-    expect(html).toContain(`href="/api/inspections/${IDS.inspection}/export"`);
   });
 });
 
 // Roles and permissions (migration 20261027150000): an admin-level role whose switches are off.
 describe("AiReviewPanelView for a role without the Steri-AI switches", () => {
-  it("offers no request, no decision and no export: no dead buttons", () => {
-    const report = { ...MOCK_STATUS, report: { connected: true, provider: "webhook" as const, label: "Steri-AI Report Connected (Webhook)" } };
-    const html = render({ aiStatus: report, allows: { secondOpinion: false, exportReports: false } });
+  it("offers no request and no decision: no dead buttons", () => {
+    const html = render({ allows: { secondOpinion: false } });
     const content = text(html);
     expect(content).toContain("Finding F1");
     expect(content).toContain("An admin decides on each finding.");
     expect(content).not.toContain("Save Decision");
     expect(content).not.toMatch(/Request (Steri-AI|a New) Second Opinion/);
-    expect(content).not.toContain("Send to Steri-AI Report");
-    expect(content).not.toContain("Download JSON");
-    expect(html).not.toContain(`href="/api/inspections/${IDS.inspection}/export"`);
-  });
-
-  it("says the report service is not connected without pointing at a download it does not offer", () => {
-    const content = text(render({ allows: { secondOpinion: true, exportReports: false } }));
-    expect(content).toContain("Steri-AI not connected.");
-    expect(content).not.toContain("Download the export");
-    expect(content).not.toContain("Download JSON");
   });
 });
 

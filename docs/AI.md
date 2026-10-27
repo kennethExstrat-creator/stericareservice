@@ -6,11 +6,12 @@ How the app hands inspections to AI models (BUILD_SPEC section 9), how to connec
 
 | Hand-off | What happens | Output |
 |---|---|---|
-| **AI report** (9.1) | The admin sends a submitted or approved inspection. The app POSTs the export JSON to a report service. | The URL of the finished client report, stored in `inspections.report_url`. |
 | **AI second opinion** (9.2) | An AI reviews the app's computed results, the inspector's data, comments and remark, and some photos. | A review: suggested result, confidence, summary, findings with evidence, questions for the inspector. |
 | **Steri-AI Summary** | The inspector taps Steri-AI Summary on the Conclusion, and Claude drafts the Inspection Summary from the inspection in SteriCare's house style (below). Text only: it never changes a result. | A draft for the field, which the inspector checks, edits and signs as their own text. |
 
-The app does not lay out reports and does not decide results. The report and the second opinion start from one document: the inspection export, validated by `ExportSchema` (`lib/schemas/export.ts`).
+The app does not decide results. The Client Report the app draws itself (`docs/REPORT.md`) and the second opinion start from one document: the inspection export, validated by `ExportSchema` (`lib/schemas/export.ts`).
+
+**No Steri-AI Report** (Kenneth, 27 October 2026: "no need Steri-AI report, because we already have Client Report"). The AI report hand-off, where an admin sent the export to a report service that answered with the finished report's link, is removed: no Send to Steri-AI Report, Open Last Report or Download JSON on the review and the Report page, no Steri-AI Report card in Steri-AI Settings, no `AI_REPORT_WEBHOOK_URL` and no `ai.report.requested` event. `inspections.report_url` stays in the database, no longer written (docs/DATABASE.md).
 
 ## Guardrails
 
@@ -18,7 +19,7 @@ The app does not lay out reports and does not decide results. The report and the
 - **The admin decides.** For each finding the admin records agree, disagree (a note is required) or fixed (`AiReviewActionSchema`).
 - **Evidence or a question.** The reviewer must cite the values, box/carton numbers and photo ids behind every finding, and ask the inspector instead of guessing when evidence is missing. A review that names a module or photo the inspection does not have is rejected, from any provider.
 - **Inspection text is data.** Comments, remarks and captions are passed as data; the reviewer is told never to follow instructions found in them.
-- **Not connected is a normal state.** With nothing configured the review panel shows "AI Second Opinion Not Connected" and the report button shows "AI Not Connected" with a JSON download.
+- **Not connected is a normal state.** With nothing configured the review panel shows "Steri-AI Second Opinion Not Connected".
 
 ## Who may use it (roles)
 
@@ -32,14 +33,13 @@ Set these in `.env.local` (Vercel: Project Settings > Environment Variables). Em
 |---|---|---|
 | `AI_REVIEW_PROVIDER` | `auto` | `auto`, `webhook`, `claude`, `mock` or `off`. |
 | `AI_REVIEW_WEBHOOK_URL` | | Second-opinion service. |
-| `AI_REPORT_WEBHOOK_URL` | | Report service. |
-| `AI_WEBHOOK_SECRET` | | Signs both webhooks. At least 16 characters: `openssl rand -hex 32`. |
+| `AI_WEBHOOK_SECRET` | | Signs the webhook. At least 16 characters: `openssl rand -hex 32`. |
 | `ANTHROPIC_API_KEY` | | Runs the second opinion directly on Claude. Server only. |
 | `AI_REVIEW_MODEL` | `claude-opus-5-5` | Claude model for the second opinion: a Claude API model id, starting with `claude-`. |
 | `AI_REVIEW_EFFORT` | `high` | `low`, `medium`, `high`, `xhigh` or `max`. `xhigh` and `max` get 64,000 output tokens and up to 30 minutes per review. |
 | `AI_REVIEW_MAX_PHOTOS` | `6` | Photos attached to a Claude review, 0 to 20. |
 | `AI_SUMMARY_MODEL` | `claude-sonnet-5-5` | Claude model for the Steri-AI Summary on the Conclusion: a Claude API model id, starting with `claude-`. The model saved in Steri-AI Settings wins. |
-| `ENABLE_MOCK_AI` | | `true` allows the mock reviewer and mock receivers in a production build (for a preview deployment). |
+| `ENABLE_MOCK_AI` | | `true` allows the mock reviewer and the mock receiver in a production build (for a preview deployment). |
 
 How the second opinion resolves:
 
@@ -51,9 +51,9 @@ How the second opinion resolves:
 | `mock` | The deterministic mock reviewer (test data). Blocked in production unless `ENABLE_MOCK_AI=true`. |
 | `off` | Not connected, whatever else is set. |
 
-The report is a webhook only: connected when `AI_REPORT_WEBHOOK_URL` is set. Webhook URLs must be `https://` in production (`http://localhost` is allowed) and must not contain a user name or password.
+The webhook's URL must be `https://` in production (`http://localhost` is allowed) and must not contain a user name or password.
 
-Server code calls `requestAiReview(exportDoc)` and `requestAiReport(exportDoc)` from `@/lib/ai`. Neither throws: they return `{ ok: true, ... }` or `{ ok: false, reason, message }`, where the message is safe to show an admin. `getAiStatus()` returns what the UI may show (labels, provider, model) with no URLs, keys or secrets.
+Server code calls `requestAiReview(exportDoc)` from `@/lib/ai`. It never throws: it returns `{ ok: true, ... }` or `{ ok: false, reason, message }`, where the message is safe to show an admin. `getAiStatus()` returns what the UI may show (labels, provider, model) with no URLs, keys or secrets.
 
 | `reason` | Meaning |
 |---|---|
@@ -68,11 +68,11 @@ Server code calls `requestAiReview(exportDoc)` and `requestAiReport(exportDoc)` 
 
 Admin > Steri-AI Settings (`/admin/ai`, `app/(app)/admin/ai/`; Kenneth, 12 October 2026: "separate into general, AI cost and inspection AI setting, switching by toggle") holds the Anthropic API key, the Claude model for each job and the second opinion's effort and photos, so they can be changed without touching the server's variables, and shows what Steri-AI costs. A pill switch under the title picks one of three views, each its own address, so a reload, a bookmark or Back opens the same one (`_components/view-state.ts`): General (`/admin/ai`), Inspection Settings (`?view=inspection`) and Steri-AI Cost (`?view=cost`, with `&period=7|30|90|all` and `&currency=myr|usd`; unknown values fall back to the defaults, the last 30 days in ringgit; the currency is always written, so a link shows what its sender saw). Each view loads only its own data and saves only its own settings, through its own Server Action (`actions.ts`: an active admin only, checked with zod):
 
-- **General**: the API key, write-only (`saveApiKeyAction`, `removeAiKeyAction`). It is encrypted before it is stored (`ai_settings`, migration `20261009120000`; AES-256-GCM keyed from `SUPABASE_SECRET_KEY`, `lib/ai/secret-box.ts`), and the screen only ever shows its last four characters. An Admin API key (`sk-ant-admin…`) is refused: it cannot call Claude. Rotating the Supabase secret key makes a saved key unreadable: the screen says so and asks for it again. Remove Saved Key goes back to `ANTHROPIC_API_KEY`, if set. **Test Connection** (`testAiConnectionAction`) asks Anthropic whether the typed key, else the key in use, may use the models in use (`GET /v1/models/{id}`, no tokens billed, nothing recorded). Under them, two status cards say whether each hand-off is connected (`AiReviewCard` and `AiReportCard` in `components/shell/admin-status-cards.tsx`, from `getAiStatus(await loadAiEnv())`, so the saved key counts): **Steri-AI Second Opinion** (the provider, and the model on Claude) and **Steri-AI Report** (the report webhook), each Connected, Not Connected, Test Data Only (the mock reviewer) or Configuration Error. Not connected or misconfigured, a card names the variable to set or fix, never its value. Save Key and Remove Saved Key revalidate `/admin/ai`, so the cards follow at once. They sat on the admin overview until it became the dashboard (Kenneth, 27 October 2026: "these looks more like should be in general settings or AI settings"); its Supabase and Sign-In Emails cards went to Admin > General Settings (`/admin/settings`).
+- **General**: the API key, write-only (`saveApiKeyAction`, `removeAiKeyAction`). It is encrypted before it is stored (`ai_settings`, migration `20261009120000`; AES-256-GCM keyed from `SUPABASE_SECRET_KEY`, `lib/ai/secret-box.ts`), and the screen only ever shows its last four characters. An Admin API key (`sk-ant-admin…`) is refused: it cannot call Claude. Rotating the Supabase secret key makes a saved key unreadable: the screen says so and asks for it again. Remove Saved Key goes back to `ANTHROPIC_API_KEY`, if set. **Test Connection** (`testAiConnectionAction`) asks Anthropic whether the typed key, else the key in use, may use the models in use (`GET /v1/models/{id}`, no tokens billed, nothing recorded). Under them, in the left column, a status card says whether the second opinion is connected (`AiReviewCard` in `components/shell/admin-status-cards.tsx`, from `getAiStatus(await loadAiEnv())`, so the saved key counts): **Steri-AI Second Opinion** (the provider, and the model on Claude), Connected, Not Connected, Test Data Only (the mock reviewer) or Configuration Error. Not connected or misconfigured, it names the variable to set or fix, never its value. The Steri-AI Report card beside it went with the Steri-AI Report (Kenneth, 27 October 2026). Save Key and Remove Saved Key revalidate `/admin/ai`, so the card follows at once. The status cards sat on the admin overview until it became the dashboard (Kenneth, 27 October 2026: "these looks more like should be in general settings or AI settings"); its Supabase and Sign-In Emails cards went to Admin > General Settings (`/admin/settings`).
 - **Inspection Settings** (`saveInspectionSettingsAction`): Reading Documents' model (New Inspection, Source Documents and Auto-Sort; default `claude-opus-5-5`) and Second Opinion's model (default `claude-opus-5-5`), from a list of current Claude models or any other Claude model id; the second opinion's **Effort** (Low, Medium, High) and **Photos per Review** (0 to 20), the two settings that most change what a review costs. A model the price list has no price for says so, with a link to Steri-AI Cost. When `AI_REVIEW_PROVIDER` sends reviews to the webhook or the mock reviewer, or switches them off, one line under Second Opinion says these are not used. A third card, **Inspection Summary**, with its own Save (`summary-actions.ts`: `saveSummarySettingsAction`, and `previewSummaryAction` for Try It), holds the Steri-AI Summary's model and house style ("Steri-AI Summary" below). The shortforms moved to Admin > Defects > Shortforms (below).
 - **Steri-AI Cost**: below.
 
-The saved values lie over the variables (`loadAiEnv` in `lib/ai/settings.ts`): a saved key wins over `ANTHROPIC_API_KEY`, the saved models over `AI_REVIEW_MODEL` and `AI_DOCUMENT_MODEL` (and the summary's, `ai_settings.summary_model`, over `AI_SUMMARY_MODEL`: `loadSummarySetup`), and the saved effort and photos (`ai_settings.review_effort` and `review_max_photos`, migration `20261013120000`) over `AI_REVIEW_EFFORT` and `AI_REVIEW_MAX_PHOTOS`. The status cards, the review panel and the second opinion all read through it. `xhigh`, `max` and the provider stay variables: while `AI_REVIEW_EFFORT` is `xhigh` or `max` and no effort is saved, the picker shows it as Extra High (Server Setting) or Max (Server Setting), and saving keeps it.
+The saved values lie over the variables (`loadAiEnv` in `lib/ai/settings.ts`): a saved key wins over `ANTHROPIC_API_KEY`, the saved models over `AI_REVIEW_MODEL` and `AI_DOCUMENT_MODEL` (and the summary's, `ai_settings.summary_model`, over `AI_SUMMARY_MODEL`: `loadSummarySetup`), and the saved effort and photos (`ai_settings.review_effort` and `review_max_photos`, migration `20261013120000`) over `AI_REVIEW_EFFORT` and `AI_REVIEW_MAX_PHOTOS`. The status card, the review panel and the second opinion all read through it. `xhigh`, `max` and the provider stay variables: while `AI_REVIEW_EFFORT` is `xhigh` or `max` and no effort is saved, the picker shows it as Extra High (Server Setting) or Max (Server Setting), and saving keeps it.
 
 ## Reading order documents
 
@@ -160,16 +160,16 @@ On the factory floor inspectors write on paper (photos and phones are restricted
 
 ## Webhook contract
 
-For services that write the report or the second opinion (n8n, Make, a Python or Node service, an agent platform).
+For a service that writes the second opinion (n8n, Make, a Python or Node service, an agent platform). The report service's half of this contract went with the Steri-AI Report (27 October 2026).
 
 ### Request
 
-`POST <AI_REVIEW_WEBHOOK_URL or AI_REPORT_WEBHOOK_URL>`
+`POST <AI_REVIEW_WEBHOOK_URL>`
 
 | Header | Value |
 |---|---|
 | `Content-Type` | `application/json` |
-| `X-SteriCare-Event` | `ai.review.requested` or `ai.report.requested` |
+| `X-SteriCare-Event` | `ai.review.requested` |
 | `X-SteriCare-Delivery` | A UUID, unique per request. Use it to log and de-duplicate. |
 | `X-SteriCare-Timestamp` | Unix time in seconds. |
 | `X-SteriCare-Signature` | `sha256=` + hex HMAC-SHA256 of `<timestamp>.<raw body>` keyed with `AI_WEBHOOK_SECRET`. Sent only when the secret is set. |
@@ -193,17 +193,11 @@ The body is the inspection export, schema version `"1"` (`ExportSchema`):
 
 ### The report's wording
 
-The report prints the template's words, and the export carries them: each module's `title` and `labels`, the rows its `config` lists (defects, hole locations, labelling checks, the Safedon dispensing defects) and `template.reportTitle`. A title comes as the inspection words it: weight records one value per size, the size's average weight, so STD_EG's "Weight (g) - Average of 13 Gloves per Size" comes as "Weight (g)" (Kenneth, 26 October 2026), its `computed.shown` per size the average printed, and `computed.count` the values it comes from (1; 13 on an inspection saved before then, whose gloves were weighed one by one). Kenneth, 8 October 2026: the app and the report write labels in Title Case (`docs/DESIGN.md`, Capitalisation), so the export reads "Packing Configuration", "# Glove per Inner Box", "Total # Carton", "Thin Area Between Fingers (Crotch)". A report service prints them as they come: it does not recase them, and it does not go back to the paper forms' wording ("Packing configuration"), which stays in the coverage matrix of `docs/DATA_DICTIONARY.md` only. Sentences stay sentences (the stickiness legend, the Safedon definitions), and the conclusion words keep the reports' capitals (PASSED, FAILED, HOLD). The glove packing check prints a size's aged sample (Kenneth, 26 October 2026) as a line of its own after the size's boxes, headed with `labels.agedSample` ("Aged Sample"): its values from `data.sizes[size].agedSample`, its Passed / Failed from `computed.sizes[size].agedSample`, as the size's `result.perSize` summary sets it out on its second line; never as a box row. Every size has one (Kenneth, 27 October 2026): where `computed.sizes[size].agedSample` is null none is entered, the size is not done and the summary's second line says so ("Aged Sample is not entered yet."), with the warning `aged_sample_missing` once the size's boxes are complete. The mock receivers below take the same export: the mock review names each module by its `title`, so a local run reads the same wording.
+The report prints the template's words, and the export carries them: each module's `title` and `labels`, the rows its `config` lists (defects, hole locations, labelling checks, the Safedon dispensing defects) and `template.reportTitle`. A title comes as the inspection words it: weight records one value per size, the size's average weight, so STD_EG's "Weight (g) - Average of 13 Gloves per Size" comes as "Weight (g)" (Kenneth, 26 October 2026), its `computed.shown` per size the average printed, and `computed.count` the values it comes from (1; 13 on an inspection saved before then, whose gloves were weighed one by one). Kenneth, 8 October 2026: the app and the report write labels in Title Case (`docs/DESIGN.md`, Capitalisation), so the export reads "Packing Configuration", "# Glove per Inner Box", "Total # Carton", "Thin Area Between Fingers (Crotch)". The Client Report prints them as they come: it does not recase them, and it does not go back to the paper forms' wording ("Packing configuration"), which stays in the coverage matrix of `docs/DATA_DICTIONARY.md` only. Sentences stay sentences (the stickiness legend, the Safedon definitions), and the conclusion words keep the reports' capitals (PASSED, FAILED, HOLD). The glove packing check prints a size's aged sample (Kenneth, 26 October 2026) as a line of its own after the size's boxes, headed with `labels.agedSample` ("Aged Sample"): its values from `data.sizes[size].agedSample`, its Passed / Failed from `computed.sizes[size].agedSample`, as the size's `result.perSize` summary sets it out on its second line; never as a box row. Every size has one (Kenneth, 27 October 2026): where `computed.sizes[size].agedSample` is null none is entered, the size is not done and the summary's second line says so ("Aged Sample is not entered yet."), with the warning `aged_sample_missing` once the size's boxes are complete. The mock receiver below takes the same export: the mock review names each module by its `title`, so a local run reads the same wording.
 
 ### Response
 
-Answer with a 2xx status and JSON within the time limit: 90 seconds for a review, 180 seconds for a report. Redirects are not followed and bodies over 1 MB are rejected. The app does not retry.
-
-Report (`AiReportResponseSchema`, `lib/schemas/ai-report.ts`):
-
-```json
-{ "reportUrl": "https://reports.example.com/INS-2026-0001.pdf" }
-```
+Answer with a 2xx status and JSON within the time limit: 90 seconds. Redirects are not followed and bodies over 1 MB are rejected. The app does not retry.
 
 Second opinion (`AiReviewSchema`, `lib/schemas/ai-review.ts`):
 
@@ -271,8 +265,8 @@ export async function POST(request: Request): Promise<Response> {
   if (!secret || !valid) return new Response("Invalid signature", { status: 401 });
 
   const exportDoc = JSON.parse(rawBody);
-  // ... write the report or the review from exportDoc ...
-  return Response.json({ reportUrl: "https://reports.example.com/INS-2026-0001.pdf" });
+  const review = await writeSecondOpinion(exportDoc); // your reviewer: an AiReview, as above
+  return Response.json(review);
 }
 ```
 
@@ -286,15 +280,14 @@ The app's own helper is `verifySignature()` in `lib/ai/webhook.ts`.
 
 ### Trying it locally
 
-Two mock receivers behave like real ones (they check the signature when `AI_WEBHOOK_SECRET` is set and validate the export). They return 404 in production unless `ENABLE_MOCK_AI=true`. The app calls them server to server without a session, so the auth proxy must let `/api/dev/` through; the routes protect themselves.
+A mock receiver behaves like a real one (it checks the signature when `AI_WEBHOOK_SECRET` is set and validates the export). It returns 404 in production unless `ENABLE_MOCK_AI=true`. The app calls it server to server without a session, so the auth proxy must let `/api/dev/` through; the route protects itself.
 
 ```sh
 AI_REVIEW_WEBHOOK_URL=http://localhost:3000/api/dev/mock-ai-review
-AI_REPORT_WEBHOOK_URL=http://localhost:3000/api/dev/mock-ai-report
 AI_WEBHOOK_SECRET=<openssl rand -hex 32>
 ```
 
-The review receiver answers with the mock review: a finding for each module that failed, warned or is not done, `fail` if any module failed, `hold` if any warned or is not done, and a question when the remark is empty. The report receiver answers with a link to a plain-text placeholder. `AI_REVIEW_PROVIDER=mock` gives the same mock review without HTTP.
+It answers with the mock review: a finding for each module that failed, warned or is not done, `fail` if any module failed, `hold` if any warned or is not done, and a question when the remark is empty. `AI_REVIEW_PROVIDER=mock` gives the same mock review without HTTP.
 
 ## The second opinion on Claude
 
@@ -326,7 +319,7 @@ Steri-AI Settings > Steri-AI Cost (`/admin/ai?view=cost`) shows what Steri-AI co
 | Second Opinion (`second_opinion`) | review, from the admin's button or on submit | the inspection |
 | Inspection Summary (`inspection_summary`) | Steri-AI Summary call: a draft (`item_count` 1) or its check retry (0), Try It's included | the inspection |
 
-Each row keeps the model that answered, who asked (the admin, or the user who submitted), the tokens (uncached input, output with its thinking, 5-minute and 1-hour cache writes, cache reads), how long it took, the outcome (`ok`; `refused` and `cut_off`, billed but not usable; `failed`, no answer, with the error type) and `cost_usd`. A server-side fallback bills each attempt at its own model, and the top-level usage covers only the last one, so the tokens come from `usage.iterations`, summed. A failed call costs 0: no answer came back, so there are no tokens to price (refused and cut-off answers are billed, and counted). Deleting the inspection or the person clears the link and keeps the row. Not recorded: Test Connection (no tokens), the AI report and review webhooks and the mock reviewer (no Claude call from the app), and requests that never reach Claude (no key, a file too large or of a type the readers do not take). Counting starts with migration `20261013120000`: earlier calls kept no tokens, so they are not estimated.
+Each row keeps the model that answered, who asked (the admin, or the user who submitted), the tokens (uncached input, output with its thinking, 5-minute and 1-hour cache writes, cache reads), how long it took, the outcome (`ok`; `refused` and `cut_off`, billed but not usable; `failed`, no answer, with the error type) and `cost_usd`. A server-side fallback bills each attempt at its own model, and the top-level usage covers only the last one, so the tokens come from `usage.iterations`, summed. A failed call costs 0: no answer came back, so there are no tokens to price (refused and cut-off answers are billed, and counted). Deleting the inspection or the person clears the link and keeps the row. Not recorded: Test Connection (no tokens), the review webhook and the mock reviewer (no Claude call from the app), and requests that never reach Claude (no key, a file too large or of a type the readers do not take). Counting starts with migration `20261013120000`: earlier calls kept no tokens, so they are not estimated.
 
 **The formula** (`costOfCall`): for each attempt, uncached input, 5-minute cache writes, 1-hour cache writes, cache reads and output, each times its rate for that model, per million tokens. A dated snapshot (`claude-opus-5-5-20260922`) takes its model's prices. Claude Haiku 5.5's higher rates apply to a whole request whose prompt (input, cache writes and reads) is over 100,000 tokens, output included. Then x1.1 when `usage.inference_geo` is `us` (US-only inference, also from a workspace default) and x0.5 for the Batch API (not used). Six decimals. The refusal fallbacks have built-in prices (`FALLBACK_MODEL_PRICES`): the review's (Claude Opus 5 and Opus 4.8, 5 / 25 USD) and the Steri-AI Summary's (Claude Sonnet 5.5 falls back to Sonnet 5, 2 / 10 USD), so a turn one of them serves is priced; an admin's own entry for them wins. A call on any other model without a price stores no cost and counts as No Price; adding its price prices later calls only. Prompt caching counts at its own rates: the first Source Document of an inspection writes the cached modules block, and files read within 5 minutes read it at 0.20 USD per million tokens on Opus 5.5 instead of 4; the review's system prompt is cached the same way. Example: Opus 5.5 with 20,000 input, 3,000 cache-read and 4,000 output tokens is 0.08 + 0.0006 + 0.08 = 0.1606 USD.
 
@@ -364,9 +357,9 @@ Admins edit the list in the view (`ai_settings.prices`, null for the app's list;
 
 The hand-offs are wired into the app; this is where each part lives.
 
-- **The export**: `GET /api/inspections/[id]/export` (`app/api/inspections/[id]/export/route.ts`) answers the inspection's inspector, their lead inspector and admins whose role allows Export Reports (401 signed out, 403 inactive or without Export Reports, 404 for anyone else) with `buildInspectionExport` (`lib/export`): the inspection run through the module framework as capture and submit run it, its files passed to the context (`InspectionMeta.files`, so a deleted lab report reads as missing), validated by `ExportSchema`. Photos, files, the client logo and the template's source file get 24-hour signed URLs. Lab reports and certificates are referenced by id in module data (`force_at_break` and `tensile` `labReports[].fileId`, each with the sizes it gives results for; `documents` `items.<item>.file`), so a receiver matches them with `files[].id`. Each module also carries its `config` as the template version sets it.
-- **The review screen** (`/inspections/[id]/review`) shows the AI panel between the result and the module results: `LoadedAiReviewPanel` from `components/ai`, loaded beside the review by `loadAiPanel` (`lib/inspections/ai`). Elsewhere, `<AiReviewPanel inspectionId={id} />` loads itself. It puts the system's computed results, the inspector's result, remark and comments, and the AI's opinion side by side, per module; admins request second opinions, record agree, disagree (a note is required) or fixed per finding (`ai_review_actions` and the audit log), and send to the AI report; the inspector reads the opinions. Not connected, the panel says so, and tells admins whether `AI_REVIEW_PROVIDER` is `off` or nothing is set up. When the inspection's results cannot be worked out (its template version or saved data cannot be read), `loadAiPanel` answers `unreadable` and the panel says quietly that the second opinion and the AI report are not available, since the review's checks already give the cause; only a read that failed shows as an error.
-- **Server Actions** (`lib/inspections/ai/actions.ts`): `requestAiSecondOpinion`, `recordAiFindingDecision`, `sendToAiReport` (stores `report_url`; when not connected it offers the JSON download; also the capture screen's Send to Steri-AI Report, on its Report page, shown only where these rules let it run) and `getAiReviewProgress` for the panel's poller.
+- **The export**: `GET /api/inspections/[id]/export` (`app/api/inspections/[id]/export/route.ts`) answers the inspection's inspector, their lead inspector and admins whose role allows Export Reports (401 signed out, 403 inactive or without Export Reports, 404 for anyone else) with `buildInspectionExport` (`lib/export`): the inspection run through the module framework as capture and submit run it, its files passed to the context (`InspectionMeta.files`, so a deleted lab report reads as missing), validated by `ExportSchema`. Photos, files, the client logo and the template's source file get 24-hour signed URLs. Lab reports and certificates are referenced by id in module data (`force_at_break` and `tensile` `labReports[].fileId`, each with the sizes it gives results for; `documents` `items.<item>.file`), so a receiver matches them with `files[].id`. Each module also carries its `config` as the template version sets it. No screen links to the route since the Steri-AI Report and its Download JSON went (27 October 2026): the second opinion, Download PDF and the Report page's preview build the same export in the app, and the acceptance specs read each inspection's export through the route.
+- **The review screen** (`/inspections/[id]/review`) shows the AI panel between the result and the module results: `LoadedAiReviewPanel` from `components/ai`, loaded beside the review by `loadAiPanel` (`lib/inspections/ai`). Elsewhere, `<AiReviewPanel inspectionId={id} />` loads itself. It puts the system's computed results, the inspector's result, remark and comments, and the AI's opinion side by side, per module; admins request second opinions, record agree, disagree (a note is required) or fixed per finding (`ai_review_actions` and the audit log); the inspector reads the opinions. Not connected, the panel says so, and tells admins whether `AI_REVIEW_PROVIDER` is `off` or nothing is set up. When the inspection's results cannot be worked out (its template version or saved data cannot be read), `loadAiPanel` answers `unreadable` and the panel says quietly that the second opinion is not available, since the review's checks already give the cause; only a read that failed shows as an error.
+- **Server Actions** (`lib/inspections/ai/actions.ts`): `requestAiSecondOpinion`, `recordAiFindingDecision` and `getAiReviewProgress` for the panel's poller. `sendToAiReport` went with the Steri-AI Report (27 October 2026).
 - **The second opinion** runs from the admin button or on submit. `startAiReview` stores a `pending` `ai_reviews` row, then writes the opinion in `after()`, `done` or `failed`. `scheduleAiReviewOnSubmit(inspectionId)` is the submit trigger: the submit action calls it after the status change when the template's `ai.reviewOnSubmit` is on; it runs as the service role, never throws, and does nothing when no reviewer is connected.
 - **Time limit**: a Claude review can take 10 minutes (30 at `xhigh` and `max`), and it runs inside the Server Action's `after()`, so the page that runs the action sets `export const maxDuration` above that. The review page sets 800 seconds, the most Vercel allows on Pro; the capture page needs the same for the submit trigger. Keep `AI_REVIEW_EFFORT` at `high` or below there, or pass a shorter `timeoutMs`.
-- **Versions**: a review is kept per version of the inspection's content. `ai_reviews.inspection_fingerprint` (migration `20261007113245`) is a SHA-256 of the data, module overrides, final result, remark, template version and files (`inspectionFingerprint` in `lib/inspections/ai/fingerprint.ts`); approving, reopening or storing the report link changes none of them, so the opinion stays current. Photos are left out: they decide no result. A review stored without a fingerprint compares by `inspection_updated_at`, the save it reviewed. One review per version may be pending at a time (`ai_reviews_one_pending_per_content`, and `ai_reviews_one_pending_per_version` for reviews without a fingerprint): a second request answers "A second opinion of this version is being written."
+- **Versions**: a review is kept per version of the inspection's content. `ai_reviews.inspection_fingerprint` (migration `20261007113245`) is a SHA-256 of the data, module overrides, final result, remark, template version and files (`inspectionFingerprint` in `lib/inspections/ai/fingerprint.ts`); approving or reopening changes none of them, so the opinion stays current. Photos are left out: they decide no result. A review stored without a fingerprint compares by `inspection_updated_at`, the save it reviewed. One review per version may be pending at a time (`ai_reviews_one_pending_per_content`, and `ai_reviews_one_pending_per_version` for reviews without a fingerprint): a second request answers "A second opinion of this version is being written."

@@ -376,7 +376,6 @@ function actionCases(): ActionCase[] {
     { name: "reopenInspection", kind: "admin", path: review, args: [{ status: "idle" }, form({ inspectionId: i.mSubmitted.id, reason: "Security e2e" })] },
     { name: "requestAiSecondOpinion", kind: "admin", path: review, args: [{ status: "idle" }, form({ inspectionId: i.mSubmitted.id })] },
     { name: "recordAiFindingDecision", kind: "admin", path: review, args: [{ status: "idle" }, form({ reviewId: media.aiReviewId, findingId: "F1", action: "agree", note: "" })] },
-    { name: "sendToAiReport", kind: "admin", path: review, args: [{ status: "idle" }, form({ inspectionId: i.mSubmitted.id })] },
     { name: "getAiReviewProgress", kind: "progress", path: review, args: [i.mSubmitted.id] },
     // Admin: users.
     { name: "inviteUser", kind: "admin", path: "/admin/users", args: [{ status: "idle" }, form({ email: "not-an-email", role: "inspector", leadId: "", delivery: "email" })] },
@@ -473,10 +472,9 @@ test("every Server Action is accounted for and checks the caller first", async (
 
   // Nothing above changed a fixture row.
   const db = service();
-  const rows = await db.from("inspections").select("id, status, module_overrides, report_url").in("id", [fx.inspections.mDraft.id, fx.inspections.mSubmitted.id]);
+  const rows = await db.from("inspections").select("id, status, module_overrides").in("id", [fx.inspections.mDraft.id, fx.inspections.mSubmitted.id]);
   for (const row of rows.data ?? []) {
     expect.soft(row.module_overrides, row.id).toEqual({});
-    expect.soft(row.report_url, row.id).toBeNull();
   }
   expect.soft(rows.data?.find((row) => row.id === fx.inspections.mSubmitted.id)?.status).toBe("submitted");
   const photo = await db.from("inspection_photos").select("module_key, caption, include_in_report").eq("id", media.mDraftPhoto.id).single();

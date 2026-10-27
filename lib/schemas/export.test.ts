@@ -184,7 +184,7 @@ describe("ExportSchema", () => {
     const forceAtBreak = moduleOf(doc, "force_at_break");
     expect(forceAtBreak.data.labReports).toEqual([{ fileId: FIXTURE_IDS.fileLabReport, sizes: ["M"] }]);
     expect(forceAtBreak.computed.labReportAttached).toBe(true);
-    // The report service matches each id in the module's list to the file it may fetch.
+    // A receiver matches each id in the module's list to the file it may fetch.
     expect(doc.files).toEqual([
       {
         id: FIXTURE_IDS.fileLabReport,

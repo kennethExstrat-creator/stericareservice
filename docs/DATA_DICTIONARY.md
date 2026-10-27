@@ -961,7 +961,7 @@ Where the sources or BUILD_SPEC leave a choice, the dictionary takes one. Each i
     report and another in the file name; one field prevents that (question 11).
 13. **Report title** is kept as lines (`report.titleLines`); BUILD_SPEC 4.3's `report.title` is one
     string, so a seed joins them. The running headers of pages 2 to 4 are report layout: BUILD_SPEC
-    4.3's report settings hold only the title and the client logo, and the AI report draws them from
+    4.3's report settings hold only the title and the client logo, and the report draws them from
     the PO and the product name (their wording is in the coverage matrix).
 14. **Hand split.** With `handSplit` on, holes and defect counts are per hand; tested, inspected and
     the AQL limits stay per size, as the SG form's totals span R and L.
@@ -977,7 +977,7 @@ Where the sources or BUILD_SPEC leave a choice, the dictionary takes one. Each i
     label, class and level wording, caption and template override in `fields.ts`, the custom
     modules in `templates.ts` and the rows of the lists in `defects.ts` (visual defects, hole
     locations, labelling checks, the Safedon dispensing defects) take the rule's capitals, and the
-    module defaults and the seed templates follow; the export carries them to the AI report. Units
+    module defaults and the seed templates follow; the export carries them to the report. Units
     in brackets stay lower case ("Weight (g)"), words in brackets do not ("Qty (Cases)"); "#",
     "No." and codes stay. Sentences stay sentences: the stickiness legend, the Safedon definitions
     and every hint. The conclusion words keep the reports' capitals (PASSED, FAILED, HOLD). The
@@ -1047,7 +1047,7 @@ the cell holds and where it goes. A field the
 template splits shows each part's label ("Manufacturing Date; Expiry Date"); a Safedon definition
 shows the hint the app shows in its place. `field[group][key]` picks a class
 or level and a code; `config`, `caption` and `title` are template values; `custom` is a custom
-module field; `template` a template property; `layout` is drawn by the AI report only.
+module field; `template` a template property; `layout` is drawn by the report only.
 
 <!-- generated:coverage -->
 

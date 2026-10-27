@@ -259,7 +259,7 @@ describe("their wording, our keys (rule 4.2.3)", () => {
       const expected = targetLabel(template, target);
       if (expected === undefined) {
         // Only values with no single label of their own: a config value as a whole, the size list,
-        // the title block, a legend the AI report draws.
+        // the title block, a legend the report draws.
         expect(isConfigTarget(target) || isTemplateTarget(target) || isLayoutTarget(target), where(field)).toBe(true);
         continue;
       }
@@ -269,7 +269,7 @@ describe("their wording, our keys (rule 4.2.3)", () => {
     expect(compared).toBeGreaterThan(230);
   });
 
-  it("prints the report title from the template and leaves running headers to the AI report", () => {
+  it("prints the report title from the template and leaves running headers to the report", () => {
     let headers = 0;
     for (const field of SOURCE_FIELDS) {
       const template = WORDING_SOURCES[field.source];

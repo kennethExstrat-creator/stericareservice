@@ -7,9 +7,9 @@ import { AiPanelTitle, AiReviewPanelView } from "./review-panel-view";
 /**
  * The AI panel for one inspection, ready to drop into a page: a Server
  * Component that reads the panel's data as the signed-in user and renders
- * it. Admins request second opinions, record decisions and send to the AI
- * report; the inspector who owns the inspection sees the opinions
- * read-only. Anyone else gets nothing.
+ * it. Admins request second opinions and record decisions; the inspector
+ * who owns the inspection sees the opinions read-only. Anyone else gets
+ * nothing.
  *
  *   <AiReviewPanel inspectionId={id} />
  *
@@ -49,9 +49,9 @@ export function LoadedAiReviewPanel({ load, className }: { load: AiPanelLoad; cl
 
 /**
  * The inspection's results cannot be worked out, so the AI has nothing to
- * compare and there is no export to send. Not an error of the panel's: the
- * review already says why, in its checks and module results, so the panel
- * keeps its place and says only what is missing, in not-done slate.
+ * compare. Not an error of the panel's: the review already says why, in its
+ * checks and module results, so the panel keeps its place and says only
+ * what is missing, in not-done slate.
  */
 function NoResults({ className }: { className?: string }) {
   return (
@@ -62,7 +62,7 @@ function NoResults({ className }: { className?: string }) {
         <div className="min-w-0 space-y-1">
           <p className="font-semibold text-foreground">Not Available</p>
           <p className="text-sm text-muted-foreground">
-            Steri-AI&apos;s second opinion and report need this inspection&apos;s results, which could not be worked out.
+            Steri-AI&apos;s second opinion needs this inspection&apos;s results, which could not be worked out.
           </p>
         </div>
       </div>

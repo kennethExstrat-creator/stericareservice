@@ -40,14 +40,13 @@ describe("inspectionFingerprint", () => {
     expect(inspectionFingerprint(reordered)).toBe(inspectionFingerprint(ordered));
   });
 
-  it("stays the same when only the save, the status, the report link or the photos change", () => {
+  it("stays the same when only the save, the status or the photos change", () => {
     const record = stdEgRecord();
     const saved: InspectionRecord = {
       ...record,
       status: "approved",
       updatedAt: "2025-04-13T10:00:00.000000+00:00",
       approvedAt: "2025-04-13T10:00:00.000000+00:00",
-      reportUrl: "https://reports.example.com/INS-2025-0001.pdf",
       photos: record.photos.map((photo) => ({ ...photo, includeInReport: !photo.includeInReport })).slice(1),
     };
     expect(inspectionFingerprint(saved)).toBe(fingerprint());

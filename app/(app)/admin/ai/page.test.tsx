@@ -1,6 +1,6 @@
 // /admin/ai as the server renders it: the role check before anything, the
 // view the address names (?view=, unknown → General), and each view's cards
-// (General with the hand-offs' status cards under the key, Inspection
+// (General with the second opinion's status card under the key, Inspection
 // Settings with the Inspection Summary card and Try It's list).
 // Steri-AI Cost loads its own data (an async server component), so it is
 // rendered with prerender, which waits for it: ringgit by default at Bank
@@ -151,6 +151,13 @@ function rateLine(html: string): string | undefined {
   return html.match(/<p data-testid="cost-rate">[\s\S]*?<\/p>/)?.[0].replace(/<span class="sr-only">[^<]*<\/span>/g, "").replace(/<[^>]+>/g, "");
 }
 
+/** General's Steri-AI Second Opinion card, from its title to the end of its section. */
+function secondOpinionCard(html: string): string {
+  const start = html.indexOf(">Steri-AI Second Opinion</h2>");
+  expect(start).toBeGreaterThan(-1);
+  return html.slice(start, html.indexOf("</section>", start));
+}
+
 /** The words on the pill a switch has chosen: the view switch's, else the switch named `label`. */
 function chosenView(html: string, label?: string): string | undefined {
   const scope = label ? html.slice(html.indexOf(`aria-label="${label}"`)) : html;
@@ -241,28 +248,26 @@ describe("the views", () => {
     expect(loadSummaryPreviewTargets).not.toHaveBeenCalled();
   });
 
-  it("shows under the key whether the second opinion and the report are connected, as every call finds them, never the key", async () => {
+  it("shows under the key whether the second opinion is connected, as every call finds it, never the key", async () => {
     const html = await render();
     expect(loadAiEnv).toHaveBeenCalledOnce();
-    // Under the key's form: titled like its cards, the two side by side from 1024 px.
+    // Under the key's form: titled like its cards, in the left column from 1024 px.
     expect(html.indexOf(">Connection</h2>")).toBeLessThan(html.indexOf(">Steri-AI Second Opinion</h2>"));
-    expect(html.indexOf(">Steri-AI Second Opinion</h2>")).toBeLessThan(html.indexOf(">Steri-AI Report</h2>"));
     expect(html).toContain('<div class="grid gap-6 lg:grid-cols-2"><section aria-labelledby=');
-    const second = html.slice(html.indexOf(">Steri-AI Second Opinion</h2>"), html.indexOf(">Steri-AI Report</h2>"));
+    const second = secondOpinionCard(html);
     expect(second).toContain("Connected");
     expect(second).not.toMatch(/not connected/i);
     expect(second).toContain("Claude (Anthropic API)");
     expect(second).toContain("claude-opus-5-5");
-    const report = html.slice(html.indexOf(">Steri-AI Report</h2>"));
-    expect(report).toContain("Not Connected");
-    expect(report).toContain("AI_REPORT_WEBHOOK_URL");
+    // No Steri-AI Report card (Kenneth, 27 October 2026: "we already have Client Report").
+    expect(html).not.toContain(">Steri-AI Report</h2>");
+    expect(html).not.toContain("AI_REPORT_WEBHOOK_URL");
     expect(html).not.toContain(API_KEY);
   });
 
   it("says how to connect the second opinion while no key is in use", async () => {
     vi.mocked(loadAiEnv).mockResolvedValue({});
-    const html = await render();
-    const second = html.slice(html.indexOf(">Steri-AI Second Opinion</h2>"), html.indexOf(">Steri-AI Report</h2>"));
+    const second = secondOpinionCard(await render());
     expect(second).toContain("Not Connected");
     expect(second).toContain("To connect it, set");
   });
@@ -297,8 +302,8 @@ describe("the views", () => {
     expect(html).toContain("Each photo adds to the cost.");
     expect(html).toMatch(/Shortforms moved to <a [^>]*href="\/admin\/defects\/shortforms"[^>]*>Defects &gt; Shortforms<\/a>\./);
     expect(html).not.toContain("Anthropic API Key");
-    // The hand-offs' status cards are General's.
-    expect(html).not.toContain(">Steri-AI Report</h2>");
+    // The status card is General's.
+    expect(html).not.toContain(">Steri-AI Second Opinion</h2>");
     expect(loadAiEnv).not.toHaveBeenCalled();
     // Claude reviews, and both models have a price.
     expect(html).not.toContain('data-testid="ai-review-provider"');
@@ -368,7 +373,7 @@ describe("the views", () => {
     expect(readAiSettingsView).not.toHaveBeenCalled();
     expect(loadAiEnv).not.toHaveBeenCalled();
     expect(readSummarySettingsView).not.toHaveBeenCalled();
-    expect(html).not.toContain(">Steri-AI Report</h2>");
+    expect(html).not.toContain(">Steri-AI Second Opinion</h2>");
     for (const part of ["cost-filters", "cost-kpis", "cost-trend", "cost-by-job", "cost-by-model", "cost-by-inspection", "price-list"]) {
       expect(html).toContain(`data-testid="${part}"`);
     }

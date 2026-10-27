@@ -44,6 +44,7 @@ export type AuditEntry = {
  */
 const EVENT_TITLES: Readonly<Record<string, string>> = {
   module_override: "Module Settings Changed for This Inspection",
+  // Rows from before the Steri-AI Report was removed (27 October 2026) keep reading as they did.
   "ai_report.sent": "Sent to Steri-AI Report",
   "ai_review.requested": "Steri-AI Second Opinion Requested",
   [REOPEN_EVENT]: "Reason for Reopening",

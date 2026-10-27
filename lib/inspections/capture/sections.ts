@@ -292,7 +292,7 @@ export type CapturePage =
     }
   /**
    * The Report page, after the Conclusion (withReport): the report's options
-   * and a layout preview, and Generate Report. No sections, result or progress.
+   * and its preview, and Download PDF. No sections, result or progress.
    */
   | { kind: "report"; key: string; title: string; shortTitle: string }
   /** The Audit Log, last (withAuditLog): the inspection's audit rows, read-only. No sections, result or progress. */

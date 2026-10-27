@@ -401,7 +401,7 @@ test.describe("as the admin", () => {
     await expect(page.getByRole("heading", { name: "Supabase" })).toHaveCount(0);
 
     const html = await page.content();
-    for (const name of ["SUPABASE_SECRET_KEY", "SUPABASE_DB_URL", "ANTHROPIC_API_KEY", "AI_WEBHOOK_SECRET", "AI_REVIEW_WEBHOOK_URL", "AI_REPORT_WEBHOOK_URL"]) {
+    for (const name of ["SUPABASE_SECRET_KEY", "SUPABASE_DB_URL", "ANTHROPIC_API_KEY", "AI_WEBHOOK_SECRET", "AI_REVIEW_WEBHOOK_URL"]) {
       const value = process.env[name]?.trim();
       if (value) expect(html.includes(value), `${name} must not reach the page`).toBe(false);
     }

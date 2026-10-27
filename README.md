@@ -178,7 +178,7 @@ Set up on `/admin/users`:
   (`lib/auth/fields.ts`). Every screen, the export and the AI
   hand-offs read it from their profile, so it changes everywhere at once, on their past
   inspections too (the list's Inspector in Charge, the capture header's "Inspected By", the review);
-  only what already left the app keeps the old name (exported files, AI reports and the AI's
+  only what already left the app keeps the old name (downloaded reports, exported files and the AI's
   earlier answers). Supabase Auth's copy (`user_metadata.full_name`,
   which the Supabase dashboard shows) follows when the server has the secret key. An account
   waiting for activation is activated first: any change to it would make it look deactivated.
@@ -211,12 +211,14 @@ covers names and emails.
 
 ## AI models
 
-Optional. With nothing set, the app shows "AI Not Connected" and offers the JSON export.
+Optional. With nothing set, the review shows "Steri-AI Second Opinion Not Connected". The app makes
+the Client Report itself (Download PDF, BUILD_SPEC 9.1); the Steri-AI Report hand-off and its
+`AI_REPORT_WEBHOOK_URL` were removed on 27 October 2026 (Kenneth: "no need Steri-AI report, because
+we already have Client Report").
 
 | Variable | Purpose |
 |---|---|
 | `AI_REVIEW_WEBHOOK_URL` | Second opinion via your own service (BUILD_SPEC 9.2) |
-| `AI_REPORT_WEBHOOK_URL` | Client report generation via your own service (BUILD_SPEC 9.1) |
 | `AI_WEBHOOK_SECRET` | Signs webhook requests (HMAC-SHA256) |
 | `ANTHROPIC_API_KEY` | Runs the second opinion directly on Claude when no review webhook is set |
 | `AI_REVIEW_PROVIDER` | `auto` (default), `webhook`, `claude`, `mock` or `off` |

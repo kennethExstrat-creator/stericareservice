@@ -18,13 +18,9 @@
 // screen's copy of the inspection as it stands (lib/report/live-export.ts),
 // so they follow every option and entry at once. Download PDF opens the
 // print route in a new tab, what is waiting saved first, and the browser's
-// print dialog saves the PDF there. Send to Steri-AI Report, the AI report
-// service (BUILD_SPEC 9.1), shows beside it only where it may run.
-// Read-only, the options show as saved.
-import { ChevronRightIcon, DownloadIcon, ExternalLinkIcon, SendIcon } from "lucide-react";
-import { useActionState, useEffect, useId, useMemo, useRef, useState, type MouseEvent, type Ref } from "react";
-import { toast } from "sonner";
-import { focusIfLost } from "@/components/ai/focus-handoff";
+// print dialog saves the PDF there. Read-only, the options show as saved.
+import { ChevronRightIcon, DownloadIcon } from "lucide-react";
+import { useId, useMemo, useState, type MouseEvent, type Ref } from "react";
 import { useInspectionMedia } from "@/components/capture/photos";
 import { Button } from "@/components/ui/button";
 import { Field, FieldLabel, FieldLegend, FieldSet } from "@/components/ui/field";
@@ -32,12 +28,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { PillSwitch, type PillOption } from "@/components/ui/pill-switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Spinner } from "@/components/ui/spinner";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
-import { sendToAiReport } from "@/lib/inspections/ai/actions";
-import { AI_ACTION_IDLE, type AiActionState } from "@/lib/inspections/ai/types";
-import { NOT_IN_INSPECTION, reportSectionsAvailable, type GenerateAvailability, type LastReport } from "@/lib/inspections/capture/report";
+import { NOT_IN_INSPECTION, reportSectionsAvailable } from "@/lib/inspections/capture/report";
 import { REPORT_KEY, REPORT_TITLE } from "@/lib/inspections/capture/sections";
 import type { MediaPhoto } from "@/lib/inspections/photos/view";
 import { liveReportExport, type LiveExportInput, type LivePhoto } from "@/lib/report/live-export";
@@ -62,7 +55,6 @@ import {
 import { cn } from "@/lib/utils";
 import { ReportPagesPreview } from "./report-pages-preview";
 import { SectionFrame } from "./section-frame";
-import { unreachable } from "./unreachable";
 
 /** Under the pages: what Download PDF does with them. */
 export const PREVIEW_CAPTION = "Download PDF opens these pages in a new tab: choose Save as PDF in the print dialog.";
@@ -102,8 +94,6 @@ type ReportPageProps = {
   options: ReportOptions;
   source: ReportSource;
   readOnly: boolean;
-  generate: GenerateAvailability;
-  lastReport: LastReport | null;
   download: ReportDownload;
   /** The options with one changed: saved with the inspection's data. */
   onChange: (options: ReportOptions) => void;
@@ -117,8 +107,6 @@ export function ReportPage({
   options,
   source,
   readOnly,
-  generate,
-  lastReport,
   download,
   onChange,
 }: ReportPageProps) {
@@ -154,8 +142,6 @@ export function ReportPage({
           inspectionId={inspectionId}
           model={model}
           pageSize={options.pageSize}
-          generate={generate}
-          lastReport={lastReport}
           download={download}
         />
       </div>
@@ -540,8 +526,6 @@ export function ReportPreviewCard({
   inspectionId,
   model,
   pageSize,
-  generate,
-  lastReport,
   download,
 }: {
   id: string;
@@ -549,8 +533,6 @@ export function ReportPreviewCard({
   /** Null when the screen's copy does not make a report (the page says so). */
   model: ReportModel | null;
   pageSize: ReportPageSize;
-  generate: GenerateAvailability;
-  lastReport: LastReport | null;
   download: ReportDownload;
 }) {
   const titleId = `${id}-title`;
@@ -575,7 +557,7 @@ export function ReportPreviewCard({
             </p>
           )}
         </div>
-        <ReportActions inspectionId={inspectionId} generate={generate} lastReport={lastReport} download={download} />
+        <ReportActions inspectionId={inspectionId} download={download} />
       </header>
       <div className="min-h-0 flex-1 overflow-y-auto bg-slate-100 p-4">
         {model ? (
@@ -596,21 +578,9 @@ export function ReportPreviewCard({
  * the browser's print dialog saves the PDF. A plain click opens the tab at
  * once (so no pop-up blocker stops it) and sends it on once what is waiting
  * is saved, so the PDF has the latest options; a click with a modifier, or
- * a middle click, opens the link as the browser does. Send to Steri-AI
- * Report (the AI report service) is beside it only where it may run, and
- * Open Last Report once one was made.
+ * a middle click, opens the link as the browser does.
  */
-export function ReportActions({
-  inspectionId,
-  generate,
-  lastReport,
-  download,
-}: {
-  inspectionId: string;
-  generate: GenerateAvailability;
-  lastReport: LastReport | null;
-  download: ReportDownload;
-}) {
+export function ReportActions({ inspectionId, download }: { inspectionId: string; download: ReportDownload }) {
   const reasonId = useId();
   const href = reportPrintPath(inspectionId, { autoPrint: true });
   const { saveFirst } = download;
@@ -630,98 +600,25 @@ export function ReportActions({
       });
   };
   return (
-    <div className="grid gap-2">
-      <div className="flex flex-wrap items-start gap-x-3 gap-y-2">
-        <div className="grid max-w-full gap-1.5">
-          {download.allowed ? (
-            <Button asChild className="relative w-fit">
-              <a href={href} target="_blank" rel="noopener" onClick={onDownload} data-slot="report-download">
-                <DownloadIcon aria-hidden />
-                Download PDF
-                <span className="sr-only"> (opens in a new tab)</span>
-              </a>
-            </Button>
-          ) : (
-            <>
-              <Button type="button" disabled aria-describedby={reasonId} className="w-fit" data-slot="report-download">
-                <DownloadIcon aria-hidden />
-                Download PDF
-              </Button>
-              <p id={reasonId} className="text-sm text-muted-foreground touch:text-base">
-                {DOWNLOAD_NOT_ALLOWED}
-              </p>
-            </>
-          )}
-        </div>
-        {generate.allowed && <SendToAiReport inspectionId={inspectionId} lastReport={lastReport} />}
-        {!generate.allowed && lastReport && <OpenLastReport link={lastReport} />}
-      </div>
-    </div>
-  );
-}
-
-/**
- * Send to Steri-AI Report: the AI report hand-off (sendToAiReport, BUILD_SPEC
- * 9.1) with the export as it is saved, the options in it; the same action as
- * the review's. Open Last Report opens the link last stored, with when it
- * was made where the audit log has it; the action refreshes the page, which
- * brings a new one.
- */
-function SendToAiReport({ inspectionId, lastReport }: { inspectionId: string; lastReport: LastReport | null }) {
-  const formRef = useRef<HTMLFormElement>(null);
-  const buttonRef = useRef<HTMLButtonElement>(null);
-  const [state, formAction, pending] = useActionState(async (previous: AiActionState, formData: FormData) => {
-    const result = await sendToAiReport(previous, formData).catch(unreachable);
-    if (result.status === "success") toast.success(result.message);
-    return result;
-  }, AI_ACTION_IDLE);
-
-  // The button is disabled while the export is sent; its answer puts focus back on it.
-  useEffect(() => {
-    if (state.status !== "idle") focusIfLost(buttonRef.current, formRef.current);
-  }, [state]);
-
-  // A report made just now, until the refresh brings its stored link and time.
-  const made = state.status === "success" && state.reportUrl && state.reportUrl !== lastReport?.url ? state.reportUrl : null;
-  const link: LastReport | null = made ? { url: made, madeAt: null } : lastReport;
-  return (
-    <>
-      <form ref={formRef} action={formAction} className="grid max-w-full gap-1.5">
-        <input type="hidden" name="inspectionId" value={inspectionId} />
-        <Button ref={buttonRef} type="submit" variant="outline" disabled={pending} className="w-fit" data-slot="report-send-ai">
-          {pending ? <Spinner aria-hidden /> : <SendIcon aria-hidden />}
-          {pending ? "Sending to Steri-AI Report…" : "Send to Steri-AI Report"}
+    <div className="grid max-w-full gap-1.5">
+      {download.allowed ? (
+        <Button asChild className="relative w-fit">
+          <a href={href} target="_blank" rel="noopener" onClick={onDownload} data-slot="report-download">
+            <DownloadIcon aria-hidden />
+            Download PDF
+            <span className="sr-only"> (opens in a new tab)</span>
+          </a>
         </Button>
-        {state.status === "error" && (
-          <p role="alert" className="text-sm break-words text-fail touch:text-base">
-            {state.message}
+      ) : (
+        <>
+          <Button type="button" disabled aria-describedby={reasonId} className="w-fit" data-slot="report-download">
+            <DownloadIcon aria-hidden />
+            Download PDF
+          </Button>
+          <p id={reasonId} className="text-sm text-muted-foreground touch:text-base">
+            {DOWNLOAD_NOT_ALLOWED}
           </p>
-        )}
-        {state.status === "not_connected" && (
-          <p role="status" className="text-sm text-muted-foreground touch:text-base">
-            {state.message}
-          </p>
-        )}
-      </form>
-      {link && <OpenLastReport link={link} />}
-    </>
-  );
-}
-
-function OpenLastReport({ link }: { link: LastReport }) {
-  return (
-    <div className="grid gap-1.5">
-      <Button asChild variant="outline" className="relative w-fit">
-        <a href={link.url} target="_blank" rel="noreferrer">
-          <ExternalLinkIcon aria-hidden />
-          Open Last Report
-          <span className="sr-only"> (opens in a new tab)</span>
-        </a>
-      </Button>
-      {link.madeAt && (
-        <p className="text-sm text-muted-foreground touch:text-base">
-          Made <time dateTime={link.madeAt.iso}>{link.madeAt.label}</time>
-        </p>
+        </>
       )}
     </div>
   );

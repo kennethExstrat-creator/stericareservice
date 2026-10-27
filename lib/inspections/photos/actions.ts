@@ -139,7 +139,7 @@ export async function deletePhoto(_previous: PhotoActionState, formData: FormDat
 }
 
 /**
- * Admins choose the photos that go into the AI report, also on an approved
+ * Admins choose the photos that go into the report, also on an approved
  * inspection: part of approving, so the role's Approve and Reopen (which
  * needs every inspection in sight) decides.
  */

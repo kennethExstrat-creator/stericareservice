@@ -1,12 +1,7 @@
 /* ------------------------------------------------------------------ *
- * Where the export is served and what the download is called. Safe on
- * the client: the review panel links to the route.
+ * What the export route's download is called
+ * (app/api/inspections/[id]/export/route.ts).
  * ------------------------------------------------------------------ */
-
-/** GET returns the export as a JSON download (app/api/inspections/[id]/export/route.ts). */
-export function exportPath(inspectionId: string): string {
-  return `/api/inspections/${encodeURIComponent(inspectionId)}/export`;
-}
 
 /** `INS-2026-0012-export.json`: ASCII only, safe in a Content-Disposition header. */
 export function exportFileName(refNo: string): string {

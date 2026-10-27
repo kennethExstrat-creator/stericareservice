@@ -1,7 +1,6 @@
 import type { AiStatus } from "@/lib/ai/status";
 import { conclusionOf } from "@/lib/export/assemble";
 import type { EvaluatedInspection } from "@/lib/export/evaluate";
-import { exportPath } from "@/lib/export/paths";
 import type { InspectionRecord } from "@/lib/export/record";
 import type { AiFinding, AiQuestion, AiReviewActionKind } from "@/lib/schemas/ai-review";
 import type { InspectionStatus } from "@/lib/schemas/common";
@@ -41,11 +40,10 @@ import type {
  * the tests cover the arranging.
  * ------------------------------------------------------------------ */
 
-/** Second opinions and the AI report are for these inspections (BUILD_SPEC 9). */
+/** Second opinions are for these inspections (BUILD_SPEC 9.2). */
 export const AI_STATUSES: readonly InspectionStatus[] = ["submitted", "approved"];
 
 export const NOT_REVIEWABLE = "Second opinions are for submitted or approved inspections.";
-export const NOT_REPORTABLE = "Only submitted or approved inspections go to Steri-AI Report.";
 export const ALREADY_PENDING = "A second opinion of this version is being written.";
 
 /** One recorded decision on a finding (ai_review_actions), with the admin's name. */
@@ -70,15 +68,13 @@ export type PanelModelInput = {
   aiStatus: AiStatus;
   /** The signed-in user: their half-made decisions are kept on this device under their id. */
   viewerId: string;
-  /** Sees every inspection: reads the decisions (RLS) and the set-up details, and may write the report's link. */
+  /** Sees every inspection: reads the decisions (RLS) and the set-up details. */
   isAdmin: boolean;
   /**
    * What the user's role allows here (lib/auth/permissions.ts): asking for a
-   * second opinion and deciding on its findings (Steri-AI Second Opinion),
-   * and downloading the export or sending it to Steri-AI Report (Export
-   * Reports, which sending also needs `isAdmin` for).
+   * second opinion and deciding on its findings (Steri-AI Second Opinion).
    */
-  allows: { secondOpinion: boolean; exportReports: boolean };
+  allows: { secondOpinion: boolean };
   /**
    * The master list's names (defect_codes) of defects the cited photos are
    * tagged with that their module has no label for, as the review's report
@@ -109,7 +105,6 @@ export function buildAiPanelModel(input: PanelModelInput): AiPanelModel {
     (review) => review.status === "pending" && !isStale(review, now) && isSameVersion(review, version),
   );
   const reviewHandoff = handoff(aiStatus.review, isAdmin, aiStatus.review.provider === "mock");
-  const reportHandoff = handoff(aiStatus.report, isAdmin, false);
 
   const currentModel = current ? toReview(current) : null;
   const findings = currentModel?.findings ?? [];
@@ -130,8 +125,6 @@ export function buildAiPanelModel(input: PanelModelInput): AiPanelModel {
       status: record.status,
       updatedAt: record.updatedAt,
       savedAt: formatDateTime(record.updatedAt),
-      reportUrl: record.reportUrl,
-      exportHref: exportPath(record.id),
     },
     viewer: { id: input.viewerId, isAdmin, canDecide: allows.secondOpinion },
     review: {
@@ -139,12 +132,6 @@ export function buildAiPanelModel(input: PanelModelInput): AiPanelModel {
       canRequest: allows.secondOpinion && reviewHandoff.connected && reviewable && !runningNow,
       blockedReason: !reviewable ? NOT_REVIEWABLE : runningNow ? ALREADY_PENDING : null,
       switchedOff: aiStatus.review.switchedOff === true,
-    },
-    report: {
-      ...reportHandoff,
-      canSend: isAdmin && allows.exportReports && reportHandoff.connected && reviewable,
-      canDownload: allows.exportReports,
-      blockedReason: reviewable ? null : NOT_REPORTABLE,
     },
     current: currentModel,
     attempt: attempt ? toReview(attempt) : null,

@@ -59,7 +59,6 @@ function fake(options: Parameters<typeof createFakeSupabase>[0] = {}): FakeSupab
 beforeEach(() => {
   vi.stubEnv("NODE_ENV", "test");
   vi.stubEnv("AI_REVIEW_PROVIDER", "mock");
-  vi.stubEnv("AI_REPORT_WEBHOOK_URL", "");
   vi.spyOn(console, "warn").mockImplementation(() => {});
 });
 
@@ -148,12 +147,10 @@ describe("loadAiPanel", () => {
     expect(loaded.model.viewer.isAdmin).toBe(false);
     expect(loaded.model.review.canRequest).toBe(false);
     expect(loaded.model.current?.findings[0].decision).toBeNull();
-    // An inspector exports their own inspection (the built-in role's Export Reports).
-    expect(loaded.model.report.canDownload).toBe(true);
   });
 
   // Roles and permissions (migration 20261027150000): an admin-level role reads everything, does what it allows.
-  it("follows the role's switches: no request or decision without Steri-AI Second Opinion, no export without Export Reports", async () => {
+  it("follows the role's switches: no request or decision without Steri-AI Second Opinion", async () => {
     const desk = {
       ...ADMIN,
       grant: { id: "r1", name: "Office Desk", builtIn: null, access: "all" as const, permissions: ["create_inspections"] },
@@ -162,7 +159,6 @@ describe("loadAiPanel", () => {
     if (!loaded.ok) throw new Error(loaded.message);
     expect(loaded.model.viewer).toEqual({ id: IDS.admin, isAdmin: true, canDecide: false });
     expect(loaded.model.review.canRequest).toBe(false);
-    expect(loaded.model.report).toMatchObject({ canSend: false, canDownload: false });
     // What they see is unchanged: the decisions recorded by others.
     expect(loaded.model.current?.findings[0].decision).toMatchObject({ action: "disagree" });
   });

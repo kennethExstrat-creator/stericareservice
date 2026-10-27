@@ -184,7 +184,7 @@ describe("what the reports fix", () => {
   });
 
   it("words the packing counts by each template's inner unit, as the export names it", () => {
-    // What is typed per inner unit is what the export and the AI report say it is per (config.innerUnit).
+    // What is typed per inner unit is what the export and the report say it is per (config.innerUnit).
     const named: Readonly<Record<string, RegExp>> = {
       inner_box: /\binners?\b/i,
       plastic_pack: /\bpacks?\b/i,

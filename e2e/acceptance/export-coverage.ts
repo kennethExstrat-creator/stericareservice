@@ -17,7 +17,7 @@ import type { ExportModule, InspectionExport } from "../../lib/schemas/export";
 /* ------------------------------------------------------------------ *
  * Checks an inspection export (BUILD_SPEC 9.1) against a source report's
  * fields in the coverage inventory (lib/coverage/sources.ts): every target a
- * field maps to must be in the document the AI report is written from.
+ * field maps to must be in the document the report is written from.
  *
  *   field     the module's entered data or computed values hold the key
  *             (inside the class or level it names, with the map key it
@@ -28,7 +28,7 @@ import type { ExportModule, InspectionExport } from "../../lib/schemas/export";
  *   custom    the custom module lists the field and holds its value
  *   template  the document carries the template value (the size list,
  *             the report title lines, the client logo, the unit)
- *   layout    the AI report draws it itself: nothing to carry
+ *   layout    the report draws it itself: nothing to carry
  *
  * "Present but empty" is reported apart: a key that is there with no value
  * (null or "") where the inspection was filled in.
@@ -40,7 +40,7 @@ export type CoverageReport = {
   /** Source fields checked, and their targets. */
   fields: number;
   targets: number;
-  /** Targets the AI report draws itself (page numbers, running headers, legends). */
+  /** Targets the report draws itself (page numbers, running headers, legends). */
   layout: number;
   gaps: CoverageGap[];
   /** Targets whose key is there with no value. */

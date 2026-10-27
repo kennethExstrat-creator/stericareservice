@@ -6,7 +6,7 @@ import { z } from "zod";
  *
  * Read on every call, never at import: a missing or invalid variable
  * resolves to "off" or "misconfigured" for that hand-off instead of
- * crashing the app. The review and the report resolve independently.
+ * crashing the app.
  *
  * Problems name the variable and what it accepts but never repeat its
  * value: they reach the UI through getAiStatus(), and a key or a URL
@@ -55,18 +55,12 @@ export type ReviewTarget =
   | { provider: "off"; switchedOff?: true }
   | { provider: "misconfigured"; problems: string[] };
 
-export type ReportTarget =
-  | { provider: "webhook"; webhook: WebhookTarget }
-  | { provider: "off" }
-  | { provider: "misconfigured"; problems: string[] };
-
 export type WebhookSecret = { ok: true; value: string | null } | { ok: false; problem: string };
 
 export interface AiConfig {
   review: ReviewTarget;
-  report: ReportTarget;
   webhookSecret: WebhookSecret;
-  /** The mock reviewer and the /api/dev mock receivers: off in production unless ENABLE_MOCK_AI=true. */
+  /** The mock reviewer and the /api/dev mock receiver: off in production unless ENABLE_MOCK_AI=true. */
   mockEnabled: boolean;
 }
 
@@ -77,7 +71,6 @@ export function readAiConfig(env: AiEnv = process.env): AiConfig {
   const context: ResolveContext = { env, production, webhookSecret };
   return {
     review: resolveReview(context, mockEnabled),
-    report: resolveReport(context),
     webhookSecret,
     mockEnabled,
   };
@@ -151,13 +144,6 @@ function reviewClaude(env: AiEnv, apiKey: string): ReviewTarget {
 
   if (problems.length > 0 || !effort.success) return misconfigured(...problems);
   return { provider: "claude", claude: { apiKey, model: rawModel, effort: effort.data, maxPhotos } };
-}
-
-function resolveReport(context: ResolveContext): ReportTarget {
-  const rawUrl = read(context.env, "AI_REPORT_WEBHOOK_URL");
-  if (!rawUrl) return { provider: "off" };
-  const target = webhookTarget(context, "AI_REPORT_WEBHOOK_URL", rawUrl);
-  return target.ok ? { provider: "webhook", webhook: target.webhook } : misconfigured(...target.problems);
 }
 
 type WebhookTargetResult = { ok: true; webhook: WebhookTarget } | { ok: false; problems: string[] };

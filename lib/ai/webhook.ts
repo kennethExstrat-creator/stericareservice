@@ -18,7 +18,7 @@ export const WEBHOOK_HEADERS = {
   signature: "X-SteriCare-Signature",
 } as const;
 
-export type WebhookEvent = "ai.review.requested" | "ai.report.requested";
+export type WebhookEvent = "ai.review.requested";
 
 /** Receivers reject a timestamp further than this from their own clock (replay protection). */
 export const SIGNATURE_TOLERANCE_SECONDS = 5 * 60;
@@ -102,7 +102,7 @@ export type WebhookResult<T> =
   | { ok: true; data: T; status: number; deliveryId: string }
   | { ok: false; reason: WebhookFailureReason; message: string; status?: number; deliveryId: string };
 
-/** How a webhook failure reads in an AI review or report outcome. */
+/** How a webhook failure reads in an AI review outcome. */
 export function handoffFailureReason(reason: WebhookFailureReason): "timeout" | "invalid_response" | "error" {
   switch (reason) {
     case "timeout":

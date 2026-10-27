@@ -10,8 +10,8 @@ import type { InspectionRecord } from "@/lib/export";
  * the row copies into `result` and `remarks`), the modules switched off for
  * it, the template version it uses, and its lab reports and certificates,
  * which decide module results (docs/MODULES.md 10.1). Not the row's
- * updated_at: approving the inspection, reopening it or storing its report
- * link saves the row too, and an opinion is no less about what is there.
+ * updated_at: approving the inspection or reopening it saves the row too,
+ * and an opinion is no less about what is there.
  * Photos are left out: they decide no result, and choosing report photos is
  * part of an admin's review. So are the Report page's options (the data's
  * `report`; Kenneth, 27 October 2026): how the report is laid out is

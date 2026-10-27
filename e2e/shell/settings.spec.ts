@@ -6,8 +6,8 @@ import { sessionCookies, TEST_ACCOUNTS, type SessionCookie } from "../support/se
  * The system status the admin overview showed until it became the dashboard
  * (Kenneth, 27 October 2026: "these looks more like should be in general
  * settings or AI settings"): Supabase and the sign-in emails on Admin >
- * General Settings, the second opinion and the report under the key on
- * Steri-AI Settings' General. At the sizes in playwright.config.ts, as the
+ * General Settings, the second opinion under the key on Steri-AI Settings'
+ * General. At the sizes in playwright.config.ts, as the
  * admin, reading only: nothing is saved. Each card's states are
  * components/shell/admin-status-cards.test.tsx's: this run only sees the
  * live, configured project. Screenshots go to screenshots/shell/
@@ -23,9 +23,9 @@ const isDesktop = (page: Page) => (page.viewportSize()?.width ?? 0) >= 1280 && t
 const isTouch = () => Boolean(test.info().project.use.hasTouch);
 
 /** The variables whose values must never reach a page. */
-const SECRETS = ["SUPABASE_SECRET_KEY", "SUPABASE_DB_URL", "ANTHROPIC_API_KEY", "AI_WEBHOOK_SECRET", "AI_REVIEW_WEBHOOK_URL", "AI_REPORT_WEBHOOK_URL"];
+const SECRETS = ["SUPABASE_SECRET_KEY", "SUPABASE_DB_URL", "ANTHROPIC_API_KEY", "AI_WEBHOOK_SECRET", "AI_REVIEW_WEBHOOK_URL"];
 
-/** What a hand-off's pill may say (aiPill in components/shell/admin-status-cards.tsx). */
+/** What the second opinion's pill may say (aiPill in components/shell/admin-status-cards.tsx). */
 const AI_PILL = /^(Connected|Not Connected|Test Data Only|Configuration Error)$/;
 
 /**
@@ -116,36 +116,29 @@ test.describe("as the admin", () => {
     await shot(page, "admin-settings");
   });
 
-  test("Steri-AI Settings' General: the second opinion and the report under the key, never a secret", async ({ page }) => {
+  test("Steri-AI Settings' General: the second opinion under the key, never a secret", async ({ page }) => {
     await page.goto("/admin/ai");
     await expect(page).toHaveTitle("Steri-AI Settings · SteriCare QC");
     await expect(page.getByTestId("ai-general")).toBeVisible();
 
     const review = card(page, "Steri-AI Second Opinion");
-    const report = card(page, "Steri-AI Report");
-    for (const [title, section] of [
-      ["Steri-AI Second Opinion", review],
-      ["Steri-AI Report", report],
-    ] as const) {
-      await expect(section.getByRole("heading", { level: 2, name: title, exact: true })).toBeVisible();
-      await expect(section.locator('[data-slot="status-pill"]').first()).toHaveText(AI_PILL);
-      await expect(section.getByText("Provider", { exact: true })).toBeVisible();
-    }
+    await expect(review.getByRole("heading", { level: 2, name: "Steri-AI Second Opinion", exact: true })).toBeVisible();
+    await expect(review.locator('[data-slot="status-pill"]').first()).toHaveText(AI_PILL);
+    await expect(review.getByText("Provider", { exact: true })).toBeVisible();
+    // No Steri-AI Report card (Kenneth, 27 October 2026: "we already have Client Report").
+    await expect(page.getByRole("heading", { name: "Steri-AI Report" })).toHaveCount(0);
 
-    // Under the key's cards, side by side from 1024 px, one above the other on iPad portrait.
+    // Under the key's cards.
     const connection = (await card(page, "Connection").boundingBox())!;
     const reviewBox = (await review.boundingBox())!;
-    const reportBox = (await report.boundingBox())!;
     expect(reviewBox.y).toBeGreaterThan(connection.y + connection.height);
-    if ((page.viewportSize()?.width ?? 0) >= 1024) expect(reportBox.y).toBe(reviewBox.y);
-    else expect(reportBox.y).toBeGreaterThan(reviewBox.y + reviewBox.height);
     await expectNoPageScroll(page);
     await expectNoSecrets(page);
     await shot(page, "admin-ai-general");
 
-    // They are General's alone.
+    // It is General's alone.
     await page.goto("/admin/ai?view=inspection");
     await expect(page.getByTestId("ai-inspection-settings")).toBeVisible();
-    await expect(page.getByRole("heading", { name: /^Steri-AI (Second Opinion|Report)$/ })).toHaveCount(0);
+    await expect(page.getByRole("heading", { name: /^Steri-AI Second Opinion$/ })).toHaveCount(0);
   });
 });

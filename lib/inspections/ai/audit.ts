@@ -16,7 +16,7 @@ export function asJson(value: unknown): NonNullable<Json> {
 export async function logInspectionEvent(
   client: ExportClient,
   inspectionId: string,
-  action: `ai_review.${string}` | `ai_report.${string}`,
+  action: `ai_review.${string}`,
   changes: Record<string, unknown>,
 ): Promise<void> {
   try {

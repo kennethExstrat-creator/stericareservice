@@ -2,22 +2,15 @@
 // options in the report's structure (General, the content tree with a switch
 // per section and its blocks, the photo records), a section the inspection
 // cannot show greyed with why, read-only, the report's own pages in the
-// preview, Download PDF to the print route, and the AI report only where it
-// may run.
+// preview, and Download PDF to the print route, its only action.
 import { renderToStaticMarkup } from "react-dom/server";
-import { describe, expect, it, vi } from "vitest";
-
-vi.mock("@/lib/inspections/ai/actions", () => ({ sendToAiReport: vi.fn() }));
-
+import { describe, expect, it } from "vitest";
 import { evaluateRecord } from "@/lib/export/evaluate";
 import { STD_EG_IDS, stdEgRecord } from "@/lib/export/__fixtures__/std-eg";
-import { GENERATE_REASONS, type GenerateAvailability, type LastReport } from "@/lib/inspections/capture/report";
 import type { InspectionStatus } from "@/lib/schemas/common";
 import { DEFAULT_REPORT_OPTIONS, REPORT_SECTIONS, type ReportOptions } from "@/lib/schemas/report-options";
 import type { ResolvedTemplate } from "@/lib/schemas/template";
 import { DOWNLOAD_NOT_ALLOWED, PREVIEW_CAPTION, ReportPage, type ReportSource } from "./report-page";
-
-const NOT_YET: GenerateAvailability = { allowed: false, reason: GENERATE_REASONS.notYet };
 
 /** The STD_EG example as the capture screen holds it: its evaluation, data and meta. */
 function source({ status = "submitted", without = [] }: { status?: InspectionStatus; without?: string[] } = {}): ReportSource {
@@ -45,8 +38,6 @@ function source({ status = "submitted", without = [] }: { status?: InspectionSta
 function page({
   options = {},
   readOnly = false,
-  generate = NOT_YET,
-  lastReport = null,
   canDownload = true,
   status,
   without,
@@ -54,8 +45,6 @@ function page({
 }: {
   options?: Partial<ReportOptions>;
   readOnly?: boolean;
-  generate?: GenerateAvailability;
-  lastReport?: LastReport | null;
   canDownload?: boolean;
   status?: InspectionStatus;
   without?: string[];
@@ -73,8 +62,6 @@ function page({
       // The page's options are the screen's copy's: the preview follows them.
       source={{ ...base, data: { ...base.data, report: chosen } }}
       readOnly={readOnly}
-      generate={generate}
-      lastReport={lastReport}
       download={{ allowed: canDownload, saveFirst: async () => undefined }}
       onChange={() => {}}
     />,
@@ -192,7 +179,7 @@ describe("the Report page", () => {
   });
 
   it("gives every element an id of its own, and each label names a control that is there", () => {
-    const html = page({ lastReport: { url: "https://reports.example.com/r.pdf", madeAt: null }, generate: { allowed: true } });
+    const html = page();
     const ids = Array.from(html.matchAll(/\sid="([^"]+)"/g), (match) => match[1]);
     expect(ids.filter((id, index) => ids.indexOf(id) !== index)).toEqual([]);
     const targets = Array.from(html.matchAll(/<label[^>]*\sfor="([^"]+)"/g), (match) => match[1]);
@@ -276,30 +263,15 @@ describe("Download PDF", () => {
     expect(isDisabled(button[0])).toBe(true);
     expect(html).toContain(DOWNLOAD_NOT_ALLOWED.replaceAll("'", "&#x27;"));
   });
-});
 
-describe("Send to Steri-AI Report", () => {
-  const sendButton = (html: string) => /<button[^>]*data-slot="report-send-ai"[^>]*>(?:(?!<\/button>).)*<\/button>/.exec(html)?.[0] ?? "";
-
-  it("shows only where it may run: an admin, a submitted inspection, the report service set up", () => {
-    expect(sendButton(page({ generate: NOT_YET }))).toBe("");
-    expect(sendButton(page({ generate: { allowed: false, reason: GENERATE_REASONS.notSetUp } }))).toBe("");
-    const button = sendButton(page({ generate: { allowed: true } }));
-    expect(button).toContain("Send to Steri-AI Report");
-    expect(button).toContain('data-variant="outline"');
-    expect(isDisabled(button)).toBe(false);
-    expect(page({ generate: { allowed: true } })).toContain(`<input type="hidden" name="inspectionId" value="${STD_EG_IDS.inspection}"/>`);
-  });
-
-  it("opens the last report in a new tab, with when it was made where that is known", () => {
-    const made = page({
-      generate: { allowed: true },
-      lastReport: { url: "https://reports.example.com/INS-2025-0001.pdf", madeAt: { iso: "2026-10-27T06:05:00.000Z", label: "27 Oct 2026, 14:05" } },
-    });
-    expect(made).toMatch(/<a href="https:\/\/reports\.example\.com\/INS-2025-0001\.pdf" target="_blank" rel="noreferrer"[^>]*>(?:(?!<\/a>).)*Open Last Report/);
-    expect(made).toContain('Made <time dateTime="2026-10-27T06:05:00.000Z">27 Oct 2026, 14:05</time>');
-    // A report made before stays reachable while the service may not run.
-    expect(page({ lastReport: { url: "https://reports.example.com/r.pdf", madeAt: null } })).toContain("Open Last Report");
-    expect(page()).not.toContain("Open Last Report");
+  // Kenneth, 27 October 2026: "no need Steri-AI report, because we already have Client Report".
+  it("is the page's only action: no Send to Steri-AI Report, no Open Last Report", () => {
+    for (const html of [page(), page({ status: "approved" }), page({ readOnly: true })]) {
+      expect(html).not.toContain("Steri-AI Report");
+      expect(html).not.toContain("Open Last Report");
+      expect(html).not.toContain('data-slot="report-send-ai"');
+      expect(html).not.toMatch(/<form[\s>]/);
+      expect(tagsWith(html, 'data-slot="report-download"')).toHaveLength(1);
+    }
   });
 });

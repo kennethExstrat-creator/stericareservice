@@ -13,10 +13,8 @@ export type AiActionField = "action" | "note";
 
 export type AiActionState =
   | { status: "idle" }
-  | { status: "success"; message: string; reportUrl?: string }
-  | { status: "error"; message: string; fieldErrors?: Partial<Record<AiActionField, string>> }
-  /** "Send to AI Report" with no report service: the JSON download is the way out. */
-  | { status: "not_connected"; message: string; downloadHref: string };
+  | { status: "success"; message: string }
+  | { status: "error"; message: string; fieldErrors?: Partial<Record<AiActionField, string>> };
 
 export const AI_ACTION_IDLE: AiActionState = { status: "idle" };
 
@@ -116,7 +114,7 @@ export type SectionModel = {
 
 export type HandoffModel = {
   connected: boolean;
-  /** "AI second opinion connected (webhook)", "AI not connected" ... */
+  /** "Steri-AI Second Opinion Connected (Webhook)", "Steri-AI Second Opinion Not Connected" ... */
   label: string;
   /** Which variable to fix; admins only. */
   detail: string | null;
@@ -131,8 +129,6 @@ export type AiPanelModel = {
     /** Exactly as stored: identifies the version a review belongs to. */
     updatedAt: string;
     savedAt: string;
-    reportUrl: string | null;
-    exportHref: string;
   };
   /**
    * The signed-in user: decisions are for admins whose role allows Steri-AI
@@ -147,8 +143,6 @@ export type AiPanelModel = {
     /** Not connected because AI_REVIEW_PROVIDER is off on purpose, not because nothing is set up. */
     switchedOff: boolean;
   };
-  /** `canDownload`: the role allows Export Reports, so the export is offered as a JSON download. */
-  report: HandoffModel & { canSend: boolean; canDownload: boolean; blockedReason: string | null };
   /** The newest finished review: the AI column. */
   current: ReviewModel | null;
   /** A newer request than `current` that is still running, failed or stopped. */

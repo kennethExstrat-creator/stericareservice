@@ -185,12 +185,10 @@ export function decisions(): StoredDecision[] {
 
 export const MOCK_STATUS: AiStatus = {
   review: { connected: true, provider: "mock", label: "Steri-AI Second Opinion: Mock Reviewer (Test Data Only)" },
-  report: { connected: false, provider: "off", label: "Steri-AI Not Connected" },
 };
 
 export const OFF_STATUS: AiStatus = {
   review: { connected: false, provider: "off", label: "Steri-AI Second Opinion Not Connected" },
-  report: { connected: false, provider: "off", label: "Steri-AI Not Connected" },
 };
 
 export const PHOTO_LINKS = {

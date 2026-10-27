@@ -15,11 +15,6 @@
 // - Sections: a section none of whose modules the inspection includes (a
 //   step switched off for the inspection is none) is left out of the report
 //   and shown on the page as not in this inspection (reportSectionsAvailable).
-// - Generate Report: the AI report hand-off (BUILD_SPEC 9.1), the action
-//   the review screen's Send to Steri-AI Report runs, with its rules: an
-//   admin, a submitted or approved inspection and a report service
-//   (generateAvailability). The page offers it only then, beside Download
-//   PDF, the app's own report (lib/report).
 import type { z } from "zod";
 import { contentHash } from "@/lib/offline/stable-json";
 import {
@@ -237,45 +232,6 @@ export function reportSectionsAvailable(moduleKeys: Iterable<string>): Record<Re
     REPORT_SECTIONS.map((section) => [section.key, section.modules.some((key) => included.has(key))]),
   ) as Record<ReportSectionKey, boolean>;
 }
-
-/* ------------------------------------------------------------------ *
- * Generate Report and the last report
- * ------------------------------------------------------------------ */
-
-/** Why Generate Report may not run, for the screens that say so. */
-export const GENERATE_REASONS = {
-  notYet: "Available to admins once the inspection is submitted.",
-  notSetUp: "The report service is not set up yet.",
-} as const;
-
-export type GenerateAvailability = { allowed: true } | { allowed: false; reason: string };
-
-/**
- * Generate Report's rules, the AI report's (BUILD_SPEC 9.1), which
- * sendInspectionToAiReport checks again on the server: an admin, a submitted
- * or approved inspection (`reportable`, AI_STATUSES), and a report service
- * (AI_REPORT_WEBHOOK_URL, `connected`).
- */
-export function generateAvailability({
-  isAdmin,
-  reportable,
-  connected,
-}: {
-  isAdmin: boolean;
-  reportable: boolean;
-  connected: boolean;
-}): GenerateAvailability {
-  if (!isAdmin || !reportable) return { allowed: false, reason: GENERATE_REASONS.notYet };
-  if (!connected) return { allowed: false, reason: GENERATE_REASONS.notSetUp };
-  return { allowed: true };
-}
-
-/**
- * The report last made for the inspection: its link (inspections.report_url)
- * and, where the audit log records it (`ai_report.sent` with that link),
- * when it was made: `label` in Malaysia time, as the AI panel writes times.
- */
-export type LastReport = { url: string; madeAt: { iso: string; label: string } | null };
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);

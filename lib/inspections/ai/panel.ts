@@ -28,7 +28,7 @@ import type { AiPanelModel } from "./types";
  * the history) and, for admins, the decisions recorded on findings. The
  * inspection and the reviews load side by side; decisions come embedded
  * in the reviews. What the user may do in it follows their role's
- * switches: Steri-AI Second Opinion, and Export Reports.
+ * Steri-AI Second Opinion switch.
  * ------------------------------------------------------------------ */
 
 /** Photo links in the panel outlive a long review session but not the day. */
@@ -73,7 +73,7 @@ export async function loadAiPanel(
   const client = options.client ?? (await createClient());
   // What they see (decisions are read by admins only, RLS), apart from what their role lets them do.
   const isAdmin = user.role === "admin";
-  const allows = { secondOpinion: userCan(user, "ai_second_opinion"), exportReports: userCan(user, "export_reports") };
+  const allows = { secondOpinion: userCan(user, "ai_second_opinion") };
 
   const [loaded, reviewRows] = await Promise.all([
     loadInspectionRecord(client, id),

@@ -93,7 +93,7 @@ function listItemLabel(template: TemplateCode, target: SourceTarget): string | u
  * or custom field's label, a list entry's label, a stickiness legend line as
  * the report prints it, a Safedon defect's definition as printed ([sic]
  * fixed). Undefined when the target has no single label: a config value as a
- * whole, the size list, the title block, a legend the AI report draws.
+ * whole, the size list, the title block, a legend the report draws.
  */
 export function targetLabel(template: TemplateCode, target: SourceTarget): string | undefined {
   if (isFieldTarget(target)) {

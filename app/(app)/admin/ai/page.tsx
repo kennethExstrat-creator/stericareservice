@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { unstable_rethrow } from "next/navigation";
 import { PageHeader } from "@/components/qc";
-import { AiReportCard, AiReviewCard } from "@/components/shell/admin-status-cards";
+import { AiReviewCard } from "@/components/shell/admin-status-cards";
 import { getAiStatus } from "@/lib/ai";
 import { latestBnmRate, pickMyrRate } from "@/lib/ai/myr-rate";
 import { loadAiEnv, loadAiPrices, readAiSettingsView, readSummarySettingsView } from "@/lib/ai/settings";
@@ -23,13 +23,13 @@ export async function generateMetadata(): Promise<Metadata> {
 /**
  * Admin > Steri-AI Settings (docs/AI.md, "AI Settings"), three views the
  * address names (?view=, _components/view-state.ts): General, the Anthropic
- * API key and the connection test, then whether the second opinion and the
- * report are connected; Inspection Settings, the Claude model for each job,
+ * API key and the connection test, then whether the second opinion is
+ * connected; Inspection Settings, the Claude model for each job,
  * the second opinion's effort and photos, and the Inspection Summary's model
  * and house style with Try It; Steri-AI Cost, what Steri-AI costs to run, in
  * ringgit or US dollars. Each view loads only its own data. The page shows
  * only where the key comes from and its last four characters, never the key:
- * the status cards get getAiStatus()'s view, which holds no key or URL.
+ * the status card gets getAiStatus()'s view, which holds no key or URL.
  *
  * Someone whose role has no Steri-AI Settings switch gets a 404 from
  * requirePermission(); a layout is not a security boundary, so the page
@@ -74,9 +74,9 @@ async function viewBody(state: AiViewState) {
       />
     );
   }
-  // The hand-offs as every call finds them (loadAiEnv: the saved key lies over the variables), drawn
-  // here on the server, under the key's form. Save Key and Remove Saved Key revalidate this page, so
-  // the cards follow at once.
+  // The second opinion as every call finds it (loadAiEnv: the saved key lies over the variables), drawn
+  // here on the server, under the key's form, in its left column. Save Key and Remove Saved Key
+  // revalidate this page, so the card follows at once.
   const [view, env] = await Promise.all([readAiSettingsView(), loadAiEnv()]);
   const ai = getAiStatus(env);
   return (
@@ -84,7 +84,6 @@ async function viewBody(state: AiViewState) {
       <GeneralView view={view} />
       <div className="grid gap-6 lg:grid-cols-2">
         <AiReviewCard status={ai.review} />
-        <AiReportCard status={ai.report} />
       </div>
     </div>
   );

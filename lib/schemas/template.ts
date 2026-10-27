@@ -183,7 +183,7 @@ export const CustomModuleSchema = z
 export type CustomModule = z.infer<typeof CustomModuleSchema>;
 
 export const TemplateReportSchema = z.strictObject({
-  /** Title of the AI report, e.g. "Preshipment Inspection: Nitrile Disposable Examination Gloves". */
+  /** Title of the report, e.g. "Preshipment Inspection: Nitrile Disposable Examination Gloves". */
   title: z.string().trim().min(1),
   showClientLogo: z.boolean(),
   /** Running header on pages after the first, e.g. "Pre-shipment Inspection : {po} {product}". */

@@ -1,21 +1,16 @@
 import "server-only";
-import { readAiConfig, type AiEnv, type ReportTarget, type ReviewTarget } from "./config";
+import { readAiConfig, type AiEnv, type ReviewTarget } from "./config";
 
 /* ------------------------------------------------------------------ *
- * What the UI may know about the AI hand-offs. No URLs, keys or secrets:
- * this object can be passed to client components.
+ * What the UI may know about the AI second opinion's hand-off. No URLs,
+ * keys or secrets: this object can be passed to client components.
  * ------------------------------------------------------------------ */
 
-/** The not-connected states as a sentence starts them: "AI not connected." (the hand-offs' messages). */
+/** The not-connected state as a sentence starts it: "Steri-AI second opinion not connected." (its messages). */
 export const AI_REVIEW_NOT_CONNECTED = "Steri-AI second opinion not connected";
-export const AI_REPORT_NOT_CONNECTED = "Steri-AI not connected";
 
-/**
- * The same states as labels (Title Case, docs/DESIGN.md Capitalisation): the
- * AI panel's title for the second opinion and the AI Report's pill.
- */
+/** The same state as a label (Title Case, docs/DESIGN.md Capitalisation): the AI panel's title for it. */
 export const AI_REVIEW_NOT_CONNECTED_LABEL = "Steri-AI Second Opinion Not Connected";
-export const AI_REPORT_NOT_CONNECTED_LABEL = "Steri-AI Not Connected";
 const CONFIGURATION_ERROR_LABEL = "Configuration Error";
 
 export interface AiReviewStatus {
@@ -33,21 +28,13 @@ export interface AiReviewStatus {
   switchedOff?: true;
 }
 
-export interface AiReportStatus {
-  connected: boolean;
-  provider: ReportTarget["provider"];
-  label: string;
-  detail?: string;
-}
-
 export interface AiStatus {
   review: AiReviewStatus;
-  report: AiReportStatus;
 }
 
 export function getAiStatus(env: AiEnv = process.env): AiStatus {
   const config = readAiConfig(env);
-  return { review: reviewStatus(config.review), report: reportStatus(config.report) };
+  return { review: reviewStatus(config.review) };
 }
 
 function reviewStatus(target: ReviewTarget): AiReviewStatus {
@@ -80,36 +67,16 @@ function reviewStatus(target: ReviewTarget): AiReviewStatus {
   }
 }
 
-function reportStatus(target: ReportTarget): AiReportStatus {
-  switch (target.provider) {
-    case "webhook":
-      return { connected: true, provider: "webhook", label: "Steri-AI Report Connected (Webhook)" };
-    case "off":
-      return { connected: false, provider: "off", label: AI_REPORT_NOT_CONNECTED_LABEL };
-    case "misconfigured":
-      return {
-        connected: false,
-        provider: "misconfigured",
-        label: `${AI_REPORT_NOT_CONNECTED_LABEL}: ${CONFIGURATION_ERROR_LABEL}`,
-        detail: target.problems.join(" "),
-      };
-  }
-}
-
 /**
- * Why a hand-off that is not connected cannot run, as a message: a sentence
- * ("AI not connected.", or "AI not connected: configuration error. <what to
- * fix>"), where the status's label is the Title Case pill or title.
+ * Why the second opinion cannot run while not connected, as a message: a
+ * sentence ("Steri-AI second opinion not connected.", or "…: configuration
+ * error. <what to fix>"), where the status's label is the Title Case title.
  */
 export function reviewNotConnectedMessage(status: AiReviewStatus): string {
   return notConnectedMessage(AI_REVIEW_NOT_CONNECTED, status);
 }
 
-export function reportNotConnectedMessage(status: AiReportStatus): string {
-  return notConnectedMessage(AI_REPORT_NOT_CONNECTED, status);
-}
-
-function notConnectedMessage(words: string, status: AiReviewStatus | AiReportStatus): string {
+function notConnectedMessage(words: string, status: AiReviewStatus): string {
   const head = status.provider === "misconfigured" ? `${words}: configuration error` : words;
   return status.detail ? `${head}. ${status.detail}` : `${head}.`;
 }

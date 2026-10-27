@@ -59,7 +59,6 @@ export function liveReportExport(input: LiveExportInput): InspectionExport | nul
     result: input.result,
     suggestedResult: null,
     remarks: null,
-    reportUrl: null,
     createdAt: input.updatedAt,
     updatedAt: input.updatedAt,
     submittedAt: input.submittedAt,

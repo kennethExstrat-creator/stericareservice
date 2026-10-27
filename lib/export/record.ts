@@ -17,7 +17,7 @@ export type ExportClient = SupabaseClient<Database>;
 
 /** The inspection, its template version and the names the export shows, in one request. */
 export const INSPECTION_RECORD_SELECT =
-  `id, ref_no, status, inspection_date, inspector_id, data, module_overrides, result, suggested_result, remarks, report_url, created_at, updated_at, submitted_at, approved_at, template:templates(id, code, version, standard, product_type, resolved, source_file_path), client:clients(id, name, logo_path), manufacturer:manufacturers(id, ${MANUFACTURER_NAMES_SELECT}), inspector:profiles!inspections_inspector_id_fkey(id, full_name, email, lead_id)` as const;
+  `id, ref_no, status, inspection_date, inspector_id, data, module_overrides, result, suggested_result, remarks, created_at, updated_at, submitted_at, approved_at, template:templates(id, code, version, standard, product_type, resolved, source_file_path), client:clients(id, name, logo_path), manufacturer:manufacturers(id, ${MANUFACTURER_NAMES_SELECT}), inspector:profiles!inspections_inspector_id_fkey(id, full_name, email, lead_id)` as const;
 
 const PHOTO_SELECT =
   "id, module_key, target, storage_path, thumb_path, caption, taken_at, include_in_report, flagged, created_at";
@@ -56,7 +56,6 @@ export type InspectionRecord = {
   result: InspectionResult | null;
   suggestedResult: InspectionResult | null;
   remarks: string | null;
-  reportUrl: string | null;
   /** Timestamps exactly as Postgres returned them: `updatedAt` identifies the version. */
   createdAt: string;
   updatedAt: string;
@@ -135,7 +134,6 @@ export async function loadInspectionRecord(client: ExportClient, inspectionId: s
       result: inspection.result,
       suggestedResult: inspection.suggested_result,
       remarks: inspection.remarks,
-      reportUrl: inspection.report_url,
       createdAt: inspection.created_at,
       updatedAt: inspection.updated_at,
       submittedAt: inspection.submitted_at,

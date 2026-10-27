@@ -109,6 +109,7 @@ function describe(action: string, changes: Record<string, unknown>, words: Words
       return event("File Deleted", text(changes.name));
     case "summary_drafted":
       return event("Steri-AI Summary Drafted");
+    // Rows from before the Steri-AI Report was removed (27 October 2026) keep reading as they did.
     case "ai_report.sent":
       return event("Sent to Steri-AI Report");
     case "ai_review.requested":

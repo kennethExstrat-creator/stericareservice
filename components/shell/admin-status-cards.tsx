@@ -1,21 +1,14 @@
 // The set-up's status cards. Admin > General Settings
 // (app/(app)/admin/settings/page.tsx): is Supabase wired up, are the sign-in
 // emails set up. Steri-AI Settings' General (app/(app)/admin/ai/page.tsx),
-// under the API key: are the AI hand-offs connected. The pages read the
+// under the API key: is the second opinion connected. The pages read the
 // facts; these cards only show them, so every state is tested on its own
 // (admin-status-cards.test.tsx). They name the variable to set, never a
 // value: no keys, secrets or webhook URLs reach the page.
 import { useId, type ReactNode } from "react";
-import {
-  DatabaseIcon,
-  ExternalLinkIcon,
-  FileTextIcon,
-  MailIcon,
-  SparklesIcon,
-  type LucideIcon,
-} from "lucide-react";
+import { DatabaseIcon, ExternalLinkIcon, MailIcon, SparklesIcon, type LucideIcon } from "lucide-react";
 import { StatusPill } from "@/components/qc";
-import type { AiReportStatus, AiReviewStatus } from "@/lib/ai";
+import type { AiReviewStatus } from "@/lib/ai";
 import type { Status } from "@/lib/design/status";
 import type { SupabasePublicEnv } from "@/lib/env";
 
@@ -193,7 +186,7 @@ export function EmailCard({ env, siteUrl }: { env: SupabasePublicEnv | null; sit
 }
 
 /* ------------------------------------------------------------------ *
- * AI hand-offs (status from getAiStatus() in lib/ai)
+ * The AI second opinion (status from getAiStatus() in lib/ai)
  * ------------------------------------------------------------------ */
 
 const REVIEW_PROVIDER_LABEL: Readonly<Record<AiReviewStatus["provider"], string>> = {
@@ -228,39 +221,14 @@ export function AiReviewCard({ status }: { status: AiReviewStatus }) {
   );
 }
 
-const REPORT_PROVIDER_LABEL: Readonly<Record<AiReportStatus["provider"], string>> = {
-  webhook: "Webhook (your own service)",
-  off: "None",
-  misconfigured: "Not usable",
-};
-
-export function AiReportCard({ status }: { status: AiReportStatus }) {
-  return (
-    <StatusCard
-      icon={FileTextIcon}
-      title="Steri-AI Report"
-      description="Turns an approved inspection into the client report."
-      status={aiPill(status)}
-    >
-      <Rows>
-        <Row label="Provider" value={REPORT_PROVIDER_LABEL[status.provider]} />
-      </Rows>
-      <AiNote status={status}>
-        Not connected: &ldquo;Send to Steri-AI Report&rdquo; offers the JSON download instead. Set{" "}
-        <Variable>AI_REPORT_WEBHOOK_URL</Variable> to connect a report service.
-      </AiNote>
-    </StatusCard>
-  );
-}
-
-function aiPill(status: AiReviewStatus | AiReportStatus): { status: Status; label: string } {
+function aiPill(status: AiReviewStatus): { status: Status; label: string } {
   if (status.provider === "misconfigured") return { status: "fail", label: "Configuration Error" };
   if (status.provider === "mock") return { status: "warn", label: "Test Data Only" };
   return status.connected ? { status: "pass", label: "Connected" } : { status: "info", label: "Not Connected" };
 }
 
 /** What to do next: the problem (it names the variable, never its value), or how to connect. */
-function AiNote({ status, children }: { status: AiReviewStatus | AiReportStatus; children: ReactNode }) {
+function AiNote({ status, children }: { status: AiReviewStatus; children: ReactNode }) {
   if (status.provider === "misconfigured") {
     return (
       <p className="rounded-lg border border-fail-border bg-fail-tint px-3 py-2 text-sm text-fail touch:text-base">
@@ -278,7 +246,7 @@ function AiNote({ status, children }: { status: AiReviewStatus | AiReportStatus;
 
 /**
  * Drawn as Steri-AI Settings' cards (app/(app)/admin/ai/_components/section-card.tsx),
- * which the AI cards sit under: the icon tile and the title, an h2 under the
+ * which the AI card sits under: the icon tile and the title, an h2 under the
  * page's h1, naming the card's section. The pill sits at the title's end
  * (below it when the card is narrow) and the description under the title.
  */

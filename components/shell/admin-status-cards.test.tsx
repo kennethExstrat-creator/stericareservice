@@ -8,13 +8,12 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { getAiStatus } from "@/lib/ai";
 import { lowerCaseWords } from "@/lib/design/capitalisation";
-import { AiReportCard, AiReviewCard, EmailCard, SupabaseCard, type DatabaseSummary } from "./admin-status-cards";
+import { AiReviewCard, EmailCard, SupabaseCard, type DatabaseSummary } from "./admin-status-cards";
 
 // Placeholders: none of these values may appear in the markup.
 const ENV = { url: "https://abcdefghijklmnopqrst.supabase.co", publishableKey: "sb_publishable_placeholder0123" };
 const API_KEY = "sk-ant-api03-placeholder-key-0123456789";
 const REVIEW_WEBHOOK = "https://hooks.example.com/review?token=placeholder-review-token";
-const REPORT_WEBHOOK = "https://hooks.example.com/report?token=placeholder-report-token";
 
 const DATABASE: DatabaseSummary = {
   accounts: { active: 3, admins: 1, inspectors: 2, deactivated: 1 },
@@ -178,53 +177,25 @@ describe("AiReviewCard", () => {
   });
 });
 
-describe("AiReportCard", () => {
-  it("offers the JSON download while not connected", () => {
-    const { text } = render(<AiReportCard status={getAiStatus({}).report} />);
-    expect(text).toContain("Not Connected");
-    expect(text).toContain("“Send to Steri-AI Report” offers the JSON download instead.");
-    expect(text).toContain("Set AI_REPORT_WEBHOOK_URL to connect a report service.");
-  });
-
-  it("shows a webhook without its address", () => {
-    const { html, text } = render(<AiReportCard status={getAiStatus({ AI_REPORT_WEBHOOK_URL: REPORT_WEBHOOK }).report} />);
-    expect(text).toContain("Connected");
-    expect(text).not.toMatch(/not connected/i);
-    expect(text).toContain("Webhook (your own service)");
-    expect(html).not.toContain("hooks.example.com");
-    expect(html).not.toContain("placeholder-report-token");
-  });
-
-  it("names the variable to fix, never its value", () => {
-    const { html, text } = render(
-      <AiReportCard status={getAiStatus({ AI_REPORT_WEBHOOK_URL: "not a url placeholder-value" }).report} />,
-    );
-    expect(text).toContain("Configuration Error");
-    expect(text).toContain("AI_REPORT_WEBHOOK_URL is not a valid URL.");
-    expect(html).not.toContain("placeholder-value");
-  });
-});
-
 describe("the cards' labels", () => {
   it("title each card, row and pill in Title Case (docs/DESIGN.md, Capitalisation)", () => {
     const html = [
       render(<SupabaseCard env={null} secretKeySet={false} database={{ accounts: null, reference: null }} />).html,
       render(<EmailCard env={ENV} siteUrl="https://qc.example.com" />).html,
       render(<AiReviewCard status={getAiStatus({ AI_REVIEW_PROVIDER: "mock" }).review} />).html,
-      render(<AiReportCard status={getAiStatus({}).report} />).html,
     ].join("");
     const all = (pattern: RegExp) => [...html.matchAll(pattern)].map((match) => match[1]);
     const titles = all(/<h2 [^>]*>([^<]+)<\/h2>/g);
     const rows = all(/<dt[^>]*>([^<]+)<\/dt>/g);
     const pills = all(/data-slot="status-pill"[^>]*>.*?<span>([^<]+)<\/span>/g);
-    expect(titles).toEqual(["Supabase", "Sign-In Emails", "Steri-AI Second Opinion", "Steri-AI Report"]);
+    // No Steri-AI Report card (Kenneth, 27 October 2026: "we already have Client Report").
+    expect(titles).toEqual(["Supabase", "Sign-In Emails", "Steri-AI Second Opinion"]);
     expect(rows).toEqual([
       "Project",
       "URL and Publishable Key",
       "Secret Key (Server Only)",
       "Accounts",
       "Reference Data",
-      "Provider",
       "Provider",
     ]);
     expect(pills).toEqual([
@@ -235,7 +206,6 @@ describe("the cards' labels", () => {
       "Not Readable",
       "Check by Hand",
       "Test Data Only",
-      "Not Connected",
     ]);
     for (const label of [...titles, ...rows, ...pills]) expect(lowerCaseWords(label), label).toEqual([]);
   });
@@ -246,19 +216,19 @@ describe("the cards' headers", () => {
     const { html } = render(
       <>
         <AiReviewCard status={getAiStatus({}).review} />
-        <AiReportCard status={getAiStatus({ AI_REPORT_WEBHOOK_URL: REPORT_WEBHOOK }).report} />
+        <AiReviewCard status={getAiStatus({ AI_REVIEW_WEBHOOK_URL: REVIEW_WEBHOOK }).review} />
       </>,
     );
     const sections = [...html.matchAll(/<section aria-labelledby="([^"]+)"/g)].map((match) => match[1]);
     expect(sections).toHaveLength(2);
     expect(new Set(sections).size).toBe(2);
     const titleOf = (id: string) => html.slice(html.indexOf(`<h2 id="${id}"`)).match(/^<h2 [^>]*>([^<]+)<\/h2>/)?.[1];
-    expect(sections.map(titleOf)).toEqual(["Steri-AI Second Opinion", "Steri-AI Report"]);
+    expect(sections.map(titleOf)).toEqual(["Steri-AI Second Opinion", "Steri-AI Second Opinion"]);
     expect(html).not.toContain("<h3");
 
     // In reading order: the title, its pill, the description, then the rows.
     const card = html.slice(html.lastIndexOf("<section"));
-    const order = [">Steri-AI Report</h2>", 'data-slot="status-pill"', "Turns an approved inspection into the client report.", "<dl"];
+    const order = [">Steri-AI Second Opinion</h2>", 'data-slot="status-pill"', "Reviews submitted inspections. It suggests; an admin decides.", "<dl"];
     const at = order.map((part) => card.indexOf(part));
     expect(at.every((index) => index >= 0), order.join(", ")).toBe(true);
     expect(at).toEqual([...at].sort((a, b) => a - b));

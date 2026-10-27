@@ -173,7 +173,7 @@ export type TemplateProperty = (typeof TEMPLATE_PROPERTIES)[number];
 export type TemplateTarget = { readonly template: TemplateProperty };
 
 /**
- * Report layout only (page numbers, running headers, legends): the AI report
+ * Report layout only (page numbers, running headers, legends): the report
  * draws it from values the app already holds; nothing to capture or configure.
  */
 export type LayoutTarget = { readonly layout: string };

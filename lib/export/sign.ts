@@ -4,7 +4,7 @@ import type { ExportClient } from "./record";
 
 /* ------------------------------------------------------------------ *
  * Signed URLs for the export (BUILD_SPEC 9.1) and the review panel. All
- * buckets are private; a signed URL lets a report service or a browser
+ * buckets are private; a signed URL lets a review service or a browser
  * fetch one object for a limited time. Signing runs as the caller, so
  * the storage policies decide what can be signed.
  * ------------------------------------------------------------------ */

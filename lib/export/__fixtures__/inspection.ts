@@ -131,7 +131,6 @@ export function makeInspectionRow(overrides: Row = {}, template: Row = {}): Row 
     suggested_result: "fail",
     // The list's copy of the remark, from before the inspector last changed it.
     remarks: "Remark as first saved.",
-    report_url: null,
     created_at: "2026-10-05T01:00:00.123456+00:00",
     updated_at: UPDATED_AT,
     submitted_at: UPDATED_AT,

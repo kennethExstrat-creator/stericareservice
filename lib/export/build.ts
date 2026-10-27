@@ -17,7 +17,7 @@ import {
 
 /* ------------------------------------------------------------------ *
  * buildInspectionExport (BUILD_SPEC 9.1): one JSON document per
- * inspection, validated by ExportSchema, the input of the AI report and
+ * inspection, validated by ExportSchema, the input of the Client Report and
  * the AI second opinion. Photos, files, the client logo and the source
  * form go out as signed URLs valid for 24 hours.
  *

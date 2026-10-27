@@ -102,7 +102,7 @@ export async function generateMetadata({ params }: PageProps<"/inspections/[id]/
  * October 2026): a header that stays in view with the reference, status and
  * actions; on the desktop an index of the page down the left; then the
  * verdict, what needs attention, the client's report, the facts, the
- * inspection summary, the AI second opinion (with the AI report), every
+ * inspection summary, the AI second opinion, every
  * included module as a row that opens to its sizes side by side, the
  * modules switched off, the report photos and the history. Labels and
  * values, no explanations: the page had "too much wording".

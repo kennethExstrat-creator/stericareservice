@@ -4,20 +4,13 @@ import "server-only";
 // The resolved configuration (readAiConfig in ./config) holds the API key and the webhook
 // secret, so it stays inside lib/ai: getAiStatus() is the view the UI gets.
 export { requestAiReview, REVIEW_WEBHOOK_TIMEOUT_MS, type RequestAiReviewOptions } from "./review";
-export { requestAiReport, REPORT_WEBHOOK_TIMEOUT_MS, type RequestAiReportOptions } from "./report";
-/** Defined in lib/schemas (safe on the client); re-exported here for existing imports. */
-export { AiReportResponseSchema, type AiReportResponse } from "@/lib/schemas";
 export {
   getAiStatus,
   reviewNotConnectedMessage,
-  reportNotConnectedMessage,
   AI_REVIEW_NOT_CONNECTED,
-  AI_REPORT_NOT_CONNECTED,
   AI_REVIEW_NOT_CONNECTED_LABEL,
-  AI_REPORT_NOT_CONNECTED_LABEL,
   type AiStatus,
   type AiReviewStatus,
-  type AiReportStatus,
 } from "./status";
 export {
   DEFAULT_REVIEW_MODEL,
@@ -42,7 +35,5 @@ export type {
   AiReviewFailure,
   AiReviewFailureReason,
   AiReviewProvider,
-  AiReportOutcome,
-  AiReportFailureReason,
   AiUsage,
 } from "./types";

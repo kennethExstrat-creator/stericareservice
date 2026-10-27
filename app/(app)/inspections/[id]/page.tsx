@@ -6,18 +6,14 @@ import { FileWarningIcon } from "lucide-react";
 import { PhotoQueueProvider } from "@/components/capture/photos";
 import { StatusScreen } from "@/components/shell/status-screen";
 import { Button } from "@/components/ui/button";
-import { getAiStatus } from "@/lib/ai";
 import { loadSummaryMenu } from "@/lib/ai/settings";
 import { HOME_PATH } from "@/lib/auth/routes";
 import { grantOf, requireUser, userCan } from "@/lib/auth/session";
 import { canExportInspection } from "@/lib/export/access";
-import { AI_STATUSES } from "@/lib/inspections/ai";
 import { captureAccess } from "@/lib/inspections/capture/access";
 import { loadDefectUsage, type DefectUsage } from "@/lib/inspections/capture/defect-usage";
-import { loadLastReport } from "@/lib/inspections/capture/last-report";
 import { loadCaptureInspection, loadOverrideAuthors } from "@/lib/inspections/capture/load";
 import { loadReopenNote } from "@/lib/inspections/capture/reopen";
-import { generateAvailability } from "@/lib/inspections/capture/report";
 import { readSectionParam } from "@/lib/inspections/capture/schemas";
 import { personLabel } from "@/lib/inspections/format";
 import { createClient } from "@/lib/supabase/server";
@@ -60,12 +56,11 @@ export async function generateMetadata({ params }: PageProps<"/inspections/[id]"
  * before, so the defect lists open on the most-used ones, where the
  * inspection can be changed here, the Steri-AI Summary's menu from the house
  * style (docs/AI.md, "Steri-AI Summary"), and for the Report page, whether
- * Send to Steri-AI Report may run (the AI report's rules, BUILD_SPEC 9.1),
- * the report last made, whether this user may download the PDF (the
- * export's rule, which the print route checks again) and the template
- * version's facts its preview needs. What the user's role switches off is
- * not offered (lib/auth/permissions.ts): switching steps, Steri-AI's
- * reading, sorting and summary, and the report's export.
+ * this user may download the PDF (the export's rule, which the print route
+ * checks again) and the template version's facts its preview needs. What
+ * the user's role switches off is not offered (lib/auth/permissions.ts):
+ * switching steps, Steri-AI's reading, sorting and summary, and the
+ * report's export.
  */
 export default async function CapturePage({ params, searchParams }: PageProps<"/inspections/[id]">) {
   const user = await requireUser();
@@ -102,9 +97,9 @@ export default async function CapturePage({ params, searchParams }: PageProps<"/
     inspectorId: inspection.inspectorId,
     grant: grantOf(user),
   });
-  // The report's export, the PDF and Steri-AI Report alike: the role's Export Reports on top of the export's rule.
+  // Download PDF: the role's Export Reports on top of the export's rule.
   const exportsReports = userCan(user, "export_reports");
-  const [authors, query, reopen, defectUsage, summaryMenu, lastReport] = await Promise.all([
+  const [authors, query, reopen, defectUsage, summaryMenu] = await Promise.all([
     loadOverrideAuthors(supabase, inspection.overrides),
     searchParams,
     loadReopenNote(
@@ -127,16 +122,7 @@ export default async function CapturePage({ params, searchParams }: PageProps<"/
       : Promise.resolve<DefectUsage>({}),
     // Only where the button can show, for a role with Steri-AI Summary; never throws (the house style's defaults stand in).
     access.editable && userCan(user, "ai_summary") ? loadSummaryMenu() : Promise.resolve(null),
-    // Never throws: without it, Open Last Report does not show.
-    loadLastReport(supabase, inspection.id),
   ]);
-  // The Report page's Send to Steri-AI Report is the review's action, which checks all three again:
-  // an admin (it writes the report's link) whose role allows Export Reports.
-  const generate = generateAvailability({
-    isAdmin: user.role === "admin" && exportsReports,
-    reportable: AI_STATUSES.includes(inspection.status),
-    connected: getAiStatus().report.connected,
-  });
 
   return (
     // The page's upload queue starts for this user at once, offline too (components/capture/photos).
@@ -167,8 +153,6 @@ export default async function CapturePage({ params, searchParams }: PageProps<"/
         defectUsage={defectUsage}
         summaryMenu={summaryMenu}
         reportPage={{
-          generate,
-          lastReport,
           // The export's rule, which the print route checks again: the inspection's inspector, their lead inspector
           // (a team member's inspection, read-only here) or an admin.
           canDownload:

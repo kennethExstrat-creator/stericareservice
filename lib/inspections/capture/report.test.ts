@@ -1,13 +1,10 @@
 // The Report page's rules (Kenneth, 27 October 2026): its options read and
 // written in the data (the morning's first shape read into the design's),
-// what the save refuses, which sections an inspection can show, and when the
-// AI report may run.
+// what the save refuses, and which sections an inspection can show.
 import { describe, expect, it } from "vitest";
 import { DEFAULT_REPORT_OPTIONS, ReportOptionsSchema, type ReportOptions } from "@/lib/schemas/report-options";
 import { emptyData, filledData } from "./__fixtures__/capture";
 import {
-  GENERATE_REASONS,
-  generateAvailability,
   NOT_IN_INSPECTION,
   readReportOptions,
   reportFooterNote,
@@ -156,23 +153,5 @@ describe("reportSectionsAvailable: the sections an inspection can show", () => {
     // Physical properties stand in for force at break, Safedon dispensing for the packing check.
     expect(reportSectionsAvailable(["tensile", "dispensing_safedon"])).toMatchObject({ forceAtBreak: true, packing: true });
     expect(NOT_IN_INSPECTION).toBe("Not in this inspection");
-  });
-});
-
-describe("generateAvailability: the AI report's rules (BUILD_SPEC 9.1)", () => {
-  it("runs for an admin on a submitted or approved inspection with a report service", () => {
-    expect(generateAvailability({ isAdmin: true, reportable: true, connected: true })).toEqual({ allowed: true });
-  });
-
-  it("waits for an admin and a submitted inspection first, then for the report service", () => {
-    const notYet = { allowed: false, reason: "Available to admins once the inspection is submitted." };
-    expect(generateAvailability({ isAdmin: false, reportable: true, connected: true })).toEqual(notYet);
-    expect(generateAvailability({ isAdmin: true, reportable: false, connected: true })).toEqual(notYet);
-    expect(generateAvailability({ isAdmin: false, reportable: false, connected: false })).toEqual(notYet);
-    expect(generateAvailability({ isAdmin: true, reportable: true, connected: false })).toEqual({
-      allowed: false,
-      reason: "The report service is not set up yet.",
-    });
-    expect(GENERATE_REASONS).toEqual({ notYet: notYet.reason, notSetUp: "The report service is not set up yet." });
   });
 });

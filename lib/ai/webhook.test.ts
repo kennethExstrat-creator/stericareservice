@@ -57,15 +57,15 @@ describe("verifySignature", () => {
 });
 
 describe("postWebhook", () => {
-  const ResponseSchema = z.object({ reportUrl: z.url() });
+  const ResponseSchema = z.object({ resultUrl: z.url() });
   type Result = z.infer<typeof ResponseSchema>;
   const payload = { refNo: "INS-2024-0001", modules: [] };
 
   function options(fetchImpl: typeof fetch, overrides: Partial<PostWebhookOptions<Result>> = {}) {
     return {
-      url: "https://reports.example.com/hook",
+      url: "https://ai.example.com/review",
       secret: SECRET,
-      event: "ai.report.requested",
+      event: "ai.review.requested",
       payload,
       responseSchema: ResponseSchema,
       timeoutMs: 1_000,
@@ -79,18 +79,18 @@ describe("postWebhook", () => {
   }
 
   it("POSTs the signed export and returns the validated answer", async () => {
-    const fetchImpl = respond(JSON.stringify({ reportUrl: "https://reports.example.com/r/1.pdf" }), { status: 200 });
+    const fetchImpl = respond(JSON.stringify({ resultUrl: "https://ai.example.com/r/1.json" }), { status: 200 });
     const result = await postWebhook(options(fetchImpl));
 
-    expect(result).toMatchObject({ ok: true, data: { reportUrl: "https://reports.example.com/r/1.pdf" }, status: 200 });
+    expect(result).toMatchObject({ ok: true, data: { resultUrl: "https://ai.example.com/r/1.json" }, status: 200 });
     expect(fetchImpl).toHaveBeenCalledTimes(1);
     const [url, init] = fetchImpl.mock.calls[0];
-    expect(url).toBe("https://reports.example.com/hook");
+    expect(url).toBe("https://ai.example.com/review");
     expect(init).toMatchObject({ method: "POST", redirect: "manual", body: JSON.stringify(payload) });
 
     const headers = new Headers(init?.headers);
     expect(headers.get("content-type")).toBe("application/json");
-    expect(headers.get(WEBHOOK_HEADERS.event)).toBe("ai.report.requested");
+    expect(headers.get(WEBHOOK_HEADERS.event)).toBe("ai.review.requested");
     expect(headers.get(WEBHOOK_HEADERS.delivery)).toMatch(/^[0-9a-f-]{36}$/);
     expect(headers.get(WEBHOOK_HEADERS.delivery)).toBe(result.deliveryId);
     const timestamp = headers.get(WEBHOOK_HEADERS.timestamp);
@@ -106,7 +106,7 @@ describe("postWebhook", () => {
   });
 
   it("sends no signature without a secret", async () => {
-    const fetchImpl = respond(JSON.stringify({ reportUrl: "https://reports.example.com/r/1.pdf" }));
+    const fetchImpl = respond(JSON.stringify({ resultUrl: "https://ai.example.com/r/1.json" }));
     await postWebhook(options(fetchImpl, { secret: null }));
     expect(new Headers(fetchImpl.mock.calls[0][1]?.headers).has(WEBHOOK_HEADERS.signature)).toBe(false);
   });
@@ -131,9 +131,9 @@ describe("postWebhook", () => {
   });
 
   it("rejects JSON that does not match the schema, naming the field", async () => {
-    const result = await postWebhook(options(respond(JSON.stringify({ reportUrl: "not a url" }))));
+    const result = await postWebhook(options(respond(JSON.stringify({ resultUrl: "not a url" }))));
     expect(result).toMatchObject({ ok: false, reason: "invalid_response" });
-    expect(!result.ok && result.message).toContain("reportUrl");
+    expect(!result.ok && result.message).toContain("resultUrl");
   });
 
   it("rejects an answer over 1 MB, declared or streamed", async () => {

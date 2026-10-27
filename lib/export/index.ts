@@ -1,7 +1,7 @@
 // The inspection export (BUILD_SPEC 9.1): one JSON document per inspection,
-// validated by ExportSchema (lib/schemas/export.ts), for the AI report and the
-// AI second opinion. Server only: it reads through a Supabase client and signs
-// storage links.
+// validated by ExportSchema (lib/schemas/export.ts), for the Client Report and
+// the AI second opinion. Server only: it reads through a Supabase client and
+// signs storage links.
 import "server-only";
 
 export {
@@ -32,5 +32,5 @@ export {
   type SignBucket,
   type SignResult,
 } from "./sign";
-export { exportFileName, exportPath } from "./paths";
+export { exportFileName } from "./paths";
 export { canExportInspection, type ExportViewer } from "./access";

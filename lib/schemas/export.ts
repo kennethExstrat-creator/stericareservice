@@ -28,7 +28,7 @@ import { TemplateUnitSchema } from "./template";
 /* ------------------------------------------------------------------ *
  * Inspection export (BUILD_SPEC 9.1)
  *
- * One JSON document per inspection: the input of the AI report and of
+ * One JSON document per inspection: the input of the Client Report and of
  * the AI second opinion. It holds everything needed to write the report
  * without opening the app. Bump EXPORT_SCHEMA_VERSION on breaking changes.
  * ------------------------------------------------------------------ */

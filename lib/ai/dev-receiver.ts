@@ -4,17 +4,13 @@ import { readAiConfig, type AiEnv } from "./config";
 import { WEBHOOK_HEADERS, verifySignature } from "./webhook";
 
 /* ------------------------------------------------------------------ *
- * Shared front half of the /api/dev mock receivers: they behave like a
- * real receiver should (verify the signature, validate the export), so
- * pointing the webhook URLs at them tests the whole hand-off locally.
+ * Front half of the /api/dev mock receiver (mock-ai-review): it behaves
+ * like a real receiver should (verify the signature, validate the export),
+ * so pointing AI_REVIEW_WEBHOOK_URL at it tests the whole hand-off locally.
+ * Hidden in production unless ENABLE_MOCK_AI=true (a preview deployment).
  * ------------------------------------------------------------------ */
 
 export type ReceivedExport = { ok: true; exportDoc: InspectionExport } | { ok: false; response: Response };
-
-/** Hidden in production unless ENABLE_MOCK_AI=true (for a preview deployment). */
-export function mockReceiversEnabled(env: AiEnv = process.env): boolean {
-  return readAiConfig(env).mockEnabled;
-}
 
 export async function receiveExport(request: Request, env: AiEnv = process.env): Promise<ReceivedExport> {
   const config = readAiConfig(env);

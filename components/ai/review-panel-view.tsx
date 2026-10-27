@@ -1,10 +1,10 @@
-// The AI panel of the review screen (BUILD_SPEC 9.1 and 9.2), from its view
-// model (lib/inspections/ai/panel-model.ts). Display only: the forms are
-// client islands (request, decisions, report) and a poller refreshes the
-// page while a second opinion is being written. Sized by its container, so
-// it works full width or in a column of the review screen.
+// The AI panel of the review screen (BUILD_SPEC 9.2), from its view model
+// (lib/inspections/ai/panel-model.ts). Display only: the forms are client
+// islands (request, decisions) and a poller refreshes the page while a
+// second opinion is being written. Sized by its container, so it works
+// full width or in a column of the review screen.
 import type { ReactNode } from "react";
-import { FileTextIcon, SparklesIcon, UnplugIcon } from "lucide-react";
+import { SparklesIcon, UnplugIcon } from "lucide-react";
 import { StatusPill } from "@/components/qc/status-pill";
 import { Spinner } from "@/components/ui/spinner";
 import type { AiPanelModel, ReviewModel } from "@/lib/inspections/ai/types";
@@ -13,7 +13,6 @@ import { Comparison } from "./comparison";
 import { FocusTarget } from "./focus-handoff";
 import { AI_FOCUS } from "./focus-targets";
 import { ReviewHistory } from "./history";
-import { ReportControl } from "./report-control";
 import { RequestReviewButton } from "./request-review";
 import { ReviewPoller } from "./review-poller";
 
@@ -75,7 +74,7 @@ export function AiReviewPanelView({ model, className }: { model: AiPanelModel; c
             <Notice tone="warn" title="The Inspection Has Changed Since This Opinion">
               {current.comparedBy === "content"
                 ? "What it reviewed has changed: the entries, the modules switched off, or the lab reports and certificates."
-                : `It was saved again at ${model.inspection.savedAt} (an edit, a status change or a report link all count).`}
+                : `It was saved again at ${model.inspection.savedAt} (an edit and a status change both count).`}
               {review.canRequest ? " Request a new second opinion to review the current version." : ""}
             </Notice>
           )}
@@ -89,8 +88,6 @@ export function AiReviewPanelView({ model, className }: { model: AiPanelModel; c
       )}
 
       <ReviewHistory reviews={model.history} canDecide={viewer.canDecide} viewerId={viewer.id} />
-
-      <ReportSection model={model} />
     </section>
   );
 }
@@ -203,47 +200,5 @@ function NoticeText({ tone, title, children }: { tone: NoticeTone; title: string
       </p>
       <p className="text-sm break-words text-foreground">{children}</p>
     </>
-  );
-}
-
-function ReportSection({ model }: { model: AiPanelModel }) {
-  const { report, viewer, inspection } = model;
-  // Why sending waits is said only to someone who sends: an admin whose role allows Export Reports.
-  const sends = viewer.isAdmin && report.canDownload;
-  const description = !report.connected
-    ? report.canDownload
-      ? "Steri-AI not connected. Download the export (JSON) to pass it on to whoever writes the report."
-      : "Steri-AI not connected."
-    : report.canSend || !sends
-      ? "The report service writes the client report from the export of this inspection."
-      : (report.blockedReason ?? "The report service writes the client report from the export.");
-
-  return (
-    <section
-      aria-labelledby="ai-report-title"
-      className="space-y-3 rounded-xl bg-card p-4 shadow-sm ring-1 ring-border touch:p-5"
-      data-testid="ai-report"
-    >
-      {/* Side by side only where the buttons fit on one line next to the text (not on an iPad in portrait). */}
-      <div className="flex flex-col gap-3 @4xl/ai:flex-row @4xl/ai:items-start @4xl/ai:justify-between">
-        <div className="min-w-0 space-y-1">
-          <h3 id="ai-report-title" className="flex flex-wrap items-center gap-2 text-lg font-bold text-foreground">
-            <FileTextIcon aria-hidden className="size-5 shrink-0 text-brand-600" />
-            Steri-AI Report
-            {!report.connected && <StatusPill status="info" size="sm" label={report.label} />}
-          </h3>
-          <p className="text-sm text-muted-foreground">{description}</p>
-          {report.detail && <p className="text-sm break-words text-fail">{report.detail}</p>}
-        </div>
-        <ReportControl
-          inspectionId={inspection.id}
-          exportHref={inspection.exportHref}
-          reportUrl={inspection.reportUrl}
-          connected={report.connected}
-          canSend={report.canSend}
-          canDownload={report.canDownload}
-        />
-      </div>
-    </section>
   );
 }

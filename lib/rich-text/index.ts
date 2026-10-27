@@ -1,6 +1,6 @@
 // Formatted text (lib/schemas/rich-text.ts) without React or the editor: the
 // palette its tokens stand for, the normaliser the editor runs before every
-// save, and the plain text and HTML the export carries (the AI report and
+// save, and the plain text and HTML the export carries (the report and
 // Steri-AI read them). Pure, so the server never runs the editor and every
 // rule is unit-tested.
 import {
@@ -311,7 +311,7 @@ export function richTextKey(doc: unknown): string {
 }
 
 /* ------------------------------------------------------------------ *
- * Plain text: the export, Steri-AI and the AI report
+ * Plain text: the export, Steri-AI and the report
  * ------------------------------------------------------------------ */
 
 function lineText(paragraph: RichTextParagraph): string {
@@ -344,7 +344,7 @@ export function richTextPlain(doc: RichTextDoc): string {
 }
 
 /* ------------------------------------------------------------------ *
- * HTML: a fragment for the report service
+ * HTML: a fragment for the report
  * ------------------------------------------------------------------ */
 
 const ESCAPES: Readonly<Record<string, string>> = { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" };
@@ -388,7 +388,7 @@ function alignAttribute(paragraph: RichTextParagraph): string {
 }
 
 /**
- * The document as an HTML fragment for the AI report: only p, br, ul, ol,
+ * The document as an HTML fragment for the report: only p, br, ul, ol,
  * li, span, mark, strong, em, u and s; only `style`, built from the fixed
  * maps above, and `start` on a list that does not start at 1. Text is
  * escaped, and no written text ever reaches an attribute. An empty

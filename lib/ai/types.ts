@@ -35,9 +35,3 @@ export interface AiReviewFailure {
 }
 
 export type AiReviewOutcome = AiReviewSuccess | AiReviewFailure;
-
-export type AiReportFailureReason = "not_connected" | "misconfigured" | "invalid_response" | "timeout" | "error";
-
-export type AiReportOutcome =
-  | { ok: true; reportUrl: string }
-  | { ok: false; reason: AiReportFailureReason; message: string };

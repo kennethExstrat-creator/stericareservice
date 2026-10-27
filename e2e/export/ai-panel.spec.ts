@@ -1,4 +1,3 @@
-import { readFile } from "node:fs/promises";
 import { expect as baseExpect, test, type Locator, type Page } from "@playwright/test";
 import { ExportSchema } from "../../lib/schemas/export";
 import { sessions } from "../review/support";
@@ -29,16 +28,17 @@ import {
 } from "./support";
 
 /**
- * The AI hand-offs (BUILD_SPEC 9.1, 9.2) end to end on the review screen,
- * against the live project, with the dev server on the mock reviewer and
- * the mock report service:
+ * The AI second opinion (BUILD_SPEC 9.2) end to end on the review screen,
+ * and the export it reads (9.1), against the live project, with the dev
+ * server on the mock reviewer:
  *
- *   AI_REVIEW_PROVIDER=mock AI_REPORT_WEBHOOK_URL=http://localhost:<port>/api/dev/mock-ai-report npx next dev -p <port>
+ *   AI_REVIEW_PROVIDER=mock npx next dev -p <port>
  *   PLAYWRIGHT_BASE_URL=http://localhost:<port> npx playwright test e2e/export/ai-panel.spec.ts
  *
  * The panel is found on /inspections/{id}/review; E2E_AI_PANEL_PATH points
- * the specs at another page that renders it. Without AI_REPORT_WEBHOOK_URL
- * the report test checks the JSON download instead of the hand-off.
+ * the specs at another page that renders it. No Steri-AI Report (Kenneth,
+ * 27 October 2026: "we already have Client Report"): the panel has no
+ * report card and no JSON download.
  *
  * On a temporary submitted inspection of the STD_EG example (real module
  * data, e2e/export/support.ts) an admin requests a second opinion, sees its
@@ -48,7 +48,7 @@ import {
  * half-made decision through a dropped connection and with its own opinion
  * when a newer one lands (in the history, never on the newer one); keyboard
  * focus follows each step; the inspector sees it
- * read-only; the export downloads and validates with the real modules'
+ * read-only; the export route's JSON validates with the real modules'
  * data; the export route answers the inspector and admins only.
  * Screenshots go to screenshots/export/.
  */
@@ -327,26 +327,25 @@ test("the inspector sees the second opinion read-only", async ({ page, context, 
   await expect(panel(page).getByRole("button", { name: "Save Decision" })).toHaveCount(0);
   await expect(panel(page).getByRole("button", { name: /Change your decision/ })).toHaveCount(0);
   await expect(panel(page).getByRole("button", { name: /Second Opinion/ })).toHaveCount(0);
-  await expect(panel(page).getByRole("button", { name: /Send to Steri-AI Report/ })).toHaveCount(0);
   // Decisions are for admins only (RLS): the inspector does not see them.
   await expect(panel(page).locator('[data-testid^="decision-"]')).toHaveCount(0);
-  await expect(panel(page).getByRole("link", { name: "Download JSON" })).toBeVisible();
+  // No Steri-AI Report (Kenneth, 27 October 2026): no card, no JSON download.
+  await expect(panel(page).getByTestId("ai-report")).toHaveCount(0);
+  await expect(page.getByRole("link", { name: "Download JSON" })).toHaveCount(0);
   await expectNoPageScroll(page);
   await shot(page, "inspector-review");
   expect(hydration()).toEqual([]);
 });
 
-test("the export downloads from the panel and validates, with working 24-hour links", async ({ page, context, baseURL }) => {
-  test.skip(isTouch(), "The download is checked once, on the desktop");
+test("the export validates, with working 24-hour links", async ({ page, context, baseURL }) => {
+  test.skip(isTouch(), "The export is checked once, on the desktop");
   await as.signIn(context, baseURL!, "admin");
-  await openPanel(page);
 
-  const [download] = await Promise.all([
-    page.waitForEvent("download"),
-    panel(page).getByRole("link", { name: "Download JSON" }).click(),
-  ]);
-  expect(download.suggestedFilename()).toBe(`${fixture.refNo}-export.json`);
-  const body = JSON.parse(await readFile((await download.path())!, "utf8"));
+  // No screen links to it since the Steri-AI Report went (27 October 2026): the route answers directly.
+  const response = await page.request.get(`/api/inspections/${fixture.inspectionId}/export`);
+  expect(response.status()).toBe(200);
+  expect(response.headers()["content-disposition"]).toBe(`attachment; filename="${fixture.refNo}-export.json"`);
+  const body = await response.json();
   const parsed = ExportSchema.safeParse(body);
   expect(parsed.success, parsed.success ? "" : JSON.stringify(parsed.error.issues.slice(0, 5))).toBe(true);
   if (!parsed.success) return;
@@ -377,7 +376,7 @@ test("the export downloads from the panel and validates, with working 24-hour li
   const forceAtBreak = moduleOf("force_at_break");
   expect(forceAtBreak?.computed).toMatchObject({ labReportAttached: true, sizes: { M: { median: 6.537, result: "pass" } } });
   expect(forceAtBreak?.config).toMatchObject({ specMin: 6 });
-  // The lab report a module keeps by id is in the files, with a link the report service can fetch.
+  // The lab report a module keeps by id is in the files, with a link a receiver can fetch.
   expect(forceAtBreak?.data.labReports).toEqual([{ fileId: fixture.fileId, sizes: ["M"] }]);
   expect(doc.files).toEqual([
     expect.objectContaining({ id: fixture.fileId, kind: "lab_report", moduleKey: "force_at_break", name: "Force at break lab report.pdf" }),
@@ -396,47 +395,6 @@ test("the export downloads from the panel and validates, with working 24-hour li
   const claims = JSON.parse(Buffer.from(token.split(".")[1], "base64url").toString("utf8"));
   expect(claims.exp - claims.iat).toBe(24 * 60 * 60);
   expect((await page.request.get(doc.files[0].url)).status()).toBe(200);
-});
-
-test("the AI report hand-off: sends to the report service, or offers the JSON when none is connected", async ({
-  page,
-  context,
-  baseURL,
-}) => {
-  await as.signIn(context, baseURL!, "admin");
-  await openPanel(page);
-  const report = panel(page).getByTestId("ai-report");
-  const send = report.getByRole("button", { name: /Send to Steri-AI Report/ });
-
-  if ((await send.count()) === 0) {
-    await expect(report).toContainText("Steri-AI Not Connected");
-    await expect(report.getByRole("link", { name: "Download JSON" })).toBeVisible();
-    await shot(page, "admin-report-not-connected");
-    return;
-  }
-  await expectTouchTarget(send);
-  await press(send);
-  const open = report.getByRole("link", { name: /Open the Report/ });
-  await expect(open).toBeVisible({ timeout: 90_000 });
-  await expect(open).toHaveAttribute("href", new RegExp(`mock-ai-report\\?ref=${fixture.refNo}`));
-
-  // Storing the link saves the inspection again. An opinion keyed to the content it reviewed
-  // (migration 20261007113245) stays current; one keyed to the save alone (a database without
-  // that migration) now reads as about an earlier version.
-  await openPanel(page);
-  await expect(report.getByRole("link", { name: /Open the Report/ })).toBeVisible();
-  const byContent = (await storedReviews()).every((review) => typeof review.inspection_fingerprint === "string");
-  const changed = panel(page).getByText("The Inspection Has Changed Since This Opinion");
-  if (byContent) {
-    await expect(changed).toHaveCount(0);
-    await expect(panel(page).getByTestId("ai-review-meta")).toContainText("(current)");
-  } else {
-    await expect(changed).toBeVisible();
-  }
-  await shot(page, "admin-report-sent");
-
-  const { data } = await createTestAdminClient().from("inspections").select("report_url").eq("id", fixture.inspectionId).single();
-  expect(data?.report_url).toContain(`ref=${fixture.refNo}`);
 });
 
 test("the export route answers the inspection's inspector and admins only", async ({ baseURL }) => {

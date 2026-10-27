@@ -16,7 +16,7 @@ import {
   UNKNOWN_PHOTO,
 } from "./__fixtures__/panel";
 import { inspectionFingerprint } from "./fingerprint";
-import { ALREADY_PENDING, buildAiPanelModel, NOT_REPORTABLE, NOT_REVIEWABLE, type PanelModelInput } from "./panel-model";
+import { ALREADY_PENDING, buildAiPanelModel, NOT_REVIEWABLE, type PanelModelInput } from "./panel-model";
 import { STALE_REVIEW_MS, STOPPED_MESSAGE } from "./stored";
 
 let record: InspectionRecord;
@@ -37,8 +37,8 @@ function model(overrides: Partial<PanelModelInput> = {}) {
     aiStatus: MOCK_STATUS,
     viewerId: IDS.admin,
     isAdmin,
-    // The built-in roles as made: admins ask and decide; whoever reads the panel exports.
-    allows: { secondOpinion: isAdmin, exportReports: true },
+    // The built-in roles as made: admins ask and decide.
+    allows: { secondOpinion: isAdmin },
     now: NOW,
     ...overrides,
   });
@@ -161,8 +161,8 @@ describe("buildAiPanelModel: reviews", () => {
 
   it("keeps a review of the same content current after the inspection was saved again", () => {
     const content = inspectionFingerprint(record);
-    // Approved and its report link stored since the review: two saves, the same content.
-    const saved = { ...record, status: "approved" as const, updatedAt: "2026-10-06T03:00:00.000001+00:00", reportUrl: "https://reports.example.com/r.pdf" };
+    // Approved since the review: a save, the same content.
+    const saved = { ...record, status: "approved" as const, updatedAt: "2026-10-06T03:00:00.000001+00:00" };
     const panel = model({ record: saved, reviews: [storedReview({ inspectionFingerprint: content })] });
     expect(panel.current).toMatchObject({ isCurrentVersion: true, comparedBy: "content" });
 
@@ -280,36 +280,25 @@ describe("buildAiPanelModel: who may do what", () => {
     const panel = model({ isAdmin: false, decisions: [] });
     expect(panel.viewer.isAdmin).toBe(false);
     expect(panel.review.canRequest).toBe(false);
-    expect(panel.report.canSend).toBe(false);
     expect(panel.current?.findings.length).toBeGreaterThan(0);
   });
 
   // Roles and permissions (migration 20261027150000): an admin-level role does only what its switches allow.
-  it("follows the role's switches: Steri-AI Second Opinion asks and decides, Export Reports downloads and sends", () => {
-    const report = { ...MOCK_STATUS, report: { connected: true, provider: "webhook" as const, label: "Steri-AI Report Connected (Webhook)" } };
-    const none = model({ aiStatus: report, allows: { secondOpinion: false, exportReports: false } });
+  it("follows the role's switches: Steri-AI Second Opinion asks and decides", () => {
+    const none = model({ allows: { secondOpinion: false } });
     expect(none.viewer).toMatchObject({ isAdmin: true, canDecide: false });
     expect(none.review.canRequest).toBe(false);
-    expect(none.report).toMatchObject({ canSend: false, canDownload: false });
     // The decisions others made are still read.
     expect(none.current?.findings.some((finding) => finding.decision !== null)).toBe(true);
 
-    const both = model({ aiStatus: report, allows: { secondOpinion: true, exportReports: true } });
+    const both = model({ allows: { secondOpinion: true } });
     expect(both.viewer.canDecide).toBe(true);
     expect(both.review.canRequest).toBe(true);
-    expect(both.report).toMatchObject({ canSend: true, canDownload: true });
-    // Sending writes the report's link on the inspection: never for someone who does not see every inspection.
-    expect(model({ aiStatus: report, isAdmin: false, allows: { secondOpinion: false, exportReports: true } }).report).toMatchObject({
-      canSend: false,
-      canDownload: true,
-    });
   });
 
-  it("keeps drafts out of both hand-offs, and says why", () => {
+  it("keeps drafts out of the second opinion, and says why", () => {
     const draft = { ...record, status: "draft" as const };
-    const panel = model({ record: draft, aiStatus: { ...MOCK_STATUS, report: { connected: true, provider: "webhook", label: "Steri-AI Report Connected (Webhook)" } } });
-    expect(panel.review).toMatchObject({ canRequest: false, blockedReason: NOT_REVIEWABLE });
-    expect(panel.report).toMatchObject({ connected: true, canSend: false, blockedReason: NOT_REPORTABLE });
+    expect(model({ record: draft }).review).toMatchObject({ canRequest: false, blockedReason: NOT_REVIEWABLE });
   });
 
   it("names the variable to fix to admins only", () => {
@@ -326,12 +315,16 @@ describe("buildAiPanelModel: who may do what", () => {
     expect(model({ aiStatus: misconfigured, isAdmin: false }).review.detail).toBeNull();
   });
 
-  it("links to the export and the report", () => {
-    const panel = model({ record: { ...record, reportUrl: "https://reports.test/INS-2026-0042.pdf" } });
-    expect(panel.inspection).toMatchObject({
-      exportHref: `/api/inspections/${IDS.inspection}/export`,
-      reportUrl: "https://reports.test/INS-2026-0042.pdf",
+  // No Steri-AI Report (Kenneth, 27 October 2026: "we already have Client Report"): no link to send or open.
+  it("names the inspection and its save, with no report hand-off", () => {
+    const panel = model();
+    expect(panel.inspection).toEqual({
+      id: IDS.inspection,
+      refNo: record.refNo,
+      status: record.status,
+      updatedAt: record.updatedAt,
       savedAt: "5 Oct 2026, 17:30",
     });
+    expect(panel).not.toHaveProperty("report");
   });
 });
