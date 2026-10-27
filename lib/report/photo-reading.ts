@@ -113,6 +113,12 @@ export function defectFamily(doc: Pick<InspectionExport, "modules">, code: strin
   return /^hole_/.test(code) ? "holes" : null;
 }
 
+/** The test Steri-AI says a photo belongs to, its setting shots too ("Test rig" with the watertight photos); null when it says neither. */
+export function describedCheck(photo: ExportPhoto): DefectFamily | null {
+  const check = photo.description?.check ?? null;
+  return check === "watertight" ? "holes" : check === "visual" ? "visual" : null;
+}
+
 /** The check of the defect Steri-AI says a photo shows: its code's, or the holes where it names a hole location; null for the setting or a defect of neither. */
 export function describedFamily(doc: Pick<InspectionExport, "modules">, photo: ExportPhoto): DefectFamily | null {
   const described = photo.description;

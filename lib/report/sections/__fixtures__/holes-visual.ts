@@ -151,10 +151,10 @@ type Description = NonNullable<ExportPhoto["description"]>;
 
 /** What Steri-AI says each of the four shows, in the order taken; STD_EG version 6 lists the ringed mark as Ring-Shaped Thin Area (Crotch). */
 export const PRODUCT_DEFECT_DESCRIPTIONS: readonly Description[] = [
-  { text: "Pinhole, palm area", kind: "defect", defect: "hole_palm", location: "hole_palm", clarity: 0.86 },
-  { text: "Test rig", kind: "context", defect: null, location: null, clarity: 0.9 },
-  { text: "Ringed mark, thin area", kind: "defect", defect: "thin_crotch_ring", location: null, clarity: 0.74 },
-  { text: "Pinhole, between fingers", kind: "defect", defect: "hole_crotch", location: "hole_crotch", clarity: 0.92 },
+  { text: "Pinhole, palm area", kind: "defect", defect: "hole_palm", location: "hole_palm", clarity: 0.86, check: "watertight" },
+  { text: "Test rig", kind: "context", defect: null, location: null, clarity: 0.9, check: "watertight" },
+  { text: "Ringed mark, thin area", kind: "defect", defect: "thin_crotch_ring", location: null, clarity: 0.74, check: "visual" },
+  { text: "Pinhole, between fingers", kind: "defect", defect: "hole_crotch", location: "hole_crotch", clarity: 0.92, check: "watertight" },
 ];
 
 /** A placeholder photo in the export's shape: untagged, uncaptioned, not marked In Report, its natural pixels known. */

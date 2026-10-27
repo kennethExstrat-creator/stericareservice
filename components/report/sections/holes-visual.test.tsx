@@ -192,9 +192,9 @@ describe("the defect photos: never a page of their own, captioned as the design 
       placeholderPhoto(1, {
         moduleKey: "media_defects",
         markers: [{ x: 0.62, y: 0.4, r: 0.06 }],
-        description: { text: "Pinhole, palm area", kind: "defect", defect: "hole_palm", location: "hole_palm", clarity: 0.9 },
+        description: { text: "Pinhole, palm area", kind: "defect", defect: "hole_palm", location: "hole_palm", clarity: 0.9, check: "watertight" },
       }),
-      placeholderPhoto(2, { moduleKey: "media_defects", description: { text: "Test rig", kind: "context", defect: null, location: null, clarity: 0.9 } }),
+      placeholderPhoto(2, { moduleKey: "media_defects", description: { text: "Test rig", kind: "context", defect: null, location: null, clarity: 0.9, check: "watertight" } }),
     ];
     const [page] = sectionPages(doc);
     const left = part(part(page, 'data-slot="report-holes-visual-columns"'), 'data-column="1"');

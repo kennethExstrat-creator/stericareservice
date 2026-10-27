@@ -48,7 +48,7 @@ import { AGEING_SENTENCE, andList, counted, longDate } from "../format";
 import { hasRings } from "../markers";
 import { clipToLines, lineCount, textWidth } from "../measure";
 import type { PhotoBlock, PhotoRecordPage, PhotosSection, PhotoTile } from "../model";
-import { describedFamily, photoShows, photoWords, type PhotoShows } from "../photo-reading";
+import { describedCheck, describedFamily, photoShows, photoWords, type PhotoShows } from "../photo-reading";
 import { at, labelOf, list, moduleOf, num, orderedSizes, rec, sizeLabel, text } from "../read";
 import type { SectionBuilder } from "./index";
 import { checkedFor, contentWidthOf, levelChecks, paperRoom } from "./labellingConclusion";
@@ -199,12 +199,14 @@ function blockFor(doc: InspectionExport, tag: string | null, target: PhotoTarget
 /**
  * A Media photo's group: by Steri-AI's description where it shows a defect
  * of either check, a hole with the watertight photos and a visual defect
- * with the visual inspection's, while that record is switched on; else, the
- * setting or a photo nothing describes, its category's.
+ * with the visual inspection's, while that record is switched on; a setting
+ * shot by the test it says the photo belongs to (TG35 page 11's "Test rig"
+ * with the watertight photos); else, a photo nothing describes, its
+ * category's.
  */
 function mediaBlock(doc: InspectionExport, category: MediaCategoryKey, photo: ExportPhoto): PhotoBlockKey {
   const own = MEDIA_PHOTO_BLOCK[category];
-  const family = describedFamily(doc, photo);
+  const family = describedFamily(doc, photo) ?? describedCheck(photo);
   const block: PhotoBlockKey = family === "holes" ? "watertight" : family === "visual" ? "visual" : own;
   const record = BLOCK_RECORD.get(block);
   return record && doc.report.photos.groups[record] ? block : own;

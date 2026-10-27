@@ -155,6 +155,7 @@ export const ExportPhotoSchema = z.object({
     defect: z.string().nullable(),        // the template's defect code (watertight hole code or a visual class's defect code); null when not a defect or unsure
     location: z.string().nullable(),      // the template's hole location code (watertight config locations), else null
     clarity: z.number().min(0).max(1),    // how clearly it shows; the report picks the clearest
+    check: z.enum(["watertight", "visual"]).nullable().default(null), // the test a photo belongs to, context shots included; null when neither or unsure
   }).nullable().default(null),
   markers: z.array(z.object({ x: z.number().min(0).max(1), y: z.number().min(0).max(1), r: z.number().min(0).max(1) })).max(20).default([]),
   size: z.object({ width: z.number().int().positive(), height: z.number().int().positive() }).nullable().default(null),

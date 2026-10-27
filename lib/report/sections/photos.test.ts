@@ -309,9 +309,11 @@ describe("an inspection whose photos are all in Source Documents' Media", () => 
 
 type Description = NonNullable<ExportPhoto["description"]>;
 const described = (text: string, defect: string | null, location: string | null = null, clarity = 0.8): { description: Description } => ({
-  description: { text, kind: "defect", defect, location, clarity },
+  description: { text, kind: "defect", defect, location, clarity, check: null },
 });
-const setting = (text: string): { description: Description } => ({ description: { text, kind: "context", defect: null, location: null, clarity: 0.9 } });
+const setting = (text: string, check: Description["check"] = null): { description: Description } => ({
+  description: { text, kind: "context", defect: null, location: null, clarity: 0.9, check },
+});
 const tilesOf = (doc: InspectionExport) => photoRecordsOf(doc).flatMap((record) => record.blocks.flatMap((block) => block.photos));
 const captionsIn = (doc: InspectionExport, key: string) => blockIn(doc, key).photos.map((tile) => [tile.caption, tile.strong]);
 
@@ -327,6 +329,16 @@ describe("a Media photo Steri-AI describes", () => {
     expect(layoutOf(doc)).toEqual({
       packingVisualAgeing: { visual: [thinSpot.id, rig.id, carton.id, undescribed.id] },
       watertightLaboratory: { watertight: [pinhole.id, holeByPlace.id] },
+    });
+  });
+
+  it("files a setting shot by the test Steri-AI says it belongs to: the rig with the watertight photos, as TG35 page 11 has it", () => {
+    const rig = photo("media_defects", null, null, setting("Test rig", "watertight"));
+    const lightBox = photo("media_proof", null, null, setting("Light box", "visual"));
+    const unknown = photo("media_defects", null, null, setting("Carton stack"));
+    expect(layoutOf(withPhotos([rig, lightBox, unknown]))).toEqual({
+      packingVisualAgeing: { visual: [lightBox.id, unknown.id] },
+      watertightLaboratory: { watertight: [rig.id] },
     });
   });
 
@@ -366,11 +378,11 @@ describe("the captions, the design's way (TG35 pages 10 and 11)", () => {
     expect(JSON.stringify(section)).not.toContain("Product Defects");
   });
 
-  it("place and caption INS-2026-2442's photos once described: the pinholes with the watertight photos, the ringed mark in bold, the rig plain", () => {
+  it("place and caption INS-2026-2442's photos once described: the pinholes and the rig with the watertight photos, the rig plain, the ringed mark in bold", () => {
     const doc = fourSizeProductDefectsExport({ described: true });
     expect(buildPhotos(doc)?.pages.map((page) => [page.title, page.blocks.map((block) => [block.title, block.photos.map((tile) => [tile.caption, tile.strong])])])).toEqual([
-      ["Packing, Visual & Ageing", [["Glove Visual Inspection", [["Test rig", false], ["Ringed mark, thin area", true]]]]],
-      ["Watertight & Laboratory Testing", [["Watertight Testing for Pinholes", [["Pinhole, palm area", true], ["Pinhole, between fingers", true]]]]],
+      ["Packing, Visual & Ageing", [["Glove Visual Inspection", [["Ringed mark, thin area", true]]]]],
+      ["Watertight & Laboratory Testing", [["Watertight Testing for Pinholes", [["Pinhole, palm area", true], ["Test rig", false], ["Pinhole, between fingers", true]]]]],
     ]);
   });
 

@@ -10,8 +10,8 @@ import { defectFamily, defectKey, describedFamily, namesDefect, namesSetting, ph
 import { placeholderPhoto } from "./sections/__fixtures__/holes-visual";
 
 type Description = NonNullable<ExportPhoto["description"]>;
-const defect = (text: string, code: string | null, location: string | null = null): Description => ({ text, kind: "defect", defect: code, location, clarity: 0.8 });
-const setting = (text: string): Description => ({ text, kind: "context", defect: null, location: null, clarity: 0.9 });
+const defect = (text: string, code: string | null, location: string | null = null): Description => ({ text, kind: "defect", defect: code, location, clarity: 0.8, check: null });
+const setting = (text: string, check: Description["check"] = null): Description => ({ text, kind: "context", defect: null, location: null, clarity: 0.9, check });
 const ring = [{ x: 0.5, y: 0.5, r: 0.05 }];
 
 describe("an inspector's caption", () => {

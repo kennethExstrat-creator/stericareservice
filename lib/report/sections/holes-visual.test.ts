@@ -546,8 +546,8 @@ describe("the defect photos Steri-AI describes, rings drawn, and the inspector's
       ...extra,
     };
   };
-  const defect = (text: string, code: string | null, location: string | null, clarity: number): Photo["description"] => ({ text, kind: "defect", defect: code, location, clarity });
-  const setting = (text: string): Photo["description"] => ({ text, kind: "context", defect: null, location: null, clarity: 0.95 });
+  const defect = (text: string, code: string | null, location: string | null, clarity: number): Photo["description"] => ({ text, kind: "defect", defect: code, location, clarity, check: null });
+  const setting = (text: string): Photo["description"] => ({ text, kind: "context", defect: null, location: null, clarity: 0.95, check: null });
   const ring = { x: 0.5, y: 0.5, r: 0.05 };
   const captions = (doc: InspectionExport) => defectPhotosOf(doc).map((entry) => entry.caption);
   const withPhotos = (doc: InspectionExport, ...list: Photo[]) => Object.assign(doc, { photos: list });
