@@ -37,6 +37,10 @@ describe("the review's system prompt", () => {
     expect(packing).toContain(
       "never counted with the boxes or in their averages: a failed one fails the size, boxes done or not, one entered in part leaves it not done.",
     );
+    // Kenneth, 27 October 2026: an empty one keeps its size not done.
+    expect(packing).toContain(
+      "Every size needs one: with none entered (computed agedSample null) the size is not done, though boxes that fail still fail it, and once its boxes are complete the app warns aged_sample_missing.",
+    );
   });
 
   it("reads weight as one average per size, an older inspection's gloves averaged (Kenneth, 26 October 2026)", () => {

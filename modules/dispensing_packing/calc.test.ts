@@ -5,34 +5,26 @@ import { MODULE_REGISTRY } from "@/modules/registry";
 import { evaluateInspection, type CalcInput, type InspectionContext } from "@/modules/_framework";
 import { checkModuleContract, makeSampling, makeTestContext, makeTestTemplate } from "@/modules/_framework/testing";
 import { cartonList, STD_EG_EXAMPLE, STD_EG_EXPECTED } from "@/tests/fixtures/examples";
+import { packingCheckData, passingAgedSample } from "./__fixtures__/examples";
 import { boxesLineOf, calcDispensingPacking, formatAverage, packingHeading, plannedBoxes, SUMMARY_LINE_BREAK } from "./calc";
 import { DISPENSING_PACKING_DEFAULT_CONFIG, DISPENSING_PACKING_LABELS, type DispensingPackingConfig } from "./config";
 import { definition } from "./index";
 import {
-  DispensingPackingDataSchema,
   emptyAgedSample,
   emptyPackingBox,
   type DispensingPackingData,
   type PackingAgedSample,
   type PackingBox,
+  type PackingSize,
 } from "./schema";
 
-/** The STD_EG example's packing check in this module's shape: placeholder box numbers, values as printed. */
+/**
+ * The STD_EG example's packing check in this module's shape: placeholder box
+ * numbers, values as printed, and the placeholder aged sample that passes
+ * (the report predates the aged sample).
+ */
 function stdEgData(): DispensingPackingData {
-  const sizes = Object.fromEntries(
-    Object.entries(STD_EG_EXAMPLE.dispensingPacking.perSize).map(([size, entry]) => [
-      size,
-      {
-        boxes: (entry?.boxes ?? []).map((box) => ({
-          boxNo: box.box,
-          layeringPct: box.layeringPct,
-          dispensingPct: box.dispensingPct,
-          stickiness: box.stickiness,
-        })),
-      },
-    ]),
-  );
-  return DispensingPackingDataSchema.parse({ sizes });
+  return packingCheckData(STD_EG_EXAMPLE.dispensingPacking);
 }
 
 /** The STD_EG example's context: size M ordered, its carton list (525 twice) and 13 dispensing boxes planned. */
@@ -65,6 +57,16 @@ function boxes(count: number, values: Partial<PackingBox> = {}, first = 1): Pack
   );
 }
 
+/** A size's box rows with the placeholder aged sample that passes: every size has one (Kenneth, 27 October 2026). */
+function withAged(rows: PackingBox[]): PackingSize {
+  return { boxes: rows, agedSample: passingAgedSample() };
+}
+
+/** The placeholder aged sample's line in a size's summary, after the boxes'. */
+const AGED_PASSED = "Aged Sample: Layering 85.0% (min. 70%), Dispensing 88.0% (min. 80%), Stickiness A: Passed.";
+/** An empty aged sample's line. */
+const AGED_NOT_ENTERED = "Aged Sample is not entered yet.";
+
 const M_ONLY = makeTestContext({ sizes: ["M"] });
 
 describe("dispensing_packing", () => {
@@ -96,18 +98,34 @@ describe("dispensing_packing", () => {
         layeringResult: "pass",
         dispensingResult: "pass",
         stickinessResult: "pass",
+        agedSample: { result: "pass" },
       });
       expect([expected.minLayeringPct, expected.minDispensingPct]).toEqual([
         DISPENSING_PACKING_DEFAULT_CONFIG.minLayeringPct,
         DISPENSING_PACKING_DEFAULT_CONFIG.minDispensingPct,
       ]);
+      const boxesLine = "Layering 88.3% (min. 70%), Dispensing 90.3% (min. 80%), Stickiness A: Passed.";
       expect(output.result).toEqual({
         status: expected.status,
-        summary: "Size M: Layering 88.3% (min. 70%), Dispensing 90.3% (min. 80%), Stickiness A: Passed.",
-        perSize: {
-          M: { status: "pass", summary: "Layering 88.3% (min. 70%), Dispensing 90.3% (min. 80%), Stickiness A: Passed." },
-        },
+        summary: `Size M: ${boxesLine}\n${AGED_PASSED}`,
+        perSize: { M: { status: "pass", summary: `${boxesLine}\n${AGED_PASSED}` } },
       });
+    });
+
+    it("leaves size M not done on the report's boxes alone, which pass: the report predates the aged sample (Kenneth, 27 October 2026)", () => {
+      const data = stdEgData();
+      delete data.sizes.M.agedSample;
+      const output = calcDispensingPacking(input(data, stdEgContext()));
+      expect(output.result.perSize?.M).toEqual({
+        status: "not_done",
+        summary: `Layering 88.3% (min. 70%), Dispensing 90.3% (min. 80%), Stickiness A: Passed.\n${AGED_NOT_ENTERED}`,
+      });
+      expect(output.computed.sizes.M).toMatchObject({ layeringResult: "pass", dispensingResult: "pass", stickinessResult: "pass", agedSample: null });
+      // Box 2336's warning, then the aged sample's.
+      expect(output.issues.map(({ code, size, path }) => [code, size, path])).toEqual([
+        ["box_not_in_carton_list", "M", ["sizes", "M", "boxes", STD_EG_EXPECTED.dispensingBox.item - 1, "boxNo"]],
+        ["aged_sample_missing", "M", ["sizes", "M", "agedSample", "layeringPct"]],
+      ]);
     });
 
     it("stores box 2336 as typed and warns, since size M's carton list does not hold it; the size still passes (6.2 rule 7)", () => {
@@ -167,11 +185,12 @@ describe("dispensing_packing", () => {
     it("is not done until every planned box is complete, never passed on part of them (6.2 rule 5)", () => {
       const context = makeTestContext({ sizes: ["M", "XL"] });
       const output = calcDispensingPacking(
-        input({ sizes: { M: { boxes: boxes(12) }, XL: { boxes: boxes(5) } } }, context, config),
+        input({ sizes: { M: withAged(boxes(12)), XL: withAged(boxes(5)) } }, context, config),
       );
       expect(output.result.perSize).toEqual({
-        M: { status: "not_done", summary: "12 of 13 boxes complete." },
-        XL: { status: "pass", summary: "Layering 88.0% (min. 70%), Dispensing 90.0% (min. 80%), Stickiness A: Passed." },
+        // Its aged sample passed: the boxes still to come keep the size not done.
+        M: { status: "not_done", summary: `12 of 13 boxes complete.\n${AGED_PASSED}` },
+        XL: { status: "pass", summary: `Layering 88.0% (min. 70%), Dispensing 90.0% (min. 80%), Stickiness A: Passed.\n${AGED_PASSED}` },
       });
       expect(output.result.status).toBe("not_done");
       expect(output.computed.sizes.M).toMatchObject({ layeringResult: "not_done", layeringAverage: 88, codeLetter: "D" });
@@ -182,32 +201,35 @@ describe("dispensing_packing", () => {
       for (const gap of missing) {
         const rows = boxes(5);
         rows[2] = { ...rows[2], ...gap };
-        const output = calcDispensingPacking(input({ sizes: { M: { boxes: rows } } }, M_ONLY, config));
+        const output = calcDispensingPacking(input({ sizes: { M: withAged(rows) } }, M_ONLY, config));
         expect(output.result.perSize?.M, JSON.stringify(gap)).toEqual({
           status: "not_done",
-          summary: "4 of 13 boxes complete (item 3 is incomplete).",
+          summary: `4 of 13 boxes complete (item 3 is incomplete).\n${AGED_PASSED}`,
         });
       }
     });
 
     it("ignores blank rows wherever they are, and counts boxes beyond the plan", () => {
       const rows = [...boxes(6), emptyPackingBox(), ...boxes(7, {}, 7), emptyPackingBox()];
-      expect(calcDispensingPacking(input({ sizes: { M: { boxes: rows } } }, M_ONLY)).result.perSize?.M.status).toBe("pass");
-      const extra = calcDispensingPacking(input({ sizes: { M: { boxes: boxes(14) } } }, M_ONLY));
+      expect(calcDispensingPacking(input({ sizes: { M: withAged(rows) } }, M_ONLY)).result.perSize?.M.status).toBe("pass");
+      const extra = calcDispensingPacking(input({ sizes: { M: withAged(boxes(14)) } }, M_ONLY));
       expect(extra.computed.sizes.M).toMatchObject({ boxesExpected: 13, boxesTested: 14, codeLetter: "E" });
       expect(extra.result.perSize?.M.status).toBe("pass");
     });
 
-    it("is not done with no boxes entered or none planned", () => {
-      expect(calcDispensingPacking(input({ sizes: {} }, M_ONLY)).result).toEqual({
+    it("is not done with no boxes entered or none planned, the aged sample's line after theirs", () => {
+      const empty = calcDispensingPacking(input({ sizes: {} }, M_ONLY));
+      expect(empty.result).toEqual({
         status: "not_done",
-        summary: "Size M: 0 of 13 boxes complete.",
-        perSize: { M: { status: "not_done", summary: "0 of 13 boxes complete." } },
+        summary: `Size M: 0 of 13 boxes complete.\n${AGED_NOT_ENTERED}`,
+        perSize: { M: { status: "not_done", summary: `0 of 13 boxes complete.\n${AGED_NOT_ENTERED}` } },
       });
+      // The boxes' count says what is left: no warning about the aged sample while boxes are to come.
+      expect(empty.issues).toEqual([]);
       const none = makeTestContext({ sizes: ["M"], sampling: { M: makeSampling({ packagingDispensing: 0 }) } });
-      expect(calcDispensingPacking(input({ sizes: { M: { boxes: boxes(13) } } }, none)).result.perSize?.M).toEqual({
+      expect(calcDispensingPacking(input({ sizes: { M: withAged(boxes(13)) } }, none)).result.perSize?.M).toEqual({
         status: "not_done",
-        summary: "No boxes are planned for this size.",
+        summary: `No boxes are planned for this size.\n${AGED_PASSED}`,
       });
     });
   });
@@ -216,15 +238,15 @@ describe("dispensing_packing", () => {
     const five = makeTestContext({ sizes: ["M"], sampling: { M: makeSampling({ packagingDispensing: 5 }) } });
 
     it("fails a size whose layering or dispensing average is below the minimum; the minimum itself passes", () => {
-      const low = calcDispensingPacking(input({ sizes: { M: { boxes: boxes(5, { layeringPct: 69 }) } } }, five));
+      const low = calcDispensingPacking(input({ sizes: { M: withAged(boxes(5, { layeringPct: 69 })) } }, five));
       expect(low.result.perSize?.M).toEqual({
         status: "fail",
-        summary: "Layering 69.0% (min. 70%), Dispensing 90.0% (min. 80%), Stickiness A: Failed (Layering).",
+        summary: `Layering 69.0% (min. 70%), Dispensing 90.0% (min. 80%), Stickiness A: Failed (Layering).\n${AGED_PASSED}`,
       });
       expect(low.computed.sizes.M).toMatchObject({ layeringResult: "fail", dispensingResult: "pass", stickinessResult: "pass" });
-      const dispensing = calcDispensingPacking(input({ sizes: { M: { boxes: boxes(5, { dispensingPct: 79.9 }) } } }, five));
+      const dispensing = calcDispensingPacking(input({ sizes: { M: withAged(boxes(5, { dispensingPct: 79.9 })) } }, five));
       expect(dispensing.computed.sizes.M).toMatchObject({ dispensingResult: "fail" });
-      const atMinimum = calcDispensingPacking(input({ sizes: { M: { boxes: boxes(5, { layeringPct: 70, dispensingPct: 80 }) } } }, five));
+      const atMinimum = calcDispensingPacking(input({ sizes: { M: withAged(boxes(5, { layeringPct: 70, dispensingPct: 80 })) } }, five));
       expect(atMinimum.result.perSize?.M.status).toBe("pass");
     });
 
@@ -242,7 +264,7 @@ describe("dispensing_packing", () => {
       const rows = boxes(5);
       rows[3] = { ...rows[3], stickiness: "D" };
       rows[1] = { ...rows[1], stickiness: "B1" };
-      const output = calcDispensingPacking(input({ sizes: { M: { boxes: rows } } }, five));
+      const output = calcDispensingPacking(input({ sizes: { M: withAged(rows) } }, five));
       expect(output.computed.sizes.M).toMatchObject({
         stickinessSummary: "D",
         stickinessCounts: { A: 3, B1: 1, D: 1 },
@@ -251,7 +273,7 @@ describe("dispensing_packing", () => {
       });
       expect(output.result.perSize?.M).toEqual({
         status: "fail",
-        summary: "Layering 88.0% (min. 70%), Dispensing 90.0% (min. 80%), Stickiness D: Failed (Stickiness).",
+        summary: `Layering 88.0% (min. 70%), Dispensing 90.0% (min. 80%), Stickiness D: Failed (Stickiness).\n${AGED_PASSED}`,
       });
     });
 
@@ -264,11 +286,12 @@ describe("dispensing_packing", () => {
       };
       const rows = boxes(5, { stickiness: "B" });
       rows[4] = { ...rows[4], stickiness: "C" };
-      expect(calcDispensingPacking(input({ sizes: { M: { boxes: rows } } }, five)).computed.sizes.M).toMatchObject({
+      expect(calcDispensingPacking(input({ sizes: { M: withAged(rows) } }, five)).computed.sizes.M).toMatchObject({
         stickinessSummary: "C",
         stickinessResult: "pass",
       });
-      expect(calcDispensingPacking(input({ sizes: { M: { boxes: rows } } }, five, strict)).result.perSize?.M.status).toBe("fail");
+      expect(calcDispensingPacking(input({ sizes: { M: withAged(rows) } }, five)).result.perSize?.M.status).toBe("pass");
+      expect(calcDispensingPacking(input({ sizes: { M: withAged(rows) } }, five, strict)).result.perSize?.M.status).toBe("fail");
     });
 
     it("gives the module the worst size: a failed size fails it, a size not done keeps a pass from showing", () => {
@@ -277,14 +300,14 @@ describe("dispensing_packing", () => {
         sampling: { S: makeSampling({ packagingDispensing: 5 }), M: makeSampling({ packagingDispensing: 5 }) },
       });
       const failed = calcDispensingPacking(
-        input({ sizes: { S: { boxes: boxes(5, { stickiness: "D" }) }, M: { boxes: boxes(5) } } }, context),
+        input({ sizes: { S: withAged(boxes(5, { stickiness: "D" })), M: withAged(boxes(5)) } }, context),
       );
       expect(failed.result.status).toBe("fail");
       expect(failed.result.summary).toBe(
-        "Size S: Layering 88.0% (min. 70%), Dispensing 90.0% (min. 80%), Stickiness D: Failed (Stickiness). " +
-          "Size M: Layering 88.0% (min. 70%), Dispensing 90.0% (min. 80%), Stickiness A: Passed.",
+        `Size S: Layering 88.0% (min. 70%), Dispensing 90.0% (min. 80%), Stickiness D: Failed (Stickiness).\n${AGED_PASSED} ` +
+          `Size M: Layering 88.0% (min. 70%), Dispensing 90.0% (min. 80%), Stickiness A: Passed.\n${AGED_PASSED}`,
       );
-      const partly = calcDispensingPacking(input({ sizes: { M: { boxes: boxes(5) } } }, context));
+      const partly = calcDispensingPacking(input({ sizes: { M: withAged(boxes(5)) } }, context));
       expect(partly.result.status).toBe("not_done");
     });
   });
@@ -294,7 +317,7 @@ describe("dispensing_packing", () => {
       const rows = boxes(13);
       rows[4] = { ...rows[4], layeringPct: 880 };
       rows[6] = { ...rows[6], dispensingPct: -2 };
-      const output = calcDispensingPacking(input({ sizes: { M: { boxes: rows } } }, M_ONLY));
+      const output = calcDispensingPacking(input({ sizes: { M: withAged(rows) } }, M_ONLY));
       expect(output.issues).toEqual([
         {
           level: "error",
@@ -312,13 +335,16 @@ describe("dispensing_packing", () => {
         },
       ]);
       expect(output.computed.sizes.M.layeringAverage).toBe(88);
-      expect(output.result.perSize?.M).toEqual({ status: "not_done", summary: "11 of 13 boxes complete (item 5 is incomplete)." });
+      expect(output.result.perSize?.M).toEqual({
+        status: "not_done",
+        summary: `11 of 13 boxes complete (item 5 is incomplete).\n${AGED_PASSED}`,
+      });
     });
 
     it("rejects a stickiness code the template does not have", () => {
       const rows = boxes(13);
       rows[0] = { ...rows[0], stickiness: "E" };
-      const output = calcDispensingPacking(input({ sizes: { M: { boxes: rows } } }, M_ONLY));
+      const output = calcDispensingPacking(input({ sizes: { M: withAged(rows) } }, M_ONLY));
       expect(output.issues).toEqual([
         {
           level: "error",
@@ -335,7 +361,7 @@ describe("dispensing_packing", () => {
       // Boxes 900 to 912; the size sampled 900 to 911 (Kenneth, 13 October 2026: box # and carton # are one number).
       const rows = boxes(13, {}, 900);
       const listed = makeTestContext({ sizes: ["M"], cartons: { M: [900, 901, 902, 903, 904, 905, 906, 907, 908, 909, 910, 911] } });
-      const output = calcDispensingPacking(input({ sizes: { M: { boxes: rows } } }, listed));
+      const output = calcDispensingPacking(input({ sizes: { M: withAged(rows) } }, listed));
       expect(output.issues).toEqual([
         {
           level: "warning",
@@ -349,19 +375,19 @@ describe("dispensing_packing", () => {
     });
 
     it("checks nothing while the size has no sampled list (carton sampling off or not filled in)", () => {
-      const output = calcDispensingPacking(input({ sizes: { M: { boxes: boxes(13, {}, 900) } } }, M_ONLY));
+      const output = calcDispensingPacking(input({ sizes: { M: withAged(boxes(13, {}, 900)) } }, M_ONLY));
       expect(output.issues).toEqual([]);
       expect(output.result.perSize?.M.status).toBe("pass");
-      // Another size's list is not this size's.
+      // Another size's list is not this size's (size S, not entered, is not done and its boxes are still to come: no word).
       const other = makeTestContext({ sizes: ["S", "M"], cartons: { S: [900] } });
-      expect(calcDispensingPacking(input({ sizes: { M: { boxes: boxes(13, {}, 900) } } }, other)).issues).toEqual([]);
+      expect(calcDispensingPacking(input({ sizes: { M: withAged(boxes(13, {}, 900)) } }, other)).issues).toEqual([]);
     });
 
     it("takes the same box/carton number in several rows without a word: one carton supplies several inner boxes", () => {
       const rows = boxes(13, { boxNo: 5 });
-      expect(calcDispensingPacking(input({ sizes: { M: { boxes: rows } } }, M_ONLY)).issues).toEqual([]);
+      expect(calcDispensingPacking(input({ sizes: { M: withAged(rows) } }, M_ONLY)).issues).toEqual([]);
       const listed = makeTestContext({ sizes: ["M"], cartons: { M: [5, 6] } });
-      const output = calcDispensingPacking(input({ sizes: { M: { boxes: rows } } }, listed));
+      const output = calcDispensingPacking(input({ sizes: { M: withAged(rows) } }, listed));
       expect(output.issues).toEqual([]);
       expect(output.result.perSize?.M.status).toBe("pass");
     });
@@ -385,7 +411,10 @@ describe("dispensing_packing", () => {
 
     it("was a ninth box with no box/carton number when read into the box list, leaving the size not done", () => {
       const ninth = sizeS(undefined, [...ROWS, box({ layeringPct: 88, dispensingPct: 86, stickiness: "B", note: "Aged sample" })]);
-      expect(ninth.result.perSize?.S).toEqual({ status: "not_done", summary: "8 of 8 boxes complete (item 9 is incomplete)." });
+      expect(ninth.result.perSize?.S).toEqual({
+        status: "not_done",
+        summary: "8 of 8 boxes complete (item 9 is incomplete).\nAged Sample is not entered yet.",
+      });
       // Its values were in the averages: 90.1% and 91.7%.
       expect(formatAverage(ninth.computed.sizes.S.layeringAverage)).toBe("90.1");
       expect(formatAverage(ninth.computed.sizes.S.dispensingAverage)).toBe("91.7");
@@ -463,6 +492,9 @@ describe("dispensing_packing", () => {
         layeringResult: "pass",
         agedSample: { layeringResult: "not_done", dispensingResult: "not_done", stickinessResult: "not_done", result: "not_done" },
       });
+      // Boxes that fail stay failed while it is entered in part: a failure is never hidden.
+      const lowBoxes = ROWS.map((row) => ({ ...row, layeringPct: 60 }));
+      expect(sizeS({ layeringPct: 88 }, lowBoxes).result.perSize?.S.status).toBe("fail");
       // A remark alone starts it, as it starts a box row.
       expect(sizeS({ note: "Aged sample" }).issues).toEqual([
         expect.objectContaining({
@@ -474,13 +506,45 @@ describe("dispensing_packing", () => {
       expect(sizeS({ layeringPct: 88, dispensingPct: 86 }).issues[0].message).toBe("Aged Sample for size S: Stickiness is not entered yet.");
     });
 
-    it("changes nothing while nothing is entered in it", () => {
+    it("keeps the size not done while nothing is entered in it, with a warning at its first value once the boxes are complete (Kenneth, 27 October 2026)", () => {
       for (const agedSample of [undefined, {}, { note: "  " }]) {
         const output = sizeS(agedSample);
-        expect(output.result.perSize?.S, JSON.stringify(agedSample)).toEqual({ status: "pass", summary: BOXES_LINE });
-        expect(output.computed.sizes.S.agedSample).toBeNull();
-        expect(output.issues).toEqual([]);
+        const where = JSON.stringify(agedSample);
+        expect(output.result.perSize?.S, where).toEqual({ status: "not_done", summary: `${BOXES_LINE}\nAged Sample is not entered yet.` });
+        expect(output.result.status, where).toBe("not_done");
+        expect(output.computed.sizes.S.agedSample, where).toBeNull();
+        // The boxes are done: their checks stand, and the size lacks its aged sample alone.
+        expect(output.computed.sizes.S, where).toMatchObject({ layeringResult: "pass", dispensingResult: "pass", stickinessResult: "pass" });
+        expect(output.issues, where).toEqual([
+          {
+            level: "warning",
+            code: "aged_sample_missing",
+            message: "Aged Sample for size S is not entered yet.",
+            size: "S",
+            path: ["sizes", "S", "agedSample", "layeringPct"],
+          },
+        ]);
       }
+    });
+
+    it("says so on its line while the boxes are still to come, the boxes' count saying what is left, with no warning yet", () => {
+      const output = sizeS(undefined, ROWS.slice(0, 5));
+      expect(output.result.perSize?.S).toEqual({ status: "not_done", summary: "5 of 8 boxes complete.\nAged Sample is not entered yet." });
+      expect(output.issues).toEqual([]);
+      expect(sizeS(undefined, []).result.perSize?.S).toEqual({
+        status: "not_done",
+        summary: "0 of 8 boxes complete.\nAged Sample is not entered yet.",
+      });
+    });
+
+    it("never hides boxes that fail: an empty one, still to come, leaves the size failed, and warns", () => {
+      const lowBoxes = ROWS.map((row) => ({ ...row, layeringPct: 60 }));
+      const output = sizeS(undefined, lowBoxes);
+      expect(output.result.perSize?.S).toEqual({
+        status: "fail",
+        summary: "Layering 60.0% (min. 70%), Dispensing 92.4% (min. 80%), Stickiness A: Failed (Layering).\nAged Sample is not entered yet.",
+      });
+      expect(output.issues.map((issue) => issue.code)).toEqual(["aged_sample_missing"]);
     });
 
     it("rejects a percentage out of range or a code the template lacks, as in a box row: an error at its cell, the size not done", () => {
@@ -536,6 +600,9 @@ describe("dispensing_packing", () => {
       );
       expect(partly.issues[0].message).toBe("Retained Sample for size S: Layering (%) and Stickiness are not entered yet.");
       expect(partly.result.perSize?.S.summary).toContain("\nRetained Sample is incomplete.");
+      const empty = calcDispensingPacking(input({ sizes: { S: { boxes: ROWS } } }, eight, DISPENSING_PACKING_DEFAULT_CONFIG, labels));
+      expect(empty.issues[0].message).toBe("Retained Sample for size S is not entered yet.");
+      expect(empty.result.perSize?.S.summary).toContain("\nRetained Sample is not entered yet.");
     });
 
     it("goes through the engine with the rest of the module, its issues stamped", () => {
@@ -550,6 +617,15 @@ describe("dispensing_packing", () => {
         ["warning", "aged_sample_incomplete"],
         ["warning", "module_not_done"],
       ]);
+      // None entered: the module is not done, its own warning first (where Pending's link goes), then the framework's.
+      const empty = evaluate({ sizes: { S: { boxes: ROWS } } });
+      const own = empty.modules.find((entry) => entry.key === "dispensing_packing")!;
+      expect(own.result).toMatchObject({ status: "not_done", perSize: { S: { status: "not_done" } } });
+      expect(own.issues.map(({ level, code, path }) => [level, code, path])).toEqual([
+        ["warning", "aged_sample_missing", ["sizes", "S", "agedSample", "layeringPct"]],
+        ["warning", "module_not_done", []],
+      ]);
+      expect(own.issues[1].message).toBe(`Glove Packing Check is not done: Size S: ${BOXES_LINE}\nAged Sample is not entered yet.`);
     });
   });
 
@@ -562,14 +638,15 @@ describe("dispensing_packing", () => {
       stickiness: "Stickiness",
       heading: "Dispensing Result ({codeLetters})",
     };
-    const output = calcDispensingPacking(input({ sizes: { M: { boxes: boxes(13) } } }, M_ONLY, DISPENSING_PACKING_DEFAULT_CONFIG, labels));
+    const output = calcDispensingPacking(input({ sizes: { M: withAged(boxes(13)) } }, M_ONLY, DISPENSING_PACKING_DEFAULT_CONFIG, labels));
     const wrong = boxes(13);
     wrong[1] = { ...wrong[1], layeringPct: 880 };
-    expect(calcDispensingPacking(input({ sizes: { M: { boxes: wrong } } }, M_ONLY, DISPENSING_PACKING_DEFAULT_CONFIG, labels)).issues[0].message).toBe(
+    expect(calcDispensingPacking(input({ sizes: { M: withAged(wrong) } }, M_ONLY, DISPENSING_PACKING_DEFAULT_CONFIG, labels)).issues[0].message).toBe(
       "Layering (%) 880% (no. 2) for size M is not between 0 and 100%.",
     );
     expect(output.result.perSize?.M.summary).toBe(
-      "Layering (%) 88.0% (min. 70%), Dispensing 90.0% (min. 80%), Stickiness A: Passed.",
+      "Layering (%) 88.0% (min. 70%), Dispensing 90.0% (min. 80%), Stickiness A: Passed.\n" +
+        "Aged Sample: Layering (%) 85.0% (min. 70%), Dispensing 88.0% (min. 80%), Stickiness A: Passed.",
     );
     expect(packingHeading(labels, DISPENSING_PACKING_DEFAULT_CONFIG, ["C", "E"])).toBe("Dispensing Result (C & E)");
     expect(packingHeading(labels, DISPENSING_PACKING_DEFAULT_CONFIG, [])).toBe("Dispensing Result (—)");

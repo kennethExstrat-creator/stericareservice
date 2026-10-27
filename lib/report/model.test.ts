@@ -98,7 +98,8 @@ describe("the Summary", () => {
       status: "pass",
       result: "pass",
       label: "PASSED",
-      verdict: "8 of 9 checks passed for size M; Weight has a warning.",
+      // Ten checks, the packing check's aged sample among them.
+      verdict: "9 of 10 checks passed for size M; Weight has a warning.",
       date: "12 April 2025",
     });
     const failed = buildReportModel(withConclusion(makeStdEgExport(), { finalResult: "fail" })).summary.conclusion;
@@ -110,7 +111,7 @@ describe("the Summary", () => {
   it("says Not Concluded, with the app's suggestion, until the inspector concludes", () => {
     const open = buildReportModel(withConclusion(makeStdEgExport(), { finalResult: null, date: null })).summary.conclusion;
     expect(open).toMatchObject({ status: "not_done", result: null, label: NOT_CONCLUDED, date: null });
-    expect(open.verdict).toBe("8 of 9 checks passed for size M; Weight has a warning. Suggested Result: PASSED.");
+    expect(open.verdict).toBe("9 of 10 checks passed for size M; Weight has a warning. Suggested Result: PASSED.");
   });
 
   it("lists the details in the design's order by the template's labels, a blank one Not stated", () => {
@@ -171,14 +172,18 @@ describe("the Summary", () => {
   });
 
   it("puts a summary too long for page 1 on a page of its own after it", () => {
-    const short = withConclusion(makeStdEgExport(), {}, { inspectionSummary: richTextParagraph("All sizes passed.") });
+    // SAFEDON_EG's page 1 (eight checks) has room for a short one.
+    const short = withConclusion(makeSafedonExport(), {}, { inspectionSummary: richTextParagraph("All sizes passed.") });
     expect(buildReportModel(short).summary.summaryPlacement).toBe("first");
     expect(buildReportModel(short).plan[0]).toEqual({ kind: "summary", key: "summary", pageCount: 1 });
-    const long = withConclusion(makeStdEgExport(), {}, { inspectionSummary: richTextParagraph("Every glove was checked twice. ".repeat(140).trim()) });
+    const long = withConclusion(makeSafedonExport(), {}, { inspectionSummary: richTextParagraph("Every glove was checked twice. ".repeat(140).trim()) });
     const model = buildReportModel(long);
     expect(model.summary.summaryPlacement).toBe("own");
     expect(model.plan[0]).toEqual({ kind: "summary", key: "summary", pageCount: 2 });
     expect(model.pageCount).toBe(buildReportModel(short).pageCount + 1);
+    // STD_EG's ten checks, the packing check's aged sample among them, fill page 1 (246.5 mm estimated of 236): even one line moves.
+    const stdEg = withConclusion(makeStdEgExport(), {}, { inspectionSummary: richTextParagraph("All sizes passed.") });
+    expect(buildReportModel(stdEg).summary.summaryPlacement).toBe("own");
   });
 
   it("lists Results by Check, one row per check with its criterion, result and status", () => {
@@ -192,6 +197,8 @@ describe("the Summary", () => {
       ["Visual Inspection: Major", "AQL 2.5", "8 in 500 gloves", "pass"],
       ["Visual Inspection: Minor", "AQL 4.0", "0 in 500 gloves", "pass"],
       ["Packing Check", "Layering ≥ 70%, dispensing ≥ 80%", "Layering 88.3%, dispensing 90.3%", "pass"],
+      // The fixture's placeholder aged sample (the report printed none), on a row of its own.
+      ["Packing Check: Aged Sample", "Layering ≥ 70%, dispensing ≥ 80%", "Layering 85%, dispensing 88%", "pass"],
       ["Labeling", "Dispenser Box and Carton Box", "0 defects in 4 boxes", "pass"],
     ]);
   });
@@ -213,7 +220,7 @@ describe("the options", () => {
     expect(summary.inspectionSummary).toBeNull();
     expect(summary.checks).toBeNull();
     // The verdict still reads the checks.
-    expect(summary.conclusion.verdict).toBe("8 of 9 checks passed for size M; Weight has a warning.");
+    expect(summary.conclusion.verdict).toBe("9 of 10 checks passed for size M; Weight has a warning.");
   });
 
   it("leave out a section switched off, or with every block off, and number the rest without a gap", () => {

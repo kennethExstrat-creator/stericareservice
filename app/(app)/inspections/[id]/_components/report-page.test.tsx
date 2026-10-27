@@ -216,10 +216,11 @@ describe("the preview: the report's own pages", () => {
   it("draws every page of the report in the new design, numbered, with the count and the paper", () => {
     const html = page();
     const pages = pagesOf(html);
-    // The Summary and seven sections; the photo records come with the photos the screen loads.
-    expect(pages.length).toBe(8);
-    expect(html).toMatch(/data-slot="report-page-count"[^>]*>8 pages · A4<\/p>/);
-    pages.forEach((markup, index) => expect(markup).toContain(`Page ${index + 1} of 8</p>`));
+    // The Summary and seven sections, Section 08 on two pages (its matrix holds the packing check's aged sample);
+    // the photo records come with the photos the screen loads.
+    expect(pages.length).toBe(9);
+    expect(html).toMatch(/data-slot="report-page-count"[^>]*>9 pages · A4<\/p>/);
+    pages.forEach((markup, index) => expect(markup).toContain(`Page ${index + 1} of 9</p>`));
     expect(pages[0]).toContain('data-slot="report-conclusion" data-status="pass"');
     expect(pages[2]).toContain("Dimensions &amp; Weight");
     expect(html).not.toContain("nothing entered yet");

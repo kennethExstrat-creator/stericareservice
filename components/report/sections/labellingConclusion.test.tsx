@@ -46,12 +46,18 @@ describe("Section 08: Packaging Labelling & Conclusion", () => {
   const doc = makeStdEgExport();
   const model = buildReportModel(doc);
   const pages = pagesOf(renderToStaticMarkup(<ReportDocument model={model} />));
-  const page = pages.find((candidate) => candidate.includes('data-slot="report-labelling-conclusion"')) ?? "";
+  const own = pages.filter((candidate) => candidate.includes('data-slot="report-labelling-conclusion"'));
+  const page = own[0] ?? "";
+  // STD_EG's matrix, with the packing check's aged sample on a row of its own, runs the conclusion on to a second page.
+  const closing = own.at(-1) ?? "";
 
-  it("prints on its own page in the plan's place, numbered across the report", () => {
+  it("prints on its own pages in the plan's place, numbered across the report, the conclusion continued on the second", () => {
     expect(pages).toHaveLength(model.pageCount);
     expect(pages.indexOf(page)).toBe(7);
     expect(page).toContain(`Page 8 of ${model.pageCount}</p>`);
+    expect(own).toHaveLength(2);
+    expect(page).not.toContain("report-final-conclusion");
+    expect(text(closing)).toContain("Section 08 Packaging Labelling & Conclusion (Continued) Conclusion PASSED");
   });
 
   it("heads the page with its kicker, its title and what the labels were checked for", () => {
@@ -75,20 +81,21 @@ describe("Section 08: Packaging Labelling & Conclusion", () => {
 
   it("draws the results matrix: a tick per check and size, the size columns as the design sets them, and its legend", () => {
     expect(text(page)).toContain(
-      "Results Matrix Passed Warning Results matrix: each check by size Check M Dimension Force at Break Weight Freedom From Holes – Watertight Test Visual Inspection: Critical, Major, Minor Packing Check Labeling",
+      "Results Matrix Passed Warning Results matrix: each check by size Check M Dimension Force at Break Weight Freedom From Holes – Watertight Test Visual Inspection: Critical, Major, Minor Packing Check Packing Check: Aged Sample Labeling",
     );
+    expect(page).toMatch(/aria-label="Packing Check: Aged Sample, M: Passed"/);
     expect(page).toMatch(/aria-label="Weight, M: Warning"/);
     expect(page).toMatch(/aria-label="Visual Inspection: Critical, Major, Minor, M: Passed"/);
     expect(page).toContain('style="width:10.5%"');
   });
 
   it("concludes PASSED in green, dated as the design does, the signature drawn over its line, the remark none", () => {
-    expect(page).toMatch(/data-slot="report-final-conclusion" data-status="pass" class="[^"]*border-pass-border bg-pass-tint/);
-    expect(text(page)).toContain("Conclusion PASSED Date 12/04/2025 Inspector's Signature Remark: None recorded.");
-    expect(page).toContain('data-signed="drawn"');
-    expect(page).toContain('<path d="M40 150Q120 60 160 100Q200 140 250 105L300 70" vector-effect="non-scaling-stroke"></path>');
+    expect(closing).toMatch(/data-slot="report-final-conclusion" data-status="pass" class="[^"]*border-pass-border bg-pass-tint/);
+    expect(text(closing)).toContain("Conclusion PASSED Date 12/04/2025 Inspector's Signature Remark: None recorded.");
+    expect(closing).toContain('data-signed="drawn"');
+    expect(closing).toContain('<path d="M40 150Q120 60 160 100Q200 140 250 105L300 70" vector-effect="non-scaling-stroke"></path>');
     // The result's line height stays as set: a font size after leading-none would merge it away.
-    expect(page).toMatch(/data-slot="report-final-result" class="text-\[30pt\][^"]*leading-none/);
+    expect(closing).toMatch(/data-slot="report-final-result" class="text-\[30pt\][^"]*leading-none/);
   });
 });
 
@@ -108,19 +115,20 @@ describe("Section 08's results and options", () => {
   });
 
   it("concludes HOLD in amber and FAILED in red, as page 1 does", () => {
+    // On the section's last page: STD_EG's conclusion is on its second.
     const held = makeStdEgExport();
     held.conclusion = { ...held.conclusion, finalResult: "hold" };
-    expect(sectionPages(held)[0]).toMatch(/data-slot="report-final-conclusion" data-status="hold" class="[^"]*border-hold-border bg-hold-tint/);
-    expect(text(sectionPages(held)[0])).toContain("Conclusion HOLD");
+    expect(sectionPages(held).at(-1)).toMatch(/data-slot="report-final-conclusion" data-status="hold" class="[^"]*border-hold-border bg-hold-tint/);
+    expect(text(sectionPages(held).at(-1) ?? "")).toContain("Conclusion HOLD");
     const failed = makeStdEgExport();
     failed.conclusion = { ...failed.conclusion, finalResult: "fail" };
-    expect(sectionPages(failed)[0]).toMatch(/data-slot="report-final-conclusion" data-status="fail" class="[^"]*bg-fail-tint/);
+    expect(sectionPages(failed).at(-1)).toMatch(/data-slot="report-final-conclusion" data-status="fail" class="[^"]*bg-fail-tint/);
   });
 
   it("leaves the signature line blank to sign by hand after export, and prints the remark", () => {
     const doc = makeStdEgExport();
     doc.conclusion = { ...doc.conclusion, signAfterExport: true, remark: "Labels to be reprinted." };
-    const [page] = sectionPages(doc);
+    const page = sectionPages(doc).at(-1) ?? "";
     expect(page).toContain('data-signed="by-hand"');
     expect(page).not.toContain("The inspector&#x27;s signature, as drawn");
     expect(text(page)).toContain("Inspector's Signature Remark: Labels to be reprinted.");

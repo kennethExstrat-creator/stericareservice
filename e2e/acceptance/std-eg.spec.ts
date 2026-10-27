@@ -1,5 +1,6 @@
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { expect, test, type Locator, type Page } from "@playwright/test";
+import { PASSING_AGED_SAMPLE as AGED } from "../../modules/dispensing_packing/__fixtures__/examples";
 import { STD_EG_EXAMPLE as REPORT, STD_EG_EXPECTED as EXPECTED } from "../../tests/fixtures/examples";
 import { createTestAdminClient, deleteTestInspection } from "../support/admin";
 import { signIn, TEST_ACCOUNTS } from "../support/session";
@@ -16,9 +17,11 @@ import { signIn, TEST_ACCOUNTS } from "../support/session";
  * gloves, which resolves the standard template STD_EG; then the report goes
  * in section by section with taps, the numeric keypad (typed, Enter moving
  * on) and pasted columns where a grid takes them. Only the fixture's values
- * are entered. The two values the report does not print are entered as
+ * are entered. The values the report does not print are entered as
  * docs/FIXTURES.md says: 13 force readings whose median is the printed
- * 6.537 N; the weight is the printed 2.90 g, the size's one average.
+ * 6.537 N; the weight is the printed 2.90 g, the size's one average; and the
+ * packing check's aged sample, which the report predates and every size
+ * needs (Kenneth, 27 October 2026), is the fixtures' placeholder that passes.
  *
  * The Glove Packing Check is typed from the paper, its box/carton numbers on
  * the numeric keypad, before the carton list is in (so nothing is suggested
@@ -351,7 +354,13 @@ async function storedRow(id: string) {
 type StoredModules = {
   carton_sampling?: { sizes?: Record<string, { cartonNumbers?: (number | null)[] }> };
   dispensing_packing?: {
-    sizes?: Record<string, { boxes?: { boxNo: number | null; layeringPct: number | null; dispensingPct: number | null; stickiness: string | null }[] }>;
+    sizes?: Record<
+      string,
+      {
+        boxes?: { boxNo: number | null; layeringPct: number | null; dispensingPct: number | null; stickiness: string | null }[];
+        agedSample?: { layeringPct: number | null; dispensingPct: number | null; stickiness: string | null; note: string | null };
+      }
+    >;
   };
   dimensions?: { sizes?: Record<string, { gloves?: Record<string, number | null>[] }> };
   weight?: { sizes?: Record<string, { values?: (number | null)[] }> };
@@ -610,6 +619,21 @@ test("the STD_EG example entered on the iPad gives every expected result", async
     for (const [index, box] of PACKING_BOXES.entries()) {
       await check(frame.getByRole("textbox", { name: `Box/Carton #, Item ${index + 1}`, exact: true })).toHaveValue(String(box.box));
     }
+    // The 13 boxes alone leave the size Not Done: its aged sample is still to enter (Kenneth, 27 October 2026).
+    const agedSection = frame.getByRole("region", { name: "Aged Sample", exact: true });
+    // The section's own pill, in its header (its checks' pills follow once it is judged).
+    const agedStatus = agedSection.locator('header [data-slot="status-pill"]');
+    await check(agedStatus, "an empty aged sample is not done").toHaveAttribute("data-status", "not_done");
+    await check(agedSection.locator('[data-slot="box-issues"]').getByRole("button", { name: "Aged Sample for size M is not entered yet." })).toBeVisible();
+    // The report printed none: the placeholder that passes, typed on the keypad, the code picked.
+    await agedSection.getByRole("textbox", { name: "Layering %, Aged Sample", exact: true }).tap();
+    await page.keyboard.type(String(AGED.layeringPct));
+    await page.keyboard.press("Enter");
+    await expect(agedSection.getByRole("textbox", { name: "Dispensing %, Aged Sample", exact: true })).toBeFocused();
+    await page.keyboard.type(String(AGED.dispensingPct));
+    await page.keyboard.press("Enter");
+    await agedSection.getByRole("combobox", { name: "Stickiness **, Aged Sample", exact: true }).selectOption(String(AGED.stickiness));
+    await check(agedStatus, "the aged sample passes").toHaveAttribute("data-status", "pass");
     const results = frame.getByRole("table", { name: "Glove Packing Check, Size M" }).last();
     const dispensingCheck = EXPECT_DISPENSING;
     await check(row(results, "Layering %"), dispensingCheck.check).toHaveAccessibleName(
@@ -1094,6 +1118,7 @@ test("the STD_EG example entered on the iPad gives every expected result", async
       modules.dispensing_packing?.sizes?.M?.boxes?.map(({ boxNo, layeringPct, dispensingPct, stickiness }) => [boxNo, layeringPct, dispensingPct, stickiness]),
       "packing check rows as typed, box 2336 included",
     ).toEqual(PACKING_BOXES.map((box) => [box.box, box.layeringPct, box.dispensingPct, box.stickiness]));
+    check(modules.dispensing_packing?.sizes?.M?.agedSample, "the aged sample as typed, apart from the boxes").toEqual({ ...AGED });
     check(
       (modules.dimensions?.sizes?.M?.gloves ?? []).map((glove) =>
         ["length", "width", "fingerThickness", "palmThickness", "cuffThickness"].map((key) => glove[key] ?? null),

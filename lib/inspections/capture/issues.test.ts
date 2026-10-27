@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { ModuleOverrides } from "@/lib/schemas/template";
 import { MODULE_SHORT_TITLES, SHORT_TITLE_MAX } from "@/lib/templates";
 import type { ValidationIssue } from "@/lib/validation";
+import { seedTemplate, stdEgData } from "@/tests/acceptance/examples";
 import { emptyData, filledData, TEST_ADMIN_ID, TEST_META, TEST_REGISTRY, testTemplate } from "./__fixtures__/capture";
 import { evaluateCapture } from "./evaluate";
 import { issueCorpus } from "./__fixtures__/issue-corpus";
@@ -323,6 +324,74 @@ describe("summariseIssues", () => {
 
   it("falls back to Not done yet for a not-done message it cannot read", () => {
     expect(summariseIssues([ISSUE({ message: "Weight (g) is not done." })], CONTEXT).status).toBe("Not done yet");
+  });
+
+  it("names an aged sample still to enter where it is all that keeps the sizes not done, and opens it; else counts the sizes (Kenneth, 27 October 2026)", () => {
+    const context = { ...CONTEXT, title: "Glove Packing Check" };
+    const notDone = ISSUE({
+      moduleKey: "dispensing_packing",
+      message: "Glove Packing Check is not done: Size M: Layering 88.3% (min. 70%), Dispensing 90.3% (min. 80%), Stickiness A: Passed.\nAged Sample is not entered yet.",
+    });
+    const missing = (size: string) =>
+      ISSUE({
+        moduleKey: "dispensing_packing",
+        code: "aged_sample_missing",
+        size,
+        message: `Aged Sample for size ${size} is not entered yet.`,
+        path: ["sizes", size, "agedSample", "layeringPct"],
+      });
+    const notSampled = ISSUE({
+      moduleKey: "dispensing_packing",
+      code: "box_not_in_carton_list",
+      size: "M",
+      message: "Box/Carton #2336 is not in M's sampled box/carton numbers.",
+      path: ["sizes", "M", "boxes", 11, "boxNo"],
+    });
+    // Size M's boxes are complete, its aged sample is what is left: named, its warning where the row goes.
+    expect(summariseIssues([notSampled, missing("M"), notDone], { ...context, sizesNotDone: ["M"] })).toEqual({
+      status: "Aged sample not entered",
+      sizes: ["M"],
+      more: 1,
+      lead: missing("M"),
+    });
+    // Size S's boxes are still to come: the sizes are counted, the aged sample one more.
+    expect(summariseIssues([missing("M"), notDone], { ...context, sizesNotDone: ["S", "M"] })).toEqual({ status: "2 sizes not done", sizes: ["S", "M"], more: 1 });
+    // A size that failed has no size not done to explain: the warning's own words.
+    expect(summariseIssues([missing("M")], context)).toEqual({ status: "Aged sample not entered", sizes: ["M"], more: 0 });
+    const incomplete = ISSUE({ code: "aged_sample_incomplete", size: "S", message: "Aged Sample for size S: Dispensing and Stickiness are not entered yet." });
+    expect(summariseIssues([incomplete], context).status).toBe("Aged sample incomplete");
+  });
+});
+
+describe("Pending for the packing check's aged sample (Kenneth, 27 October 2026)", () => {
+  it("names the aged sample STD_EG's size M lacks, its boxes complete, and opens it rather than box 2336", () => {
+    const template = seedTemplate("STD_EG");
+    const entered = stdEgData({ corrected: true });
+    const packing = entered.modules.dispensing_packing as { sizes: { M: { boxes: unknown[] } } };
+    const data = { ...entered, modules: { ...entered.modules, dispensing_packing: { sizes: { M: { boxes: packing.sizes.M.boxes } } } } };
+    const evaluation = evaluateCapture({ template, overrides: {}, data, meta: TEST_META });
+    const sections = captureSections(evaluation.template, evaluation.report, data);
+    const task = pendingTasks(groupIssues(evaluation.report.issues, sections), sections, evaluation.report.modules).find(
+      (candidate) => candidate.key === "dispensing_packing",
+    );
+    expect(task).toMatchObject({
+      title: "Packing Check",
+      needed: false,
+      status: "Aged sample not entered",
+      sizes: ["M"],
+      // Box 2336, not sampled for size M.
+      more: 1,
+      first: { code: "aged_sample_missing", size: "M", path: ["sizes", "M", "agedSample", "layeringPct"] },
+    });
+    expect(taskName(task!)).toBe("Packing Check: Aged sample not entered: M, and 1 more.");
+    // With the example's aged sample: box 2336's warning alone, as before.
+    const full = evaluateCapture({ template, overrides: {}, data: entered, meta: TEST_META });
+    const fullSections = captureSections(full.template, full.report, entered);
+    expect(pendingTasks(groupIssues(full.report.issues, fullSections), fullSections, full.report.modules).find((candidate) => candidate.key === "dispensing_packing")).toMatchObject({
+      status: "Box/Carton # not sampled",
+      sizes: ["M"],
+      more: 0,
+    });
   });
 });
 

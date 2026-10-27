@@ -54,7 +54,8 @@ describe("STD_EG's Section 06, on one page", () => {
 
   it("prints one page, numbered across the report, headed by the kicker, the title and the lead", () => {
     expect(pages).toHaveLength(1);
-    expect(page).toContain("Page 6 of 10</p>");
+    // Of the report's 11: Section 08 runs on to a second page (its matrix holds the packing check's aged sample).
+    expect(page).toContain("Page 6 of 11</p>");
     expect(text(part(page, 'data-slot="report-section-heading"'))).toBe(
       "Section 06 Freedom From Holes & Visual Inspection Watertight and visual checks on the same 500 gloves. Size M stayed inside every acceptance limit.",
     );

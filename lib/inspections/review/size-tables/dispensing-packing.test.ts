@@ -95,7 +95,7 @@ describe("dispensingPackingTable", () => {
     ]);
   });
 
-  it("reads the STD_EG example: 88.3% and 90.3%, and box 2336, not in M's sampled box/carton numbers, amber", () => {
+  it("reads the STD_EG example: 88.3% and 90.3%, box 2336, not in M's sampled box/carton numbers, amber, and the placeholder aged sample", () => {
     const example = evaluateStdEg({ corrected: true });
     const entry = example.module("dispensing_packing");
     expect(entry.issues.map((issue) => [issue.code, issue.path])).toEqual([
@@ -106,6 +106,10 @@ describe("dispensingPackingTable", () => {
       { key: "layeringPct", label: "Layering", spec: "Min. 70%", cells: [{ text: "88.3%" }] },
       { key: "dispensingPct", label: "Dispensing", spec: "Min. 80%", cells: [{ text: "90.3%" }] },
       { key: "stickiness", label: "Stickiness", spec: "A, B, B1, C", cells: [{ text: "A" }] },
+      // The report printed no aged sample; the example carries one that passes (every size needs one: Kenneth, 27 October 2026).
+      { key: "agedSample.layeringPct", label: "Aged Sample: Layering", spec: "Min. 70%", cells: [{ text: "85.0%" }] },
+      { key: "agedSample.dispensingPct", label: "Aged Sample: Dispensing", spec: "Min. 80%", cells: [{ text: "88.0%" }] },
+      { key: "agedSample.stickiness", label: "Aged Sample: Stickiness", spec: "A, B, B1, C", cells: [{ text: "A" }] },
     ]);
   });
 });

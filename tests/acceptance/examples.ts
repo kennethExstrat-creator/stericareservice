@@ -13,7 +13,9 @@
 //
 // What the reports do not print is entered the way docs/FIXTURES.md ("How
 // the acceptance tests use them") says: 13 force readings whose median is
-// the printed 6.537 N, 13 weights of the printed 2.90 g average. A cell the
+// the printed 6.537 N, 13 weights of the printed 2.90 g average, and an aged
+// sample that passes for the packing check's size M (the report predates
+// it, and every size needs one: Kenneth, 27 October 2026). A cell the
 // inspector typed as text is refused at the cell (6.2 rule 1), so it is
 // stored as nothing until the corrected value is typed (`textCells`).
 import { readFileSync } from "node:fs";
@@ -31,6 +33,7 @@ import {
 } from "@/modules/_framework";
 import { TEST_INSPECTOR } from "@/modules/_framework/testing";
 import { dimensionsData } from "@/modules/dimensions/__fixtures__/examples";
+import { passingAgedSample } from "@/modules/dispensing_packing/__fixtures__/examples";
 import { headerData, pickedDate } from "@/modules/header/__fixtures__/examples";
 import { orderData } from "@/modules/order_lots/__fixtures__/examples";
 import { packingData } from "@/modules/packing_config/__fixtures__/examples";
@@ -225,6 +228,8 @@ export function stdEgData({ corrected = false }: StdEgOptions = {}): InspectionD
       stickiness: box.stickiness,
       note: null,
     })),
+    // Not on the report: a placeholder that passes.
+    agedSample: passingAgedSample(),
   }));
   if (corrected) {
     const { duplicateCarton } = STD_EG_EXPECTED.corrections;

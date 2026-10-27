@@ -53,6 +53,8 @@ The reports do not print some inputs, so the fixtures cannot hold them:
 
 - STD_EG force at break: only the median (6.537 N); the 13 readings are in the lab report.
 - STD_EG weight: only the average of 13 gloves (2.90 g), not the weights.
+- STD_EG packing check: no aged sample. The report predates it (Kenneth, 26 October 2026), and every size needs
+  one (27 October 2026).
 - Signatures: images, recorded as `signed: true`.
 - SAFEDON_EG thickness: rounded to 2 decimals in print (see "Printed precision").
 
@@ -234,7 +236,7 @@ the thickness values in `safedon-eg.ts` and set `averageOfPrintedReadings` to th
    per size. Dimension thickness averages compare with `averageOfPrintedReadings`. For STD_EG
    size M, `carton_sampling` is "fail" (`cartonList.status`: it fails on validation errors,
    BUILD_SPEC 6.1) and `dispensing_packing` is "pass" (`dispensing.M.status`: averages and
-   stickiness codes). The stray box is a validation error that blocks submit
+   stickiness codes, with the placeholder aged sample of item 6). The stray box is a validation error that blocks submit
    (`dispensingBox.validation`), not a `dispensing_packing` result.
 4. STD_EG shows exactly the two errors in `errors` and cannot be submitted. Applying
    `corrections` clears them; the suggested result is then pass.
@@ -243,6 +245,10 @@ the thickness values in `safedon-eg.ts` and set `averageOfPrintedReadings` to th
 6. The STD_EG force at break module needs values the report does not print: any 13 readings
    with median 6.537 N. Weight records the printed average, 2.9 g, one value per size (`weightData`);
    `gloveByGloveData` gives 13 weights of 2.9 g, as an inspection saved before 26 October 2026 holds them.
+   The packing check's size M needs an aged sample, which the report does not print, to be done: the
+   acceptance, export and UX fixtures give it a placeholder that passes (`PASSING_AGED_SAMPLE` in
+   `modules/dispensing_packing/__fixtures__/examples.ts`: layering 85%, dispensing 88%, stickiness A). Without
+   it the size's boxes still pass, and the size is not done.
 7. `printed*` fields and `unorderedSizes` describe the old report. Compare the app with them only
    to show where it now differs.
 

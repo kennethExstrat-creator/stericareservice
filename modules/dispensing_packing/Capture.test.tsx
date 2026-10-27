@@ -6,6 +6,7 @@ import { describe, expect, it } from "vitest";
 import type { InspectionContext, ModuleEvaluation } from "@/modules/_framework";
 import { makeSampling, makeTestContext } from "@/modules/_framework/testing";
 import { cartonList, STD_EG_EXAMPLE } from "@/tests/fixtures/examples";
+import { passingAgedSample } from "./__fixtures__/examples";
 import { calcDispensingPacking, type DispensingPackingComputed } from "./calc";
 import Capture from "./Capture";
 import { DISPENSING_PACKING_DEFAULT_CONFIG, DISPENSING_PACKING_LABELS, type DispensingPackingConfig } from "./config";
@@ -145,7 +146,10 @@ describe("dispensing_packing capture", () => {
   });
 
   it("is a plain number field while the size has no sampled list, and warns about nothing", () => {
-    const html = render({ context: makeTestContext({ sizes: ["M"], sampling: { M: makeSampling({ packagingDispensing: 13 }) } }) });
+    // Its aged sample entered too: nothing else to warn about.
+    const data = stdEgData();
+    data.sizes.M.agedSample = passingAgedSample();
+    const html = render({ data, context: makeTestContext({ sizes: ["M"], sampling: { M: makeSampling({ packagingDispensing: 13 }) } }) });
     const field = /<input[^>]*aria-label="Box\/Carton #, Item 12"[^>]*>/.exec(html)?.[0] ?? "";
     expect(field).toContain('value="2336"');
     expect(field).not.toContain('role="combobox"');
@@ -269,9 +273,31 @@ describe("dispensing_packing capture: the aged sample (Kenneth, 26 October 2026)
     expect(section).toContain('data-issue-path="[&quot;sizes&quot;,&quot;M&quot;,&quot;agedSample&quot;,&quot;dispensingPct&quot;]"');
     expect(/<select[^>]*aria-label="Stickiness \*\*, Aged Sample"[^>]*>/.exec(section)?.[0]).toContain("touch:h-11");
     expect(/<input[^>]*aria-label="Others:, Aged Sample"[^>]*>/.exec(section)?.[0]).toContain("touch:h-11");
-    // Nothing in it yet: no result of its own, and the boxes' results alone.
-    expect(section).not.toContain('data-slot="status-pill"');
+    // Nothing in it yet: Not Done (every size needs one: Kenneth, 27 October 2026), with no checks of its own.
+    expect(/<header[\s\S]*?<\/header>/.exec(section)?.[0]).toContain('data-slot="status-pill" data-status="not_done"');
     expect(section).not.toContain('data-slot="requirement-list"');
+  });
+
+  it("keeps the size Not Done while nothing is in it: with the boxes complete, calc's warning sits under its row with a link (Kenneth, 27 October 2026)", () => {
+    const html = render();
+    const section = agedSection(html);
+    const list = /<ul[^>]*data-slot="box-issues"[^>]*>[\s\S]*?<\/ul>/.exec(section)?.[0] ?? "";
+    expect(count(list, "<button")).toBe(1);
+    expect(list).toContain("Aged Sample for size M is not entered yet.");
+    expect(list).toContain("text-warn");
+    expect(list).toContain("touch:min-h-11");
+    // An empty cell is no error: it does not turn red.
+    expect(/<input[^>]*aria-label="Layering %, Aged Sample"[^>]*>/.exec(section)?.[0]).not.toContain('aria-invalid="true"');
+    // The boxes keep their Passed; the size is Not Done.
+    expect(count(html.slice(0, html.indexOf(section)), 'data-outcome="pass"')).toBe(3);
+    expect(sizeTab(html)).toContain('data-slot="result-chip" data-status="not_done"');
+    // While boxes are still to come, their count says what is left: Not Done, no warning under it yet.
+    const partial = agedSection(render({ data: { sizes: { M: { boxes: stdEgData().sizes.M.boxes.slice(0, 5) } } } }));
+    expect(/<header[\s\S]*?<\/header>/.exec(partial)?.[0]).toContain('data-status="not_done"');
+    expect(partial).not.toContain('data-slot="box-issues"');
+    // Without calc's values (before the first evaluation, or a module it could not compute), no state of its own.
+    expect(agedSection(render({ evaluated: false }))).not.toContain('data-slot="status-pill"');
+    expect(agedSection(render({ broken: true }))).not.toContain('data-slot="status-pill"');
   });
 
   it("shows its own Passed / Failed against the same spec, and leaves the boxes' averages and results as they are", () => {
@@ -327,14 +353,19 @@ describe("dispensing_packing capture: the aged sample (Kenneth, 26 October 2026)
     expect(count(html.slice(0, html.indexOf(agedSection(html))), 'data-outcome="not_done"')).toBe(3);
   });
 
-  it("is read-only with the inspection, and left out where none was entered", () => {
+  it("is read-only with the inspection, and shows there where none was entered: Not Done, with calc's warning", () => {
     const html = render({ data: withAged(AGED), readOnly: true });
     const section = agedSection(html);
     expect(section).not.toContain("<select");
     expect(/<input[^>]*aria-label="Layering %, Aged Sample"[^>]*>/.exec(section)?.[0]).toContain("readOnly");
     expect(section).toContain("Aged sample");
     expect(section).toMatch(/>B<\/span>/);
-    expect(render({ readOnly: true })).not.toContain("Aged Sample");
+    // Kenneth, 27 October 2026: an empty one keeps the size not done, so the reader sees why.
+    const empty = agedSection(render({ readOnly: true }));
+    expect(empty).toMatch(/<h3[^>]*>Aged Sample<\/h3>/);
+    expect(empty).not.toContain("<select");
+    expect(/<header[\s\S]*?<\/header>/.exec(empty)?.[0]).toContain('data-status="not_done"');
+    expect(empty).toContain("Aged Sample for size M is not entered yet.");
   });
 
   it("is headed in the template's wording", () => {

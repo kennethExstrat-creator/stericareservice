@@ -54,7 +54,8 @@ describe("page 1: the Summary", () => {
     const card = /<section data-slot="report-conclusion" data-status="pass" class="([^"]*)"/.exec(first);
     expect(card?.[1]).toContain("bg-pass-tint");
     expect(card?.[1]).toContain("border-pass-border");
-    expect(text(first)).toContain("Overall Conclusion PASSED 8 of 9 checks passed for size M; Weight has a warning. Concluded 12 April 2025");
+    // Ten checks, the packing check's aged sample among them.
+    expect(text(first)).toContain("Overall Conclusion PASSED 9 of 10 checks passed for size M; Weight has a warning. Concluded 12 April 2025");
     expect(first).toMatch(/data-slot="report-status-tick" data-status="pass" role="img" aria-label="Passed"/);
   });
 
@@ -92,8 +93,9 @@ describe("page 1: the Summary", () => {
     expect(text(first)).toContain("Check Criterion Result Status");
     expect(text(first)).toContain("Weight Within 10% of the indicative 3.5 g Average 2.90 g Warning");
     expect(text(first)).toContain("Force at Break Median ≥ 6 N Median 6.537 N Passed");
+    expect(text(first)).toContain("Packing Check: Aged Sample Layering ≥ 70%, dispensing ≥ 80% Layering 85%, dispensing 88% Passed");
     const chips = Array.from(first.matchAll(/data-slot="report-status-chip" data-status="([a-z_]+)" class="([^"]*)"/g));
-    expect(chips.map(([, status]) => status)).toEqual(["pass", "pass", "warn", "pass", "pass", "pass", "pass", "pass", "pass"]);
+    expect(chips.map(([, status]) => status)).toEqual(["pass", "pass", "warn", "pass", "pass", "pass", "pass", "pass", "pass", "pass"]);
     expect(chips.find(([, status]) => status === "warn")?.[2]).toContain("bg-warn-tint");
     expect(chips.find(([, status]) => status === "pass")?.[2]).toContain("text-pass");
   });
@@ -113,7 +115,8 @@ describe("page 1: the Summary", () => {
         inspectionSummary: { type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text: "Every size passed.", marks: [{ type: "bold" }] }] }] },
       };
     }
-    const page = pagesOf(renderToStaticMarkup(<ReportDocument model={buildReportModel(doc)} />))[0];
+    // On a page of its own after page 1: STD_EG's ten checks leave page 1 no room for it (lib/report/model.test.ts).
+    const page = pagesOf(renderToStaticMarkup(<ReportDocument model={buildReportModel(doc)} />))[1];
     expect(page).toMatch(/data-slot="report-inspection-summary"[^>]*><div class="[^"]*"><p><strong>Every size passed\.<\/strong><\/p><\/div>/);
   });
 });

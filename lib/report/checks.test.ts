@@ -5,6 +5,7 @@
 import { describe, expect, it } from "vitest";
 import { checkRows, checksVerdict, type CheckRow } from "./checks";
 import { makeSafedonExport, makeStdEgExport } from "./__fixtures__/exports";
+import { packingBoxes, packingExport } from "./__fixtures__/packing-export";
 
 const row = (check: string, status: CheckRow["status"]): CheckRow => ({
   key: check,
@@ -120,6 +121,28 @@ describe("checkRows", () => {
     });
     // The boxes' own row stays as the boxes are.
     expect(checkRows(doc).find((entry) => entry.key === "dispensing_packing")?.status).toBe("pass");
+  });
+
+  it("keeps the aged sample's row Not Done while a size has none entered: every size needs one (Kenneth, 27 October 2026)", () => {
+    // Size S with its aged sample, size M's boxes complete without one.
+    const doc = packingExport({
+      S: { boxes: packingBoxes(5), aged: { layeringPct: 87, dispensingPct: 85, stickiness: "B" } },
+      M: { boxes: packingBoxes(5, {}, 8001) },
+    });
+    const rows = checkRows(doc);
+    expect(rows.find((entry) => entry.key === "dispensing_packing:aged")).toMatchObject({
+      check: "Packing Check: Aged Sample",
+      criterion: "Layering ≥ 70%, dispensing ≥ 80%",
+      // What is entered, size S's; size M's makes the row not done.
+      result: "Layering 87%, dispensing 85%",
+      status: "not_done",
+      failedSizes: [],
+    });
+    // The boxes passed in both sizes.
+    expect(rows.find((entry) => entry.key === "dispensing_packing")?.status).toBe("pass");
+    // None entered anywhere: the row stays, with nothing to show.
+    const none = checkRows(packingExport({ M: { boxes: packingBoxes(5) } })).find((entry) => entry.key === "dispensing_packing:aged");
+    expect(none).toMatchObject({ result: null, status: "not_done" });
   });
 
   it("reads an inspection with nothing ordered or entered without failing", () => {

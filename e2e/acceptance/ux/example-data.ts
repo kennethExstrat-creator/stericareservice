@@ -6,6 +6,7 @@
 import { roundTo } from "@/lib/stats";
 import type { InspectionData } from "@/modules/_framework";
 import { dimensionsData } from "@/modules/dimensions/__fixtures__/examples";
+import { passingAgedSample } from "@/modules/dispensing_packing/__fixtures__/examples";
 import { headerData, pickedDate } from "@/modules/header/__fixtures__/examples";
 import { orderData } from "@/modules/order_lots/__fixtures__/examples";
 import { packingData } from "@/modules/packing_config/__fixtures__/examples";
@@ -122,6 +123,8 @@ export function stdEgData({
       stickiness: box.stickiness,
       note: null,
     })),
+    // Not on the report, and every size needs one (Kenneth, 27 October 2026): a placeholder that passes.
+    agedSample: passingAgedSample(),
   }));
   if (corrected) {
     const { duplicateCarton } = STD_EG_EXPECTED.corrections;

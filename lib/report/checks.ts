@@ -3,12 +3,13 @@
 // inspection judged: each test module with a result (pass, fail, warning or
 // not done; a module that only records, "info", has none), Visual
 // Inspection once per defect class and the packing check's aged sample on a
-// row of its own. The order, the sampling plan and the box/carton numbers
-// are records, not checks: they show only when they hold a problem. Each row
-// names the check by its short name (docs/DESIGN.md, Step Names), its
-// criterion from the module's config, and its result from the computed
-// values, in the template's words where it has them. The app never changes a
-// result here: the status is the module's own.
+// row of its own, not done for a size with none entered (every size needs
+// one: Kenneth, 27 October 2026). The order, the sampling plan and the
+// box/carton numbers are records, not checks: they show only when they hold
+// a problem. Each row names the check by its short name (docs/DESIGN.md,
+// Step Names), its criterion from the module's config, and its result from
+// the computed values, in the template's words where it has them. The app
+// never changes a result here: the status is the module's own.
 import { formatCount, formatNumber, formatSpec, hasLimit } from "@/lib/format";
 import type { ExportModule, InspectionExport } from "@/lib/schemas/export";
 import type { ModuleKey, ModuleStatus } from "@/lib/schemas/module-result";
@@ -267,20 +268,20 @@ function packingRows(module: ExportModule, doc: InspectionExport, sizes: readonl
     },
   ];
 
-  // The aged sample (Kenneth, 26 October 2026): judged on its own, against the boxes' minimums.
-  const aged = sizes.filter((size) => Object.keys(rec(at(computed, "sizes", size, "agedSample"))).length > 0);
-  if (aged.length > 0) {
-    const agedVerdicts = aged.map((size) => at(computed, "sizes", size, "agedSample", "result"));
+  // The aged sample (Kenneth, 26 October 2026): judged on its own, against the boxes' minimums. Every size
+  // needs one (27 October 2026): a size with none entered (no verdict of its own) is not done.
+  if (sizes.length > 0) {
+    const agedVerdicts = sizes.map((size) => at(computed, "sizes", size, "agedSample", "result") ?? "not_done");
     rows.push({
       key: "dispensing_packing:aged",
       check: `${short}: ${labelOf(module, "agedSample", "Aged Sample")}`,
       criterion,
       result: figures(
-        percents(aged.map((size) => num(at(module.data, "sizes", size, "agedSample", "layeringPct")))),
-        percents(aged.map((size) => num(at(module.data, "sizes", size, "agedSample", "dispensingPct")))),
+        percents(sizes.map((size) => num(at(module.data, "sizes", size, "agedSample", "layeringPct")))),
+        percents(sizes.map((size) => num(at(module.data, "sizes", size, "agedSample", "dispensingPct")))),
       ),
       status: worstOf(agedVerdicts, "not_done"),
-      failedSizes: aged.filter((_, index) => agedVerdicts[index] === "fail").map((size) => sizeLabel(doc, size)),
+      failedSizes: sizes.filter((_, index) => agedVerdicts[index] === "fail").map((size) => sizeLabel(doc, size)),
     });
   }
   return rows;

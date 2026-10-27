@@ -309,11 +309,16 @@ function packingCells(module: ExportModule, sizes: readonly string[]): (CheckSta
   });
 }
 
-/** The aged sample's own verdict by size; a size without one has none. */
+/**
+ * The aged sample's own verdict by size. Every size needs one (Kenneth, 27
+ * October 2026): a size with none entered is not done. A size the module
+ * gave no values has none, as in the boxes' row.
+ */
 function agedCells(module: ExportModule, sizes: readonly string[]): (CheckStatus | null)[] {
   return sizes.map((size) => {
-    const aged = rec(at(module.computed, "sizes", size, "agedSample"));
-    return Object.keys(aged).length === 0 ? null : (asStatus(aged.result) ?? "not_done");
+    const entry = rec(at(module.computed, "sizes", size));
+    if (Object.keys(entry).length === 0) return null;
+    return asStatus(rec(entry.agedSample).result) ?? "not_done";
   });
 }
 

@@ -16,7 +16,9 @@
 // screen as one change with every value (docs/CAPTURE_KIT.md). Under the
 // boxes, each size's aged sample has a section of its own (Kenneth, 26
 // October 2026): one row of the same values with no box/carton number, its
-// own Passed / Failed once anything is in it, never one of the boxes.
+// own Passed / Failed once judged, never one of the boxes. Every size needs
+// one (27 October 2026): Not Done while empty, read-only too, with calc's
+// warning under it once the boxes are complete.
 import { useEffect, useRef, useState, type CSSProperties, type KeyboardEvent, type RefObject } from "react";
 import { ChevronDownIcon, PlusIcon } from "lucide-react";
 import {
@@ -54,7 +56,7 @@ import type { DispensingPackingComputed, DispensingPackingConfig, DispensingPack
 import { AVERAGE_DECIMALS, boxesLineOf, packingHeading, plannedBoxes, type AgedSampleComputed } from "./calc";
 import { MAX_BOXES_PER_SIZE } from "./config";
 import { agedSampleOf, boxesOf, rowsShown, updateAgedSample, updatePackingBox } from "./edit";
-import { emptyPackingBox, isBlankAgedSample, type PackingAgedSample, type PackingBox } from "./schema";
+import { emptyPackingBox, type PackingAgedSample, type PackingBox } from "./schema";
 import { plainLabel } from "./text";
 
 type Props = CaptureProps<DispensingPackingData, DispensingPackingConfig, DispensingPackingComputed>;
@@ -326,27 +328,26 @@ function PackingSizePanel({ size, props, update, requested, onRequest, rejected,
         ]}
       />
 
-      {/* Read-only, a size with no aged sample shows none. */}
-      {!(readOnly && isBlankAgedSample(aged)) && (
-        <AgedSampleSection
-          size={size}
-          sizeName={sizeName}
-          sample={aged}
-          computed={computed?.agedSample ?? null}
-          labels={labels}
-          config={config}
-          passing={passing}
-          issues={issues}
-          problems={agedProblems}
-          root={panel}
-          readOnly={readOnly}
-          onPatch={(patch) => update((current) => updateAgedSample(current, size, patch))}
-          onFocus={() => onFocusChange?.({ size })}
-          onRejected={(field, entry, problem) =>
-            onRejected(agedKeyOf(field), entry ? { ...problem, key: agedKeyOf(field), entry } : null)
-          }
-        />
-      )}
+      {/* Every size needs its aged sample: an empty one shows, read-only too, as what keeps the size not done. */}
+      <AgedSampleSection
+        size={size}
+        sizeName={sizeName}
+        sample={aged}
+        computed={computed?.agedSample ?? null}
+        judged={computed !== undefined}
+        labels={labels}
+        config={config}
+        passing={passing}
+        issues={issues}
+        problems={agedProblems}
+        root={panel}
+        readOnly={readOnly}
+        onPatch={(patch) => update((current) => updateAgedSample(current, size, patch))}
+        onFocus={() => onFocusChange?.({ size })}
+        onRejected={(field, entry, problem) =>
+          onRejected(agedKeyOf(field), entry ? { ...problem, key: agedKeyOf(field), entry } : null)
+        }
+      />
     </div>
   );
 }
@@ -358,6 +359,8 @@ type AgedSampleProps = {
   sample: PackingAgedSample;
   /** calc's checks of it; null while nothing is in it (or the engine could not compute the module). */
   computed: AgedSampleComputed | null;
+  /** calc judged the size: an aged sample with nothing in it is then Not Done. */
+  judged: boolean;
   labels: Labels;
   config: DispensingPackingConfig;
   /** The stickiness codes that pass, for the spec. */
@@ -376,14 +379,17 @@ type AgedSampleProps = {
  * special section"): the box table's values in one row, with no box/carton
  * number, then its own Passed / Failed against the same minimums and codes
  * once anything is entered, from calc. calc keeps it out of the boxes'
- * count and averages. Its refused entries and calc's problems in it (a value
- * still missing is a warning) are listed under its row.
+ * count and averages. Not Done while nothing is in it: every size needs one
+ * (27 October 2026). Its refused entries and calc's problems in it (a value
+ * still missing, or the whole sample once the boxes are complete, is a
+ * warning) are listed under its row.
  */
 function AgedSampleSection({
   size,
   sizeName,
   sample,
   computed,
+  judged,
   labels,
   config,
   passing,
@@ -422,7 +428,7 @@ function AgedSampleSection({
     <ModuleSection
       title={title}
       description="Judged on its own: not counted with the boxes or in their averages."
-      status={computed?.result}
+      status={computed?.result ?? (judged ? "not_done" : undefined)}
       issuePath={["sizes", size, AGED]}
     >
       <EnterGroup className="relative overflow-clip rounded-lg border border-border bg-card">

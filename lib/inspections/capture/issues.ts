@@ -74,7 +74,11 @@ export type PendingTask = {
   sizes: string[];
   /** Other kinds of open items in the section, beyond the status: "· 1 more". */
   more: number;
-  /** Where the row goes: a refused entry's field first, else the section's first open item, what submit needs first. */
+  /**
+   * Where the row goes: a refused entry's field first, else what the status
+   * names where it says what keeps the sizes not done (an aged sample to
+   * enter), else the section's first open item, what submit needs first.
+   */
   first: ValidationIssue;
 };
 
@@ -106,11 +110,10 @@ export function pendingTasks(
   );
   const tasks = ordered.flatMap((group): PendingTask[] => {
     const issues = [...group.errors, ...group.warnings];
-    const first = issues.find(isRefusedEntry) ?? issues[0];
-    if (!first) return [];
+    if (issues.length === 0) return [];
     const section = sections.find((candidate) => candidate.key === group.key);
     const perSize = modules.find((entry) => entry.key === group.key)?.result.perSize ?? {};
-    const summary = summariseIssues(issues, {
+    const { lead, ...summary } = summariseIssues(issues, {
       title: group.title,
       notStarted: section !== undefined && section.kind !== "excluded" && section.progress === "not_started",
       sizesNotDone: Object.entries(perSize).flatMap(([size, result]) => (result.status === "not_done" ? [size] : [])),
@@ -121,7 +124,8 @@ export function pendingTasks(
         title: section?.shortTitle ?? withoutNote(group.title),
         linkable: group.linkable,
         needed: group.errors.length > 0,
-        first,
+        // Where the status names what keeps the sizes not done, the row opens it.
+        first: issues.find(isRefusedEntry) ?? lead ?? issues[0],
         ...summary,
       },
     ];
@@ -190,6 +194,9 @@ const PHRASES: readonly (readonly [RegExp, string])[] = [
   [/^(date_before_inspection|expiry_not_after_mfg|mfg_after_inspection)$/, "Dates to check"],
   [/^hand_split_mismatch$/, "Saved without a hand"],
   [/^weight_deviation$/, "Weight differs from indicative"],
+  // The packing check's aged sample (Kenneth, 26 and 27 October 2026).
+  [/^aged_sample_missing$/, "Aged sample not entered"],
+  [/^aged_sample_incomplete$/, "Aged sample incomplete"],
   [/(_not_in_|_not_listed$|_unmapped$|_unknown$)/, "Not in the list"],
   [/(_exceed_|_beyond_|_above_|^too_many|_not_planned$)/, "More than planned"],
   [/_mismatch$/, "Numbers do not match"],
@@ -205,21 +212,34 @@ const FIELD_WORDS: Readonly<Record<string, string>> = { Conclusion: "Final resul
 /** At most this long, a single issue's own message is its status (custom fields: "Container seal intact is required"). */
 const SHORT_MESSAGE = 36;
 
+/**
+ * Warnings a module gives a size only when they name all that keeps it not
+ * done: the packing check's aged sample with nothing in it, the size's boxes
+ * complete (Kenneth, 27 October 2026). Where they cover every size not done,
+ * the task names them in place of the count, and its link opens them.
+ */
+const NOT_DONE_REASONS: ReadonlySet<string> = new Set(["aged_sample_missing"]);
+
 export function summariseIssues(
   issues: readonly ValidationIssue[],
   context: TaskContext,
-): { status: string; sizes: string[]; more: number } {
+): { status: string; sizes: string[]; more: number; lead?: ValidationIssue } {
   const byCode = new Map<string, ValidationIssue[]>();
   for (const issue of issues) byCode.set(issue.code, [...(byCode.get(issue.code) ?? []), issue]);
-  const items: { rank: number; status: string; sizes: string[] }[] = [];
+  const reasoned = new Set(issues.flatMap((issue) => (NOT_DONE_REASONS.has(issue.code) && issue.size ? [issue.size] : [])));
+  const explained = context.sizesNotDone.length > 0 && context.sizesNotDone.every((size) => reasoned.has(size));
+  const items: { rank: number; status: string; sizes: string[]; lead?: ValidationIssue }[] = [];
   for (const [code, group] of byCode) {
+    // Every size not done named by why: the count would say the same less clearly.
+    if (explained && code === FRAMEWORK_ISSUE_CODES.moduleNotDone) continue;
+    const reason = explained && NOT_DONE_REASONS.has(code);
     // A refused entry first: the row then names the field its link focuses.
     const rank =
       code === REFUSED_ENTRY_CODE
         ? -1
         : group.some((issue) => issue.level === "error")
           ? 0
-          : code === FRAMEWORK_ISSUE_CODES.moduleNotDone
+          : code === FRAMEWORK_ISSUE_CODES.moduleNotDone || reason
             ? 1
             : 2;
     const item =
@@ -233,12 +253,14 @@ export function summariseIssues(
       same.rank = Math.min(same.rank, rank);
       same.sizes = union(same.sizes, item.sizes);
     } else {
-      items.push({ rank, ...item });
+      items.push({ rank, ...item, ...(reason ? { lead: group[0] } : {}) });
     }
   }
   items.sort((a, b) => a.rank - b.rank);
   const [first] = items;
-  return first ? { status: first.status, sizes: first.sizes, more: items.length - 1 } : { status: "To check", sizes: [], more: 0 };
+  if (!first) return { status: "To check", sizes: [], more: 0 };
+  const summary = { status: first.status, sizes: first.sizes, more: items.length - 1 };
+  return first.lead ? { ...summary, lead: first.lead } : summary;
 }
 
 /** One refused entry says itself (its message is its status, refusedTaskIssues); several are counted. */

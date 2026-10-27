@@ -57,8 +57,13 @@ describe("the STD_EG example: Section 07 on one page", () => {
     expect(text(chart)).toContain("Average Layering & Dispensing Layering Dispensing Minimum A Stickiness grade");
     expect(text(chart)).toContain("M 13 boxes Layering 88.3% Dispensing 90.3% A");
     expect(chart).toMatch(/data-series="layering"[^>]*><span[^>]*data-value="88.3076923076923"[^>]*style="width:88\.308%"/);
-    // Each minimum a dashed red line across its own bar's lane, and its tick in red.
-    expect(Array.from(chart.matchAll(/data-slot="report-limit-line"[^>]*style="left:([\d.]+)%"/g), (match) => match[1])).toEqual(["70.000", "80.000"]);
+    // Each minimum a dashed red line across its own bar's lane, the size's and the aged gloves', and its tick in red.
+    expect(Array.from(chart.matchAll(/data-slot="report-limit-line"[^>]*style="left:([\d.]+)%"/g), (match) => match[1])).toEqual([
+      "70.000",
+      "80.000",
+      "70.000",
+      "80.000",
+    ]);
     expect(Array.from(chart.matchAll(/data-tick="(\d+)" class="([^"]*)"[^>]*>([^<]*)</g), ([, tick, classes, label]) => [tick, label, classes.includes("text-fail")])).toEqual([
       ["0", "0%", false],
       ["20", "20%", false],
@@ -69,8 +74,9 @@ describe("the STD_EG example: Section 07 on one page", () => {
       ["100", "100%", false],
     ]);
     expect(chart).toMatch(/data-slot="report-status-chip" data-status="pass"[^>]*>.*?<span>A<\/span>/);
-    // No aged sample: no aged row.
-    expect(chart).not.toContain('data-row="aged"');
+    // The placeholder aged sample (the report printed none): its row under a dashed rule.
+    expect(Array.from(chart.matchAll(/data-row="(\w+)"/g), (match) => match[1])).toEqual(["M", "aged"]);
+    expect(text(chart)).toContain("Aged Gloves 70 °C · 7 days · 1 box Layering 85% Dispensing 88% A");
   });
 
   it("lists each box by item under the size, with the note and the average row", () => {
@@ -83,14 +89,29 @@ describe("the STD_EG example: Section 07 on one page", () => {
     expect(boxes).toMatch(/<tr data-row="totals"[^>]*><th[^>]*><span class="font-bold text-brand-700">Average<\/span>/);
   });
 
-  it("gives the grades with their legends, D in red, and no aged gloves' table", () => {
+  it("gives the grades with their legends, D in red, beside the aged gloves' table", () => {
     const grades = slot(page, "report-packing-grades");
     expect(text(grades)).toBe(
       "Stickiness Grades A Non sticky. Passed. B A mix of non sticky to lightly sticky. Passed. B1 A mix of non sticky to light stickiness at the bead. Passed. C Lightly sticky but dispensable. Passed. D Too sticky & affect dispensing. Failed.",
     );
     expect(Array.from(grades.matchAll(/data-slot="report-grade-chip" data-status="(\w+)"/g), (match) => match[1])).toEqual(["pass", "pass", "pass", "pass", "fail"]);
     expect(grades).toMatch(/data-status="fail" class="[^"]*bg-fail-tint text-fail[^"]*">D</);
-    expect(page).not.toContain('data-slot="report-packing-aged"');
+    const aged = slot(page, "report-packing-aged");
+    expect(text(aged)).toContain("Box-Aged Gloves (70 °C, 7 Days) Size Layering Dispensing Stickiness Result M 85% 88% A Passed Average 85% 88% A");
+  });
+});
+
+describe("a size with no aged sample entered", () => {
+  it("prints its row of the aged gloves' table blank and Not Done (Kenneth, 27 October 2026)", () => {
+    const { pages } = packingPages(
+      packingExport({
+        S: { boxes: packingBoxes(8), aged: { layeringPct: 87, dispensingPct: 85, stickiness: "B" } },
+        M: { boxes: packingBoxes(13, {}, 8001) },
+      }),
+    );
+    const aged = slot(pages[0], "report-packing-aged");
+    expect(text(aged)).toContain("S 87% 85% B Passed M — — — Not Done Average 87% 85% B");
+    expect(Array.from(aged.matchAll(/data-slot="report-status-chip" data-status="(\w+)"/g), (match) => match[1])).toEqual(["pass", "not_done"]);
   });
 });
 

@@ -6,16 +6,17 @@
 // config: the minimums and which stickiness grades pass. The chart sets each
 // size's average layering and dispensing against the minimums, with the
 // worst stickiness grade given, and under a dashed rule the aged samples
-// (one per size, Kenneth 26 October 2026: judged on their own, never one of
-// the boxes), their ageing stated as TG35 states it, 70 °C for 7 days
+// entered (one per size, Kenneth 26 October 2026: judged on their own, never
+// one of the boxes), their ageing stated as TG35 states it, 70 °C for 7 days
 // (AGEING_CONDITION in ../format.ts). The per-box table lists every box by
 // its item, size by size, with each size's averages; the aged gloves' table
-// each size's aged sample and its result; the grades the template's
-// stickiness codes. Labels are the template's (docs/DESIGN.md: the report
-// keeps the template's words); the averages, the worst grades and the
-// results are the module's own (calc), worked out here only where an export
-// lacks them. A value below its minimum and a failing grade print in red;
-// the app never changes a result.
+// each size on the order with its aged sample and its result, a size with
+// none entered Not Done (every size needs one: Kenneth, 27 October 2026); the
+// grades the template's stickiness codes. Labels are the template's
+// (docs/DESIGN.md: the report keeps the template's words); the averages, the
+// worst grades and the results are the module's own (calc), worked out here
+// only where an export lacks them. A value below its minimum and a failing
+// grade print in red; the app never changes a result.
 //
 // The pages are planned here, so the plan knows their count: heights in
 // millimetres from the components' own sizes (PACKING_ROOM), each erring
@@ -143,7 +144,7 @@ type SizeReading = {
   dispensingAverage: number | null;
   /** The worst grade given to its boxes. */
   worst: PackingGrade | null;
-  /** The aged sample's own verdict (calc). */
+  /** The aged sample's own verdict (calc): not done while none is entered. */
   agedStatus: CheckStatus;
 };
 
@@ -251,14 +252,18 @@ function chartOf(sizes: readonly SizeReading[], minimums: Minimums, aged: AgedSa
       dispensing: figureOf(size.dispensingAverage, minimums.dispensing),
       grade: size.worst,
     })),
-    aged: aged && {
-      key: AGED_ROW_KEY,
-      label: AGED_GLOVES,
-      sublabel: `${AGEING_LINE} · ${counted(aged.sizes.length, "box", "boxes")}`,
-      layering: aged.layering,
-      dispensing: aged.dispensing,
-      grade: aged.worst,
-    },
+    // The aged samples entered, averaged: no row while none is.
+    aged:
+      aged && aged.entered.length > 0
+        ? {
+            key: AGED_ROW_KEY,
+            label: AGED_GLOVES,
+            sublabel: `${AGEING_LINE} · ${counted(aged.entered.length, "box", "boxes")}`,
+            layering: aged.layering,
+            dispensing: aged.dispensing,
+            grade: aged.worst,
+          }
+        : null,
   };
 }
 
@@ -308,39 +313,44 @@ function boxNote(sizes: readonly SizeReading[], words: Words, grades: readonly P
 }
 
 /**
- * The sizes with an aged sample entered, and what the chart's row and the
- * table share of them. Their ageing is the report's own (AGEING_CONDITION,
- * ../format.ts): the module has no field for it.
+ * Each size on the order with its aged sample, and what the chart's row and
+ * the table share of those entered. Their ageing is the report's own
+ * (AGEING_CONDITION, ../format.ts): the module has no field for it.
  */
 type AgedSamples = {
-  sizes: (SizeReading & { aged: Entry })[];
+  /** Every size on the order: one with no aged sample entered keeps its place, not done. */
+  sizes: readonly SizeReading[];
+  /** The sizes with an aged sample entered. */
+  entered: (SizeReading & { aged: Entry })[];
   layering: PackingFigure;
   dispensing: PackingFigure;
   worst: PackingGrade | null;
 };
 
 function agedSamplesOf(sizes: readonly SizeReading[], minimums: Minimums, grades: readonly PackingGrade[]): AgedSamples | null {
-  const aged = sizes.filter((size): size is SizeReading & { aged: Entry } => size.aged !== null);
-  if (aged.length === 0) return null;
+  if (sizes.length === 0) return null;
+  const entered = sizes.filter((size): size is SizeReading & { aged: Entry } => size.aged !== null);
   return {
-    sizes: aged,
-    layering: figureOf(meanOf(aged.map((size) => size.aged.layering)), minimums.layering),
-    dispensing: figureOf(meanOf(aged.map((size) => size.aged.dispensing)), minimums.dispensing),
+    sizes,
+    entered,
+    layering: figureOf(meanOf(entered.map((size) => size.aged.layering)), minimums.layering),
+    dispensing: figureOf(meanOf(entered.map((size) => size.aged.dispensing)), minimums.dispensing),
     worst: worstOf(
       grades,
-      aged.map((size) => size.aged.stickiness),
+      entered.map((size) => size.aged.stickiness),
     ),
   };
 }
 
+/** The aged gloves' table: a row per size on the order, its figures blank and Not Done while none is entered. */
 function agedOf(samples: AgedSamples, minimums: Minimums, grades: readonly PackingGrade[]): PackingAged {
   const gradeOf = (code: string | null) => grades.find((grade) => grade.code === code) ?? null;
   const rows = samples.sizes.map((size) => ({
     size: size.size,
     label: size.label,
-    layering: figureOf(size.aged.layering, minimums.layering),
-    dispensing: figureOf(size.aged.dispensing, minimums.dispensing),
-    grade: gradeOf(size.aged.stickiness),
+    layering: figureOf(size.aged?.layering ?? null, minimums.layering),
+    dispensing: figureOf(size.aged?.dispensing ?? null, minimums.dispensing),
+    grade: gradeOf(size.aged?.stickiness ?? null),
     status: size.agedStatus,
   }));
   const statuses = new Set(rows.map((row) => row.status));

@@ -48,17 +48,26 @@ describe("which inspections it builds for", () => {
     expect(grades.grades?.map((grade) => grade.code)).toEqual(["A", "B", "B1", "C", "D"]);
     expect(grades.pages).toEqual([{ parts: [{ kind: "agedAndGrades" }] }]);
     const boxes = only({ averageLayeringDispensing: false, perBoxResults: true, agedGloves: true, stickinessGrades: false });
-    expect(boxes).toMatchObject({ chart: null, aged: null, grades: null });
-    expect(boxes.pages).toEqual([{ parts: [{ kind: "perBox", from: 0, to: 13 }] }]);
-    // The aged gloves alone, with no aged sample entered: nothing to show, so "nothing entered yet".
-    const nothing = withReportOptions(doc, {
-      sections: { ...doc.report.sections, packing: { include: true, blocks: { averageLayeringDispensing: false, perBoxResults: false, agedGloves: true, stickinessGrades: false } } },
-    });
+    expect(boxes).toMatchObject({ chart: null, grades: null });
+    expect(boxes.aged?.rows.map((row) => [row.label, row.status])).toEqual([["M", "pass"]]);
+    expect(boxes.pages).toEqual([{ parts: [{ kind: "perBox", from: 0, to: 13 }, { kind: "agedAndGrades" }] }]);
+    // The aged gloves alone, with no aged sample entered: each size on the order, Not Done (Kenneth, 27 October 2026).
+    const agedOnly = { averageLayeringDispensing: false, perBoxResults: false, agedGloves: true, stickinessGrades: false };
+    const none = packingExport({ M: { boxes: packingBoxes(13) } });
+    const missing = contentOf(withReportOptions(none, { sections: { ...none.report.sections, packing: { include: true, blocks: agedOnly } } }));
+    expect(missing.aged?.rows.map((row) => [row.label, row.layering.value, row.dispensing.value, row.grade, row.status])).toEqual([
+      ["M", null, null, null, "not_done"],
+    ]);
+    expect(missing.pages).toEqual([{ parts: [{ kind: "agedAndGrades" }] }]);
+    // With no size on the order: nothing to show, so "nothing entered yet".
+    const order = doc.modules.find((module) => module.key === "order_lots");
+    if (order) order.data = { ...order.data, sizes: {} };
+    const nothing = withReportOptions(doc, { sections: { ...doc.report.sections, packing: { include: true, blocks: agedOnly } } });
     expect(packingOf(nothing).entry).toMatchObject({ built: false });
   });
 });
 
-describe("the STD_EG example: size M, 13 boxes, no aged sample", () => {
+describe("the STD_EG example: size M, 13 boxes, and the placeholder aged sample (the report printed none)", () => {
   const content = contentOf(makeStdEgExport());
 
   it("leads with what was checked, the template's minimums and which grades pass", () => {
@@ -76,7 +85,7 @@ describe("the STD_EG example: size M, 13 boxes, no aged sample", () => {
     });
   });
 
-  it("charts the size's averages from the module's calc and its worst grade, with no aged row", () => {
+  it("charts the size's averages from the module's calc and its worst grade, and its aged sample under them", () => {
     expect(content.chart?.rows).toEqual([
       {
         key: "M",
@@ -87,8 +96,22 @@ describe("the STD_EG example: size M, 13 boxes, no aged sample", () => {
         grade: { code: "A", label: "Non sticky", pass: true },
       },
     ]);
-    expect(content.chart?.aged).toBeNull();
-    expect(content.aged).toBeNull();
+    expect(content.chart?.aged).toEqual({
+      key: "aged",
+      label: "Aged Gloves",
+      sublabel: "70 °C · 7 days · 1 box",
+      layering: { value: 85, low: false },
+      dispensing: { value: 88, low: false },
+      grade: { code: "A", label: "Non sticky", pass: true },
+    });
+  });
+
+  it("tables the aged sample with its result", () => {
+    expect(content.aged?.title).toBe("Box-Aged Gloves (70 °C, 7 Days)");
+    expect(content.aged?.rows.map((row) => [row.label, row.layering.value, row.dispensing.value, row.grade?.code, row.status])).toEqual([
+      ["M", 85, 88, "A", "pass"],
+    ]);
+    expect(content.aged?.status).toBe("pass");
   });
 
   it("lists every box by item, and says every box was graded A", () => {
@@ -282,6 +305,32 @@ describe("missing data", () => {
     ]);
     expect(noteText(content)).toBe("Layering and dispensing in %. Stickiness grades: 1 box A and 1 box not graded yet.");
     expect(content.chart?.aged).toBeNull();
+  });
+
+  it("lists every size on the order in the aged gloves' table, one with no aged sample entered blank and Not Done (Kenneth, 27 October 2026)", () => {
+    const content = contentOf(
+      packingExport({
+        S: { boxes: packingBoxes(8), aged: { layeringPct: 87, dispensingPct: 85, stickiness: "B" } },
+        M: { boxes: packingBoxes(13, {}, 8001) },
+      }),
+    );
+    expect(content.aged?.rows.map((row) => [row.label, row.layering.value, row.dispensing.value, row.grade?.code ?? null, row.status])).toEqual([
+      ["S", 87, 85, "B", "pass"],
+      ["M", null, null, null, "not_done"],
+    ]);
+    // The rows differ, so each prints its own; the average and the chart's row are the samples entered.
+    expect(content.aged?.status).toBeNull();
+    expect(content.aged?.average).toMatchObject({ layering: { value: 87 }, dispensing: { value: 85 }, grade: { code: "B" } });
+    expect(content.chart?.aged).toMatchObject({ sublabel: "70 °C · 7 days · 1 box", layering: { value: 87 }, dispensing: { value: 85 } });
+    // None entered: each size Not Done, once across the rows; nothing to chart.
+    const none = contentOf(packingExport({ S: { boxes: packingBoxes(8) }, M: { boxes: packingBoxes(13, {}, 8001) } }));
+    expect(none.aged?.rows.map((row) => [row.label, row.status])).toEqual([
+      ["S", "not_done"],
+      ["M", "not_done"],
+    ]);
+    expect(none.aged?.status).toBe("not_done");
+    expect(none.aged?.average).toEqual({ layering: { value: null, low: false }, dispensing: { value: null, low: false }, grade: null });
+    expect(none.chart?.aged).toBeNull();
   });
 
   it("says when no box is entered or graded yet", () => {

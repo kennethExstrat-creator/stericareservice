@@ -5,6 +5,7 @@
 import { describe, expect, it } from "vitest";
 import type { InspectionExport } from "@/lib/schemas/export";
 import { makeSafedonExport, makeStdEgExport, withReportOptions } from "../__fixtures__/exports";
+import { packingBoxes, packingExport } from "../__fixtures__/packing-export";
 import { buildReportModel, type LabellingConclusionSection, type ReportPlanEntryFor } from "../model";
 import {
   buildLabellingConclusion,
@@ -162,6 +163,8 @@ describe("the results matrix", () => {
       ["Freedom From Holes – Watertight Test", ["pass"]],
       ["Visual Inspection: Critical, Major, Minor", ["pass"]],
       ["Packing Check", ["pass"]],
+      // The fixture's placeholder aged sample (the report printed none).
+      ["Packing Check: Aged Sample", ["pass"]],
       ["Labeling", ["pass"]],
     ]);
     expect(matrix?.legend).toEqual(["pass", "warn"]);
@@ -174,7 +177,7 @@ describe("the results matrix", () => {
     expect(matrix?.legend).toEqual(["pass", "not_done"]);
   });
 
-  it("shows a size's failure in its own cell, and the packing check's aged sample apart, a dash where a size has none", () => {
+  it("shows a size's failure in its own cell, and the packing check's aged sample apart, Not Done where a size has none entered", () => {
     const doc = makeSafedonExport();
     const labeling = moduleIn(doc, "labeling");
     labeling.result = { ...labeling.result, status: "fail", perSize: { ...labeling.result.perSize, M: { status: "fail", summary: "Carton Box: 1 defect in 1." } } };
@@ -185,6 +188,16 @@ describe("the results matrix", () => {
     const rows = sectionOf(aged).matrix?.rows ?? [];
     expect(rows.find((row) => row.key === "dispensing_packing")?.cells).toEqual(["pass"]);
     expect(rows.find((row) => row.key === "dispensing_packing:aged")).toEqual({ key: "dispensing_packing:aged", label: "Packing Check: Aged Sample", cells: ["fail"] });
+
+    // Every size needs one (Kenneth, 27 October 2026): size M's boxes passed with none entered, so its cell is Not Done, never a dash.
+    const missing = packingExport({
+      S: { boxes: packingBoxes(5), aged: { layeringPct: 87, dispensingPct: 85, stickiness: "B" } },
+      M: { boxes: packingBoxes(5, {}, 8001) },
+    });
+    const packing = sectionOf(missing).matrix?.rows ?? [];
+    expect(packing.find((row) => row.key === "dispensing_packing")?.cells).toEqual(["pass", "pass"]);
+    expect(packing.find((row) => row.key === "dispensing_packing:aged")?.cells).toEqual(["pass", "not_done"]);
+    expect(sectionOf(missing).matrix?.legend).toContain("not_done");
   });
 
   it("is left out while switched off", () => {
@@ -225,12 +238,22 @@ describe("the conclusion card", () => {
 });
 
 describe("the pages", () => {
-  it("print the cards, the matrix and the conclusion on one page, as the design does, for one size or four", () => {
-    for (const doc of [makeStdEgExport(), makeSafedonExport()]) {
-      const { entry, content } = built(doc);
-      expect(content.pages).toEqual([["levels", "matrix", "conclusion"]]);
-      expect(entry).toMatchObject({ kicker: "Section 08", built: true, pageCount: 1 });
-    }
+  it("print the cards, the matrix and the conclusion on one page, as the design does, for four sizes", () => {
+    const { entry, content } = built(makeSafedonExport());
+    expect(content.pages).toEqual([["levels", "matrix", "conclusion"]]);
+    expect(entry).toMatchObject({ kicker: "Section 08", built: true, pageCount: 1 });
+  });
+
+  it("run the conclusion on to a second page for STD_EG: its matrix's eight rows, the aged sample's among them, outrun A4", () => {
+    const { entry, content } = built(makeStdEgExport());
+    const parts = { ...content, sizes: content.sizes.length };
+    const heights = labellingHeights(parts, 184);
+    expect(heights.matrix).toBeCloseTo(LABELLING_ROOM.matrixFrame + 8 * LABELLING_ROOM.matrixRow);
+    // The heading and its two lines of lead, the parts and their gaps: 239.2 mm, of the 236 mm A4 holds.
+    const lead = LABELLING_ROOM.heading + LABELLING_ROOM.leadGap + 2 * LABELLING_ROOM.leadLine;
+    expect(lead + 3 * LABELLING_ROOM.gap + heights.levels + heights.matrix + heights.conclusion).toBeCloseTo(239.2);
+    expect(content.pages).toEqual([["levels", "matrix"], ["conclusion"]]);
+    expect(entry).toMatchObject({ kicker: "Section 08", built: true, pageCount: 2 });
   });
 
   it("move what page one cannot hold to a second: a long remark, or Letter's shorter paper", () => {

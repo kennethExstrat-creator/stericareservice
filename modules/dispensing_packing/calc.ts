@@ -13,8 +13,13 @@
 // It is judged on its own against the same minimums and codes: a failed one
 // fails the size (even while boxes are still to come), a passed one changes
 // nothing, one entered in part keeps the size not done (a warning names what
-// is missing) and an empty one is none. Summaries give it a line of its own,
-// after the boxes'.
+// is missing), unless its boxes failed: a failure is never hidden. An empty
+// one keeps the size not done too (Kenneth, 27 October
+// 2026, asked "Should an empty aged sample keep its size as Not Done?":
+// "Yes"): every size has one, so its boxes alone never pass it, though boxes
+// that fail still fail it. Once the boxes are complete, a warning at its
+// first value says it is not entered yet. Summaries give it a line of its
+// own after the boxes', its figures once judged, else what it lacks.
 import { codeLetterForSampleSize } from "@/lib/aql";
 import type { PerSizeResult } from "@/lib/schemas/module-result";
 import { formatDecimal, mean, roundTo } from "@/lib/stats";
@@ -81,7 +86,7 @@ export type PackingSizeComputed = {
   layeringResult: CheckResult;
   dispensingResult: CheckResult;
   stickinessResult: CheckResult;
-  /** The aged sample's checks, apart from the boxes'; null while nothing is entered in it. */
+  /** The aged sample's checks, apart from the boxes'; null while nothing is entered in it (the size not done). */
   agedSample: AgedSampleComputed | null;
 };
 
@@ -229,8 +234,7 @@ function evaluateSize(size: string, entry: PackingSize, { config, labels, contex
 
   // After the boxes, apart from them: its issues follow theirs, and it is in none of their figures.
   const aged = evaluateAgedSample(reading, entry.agedSample);
-  const agedLine = aged.computed === null ? null : (aged.line ?? `${words.aged} is incomplete.`);
-  const withAgedLine = (line: string) => (agedLine === null ? line : `${line}${SUMMARY_LINE_BREAK}${agedLine}`);
+  const withAgedLine = (line: string) => `${line}${SUMMARY_LINE_BREAK}${aged.line}`;
 
   const planned = plannedBoxes(context, config, size);
   const layeringAverage = mean(layering);
@@ -268,9 +272,13 @@ function evaluateSize(size: string, entry: PackingSize, { config, labels, contex
   };
   const failed = failedChecks(reading, checks);
   const boxesLine = `${figures(reading, formatAverage(layeringAverage), formatAverage(dispensingAverage), known.stickinessSummary)}: ${verdict(failed)}.`;
-  // An aged sample entered in part keeps the size not done; a failed one fails it, a passed one changes nothing.
-  const agedResult = aged.computed?.result ?? "pass";
-  const status = agedResult === "not_done" ? "not_done" : failed.length > 0 || agedResult === "fail" ? "fail" : "pass";
+  // The boxes are done: an empty aged sample is what the size still lacks.
+  if (aged.computed === null) issues.push(agedSampleMissing(reading));
+  // A failure fails the size, the boxes' or the aged sample's, whatever the aged sample still lacks: a failure is
+  // never hidden. Otherwise the size passes only with its aged sample passed too; one empty or entered in part
+  // keeps it not done.
+  const agedResult = aged.computed?.result ?? null;
+  const status = failed.length > 0 || agedResult === "fail" ? "fail" : agedResult === "pass" ? "pass" : "not_done";
   return {
     result: { status, summary: withAgedLine(boxesLine) },
     computed: { ...known, ...checks },
@@ -279,21 +287,23 @@ function evaluateSize(size: string, entry: PackingSize, { config, labels, contex
 }
 
 type AgedOutcome = {
-  /** Null for an aged sample with nothing in it: none. */
+  /** Null for an aged sample with nothing in it: not entered yet, the size not done. */
   computed: AgedSampleComputed | null;
-  /** Its line in the size's summary, once it is judged. */
-  line: string | null;
+  /** Its line in the size's summary: its figures once judged, else that it is not entered yet or incomplete. */
+  line: string;
 };
 
 /**
  * The size's aged sample against the boxes' minimums and codes, on its own.
  * A value out of range or a code the template lacks is an error at its cell,
  * as in a box row; a value not entered is a warning at the first one
- * missing, the sample not done until all three are in.
+ * missing, the sample not done until all three are in. An empty one is not
+ * done either; the size warns about it once its boxes are complete
+ * (agedSampleMissing).
  */
 function evaluateAgedSample(reading: Reading, sample: PackingAgedSample | undefined): AgedOutcome {
-  if (sample === undefined || isBlankAgedSample(sample)) return { computed: null, line: null };
   const { size, config, words, issues } = reading;
+  if (sample === undefined || isBlankAgedSample(sample)) return { computed: null, line: `${words.aged} is not entered yet.` };
   const at = (field: keyof PackingAgedSample) => ["sizes", size, "agedSample", field];
 
   const layeringPct = readPercent(reading, sample.layeringPct, "layeringPct", words.aged, at("layeringPct"));
@@ -320,7 +330,7 @@ function evaluateAgedSample(reading: Reading, sample: PackingAgedSample | undefi
   if (layeringPct === null || dispensingPct === null || code === null) {
     return {
       computed: { layeringResult: "not_done", dispensingResult: "not_done", stickinessResult: "not_done", result: "not_done" },
-      line: null,
+      line: `${words.aged} is incomplete.`,
     };
   }
   const checks: CheckResults = {
@@ -333,6 +343,18 @@ function evaluateAgedSample(reading: Reading, sample: PackingAgedSample | undefi
     computed: { ...checks, result: failed.length > 0 ? "fail" : "pass" },
     line: `${words.aged}: ${figures(reading, formatAverage(layeringPct), formatAverage(dispensingPct), code.entry.code)}: ${verdict(failed)}.`,
   };
+}
+
+/**
+ * The size's boxes are complete and its aged sample holds nothing: what the
+ * size still lacks, a warning at the aged sample's first value, where the
+ * capture screen lists it and Pending's link lands.
+ */
+function agedSampleMissing({ size, words }: Reading): CalcIssue {
+  return warningIssue("aged_sample_missing", `${words.aged} for size ${words.size} is not entered yet.`, {
+    size,
+    path: ["sizes", size, "agedSample", "layeringPct"],
+  });
 }
 
 /** A percentage as calc takes it: null when missing, or outside 0 to 100, which is an error at its cell. */

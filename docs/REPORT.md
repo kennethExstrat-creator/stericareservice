@@ -90,6 +90,13 @@ own. The order, the sampling plan and the box/carton numbers are records, listed
 warning. Each row names the check by its short name, its criterion from the module's config and its result from the
 computed values; the status is the module's own.
 
+Every size of the packing check has an aged sample (Kenneth, 27 October 2026): a size with none entered is Not Done
+in the aged sample's row of Results by Check and of the results matrix (Section 08), and Section 07's Box-Aged
+Gloves lists every size on the order, a size with none entered blank and Not Done; its chart's Aged Gloves row
+averages the samples entered, and is left out while none is. The aged sample's row makes STD_EG's Results by Check
+ten rows, which leave page 1 no room for an Inspection Summary, and its results matrix eight, which run Section 08's
+conclusion on to a second page (239.2 mm estimated of A4's 236).
+
 ## The primitives
 
 In `components/report`, each with a test (`report.test.tsx`); the arithmetic in `lib/report/geometry.ts`.

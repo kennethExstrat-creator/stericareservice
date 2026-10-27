@@ -11,7 +11,9 @@
 // Identifiers are placeholders (BUILD_SPEC rule 7). Only size M was ordered.
 // The report prints only the force-at-break median and the weight average,
 // so 13 readings with that median and 13 gloves of that average stand in for
-// them, as the modules' own tests do.
+// them, as the modules' own tests do. It predates the packing check's aged
+// sample, which every size needs (Kenneth, 27 October 2026): a placeholder
+// that passes stands in for size M's.
 import { manufacturerLabel, type ManufacturerNames } from "@/lib/inspections/format";
 import { lookupFrom } from "@/lib/templates";
 import { STD_EG_REPORT_SEED } from "@/lib/templates/definitions";
@@ -23,6 +25,7 @@ import type { FileRecord, InspectionRecord, PhotoRecord } from "../record";
 import type { CartonSamplingData } from "@/modules/carton_sampling/schema";
 import type { ConclusionData } from "@/modules/conclusion/schema";
 import type { DimensionsData } from "@/modules/dimensions/schema";
+import { passingAgedSample } from "@/modules/dispensing_packing/__fixtures__/examples";
 import type { DispensingPackingData } from "@/modules/dispensing_packing/schema";
 import type { ForceAtBreakData } from "@/modules/force_at_break/schema";
 import type { GloveInfoData } from "@/modules/glove_info/schema";
@@ -298,7 +301,11 @@ function visualData(): VisualData {
   };
 }
 
-/** The packing check per box, the box/carton numbers as typed: box 2336 is in no carton list, a warning (6.2 rule 7). */
+/**
+ * The packing check per box, the box/carton numbers as typed: box 2336 is in
+ * no carton list, a warning (6.2 rule 7). Each size has the placeholder aged
+ * sample that passes: the report printed none.
+ */
 function dispensingPackingData(): DispensingPackingData {
   return {
     sizes: Object.fromEntries(
@@ -312,6 +319,7 @@ function dispensingPackingData(): DispensingPackingData {
             stickiness: box.stickiness,
             note: null,
           })),
+          agedSample: passingAgedSample(),
         },
       ]),
     ),

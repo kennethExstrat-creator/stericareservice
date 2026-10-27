@@ -197,7 +197,8 @@ describe("the notes beside each group's heading", () => {
     const packing = doc.modules.find((candidate) => candidate.key === "dispensing_packing");
     const tested = num(at(packing?.computed, "sizes", "M", "boxesTested")) ?? 0;
     const sizeM = at(packing?.computed, "sizes", "M") as Record<string, unknown>;
-    // The ageing as TG35 states it, alone while no aged sample is recorded.
+    // The ageing as TG35 states it, alone while no aged sample is recorded (the example carries one: take it away).
+    sizeM.agedSample = null;
     expect(blockIn(doc, "aged").note).toBe("Aged at 70 °C for 7 days");
     sizeM.agedSample = { layeringResult: "pass", dispensingResult: "pass", stickinessResult: "pass", result: "pass" };
     expect(blockIn(doc, "layering").note).toBe(`${counted(tested, "box", "boxes")} tested`);

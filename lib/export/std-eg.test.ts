@@ -16,6 +16,7 @@ import { lookupFrom } from "@/lib/templates";
 import { STD_EG_REPORT_SEED } from "@/lib/templates/definitions";
 import { resolveTemplate } from "@/modules";
 import { buildInspectionView } from "@/modules/_framework";
+import { PASSING_AGED_SAMPLE } from "@/modules/dispensing_packing/__fixtures__/examples";
 import { createFakeSupabase } from "./__fixtures__/fake-supabase";
 import {
   STD_EG_IDS,
@@ -226,17 +227,24 @@ describe("the STD_EG example's export, through the real modules", () => {
     expect(moduleOf(doc, "conclusion").result.summary).toMatch(/ To be signed after export\.$/);
   });
 
-  it("exports a size's aged sample apart from its boxes, with a line of its own, and none where none was entered (Kenneth, 26 October 2026)", async () => {
-    const without = moduleOf((await exportOf()).doc, "dispensing_packing");
-    expect(without.data.sizes).toEqual({ M: { boxes: expect.any(Array) } });
-    expect(without.computed).toMatchObject({ sizes: { M: { agedSample: null } } });
-    expect(without.result.perSize?.M.summary).not.toContain("Aged Sample");
+  it("exports a size's aged sample apart from its boxes, with a line of its own (Kenneth, 26 October 2026)", async () => {
+    // The fixture's placeholder (the report printed none): passed, on its own line after the boxes'.
+    const placeholder = moduleOf((await exportOf()).doc, "dispensing_packing");
+    expect(placeholder.data.sizes).toEqual({ M: { boxes: expect.any(Array), agedSample: PASSING_AGED_SAMPLE } });
+    expect(placeholder.computed).toMatchObject({ sizes: { M: { agedSample: { result: "pass" } } } });
+    expect(placeholder.result.perSize?.M).toEqual({
+      status: "pass",
+      summary:
+        "Layering 88.3% (min. 70%), Dispensing 90.3% (min. 80%), Stickiness A: Passed.\n" +
+        "Aged Sample: Layering 85.0% (min. 70%), Dispensing 88.0% (min. 80%), Stickiness A: Passed.",
+    });
+    expect(placeholder.warnings.map((issue) => issue.code)).toEqual(["box_not_in_carton_list"]);
 
     const data = stdEgInspectionData({ labReportFileId: STD_EG_IDS.fileLabReport });
     const packing = data.modules.dispensing_packing as { sizes: { M: { boxes: unknown[] } } };
     const agedSample = { layeringPct: 88, dispensingPct: 76, stickiness: "B", note: "Aged sample" };
     const record = stdEgRecord({
-      data: { ...data, modules: { ...data.modules, dispensing_packing: { sizes: { M: { ...packing.sizes.M, agedSample } } } } },
+      data: { ...data, modules: { ...data.modules, dispensing_packing: { sizes: { M: { boxes: packing.sizes.M.boxes, agedSample } } } } },
     });
     const { doc } = await exportOf(stdEgTables(record), stdEgObjects(record));
     expect(ExportSchema.safeParse(doc).success).toBe(true);
@@ -264,6 +272,32 @@ describe("the STD_EG example's export, through the real modules", () => {
         "Aged Sample: Layering 88.0% (min. 70%), Dispensing 76.0% (min. 80%), Stickiness B: Failed (Dispensing).",
     });
     expect(doc.conclusion.suggestedResult).toBe("fail");
+  });
+
+  it("exports a size whose aged sample was never entered as not done: its line says so, with a warning (Kenneth, 27 October 2026)", async () => {
+    const data = stdEgInspectionData({ labReportFileId: STD_EG_IDS.fileLabReport });
+    const packing = data.modules.dispensing_packing as { sizes: { M: { boxes: unknown[] } } };
+    const record = stdEgRecord({
+      data: { ...data, modules: { ...data.modules, dispensing_packing: { sizes: { M: { boxes: packing.sizes.M.boxes } } } } },
+    });
+    const { doc } = await exportOf(stdEgTables(record), stdEgObjects(record));
+    expect(ExportSchema.safeParse(doc).success).toBe(true);
+    const dispensing = moduleOf(doc, "dispensing_packing");
+    expect(dispensing.data.sizes).toEqual({ M: { boxes: packing.sizes.M.boxes } });
+    // Nothing of its own computed; the 13 boxes' checks stand.
+    expect(dispensing.computed).toMatchObject({ sizes: { M: { agedSample: null, layeringResult: "pass", dispensingResult: "pass", stickinessResult: "pass" } } });
+    expect(dispensing.result).toMatchObject({
+      status: "not_done",
+      perSize: {
+        M: {
+          status: "not_done",
+          summary: "Layering 88.3% (min. 70%), Dispensing 90.3% (min. 80%), Stickiness A: Passed.\nAged Sample is not entered yet.",
+        },
+      },
+    });
+    expect(dispensing.warnings).toContainEqual({ code: "aged_sample_missing", message: "Aged Sample for size M is not entered yet.", size: "M" });
+    expect(dispensing.errors).toEqual([]);
+    expect(doc.conclusion.suggestedResult).toBe("hold");
   });
 
   it("exports the Sampling Quantity in Kenneth's words, with the inner boxes per case, the gloves per inner box and those put back (27 October 2026)", async () => {
