@@ -104,7 +104,8 @@ describe("EmailCard", () => {
     expect(text).not.toContain("Check by Hand");
     expect(text).toContain("NEXT_PUBLIC_SITE_URL is not set, so the app does not know its public address.");
     expect(text).not.toContain("localhost");
-    expect(text).not.toContain("redirect URLs");
+    // No address to add while the app does not know its own.
+    expect(text).not.toContain("/**");
   });
 
   it("links only the set-up guide while the project is unknown", () => {
