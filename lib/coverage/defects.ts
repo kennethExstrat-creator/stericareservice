@@ -45,6 +45,14 @@ const ONSITE_MAJOR: readonly DefectLabel[] = [
   { code: "flow_mark", label: "Flow Mark", written: "FM" },
 ];
 
+/**
+ * A major defect an inspector's form named and STD_EG had nowhere to count
+ * (Kenneth, 27 October 2026: "ring mark should be added"), from STD_EG
+ * version 7, last in Major. It is not the crotch's ring-shaped thin area
+ * (thin_crotch_ring).
+ */
+const STD_EG_ADDED_MAJOR: readonly DefectLabel[] = [{ code: "ring_mark", label: "Ring Mark" }];
+
 /** The STD_EG report's lists, in report order: what STD_SG takes until its own are confirmed. */
 const STD_EG_REPORT_VISUAL: Readonly<Record<DefectClass, readonly DefectLabel[]>> = {
   critical: CRITICAL,
@@ -71,7 +79,7 @@ const STD_EG_REPORT_VISUAL: Readonly<Record<DefectClass, readonly DefectLabel[]>
 
 const STD_EG_VISUAL: Readonly<Record<DefectClass, readonly DefectLabel[]>> = {
   ...STD_EG_REPORT_VISUAL,
-  major: [...STD_EG_REPORT_VISUAL.major, ...ONSITE_MAJOR],
+  major: [...STD_EG_REPORT_VISUAL.major, ...ONSITE_MAJOR, ...STD_EG_ADDED_MAJOR],
 };
 
 const SAFEDON_EG_VISUAL: Readonly<Record<DefectClass, readonly DefectLabel[]>> = {

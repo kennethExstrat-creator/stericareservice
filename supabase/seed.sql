@@ -100,6 +100,9 @@ values
     'Visual. Label: "Skin Visual" (STD_EG, SAFEDON_EG, major): a visual defect of the glove skin, written SKV on the onsite forms. Not printed on the reports.'),
   ('flow_mark', 'Flow mark',
     'Visual. Label: "Flow Mark" (STD_EG, SAFEDON_EG, major), written FM on the onsite forms. Not printed on the reports.'),
+  -- Kenneth, 27 October 2026: "ring mark should be added".
+  ('ring_mark', 'Ring mark',
+    'Visual. Label: "Ring Mark" (STD_EG, major): a ring-shaped mark on the glove, as inspectors write it on the onsite forms; not the ring-shaped thin area between the fingers (thin_crotch_ring). Not printed on the reports.'),
 
   -- Safedon dispensing check (SAFEDON_EG report and Safedon EG onsite form).
   ('no_cuff', 'No cuff',

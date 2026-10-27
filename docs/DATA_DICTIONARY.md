@@ -650,7 +650,7 @@ for the inspections that use them.
 | 8 | `force_at_break` | Force at Break in Newton (Refer to Attached Where Applicable) | 13 readings per size; median ≥ 6 N; 3 decimals; standard label none |
 | 9 | `weight` | Weight (g) - Average of 13 Gloves per Size | 1 value per size (n 13, not used); spec none (info); warn beyond 10%; 2 decimals |
 | 10 | `watertight` | Freedom From Holes by Watertight Test | AQL 1.5; hand split off; locations: Between Fingers (Crotch) (hole_crotch), Palm (hole_palm), Finger (hole_finger), Cuff (hole_cuff), Other : (hole_other) |
-| 11 | `visual` | Visual Inspection | hand split off; critical AQL 0.0, 2 defects; major AQL 2.5, 11 defects; minor AQL 4.0, 6 defects |
+| 11 | `visual` | Visual Inspection | hand split off; critical AQL 0.0, 2 defects; major AQL 2.5, 12 defects; minor AQL 4.0, 6 defects |
 | 12 | `dispensing_packing` | Glove Packing Check | layering ≥ 70%, dispensing ≥ 80%; 13 boxes per size (XL 5); stickiness A pass, B pass, B1 pass, C pass, D fail |
 | 13 | `labeling` | Packaging Labeling Inspection | inner: 3 boxes, checks lot_no, mfg_date, artwork; carton: 1 box, checks lot_no, mfg_date, artwork, carton_no |
 | 14 | `conclusion` | Conclusion | none |
@@ -822,6 +822,7 @@ To confirm:
 | major | Big Lumps (>2mm) | `lump_big` |  |
 | major | Skin Visual | `skin_visual` | not printed: written SKV on the onsite forms |
 | major | Flow Mark | `flow_mark` | not printed: written FM on the onsite forms |
+| major | Ring Mark | `ring_mark` |  |
 | minor | Small Dirt / Stain | `dirt_small` |  |
 | minor | Sticky Pleats (&lt; 5mm) | `sticky_pleats` |  |
 | minor | Lumps (&lt;2mm) | `lump_small` |  |
@@ -870,6 +871,7 @@ Severity per template, by code (a code in two classes of one template is a delib
 | `lump_big` | major: Big Lumps (>2mm) |  |
 | `skin_visual` | major: Skin Visual | major: Skin Visual |
 | `flow_mark` | major: Flow Mark | major: Flow Mark |
+| `ring_mark` | major: Ring Mark |  |
 | `dirt_small` | minor: Small Dirt / Stain | minor: Small Dirt / Stain |
 | `sticky_pleats` | minor: Sticky Pleats (&lt; 5mm) | minor: Sticky Pleats (&lt; 5mm) |
 | `lump_small` | minor: Lumps (&lt;2mm) | minor: Lumps (&lt;2mm) |

@@ -189,8 +189,8 @@ describe("visual capture writes", () => {
   it("with one hand on screen, gives each row that hand's stepper only", () => {
     kit.hands = ["L"];
     const { steppers } = render({ "7.0": inspectedAll(125) }, SIZE_7(), SPLIT);
-    // Critical's 2 rows, major's 11 and minor's 6.
-    expect(steppers).toHaveLength(19);
+    // Critical's 2 rows, major's 12 and minor's 6.
+    expect(steppers).toHaveLength(20);
     expect(steppers.every((props) => props.label.endsWith(", Size 7.0, Left Hand"))).toBe(true);
   });
 

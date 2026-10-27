@@ -139,9 +139,10 @@ describe("visual", () => {
         foreign_matter: 0,
         bead_defective: 0,
         lump_big: 0,
-        // Only the onsite forms have these (SKV, FM): none on the example report.
+        // Only the onsite forms have these (SKV, FM, Ring Mark): none on the example report.
         skin_visual: 0,
         flow_mark: 0,
+        ring_mark: 0,
       });
       expect(output.result).toEqual({
         status: "pass",

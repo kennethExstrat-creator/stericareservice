@@ -107,6 +107,8 @@ export const VISUAL_DEFAULT_CONFIG: VisualConfig = {
         // Only the onsite forms have these two (SKV, FM): codes of their own since 12 October 2026.
         { code: "skin_visual", label: "Skin Visual" },
         { code: "flow_mark", label: "Flow Mark" },
+        // An inspector's form named it (Kenneth, 27 October 2026: "ring mark should be added"); STD_EG from version 7.
+        { code: "ring_mark", label: "Ring Mark" },
       ],
     },
     minor: {

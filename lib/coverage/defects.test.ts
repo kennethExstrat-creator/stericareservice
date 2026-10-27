@@ -29,8 +29,8 @@ function seedLabels(code: string): string[] {
 const TYPOS = [/\bEmbeded\b/, /\bThin batch\b/, /\bsickiness\b/, /\bideallly\b/, /\bould\b/];
 
 describe("seed.sql", () => {
-  it("parses the 34 defect codes of BUILD_SPEC 11", () => {
-    expect(SEED.size).toBe(34);
+  it("parses the 35 defect codes of BUILD_SPEC 11", () => {
+    expect(SEED.size).toBe(35);
   });
 
   it("holds every defect code a template uses, and every seeded code is used", () => {
@@ -76,6 +76,7 @@ describe("visual defect lists", () => {
       "Big Lumps (>2mm)",
       "Skin Visual",
       "Flow Mark",
+      "Ring Mark",
     ]);
     expect(labels("minor")).toEqual([
       "Small Dirt / Stain",
@@ -120,21 +121,37 @@ describe("visual defect lists", () => {
   });
 
   // Kenneth, 12 October 2026: "yes" to codes for what inspectors write SKV and FM, on STD_EG and SAFEDON_EG.
-  it("lists Skin Visual and Flow Mark last in Major in STD_EG and SAFEDON_EG, and in no other class", () => {
+  it("lists Skin Visual and Flow Mark after the reports' Major rows in STD_EG and SAFEDON_EG, and in no other class", () => {
+    const onsite = [
+      { code: "skin_visual", label: "Skin Visual", written: "SKV" },
+      { code: "flow_mark", label: "Flow Mark", written: "FM" },
+    ];
+    // STD_EG ends with Ring Mark (version 7), after them.
+    const ends = { STD_EG: -1, SAFEDON_EG: undefined } as const;
     for (const template of ["STD_EG", "SAFEDON_EG"] as const) {
       const { critical, major, minor } = VISUAL_DEFECTS[template];
-      expect(major.slice(-2), template).toEqual([
-        { code: "skin_visual", label: "Skin Visual", written: "SKV" },
-        { code: "flow_mark", label: "Flow Mark", written: "FM" },
-      ]);
-      expect(major.slice(0, -2).some((defect) => defect.written !== undefined), template).toBe(false);
+      const end = ends[template];
+      const start = (end ?? 0) - 2;
+      expect(major.slice(start, end), template).toEqual(onsite);
+      expect(major.slice(0, start).some((defect) => defect.written !== undefined), template).toBe(false);
       for (const defect of [...critical, ...minor]) expect(["skin_visual", "flow_mark"], template).not.toContain(defect.code);
     }
   });
 
-  it("gives STD_SG the STD_EG report's lists, without Skin Visual and Flow Mark: its live version 2 stays as published", () => {
+  // Kenneth, 27 October 2026: "ring mark should be added". STD_EG only, from version 7.
+  it("lists Ring Mark last in STD_EG's Major, and nowhere else", () => {
+    expect(VISUAL_DEFECTS.STD_EG.major.at(-1)).toEqual({ code: "ring_mark", label: "Ring Mark" });
+    for (const template of TEMPLATE_CODES) {
+      for (const cls of DEFECT_CLASSES) {
+        if (template === "STD_EG" && cls === "major") continue;
+        expect(VISUAL_DEFECTS[template][cls].map((defect) => defect.code), `${template} ${cls}`).not.toContain("ring_mark");
+      }
+    }
+  });
+
+  it("gives STD_SG the STD_EG report's lists, without the onsite forms' majors or Ring Mark: its live version 2 stays as published", () => {
     for (const cls of DEFECT_CLASSES) {
-      const report = VISUAL_DEFECTS.STD_EG[cls].filter((defect) => defect.written === undefined);
+      const report = VISUAL_DEFECTS.STD_EG[cls].filter((defect) => defect.written === undefined && defect.code !== "ring_mark");
       expect(VISUAL_DEFECTS.STD_SG[cls], cls).toEqual(report);
     }
     expect(VISUAL_DEFECTS.STD_SG.major.map((defect) => defect.code)).not.toContain("skin_visual");

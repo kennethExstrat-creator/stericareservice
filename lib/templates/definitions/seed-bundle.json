@@ -373,6 +373,10 @@
                     {
                       "code": "flow_mark",
                       "label": "Flow Mark"
+                    },
+                    {
+                      "code": "ring_mark",
+                      "label": "Ring Mark"
                     }
                   ]
                 },
@@ -1029,6 +1033,10 @@
                     {
                       "code": "flow_mark",
                       "label": "Flow Mark"
+                    },
+                    {
+                      "code": "ring_mark",
+                      "label": "Ring Mark"
                     }
                   ]
                 },

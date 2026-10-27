@@ -465,6 +465,7 @@ Build every seed template field for field from `docs/forms/reports/` first, then
 | `dirt_small`, `sticky_pleats` | Small dirt / stain; Sticky pleats (< 5mm) |
 | `bead_thin`, `bead_small_defect`, `bead_poor`, `bead_rolled` | Thin bead; Thin bead / small beading defect; Poor beading; Rolled bead |
 | `skin_visual`, `flow_mark` | Not in the reports: Skin Visual; Flow Mark, written SKV and FM on the onsite forms. Major in STD_EG and SAFEDON_EG, after the reports' rows (Kenneth, 12 October 2026) |
+| `ring_mark` | Not in the reports: Ring Mark, as inspectors write it on the onsite forms; not the ring-shaped thin area between the fingers (`thin_crotch_ring`). Major in STD_EG from version 7, last (Kenneth, 27 October 2026: "ring mark should be added") |
 | `no_cuff`, `finger_out`, `multiple_out`, `stuck`, `sticky`, `faulty_cuff` | Safedon dispensing defects |
 
 - **Labelling checks:** `lot_no`, `mfg_date`, `expiry_date`, `artwork`, `carton_no`.

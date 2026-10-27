@@ -151,7 +151,7 @@ describe("visual capture", () => {
   it("orders each class's rows most-used first, ties in the template's order", () => {
     const html = render({ sizes: {}, context: M_500(), defectUsage: { stain: 9, thin_spot: 4, bead_rolled: 2 } });
     const rows = Array.from(html.matchAll(/aria-label="Increase ([^"]+), Size M"/g), (match) => match[1]);
-    // Critical's two rows, then major's eleven, then minor's six.
+    // Critical's two rows, then major's twelve, then minor's six.
     expect(rows.slice(0, 2)).toEqual(["Embedded Insects", "Embedded Metal Debris"]);
     expect(rows.slice(2, 6)).toEqual([
       "Oil Stain",
@@ -159,7 +159,7 @@ describe("visual capture", () => {
       "Thin Area Between Fingers (Crotch)",
       "Ring-Shaped Thin Area (Crotch)",
     ]);
-    expect(rows.slice(13, 15)).toEqual(["Rolled Bead", "Small Dirt / Stain"]);
+    expect(rows.slice(14, 16)).toEqual(["Rolled Bead", "Small Dirt / Stain"]);
   });
 
   it("leaves out a class the template switches off", () => {
@@ -328,8 +328,8 @@ describe("visual capture", () => {
     expect(html).toContain('aria-label="Increase Thin Spot on Glove Body, Size 7.0, Left Hand"');
     expect(html).toContain(pathAttribute(["sizes", "7.0", "L", "major", "counts", "thin_spot"]));
     // Words, not R and L: size L sits on the tabs above. The steppers' names say the hand in full.
-    expect(html.match(/<span aria-hidden="true" class="[^"]*">Right<\/span>/g)).toHaveLength(19);
-    expect(html.match(/<span aria-hidden="true" class="[^"]*">Left<\/span>/g)).toHaveLength(19);
+    expect(html.match(/<span aria-hidden="true" class="[^"]*">Right<\/span>/g)).toHaveLength(20);
+    expect(html.match(/<span aria-hidden="true" class="[^"]*">Left<\/span>/g)).toHaveLength(20);
     expect(totals(html).map((total) => /^Found (\d+)/.exec(total)?.[1])).toEqual(["0", "3", "0"]);
     // The gloves inspected and the limits stay per size: one field.
     expect(numberInputs(html)).toHaveLength(1);
@@ -364,7 +364,7 @@ describe("visual capture", () => {
       readOnly: true,
     });
     const steppers = tagsWith(html, 'data-slot="stepper"');
-    expect(steppers).toHaveLength(20);
+    expect(steppers).toHaveLength(21);
     expect(steppers.every((stepper) => stepper.includes('data-disabled="true"'))).toBe(true);
     expect(html).not.toContain("Defect Not in the List");
     expect(html).not.toContain("Remove Faint print");
