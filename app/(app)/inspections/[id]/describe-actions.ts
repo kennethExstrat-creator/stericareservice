@@ -17,6 +17,7 @@ import {
 } from "@/lib/inspections/photos/descriptions";
 import { displayTags, tagOptionsFromTemplate } from "@/lib/inspections/photos/view";
 import { PHOTO_BUCKET } from "@/lib/photos/paths";
+import { lacksMarkersColumn, readPhotoMarkers, type PhotoMarker } from "@/lib/schemas/photo-markers";
 import { ResolvedTemplateSchema } from "@/lib/schemas/template";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { Json } from "@/lib/supabase/database.types";
@@ -81,7 +82,7 @@ export async function describePhotos(
     const { inspectionId: id, photoIds: ids, again } = input.data;
 
     const supabase = await createClient();
-    const [allowed, inspection, photos] = await Promise.all([
+    const [allowed, inspection, photos, marked] = await Promise.all([
       supabase.rpc("can_edit_inspection", { inspection_id: id }),
       supabase.from("inspections").select("id, module_overrides, template:templates(resolved)").eq("id", id).maybeSingle(),
       supabase
@@ -89,6 +90,8 @@ export async function describePhotos(
         .select("id, module_key, target, caption, flagged, storage_path, ai_described_at")
         .eq("inspection_id", id)
         .in("id", ids),
+      // Where the inspector circled defects (migration 20261027210000), read apart: a project without them describes all the same.
+      supabase.from("inspection_photos").select("id, markers").eq("inspection_id", id).in("id", ids),
     ]);
     if (photos.error?.code === UNDEFINED_COLUMN) return { ok: false, error: DESCRIBE_MESSAGES.notReady, quiet: true };
     const failed = allowed.error ?? inspection.error ?? photos.error;
@@ -116,11 +119,20 @@ export async function describePhotos(
     const tagOptions = tagOptionsFromTemplate(resolved, inspection.data.module_overrides, []);
     const tagsOf = (row: PhotoRow) => (row.module_key === null ? null : tagLine(displayTags(row.module_key, row.target, tagOptions)));
 
+    // The circles go with a photo that has some, so the caption names the defect circled and its place.
+    const circles = markersById(marked);
+    const circledOf = (row: PhotoRow) => {
+      const markers = circles.get(row.id) ?? [];
+      return markers.length > 0 ? { markers } : {};
+    };
+
     const admin = createAdminClient();
     const prepared = await Promise.all(wanted.map(async (row) => ({ row, image: await storedImage(admin, row.storage_path) })));
     const unreadable = prepared.filter((entry) => entry.image === "unreadable").map((entry) => entry.row);
     const sendable = prepared.flatMap((entry) =>
-      entry.image && entry.image !== "unreadable" ? [{ row: entry.row, photo: { image: entry.image, tags: tagsOf(entry.row), caption: entry.row.caption } }] : [],
+      entry.image && entry.image !== "unreadable"
+        ? [{ row: entry.row, photo: { image: entry.image, tags: tagsOf(entry.row), caption: entry.row.caption, ...circledOf(entry.row) } }]
+        : [],
     );
     if (sendable.length === 0 && unreadable.length === 0) return { ok: false, error: DESCRIBE_MESSAGES.unreadable };
 
@@ -163,6 +175,22 @@ export async function describePhotos(
     console.error("[photo descriptions] describePhotos failed", error);
     return { ok: false, error: DESCRIBE_MESSAGES.unexpected };
   }
+}
+
+/**
+ * The inspector's circles by photo id (lib/schemas/photo-markers.ts): none
+ * for a project without migration 20261027210000 (42703), or when they could
+ * not be read, so the photos are described all the same.
+ */
+function markersById(answer: {
+  data: { id: string; markers: unknown }[] | null;
+  error: { code?: string; message: string } | null;
+}): Map<string, PhotoMarker[]> {
+  if (answer.error) {
+    if (!lacksMarkersColumn(answer.error)) console.error("[photo descriptions] reading the defect marks failed", answer.error.code, answer.error.message);
+    return new Map();
+  }
+  return new Map((answer.data ?? []).map((row) => [row.id, readPhotoMarkers(row.markers)] as const));
 }
 
 /** Nothing to describe: every photo asked for is described already (an answer with nothing new), or none is this inspection's. */

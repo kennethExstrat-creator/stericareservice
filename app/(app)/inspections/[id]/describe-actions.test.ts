@@ -48,6 +48,8 @@ const PHOTOS: Row[] = [
 let canEdit: boolean;
 let photoRows: Row[];
 let photosError: { code: string; message: string } | null;
+/** The read of the inspector's defect marks (migration 20261027210000) alone fails with this. */
+let markersError: { code: string; message: string } | null;
 let writes: { payload: Row; filters: unknown[][] }[];
 let refusedWrites: Set<string>;
 const adminRpc = vi.fn();
@@ -61,6 +63,8 @@ function userClient() {
       if (table === "inspections") {
         return { data: { id: INSPECTION, module_overrides: {}, template: { resolved: stdEgTemplate() } }, error: null };
       }
+      const columns = filters.find(([method]) => method === "select")?.[1];
+      if (markersError && typeof columns === "string" && columns.includes("markers")) return { data: null, error: markersError };
       if (photosError) return { data: null, error: photosError };
       const ids = filters.find(([method]) => method === "in")?.[2] as string[];
       return { data: photoRows.filter((row) => ids.includes(row.id as string)), error: null };
@@ -110,6 +114,7 @@ beforeEach(() => {
   canEdit = true;
   photoRows = PHOTOS;
   photosError = null;
+  markersError = null;
   writes = [];
   refusedWrites = new Set();
   vi.mocked(authorizeAction).mockResolvedValue({
@@ -198,6 +203,27 @@ describe("describePhotos: describing", () => {
       action: "photos_described",
       changes: { by: "inspector-id", model: "claude-opus-5-5", photos: 2 },
     });
+  });
+
+  // Media's defect marks (Kenneth, 27 October 2026): the circles go with the photo they are on, for the caption to name
+  // the defect circled and its place.
+  it("tells Steri-AI where the inspector circled a defect, and describes as before where no marks can be read", async () => {
+    const circle = { x: 0.42, y: 0.58, r: 0.12 };
+    photoRows = PHOTOS.map((row) => ({ ...row, markers: row.id === DEFECT ? [circle] : [] }));
+    vi.mocked(describePhotoBatch).mockResolvedValue({ ok: true, model: "claude-opus-5-5", answers: [{ description: PINHOLE }, { description: RIG }] });
+    await describePhotos(INSPECTION, [DEFECT, HOLE]);
+    expect(vi.mocked(describePhotoBatch).mock.calls[0][0]).toEqual([
+      { image: IMAGE, tags: "Product Defects", caption: null, markers: [circle] },
+      { image: IMAGE, tags: expect.stringMatching(/^Watertight.* · Size M · Palm$/), caption: "Leak" },
+    ]);
+
+    // A project without migration 20261027210000 has no marks to read: the photos are described all the same, quietly.
+    vi.mocked(describePhotoBatch).mockClear();
+    vi.mocked(console.error).mockClear();
+    markersError = { code: "42703", message: "column inspection_photos.markers does not exist" };
+    expect(await describePhotos(INSPECTION, [DEFECT])).toMatchObject({ ok: true });
+    expect(vi.mocked(describePhotoBatch).mock.calls[0][0]).toEqual([{ image: IMAGE, tags: "Product Defects", caption: null }]);
+    expect(console.error).not.toHaveBeenCalled();
   });
 
   it("never sends a flagged original, and a described photo only when asked again", async () => {

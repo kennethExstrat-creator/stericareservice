@@ -6,8 +6,10 @@ vi.mock("@/lib/supabase/admin", () => ({ createAdminClient: vi.fn() }));
 vi.mock("@/lib/ai/settings", () => ({ loadAiEnv: vi.fn() }));
 vi.mock("@/lib/ai/media-sorter", () => ({ sortMedia: vi.fn() }));
 vi.mock("@/lib/ai/usage", () => ({ recordAiUsageLater: vi.fn() }));
+vi.mock("@/lib/ai/photo-image", () => ({ imageForClaude: vi.fn() }));
 
 import { sortMedia } from "@/lib/ai/media-sorter";
+import { imageForClaude } from "@/lib/ai/photo-image";
 import { recordAiUsageLater } from "@/lib/ai/usage";
 import { authorizeAction, userCan } from "@/lib/auth/session";
 import { MEDIA_MESSAGES } from "@/lib/inspections/media-moves";
@@ -253,9 +255,16 @@ describe("savePhotoMarkers", () => {
   const JPEG_BYTES = Buffer.from(JPEG, "base64");
   const ROW = { id: PHOTO, module_key: null, target: null, markers: [], width: 2048, height: 1536, storage_path: STORED, thumb_path: THUMB, flagged: false };
 
-  /** One photo as the database holds it: the read answers the row, every write its id. */
-  function useOnePhoto(row: Record<string, unknown>, canEdit = true) {
-    useDatabase((query) => (arg(query, "update") ? { data: { id: PHOTO }, error: null } : { data: { ...ROW, ...row }, error: null }), canEdit);
+  /** The 1,600 px copy of a photo Claude is sent (lib/ai/photo-image.ts), here a stand-in. */
+  const COPY = { mediaType: "image/jpeg" as const, base64: "/9j/COPY" };
+
+  /** One photo of an inspection at `status` as the database holds it: the reads answer the row, every write its id. */
+  function useOnePhoto(row: Record<string, unknown>, canEdit = true, status = "draft") {
+    useDatabase((query) => {
+      if (arg(query, "update")) return { data: { id: PHOTO }, error: null };
+      if (query.table === "inspections") return { data: { status }, error: null };
+      return { data: { ...ROW, ...row }, error: null };
+    }, canEdit);
   }
 
   const updates = () => writes().map((query) => arg(query, "update")?.[0]);
@@ -266,6 +275,7 @@ describe("savePhotoMarkers", () => {
 
   beforeEach(() => {
     download.mockResolvedValue({ data: new Blob([JPEG_BYTES]), error: null });
+    vi.mocked(imageForClaude).mockResolvedValue(COPY);
   });
 
   it.each([
@@ -340,8 +350,10 @@ describe("savePhotoMarkers", () => {
     expect(userCan).toHaveBeenCalledWith(expect.objectContaining({ id: "inspector-id" }), "ai_reading");
     expect(storageFrom).toHaveBeenCalledWith("inspection-photos");
     expect(download).toHaveBeenCalledWith(STORED);
+    // Claude gets the 1,600 px copy Describing photos sends, made from the stored photo's bytes.
+    expect(Buffer.from(vi.mocked(imageForClaude).mock.calls[0][0])).toEqual(JPEG_BYTES);
     const [previews, , onCall, options] = vi.mocked(sortMedia).mock.calls[0];
-    expect(previews).toEqual([{ kind: "photo", mediaType: "image/jpeg", base64: JPEG }]);
+    expect(previews).toEqual([{ kind: "photo", ...COPY }]);
     expect(options).toEqual({ exclude: ["media_defects"] });
     expect(onCall).toBe(recorder);
     expect(recordAiUsageLater).toHaveBeenCalledWith({ feature: "media_sort", inspectionId: INSPECTION, actorId: "inspector-id", itemCount: 1 });
@@ -370,9 +382,18 @@ describe("savePhotoMarkers", () => {
     // A flagged HEIC original without a thumbnail: nothing Claude reads, so no request.
     vi.mocked(sortMedia).mockClear();
     useOnePhoto({ module_key: "media_defects", markers: [CIRCLE], flagged: true, thumb_path: null, storage_path: `${INSPECTION}/${PHOTO}.heic` });
-    download.mockResolvedValue({ data: new Blob([Buffer.from("ftypheic, an image Claude does not read")]), error: null });
+    vi.mocked(imageForClaude).mockResolvedValue(null);
     expect(await savePhotoMarkers(INSPECTION, PHOTO, [])).toMatchObject({ ok: true, moved: { moduleKey: null } });
     expect(sortMedia).not.toHaveBeenCalled();
+  });
+
+  it("sends the thumbnail when the stored photo is no image Claude reads", async () => {
+    useOnePhoto({ module_key: "media_defects", markers: [CIRCLE] });
+    vi.mocked(imageForClaude).mockResolvedValueOnce(null).mockResolvedValueOnce(COPY);
+    vi.mocked(sortMedia).mockResolvedValue({ ok: true, categories: ["media_proof"], model: "claude-opus-5-5" });
+    expect(await savePhotoMarkers(INSPECTION, PHOTO, [])).toMatchObject({ ok: true, moved: { moduleKey: "media_proof" } });
+    expect(download.mock.calls.map(([path]) => path)).toEqual([STORED, THUMB]);
+    expect(vi.mocked(sortMedia).mock.calls[0][0]).toEqual([{ kind: "photo", ...COPY }]);
   });
 
   it("puts the photo in Other without asking Steri-AI for a role without Steri-AI Reading", async () => {
@@ -397,16 +418,26 @@ describe("savePhotoMarkers", () => {
     expect(await savePhotoMarkers(INSPECTION, PHOTO, [CIRCLE])).toEqual({ ok: false, error: MEDIA_MESSAGES.forbidden });
     expect(writes()).toEqual([]);
 
+    // Marks follow Media's board (Kenneth, 27 October 2026): a submitted inspection's are read-only, also for an admin
+    // the database would let change its photos; a reopened one's change again.
+    useOnePhoto({}, true, "submitted");
+    expect(await savePhotoMarkers(INSPECTION, PHOTO, [CIRCLE])).toEqual({ ok: false, error: MEDIA_MESSAGES.forbidden });
+    expect(writes()).toEqual([]);
+    useOnePhoto({}, true, "approved");
+    expect(await savePhotoMarkers(INSPECTION, PHOTO, [CIRCLE])).toEqual({ ok: false, error: MEDIA_MESSAGES.forbidden });
+    expect(writes()).toEqual([]);
+    useOnePhoto({ module_key: "media_defects" }, true, "reopened");
+    expect(await savePhotoMarkers(INSPECTION, PHOTO, [CIRCLE])).toMatchObject({ ok: true });
+
     useDatabase(() => ({ data: null, error: { code: "42703", message: "column inspection_photos.markers does not exist" } }));
     expect(await savePhotoMarkers(INSPECTION, PHOTO, [CIRCLE])).toEqual({ ok: false, error: MEDIA_MESSAGES.markersNotReady });
     expect(writes()).toEqual([]);
 
-    // The guard of an approved inspection's photos refuses the write itself.
-    useDatabase((query) =>
-      arg(query, "update")
-        ? { data: null, error: { code: "42501", message: "the photos and files of an approved inspection are read-only" } }
-        : { data: ROW, error: null },
-    );
+    // The media guard refuses the write itself (the inspection approved meanwhile).
+    useDatabase((query) => {
+      if (arg(query, "update")) return { data: null, error: { code: "42501", message: "the photos and files of an approved inspection are read-only" } };
+      return query.table === "inspections" ? { data: { status: "draft" }, error: null } : { data: ROW, error: null };
+    });
     expect(await savePhotoMarkers(INSPECTION, PHOTO, [CIRCLE])).toEqual({ ok: false, error: MEDIA_MESSAGES.forbidden });
     expect(adminRpc).not.toHaveBeenCalled();
   });

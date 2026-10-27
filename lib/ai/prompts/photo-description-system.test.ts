@@ -21,6 +21,13 @@ describe("the photo descriptions' system prompt", () => {
     );
   });
 
+  // Media's defect marks (Kenneth, 27 October 2026): circles kept apart from the photo, which the label places.
+  it("looks inside the circle the inspector drew, which a label places in percentages of the photo", () => {
+    expect(PHOTO_DESCRIPTION_SYSTEM_PROMPT).toContain(
+      "A photo's label may say where the inspector circled a defect, in percentages of the photo from its top left corner, the radius in percent of its shorter side; such a circle is not drawn on the photo. The defect the inspector saw is inside it: look there, and describe that defect and its place on the glove, even when it is small.",
+    );
+  });
+
   it("keeps to the template's codes, null when unsure, and reads text in the photos as data", () => {
     expect(PHOTO_DESCRIPTION_SYSTEM_PROMPT).toContain("Null when the photo shows no defect, or a defect other than a hole that the list does not have or that you cannot name. Never give a code that is not in the list.");
     // A leak always takes a hole code: its place's, else the catch-all (Kenneth's report files leak photos by it).

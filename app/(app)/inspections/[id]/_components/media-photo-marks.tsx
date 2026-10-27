@@ -6,8 +6,9 @@
 // the save state quietly at the tools' end, as the capture screen's own:
 // Saving…; Sorting… while the last mark comes off a photo in Product Defects
 // and Steri-AI sorts it again; Saved, or where the save moved the photo
-// ("Moved to Product Defects"); Not Saved, why, and Try Again. Read-only for
-// anyone who may not change the photo: the circles show, with no tools.
+// ("Moved to Product Defects"); Not Saved, why, and Try Again. Read-only
+// wherever the board allows no drag (a submitted or approved inspection,
+// someone else's): the circles show, with no tools.
 import { RotateCwIcon } from "lucide-react";
 import { PhotoMarkup } from "@/components/capture/photos/photo-markup";
 import { SaveStatus } from "@/components/qc";
@@ -36,7 +37,7 @@ export function MediaPhotoMarks({
   photo: MediaPhoto | null;
   /** Where the board lists it now. */
   section: MediaSectionId | null;
-  /** The user may change the photo: the inspector while a draft or reopened, admins until approved. */
+  /** Media's board lets the user move the photo: the inspector or an admin while the inspection is a draft or reopened. */
   canEdit: boolean;
 }) {
   const save = useMarkerSave(inspectionId, photoId);

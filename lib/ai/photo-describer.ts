@@ -7,6 +7,7 @@ import type {
 import { z } from "zod";
 import { ClaudeModelIdSchema, DEFAULT_DOCUMENT_MODEL } from "@/lib/schemas/ai-settings";
 import { PHOTO_DESCRIPTION_TEXT_MAX, PhotoDescriptionSchema, type PhotoDescription } from "@/lib/schemas/photo-description";
+import type { PhotoMarker } from "@/lib/schemas/photo-markers";
 import type { ResolvedTemplate } from "@/lib/schemas/template";
 import { includedModules } from "@/lib/templates/overrides";
 import { OTHER_LOCATION } from "@/modules/watertight/config";
@@ -23,8 +24,9 @@ import type { OnAiCall } from "./usage";
  * Describing the report's photos (docs/AI.md, "Describing photos"; Kenneth,
  * 27 October 2026: "Please loop in AI to identify properly rather than
  * squeezing in all photos without analyzing"). Claude sees a few photos at a
- * time, each after a label with the inspector's tags and caption, and
- * answers for each: a caption in the report's style ("Pinhole, palm area",
+ * time, each after a label with the inspector's tags and caption, and where
+ * the inspector circled a defect on it (the red circles of Media's preview,
+ * kept apart from the image), and answers for each: a caption in the report's style ("Pinhole, palm area",
  * "Test rig"), whether it shows a defect or the setting, the test it belongs
  * to (the watertight test or the visual inspection, context shots included),
  * the defect by the inspection's own template's code, and how clearly it
@@ -58,6 +60,13 @@ export type PhotoToDescribe = {
   tags: string | null;
   /** The inspector's own caption, as data. */
   caption: string | null;
+  /**
+   * The red circles the inspector drew on the photo's preview to mark a
+   * defect (lib/schemas/photo-markers.ts). They are kept apart from the
+   * image, so Claude never sees them drawn: the label says where they are,
+   * in rough percentages of the photo (circledText).
+   */
+  markers?: readonly PhotoMarker[];
 };
 
 /** A photo's answer: its description, or null when Steri-AI could not tell what it shows. Null when it gave none. */
@@ -176,12 +185,34 @@ export function buildDescribeRequest(
   };
 }
 
-/** "Photo 2. Tags: Watertight Test · Size M. Inspector's caption: "leak at thumb"." */
-export function photoLabel(number: number, { tags, caption }: Pick<PhotoToDescribe, "tags" | "caption">): string {
+/**
+ * "Photo 2. Tags: Watertight Test · Size M. Inspector's caption: "leak at thumb"." and, for
+ * a photo the inspector circled, where (circledText).
+ */
+export function photoLabel(number: number, { tags, caption, markers }: Pick<PhotoToDescribe, "tags" | "caption" | "markers">): string {
   const parts = [`Photo ${number}.`];
   if (tags?.trim()) parts.push(`Tags: ${tags.trim()}.`);
   if (caption?.trim()) parts.push(`Inspector's caption: ${JSON.stringify(caption.trim())}.`);
+  const circled = circledText(markers ?? []);
+  if (circled) parts.push(circled);
   return parts.join(" ");
+}
+
+/**
+ * Where the inspector circled defects on the photo (Kenneth, 27 October
+ * 2026), in rough percentages from its top left corner, the radius of the
+ * photo's shorter side, as the marks keep them: "The inspector circled a
+ * defect (the circle is not drawn on the photo): centred about 42% from the
+ * left and 58% from the top, its radius about 12% of the photo's shorter
+ * side." Null for a photo with none.
+ */
+export function circledText(markers: readonly PhotoMarker[]): string | null {
+  if (markers.length === 0) return null;
+  const percent = (fraction: number) => `${Math.round(fraction * 100)}%`;
+  const place = (marker: PhotoMarker) =>
+    `centred about ${percent(marker.x)} from the left and ${percent(marker.y)} from the top, its radius about ${percent(marker.r)} of the photo's shorter side`;
+  if (markers.length === 1) return `The inspector circled a defect (the circle is not drawn on the photo): ${place(markers[0])}.`;
+  return `The inspector circled ${markers.length} defects (the circles are not drawn on the photo): ${markers.map((marker) => `one ${place(marker)}`).join("; ")}.`;
 }
 
 function describeContent(photos: readonly PhotoToDescribe[]): BetaContentBlockParam[] {

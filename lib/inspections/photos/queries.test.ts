@@ -182,7 +182,9 @@ describe("loadInspectionMedia", () => {
     const unmarked = await loadInspectionMedia(fakeClient(), INSPECTION);
     if (unmarked.kind !== "ok") throw new Error(unmarked.kind);
     expect(unmarked.media.photos.map((photo) => [photo.id, photo.markers])).toEqual([[PHOTO, []]]);
-    expect(queries.filter((query) => query.table === "inspection_photos")).toHaveLength(2);
+    // The photos read twice, with and without the marks; Steri-AI's descriptions are read apart.
+    const photoReads = queries.filter((query) => query.table === "inspection_photos" && !String(query.calls[0][1][0]).includes("ai_description"));
+    expect(photoReads).toHaveLength(2);
 
     const added = await loadPhotos(fakeClient(), [PHOTO]);
     expect(added).toMatchObject({ ok: true, photos: [{ id: PHOTO, markers: [] }] });

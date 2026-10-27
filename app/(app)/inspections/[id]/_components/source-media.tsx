@@ -318,9 +318,9 @@ export function SourceMedia({ inspectionId, readOnly, canAutoSort }: SourceMedia
             src={previewing.url}
             photo={media.media?.photos.find((photo) => photo.id === previewing.id) ?? null}
             section={placed.find((item) => item.key === previewing.key)?.section ?? null}
-            // The database's rule for changing a photo (can_edit_inspection): the inspector while a draft or
-            // reopened, admins until it is approved, also while the capture screen is read-only (submitted).
-            canEdit={access?.canEdit === true}
+            // The board's rule for moving an uploaded photo (Kenneth, 27 October 2026): where it allows no drag,
+            // a submitted inspection's for an admin too, the circles are read-only and nothing moves.
+            canEdit={canEditUploaded}
           />
         ) : undefined}
       </FilePreviewDialog>
