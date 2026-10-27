@@ -73,11 +73,15 @@ deployment. Design rules and tokens: [docs/DESIGN.md](docs/DESIGN.md).
 
 4. **Auth settings** (Dashboard → Authentication):
    - Sign In / Providers → Email: turn **off** "Allow new users to sign up" (admins invite users).
-   - URL Configuration: Site URL `http://localhost:3000` for local work (the Vercel URL in
-     production); add `http://localhost:3000/**` to the redirect URLs.
+   - URL Configuration: add every address the app runs at to the redirect URLs, with `/**`
+     (`http://localhost:3000/**`, `http://localhost:3001/**`, `https://staging.stericare.my/**`);
+     set the Site URL to the main one (staging for now, production later).
    - Emails → Templates: paste `supabase/templates/invite.html` into **Invite user** and
-     `supabase/templates/recovery.html` into **Reset password**. Their links go to `/auth/confirm`,
-     which works on whichever device opens the email; an invitation's ("Create your account")
+     `supabase/templates/recovery.html` into **Reset password**. Their links return to the app that
+     sent the email (`{{ .RedirectTo }}`: every send names its own `/auth/confirm`), so a local copy
+     and staging can share one Supabase project; Supabase keeps that address only when it is in the
+     redirect URLs, else it uses the Site URL. `/auth/confirm` works on whichever device opens the
+     email; an invitation's ("Create your account")
      opens Account Creation (`/create-account`), where the invitee types their name, phone and
      password.
    - Passwords: minimum length 10, letters and digits (matches `supabase/config.toml`).

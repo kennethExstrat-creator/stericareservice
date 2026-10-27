@@ -83,13 +83,13 @@ describe("SupabaseCard", () => {
 });
 
 describe("EmailCard", () => {
-  it("says the links come from the project's Site URL, and what it must be", () => {
+  it("says the links return to the app that sent them, and which redirect URL that needs", () => {
     const { html, text } = render(<EmailCard env={ENV} siteUrl="https://qc.example.com" />);
     expect(text).toContain("Check by Hand");
-    expect(text).toContain("The links start with the project's Site URL, which this page cannot check.");
     expect(text).toContain(
-      "In Authentication → URL Configuration, set it to https://qc.example.com and add https://qc.example.com/** to the redirect URLs.",
+      "The links return to the app that sent the email, when its address is on the project's Redirect URLs, which this page cannot check.",
     );
+    expect(text).toContain("In Authentication → URL Configuration, add https://qc.example.com/** to the redirect URLs.");
     expect(hrefs(html)).toEqual([
       "https://supabase.com/dashboard/project/abcdefghijklmnopqrst/auth/templates",
       "https://supabase.com/dashboard/project/abcdefghijklmnopqrst/auth/url-configuration",

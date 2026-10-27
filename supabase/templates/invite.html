@@ -1,5 +1,5 @@
 <h2>You have been invited to SteriCare QC</h2>
 <p>A SteriCare administrator has invited {{ .Email }} to SteriCare QC, the inspection app.</p>
 <p>To create your account, add your name and phone number and choose a password:</p>
-<p><a href="{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=invite">Create your account</a></p>
+<p><a href="{{ .RedirectTo }}?token_hash={{ .TokenHash }}&type=invite">Create your account</a></p>
 <p>The link works once and expires after a short time. If it has expired, ask your SteriCare administrator to send a new invitation. If you were not expecting this invitation, you can ignore this email.</p>

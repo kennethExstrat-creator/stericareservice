@@ -120,11 +120,14 @@ export function SupabaseCard({
  * ------------------------------------------------------------------ */
 
 /**
- * The invite and reset templates (supabase/templates/) build their links from
- * the Supabase project's Site URL, a dashboard setting this app cannot read,
- * so the card says what it must be. `siteUrl` is this app's public address
- * (getSiteUrl()); null when a production build has no NEXT_PUBLIC_SITE_URL
- * and would only know the localhost fallback.
+ * The invite and reset templates (supabase/templates/) link back to the app
+ * that sent the email ({{ .RedirectTo }}: every send names this app's
+ * /auth/confirm), so staging and a local copy can share one Supabase project.
+ * Supabase keeps that address only when it is on the project's Redirect URLs,
+ * a dashboard setting this app cannot read, so the card says what to add.
+ * `siteUrl` is this app's public address (getSiteUrl()); null when a
+ * production build has no NEXT_PUBLIC_SITE_URL and would only know the
+ * localhost fallback.
  */
 export function EmailCard({ env, siteUrl }: { env: SupabasePublicEnv | null; siteUrl: string | null }) {
   const projectRef = env ? projectRefFrom(env.url) : null;
@@ -152,20 +155,19 @@ export function EmailCard({ env, siteUrl }: { env: SupabasePublicEnv | null; sit
           </li>
         </ul>
         <p>
-          The links start with the project&apos;s <span className="font-medium text-foreground">Site URL</span>,
-          which this page cannot check.
+          The links return to the app that sent the email, when its address is on the project&apos;s{" "}
+          <span className="font-medium text-foreground">Redirect URLs</span>, which this page cannot check.
           {siteUrl && (
             <>
               {" "}
-              In Authentication → URL Configuration, set it to <Address>{siteUrl}</Address> and add{" "}
-              <Address>{`${siteUrl}/**`}</Address> to the redirect URLs.
+              In Authentication → URL Configuration, add <Address>{`${siteUrl}/**`}</Address> to the redirect URLs.
             </>
           )}
         </p>
         {!siteUrl && (
           <p className="rounded-lg border border-warn-border bg-warn-tint px-3 py-2 text-warn">
             <Variable>NEXT_PUBLIC_SITE_URL</Variable> is not set, so the app does not know its public address. Set it
-            to the address people open the app at, and use the same address as the Site URL.
+            to the address people open the app at, and add it to the redirect URLs.
           </p>
         )}
         <p>
