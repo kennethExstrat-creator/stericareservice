@@ -11,6 +11,7 @@ import type { InspectionStatus } from "@/lib/schemas/common";
 import { DEFAULT_REPORT_OPTIONS, REPORT_SECTIONS, type ReportOptions } from "@/lib/schemas/report-options";
 import type { ResolvedTemplate } from "@/lib/schemas/template";
 import { DOWNLOAD_NOT_ALLOWED, PREVIEW_CAPTION, ReportPage, type ReportSource } from "./report-page";
+import { stepZoom, ZOOM_STEPS } from "./report-pages-preview";
 
 /** The STD_EG example as the capture screen holds it: its evaluation, data and meta. */
 function source({ status = "submitted", without = [] }: { status?: InspectionStatus; without?: string[] } = {}): ReportSource {
@@ -273,5 +274,29 @@ describe("Download PDF", () => {
       expect(html).not.toMatch(/<form[\s>]/);
       expect(tagsWith(html, 'data-slot="report-download"')).toHaveLength(1);
     }
+  });
+});
+
+describe("the preview's zoom (Kenneth, 27 October 2026: \"give a + and - to zoom in and out the report in the preview section\")", () => {
+  it("steps in and out through the zooms from wherever it is, the fitted zoom too, stopping at either end", () => {
+    expect(stepZoom(0.5, 1)).toBe(0.67);
+    // From a column-fitted 62%: the next step either way.
+    expect(stepZoom(0.62, 1)).toBe(0.67);
+    expect(stepZoom(0.62, -1)).toBe(0.5);
+    expect(stepZoom(1, 1)).toBe(1.25);
+    expect(stepZoom(1.25, -1)).toBe(1);
+    expect(stepZoom(ZOOM_STEPS[ZOOM_STEPS.length - 1], 1)).toBe(2);
+    expect(stepZoom(ZOOM_STEPS[0], -1)).toBe(0.5);
+  });
+
+  it("shows Zoom Out, the zoom and Zoom In beside the page count, fitted to the width until + or - is pressed", () => {
+    const html = page();
+    expect(tagsWith(html, 'data-slot="report-zoom"')).toHaveLength(1);
+    // Half size until the column is measured: the smallest step, so only Zoom In goes anywhere.
+    expect(tagsWith(html, 'aria-label="Zoom Out"').every(isDisabled)).toBe(true);
+    expect(tagsWith(html, 'aria-label="Zoom In"').some(isDisabled)).toBe(false);
+    // Fitted at first: the percentage has nothing to put back.
+    expect(tagsWith(html, 'aria-label="Zoom 50%, fitted to the width"').every(isDisabled)).toBe(true);
+    expect(html).toMatch(/>50%<\/button>/);
   });
 });

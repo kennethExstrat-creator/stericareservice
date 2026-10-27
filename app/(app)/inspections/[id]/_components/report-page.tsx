@@ -22,8 +22,8 @@
 // the photos the report can show that it has not looked at, in one line
 // under Download PDF (docs/AI.md, "Describing photos"). Read-only, the
 // options show as saved.
-import { ChevronRightIcon, DownloadIcon } from "lucide-react";
-import { useId, useMemo, useState, type MouseEvent, type ReactNode, type Ref } from "react";
+import { ChevronRightIcon, DownloadIcon, MinusIcon, PlusIcon } from "lucide-react";
+import { useCallback, useId, useMemo, useState, type MouseEvent, type ReactNode, type Ref } from "react";
 import { useBackgroundDescriptions, useInspectionMedia } from "@/components/capture/photos";
 import { Button } from "@/components/ui/button";
 import { Field, FieldLabel, FieldLegend, FieldSet } from "@/components/ui/field";
@@ -58,7 +58,7 @@ import {
 } from "@/lib/schemas/report-options";
 import { cn } from "@/lib/utils";
 import { PhotoDescribeStatus } from "./photo-describe-status";
-import { ReportPagesPreview } from "./report-pages-preview";
+import { FIRST_ZOOM, ReportPagesPreview, stepZoom, ZOOM_STEPS } from "./report-pages-preview";
 import { SectionFrame } from "./section-frame";
 
 /** Under the pages: what Download PDF does with them. */
@@ -551,6 +551,10 @@ export function ReportPreviewCard({
   const titleId = `${id}-title`;
   const paper = REPORT_PAGE_SIZES.find((size) => size.value === pageSize)?.label ?? pageSize;
   const count = model?.pageCount ?? 0;
+  // A zoom chosen with + or -; null fits the pages to the width (ReportPagesPreview tells the fit).
+  const [chosen, setChosen] = useState<number | null>(null);
+  const [fit, setFit] = useState(FIRST_ZOOM);
+  const onFit = useCallback((value: number) => setFit(value), []);
   return (
     <section
       id={id}
@@ -565,17 +569,20 @@ export function ReportPreviewCard({
             Preview
           </h2>
           {model && (
-            <p data-slot="report-page-count" className="text-sm text-muted-foreground tabular-nums touch:text-base">
-              {count === 1 ? "1 page" : `${count} pages`} · {paper}
-            </p>
+            <div className="flex items-center gap-3">
+              <p data-slot="report-page-count" className="text-sm text-muted-foreground tabular-nums touch:text-base">
+                {count === 1 ? "1 page" : `${count} pages`} · {paper}
+              </p>
+              <ZoomControls zoom={chosen ?? fit} fitted={chosen === null} onZoom={setChosen} />
+            </div>
           )}
         </div>
         <ReportActions inspectionId={inspectionId} download={download} />
         {status}
       </header>
-      <div className="min-h-0 flex-1 overflow-y-auto bg-slate-100 p-4">
+      <div className="min-h-0 flex-1 overflow-auto bg-slate-100 p-4">
         {model ? (
-          <ReportPagesPreview model={model} />
+          <ReportPagesPreview model={model} zoom={chosen} onFit={onFit} />
         ) : (
           <p role="status" className="rounded-lg bg-card px-4 py-6 text-center text-sm text-muted-foreground ring-1 ring-border touch:text-base">
             The preview could not be made from this inspection as it stands. Download PDF makes the report from what is saved.
@@ -584,6 +591,44 @@ export function ReportPreviewCard({
       </div>
       <p className="rounded-b-xl border-t border-border px-5 py-3 text-sm text-muted-foreground touch:text-base">{PREVIEW_CAPTION}</p>
     </section>
+  );
+}
+
+/**
+ * Zoom Out, the zoom as a percentage, Zoom In (Kenneth, 27 October 2026):
+ * + and - step through ZOOM_STEPS from the zoom shown; the percentage puts
+ * the pages back to the width.
+ */
+export function ZoomControls({ zoom, fitted, onZoom }: { zoom: number; fitted: boolean; onZoom: (zoom: number | null) => void }) {
+  const percent = `${Math.round(zoom * 100)}%`;
+  return (
+    <div role="group" aria-label="Zoom" data-slot="report-zoom" className="flex items-center gap-0.5">
+      <Button type="button" variant="outline" size="icon-sm" aria-label="Zoom Out" disabled={zoom <= ZOOM_STEPS[0] + 0.005} onClick={() => onZoom(stepZoom(zoom, -1))}>
+        <MinusIcon aria-hidden />
+      </Button>
+      <Button
+        type="button"
+        variant="ghost"
+        size="sm"
+        className="min-w-14 px-1.5 tabular-nums"
+        title={fitted ? "Fitted to the width" : "Fit to Width"}
+        aria-label={fitted ? `Zoom ${percent}, fitted to the width` : `Zoom ${percent}: fit to width`}
+        disabled={fitted}
+        onClick={() => onZoom(null)}
+      >
+        {percent}
+      </Button>
+      <Button
+        type="button"
+        variant="outline"
+        size="icon-sm"
+        aria-label="Zoom In"
+        disabled={zoom >= ZOOM_STEPS[ZOOM_STEPS.length - 1] - 0.005}
+        onClick={() => onZoom(stepZoom(zoom, 1))}
+      >
+        <PlusIcon aria-hidden />
+      </Button>
+    </div>
   );
 }
 
