@@ -296,19 +296,25 @@ describe("CounterTable", () => {
     const html = render({ labels: { limits: "Defect Limit", limitAccept: "Accept", limitReject: "Reject" } });
     expect(html).toContain("Accept 7 / Reject 8");
     expect(html).toContain("Accept 1 / Reject 2");
-    expect(html).not.toContain("Ac 7");
+    // One column on screen shows the template's words; Ac and Re only where it is narrow.
+    const one = render({ columns: [columns[0]], labels: { limits: "Defect Limit", limitAccept: "Accept", limitReject: "Reject" } });
+    expect(one).toContain('<span aria-hidden="true" class="whitespace-nowrap @max-md:hidden">Accept 7 / Reject 8</span>');
+    expect(one).toContain('<span aria-hidden="true" class="whitespace-nowrap hidden @max-md:inline">Ac 7 / Re 8</span>');
     expect(render({ labels: { limitAccept: "Acc. =", limitReject: "Rej. =" } })).toContain("Acc. = 1 / Rej. = 2");
     // The chip keeps its own words.
     expect(html).toContain(">Accept<");
   });
 
-  it("wraps long limit wording after the slash, never before it, and reads it in one piece", () => {
+  it("keeps the limits on one line, Ac and Re where columns sit side by side, read in the template's words (Kenneth, 27 October 2026)", () => {
     const html = render({ labels: { limitAccept: "Accept", limitReject: "Reject" } });
-    // Two halves that each stay on one line, so the column keeps its width and no line starts with "/".
+    // Side by side: the template's words hidden, the standard's short ones on one line, the whole read once.
     expect(html).toContain(
-      '<span class="sr-only">Accept 7 / Reject 8</span><span aria-hidden="true" class="whitespace-nowrap">Accept 7 /</span> <span aria-hidden="true" class="whitespace-nowrap">Reject 8</span>',
+      '<span class="sr-only">Accept 7 / Reject 8</span><span aria-hidden="true" class="whitespace-nowrap hidden">Accept 7 / Reject 8</span><span aria-hidden="true" class="whitespace-nowrap">Ac 7 / Re 8</span>',
     );
-    expect(tagsWith(html, 'aria-hidden="true" class="whitespace-nowrap"')).toHaveLength(4);
+    // A size at a time below 1280 px: the template's words, Ac and Re once every size sits side by side.
+    expect(render({ activeColumn: "M", labels: { limitAccept: "Accept", limitReject: "Reject" } })).toContain(
+      '<span aria-hidden="true" class="whitespace-nowrap @max-md:hidden xl:hidden">Accept 7 / Reject 8</span>',
+    );
     expect(html).not.toContain("text-balance");
   });
 

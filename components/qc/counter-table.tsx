@@ -193,6 +193,15 @@ const VALUE_WIDTH = {
   oneBelowXl: "w-44 touch:w-52 @max-md:w-32 xl:w-32",
   many: "w-32 touch:w-40",
 } as const;
+// The limit row on one line (Kenneth, 27 October 2026: "make this to only 1 row rather than overflow to second row"):
+// the template's words where a value column has room for them ("Accept 21 / Reject 22", VALUE_WIDTH.one), the
+// standard's Ac and Re where the columns sit side by side or the frame is narrow ("Ac 21 / Re 22"). Read in the
+// template's words either way.
+const LIMIT_WORDS = {
+  one: { full: "@max-md:hidden", short: "hidden @max-md:inline" },
+  oneBelowXl: { full: "@max-md:hidden xl:hidden", short: "hidden @max-md:inline xl:inline" },
+  many: { full: "hidden", short: "" },
+} as const;
 const ROW_HEAD = "z-[1] border-b border-border bg-card px-3 align-middle font-normal text-foreground";
 
 export function CounterTable({
@@ -231,14 +240,15 @@ export function CounterTable({
   const following = active !== undefined && sizeTabs !== null;
   const sideBySide = sizeTabs ? sizeTabs.sideBySide : true;
   // One value column on screen at every width, one below 1280 px only (the others join it there), or several.
-  const valueWidth =
+  const valueMode: keyof typeof VALUE_WIDTH =
     span > 1
-      ? VALUE_WIDTH.many
+      ? "many"
       : columns.length === 1 || (active !== undefined && !sideBySide)
-        ? VALUE_WIDTH.one
+        ? "one"
         : active !== undefined
-          ? VALUE_WIDTH.oneBelowXl
-          : VALUE_WIDTH.many;
+          ? "oneBelowXl"
+          : "many";
+  const valueWidth = VALUE_WIDTH[valueMode];
 
   // Tell SizeTabs how wide every column side by side would be, so it keeps
   // its tabs from 1280 px when they would not fit (a hand split, many sizes).
@@ -407,18 +417,18 @@ export function CounterTable({
                   {columns.map((column) => {
                     const words = { accept: text.limitAccept, reject: text.limitReject };
                     const parts = formatLimitParts(column.limits, words);
+                    const short = formatLimitParts(column.limits);
                     return (
                       <td key={column.key} colSpan={span} className={cn(INFO, "border-l", hidden(column))}>
-                        {parts ? (
-                          // Read in one piece; shown in two halves, so long wording wraps after
-                          // the slash ("Accept 10 /" over "Reject 11") and the column keeps its width.
+                        {parts && short ? (
+                          // Read in one piece, in the template's words; shown on one line (LIMIT_WORDS).
                           <>
                             <span className="sr-only">{formatLimits(column.limits, words)}</span>
-                            <span aria-hidden className="whitespace-nowrap">
-                              {parts[0]}
-                            </span>{" "}
-                            <span aria-hidden className="whitespace-nowrap">
-                              {parts[1]}
+                            <span aria-hidden className={cn("whitespace-nowrap", LIMIT_WORDS[valueMode].full)}>
+                              {parts.join(" ")}
+                            </span>
+                            <span aria-hidden className={cn("whitespace-nowrap", LIMIT_WORDS[valueMode].short)}>
+                              {short.join(" ")}
                             </span>
                           </>
                         ) : (
