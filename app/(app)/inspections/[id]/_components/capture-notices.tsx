@@ -3,15 +3,12 @@
 // shows the state, this says what happened and what to do). Read-only
 // notices speak to whoever is reading: the inspector about their own work,
 // an admin about the review, a lead about a team member's inspection (whose
-// it is, never "send it back to you"). A step's own notice, in the same
-// look, sits at the top of its section: values saved for sizes the order
-// does not list (notOrderedNotice; Kenneth, 27 October 2026).
+// it is, never "send it back to you").
 import type { ReactNode } from "react";
 import Link from "next/link";
 import { CircleAlertIcon, InfoIcon, LockIcon, RefreshCwIcon, TriangleAlertIcon, type LucideIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { CaptureAccess, UserRole } from "@/lib/inspections/capture/access";
-import { notOrderedMessage } from "@/lib/inspections/capture/not-ordered";
 import type { ReopenNote } from "@/lib/inspections/capture/reopen";
 import { BUSY_MESSAGE, type AutosaveError } from "@/lib/offline";
 import { cn } from "@/lib/utils";
@@ -213,60 +210,4 @@ export function captureNotices({
     });
   }
   return notices;
-}
-
-/** The order's page, as a step's notice links it (notOrderedNotice). */
-export type OrderLink = {
-  /** Its short name: Order, or the template's own (PO Info). */
-  title: string;
-  /** Its address (`?module=order_lots`), for a new tab. */
-  href: string;
-  /** Opens it on this screen, at the size's quantity. */
-  open: (size: string) => void;
-};
-
-/**
- * At the top of a step: the sizes it holds values for that the order does
- * not list (BUILD_SPEC 6.2 rule 4), which it shows once they are ordered
- * (Kenneth, 27 October 2026). Open Order goes to the order's page, at the
- * first size's quantity. Read-only, the notice names the sizes alone and
- * Open Order still opens the page; with no order page on screen there is
- * nowhere to go, and no button. Null without sizes.
- */
-export function notOrderedNotice({
-  sizes,
-  sizeName = (size) => size,
-  order,
-  canAdd,
-}: {
-  /** Canonical, in size order (sizesNotOrdered). */
-  sizes: readonly string[];
-  /** A size as the order's rows name it: the template's label. */
-  sizeName?: (size: string) => string;
-  order: OrderLink | null;
-  /** The inspection can be changed here: the notice says to add the sizes. */
-  canAdd: boolean;
-}): CaptureNotice | null {
-  const first = sizes[0];
-  if (first === undefined) return null;
-  return {
-    key: "sizes-not-ordered",
-    tone: "warn",
-    message: notOrderedMessage(sizes.map(sizeName), canAdd && order ? order.title : null),
-    action: order ? (
-      <Button asChild variant="outline" size="sm">
-        <Link
-          href={order.href}
-          prefetch={false}
-          // On this screen, without a request; a new tab opens the order's page as any link does.
-          onNavigate={(event) => {
-            event.preventDefault();
-            order.open(first);
-          }}
-        >
-          Open {order.title}
-        </Link>
-      </Button>
-    ) : undefined,
-  };
 }

@@ -18,10 +18,10 @@
 // saved first, as for submit, and the draft comes back as text for the
 // editor, never as data. The Sampling Plan's Export Sampling Plan opens the
 // plan for the manufacturer in a new tab through the inspection's links
-// (inspectionLinks), what is waiting saved first. A step holding values for
-// a size the order does not list, which no step shows, says so at its top,
-// with Open Order to that size's row (SectionPart; Kenneth, 27 October
-// 2026). After the Conclusion, the Report page: the report's options, saved
+// (inspectionLinks), what is waiting saved first. Values saved for a size
+// the order does not list stay out of sight, unannounced (Kenneth, 27
+// October 2026: "not all order consist of all sizes"). After the
+// Conclusion, the Report page: the report's options, saved
 // in the data (`report`) through the same autosave, the report's own pages
 // built from this screen's copy, and Download PDF (report-page.tsx; Kenneth,
 // 27 October 2026); then the Audit Log.
@@ -101,7 +101,6 @@ import {
 import { useLeaveGuard } from "@/components/shell/use-leave-guard";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
-import { formatSize } from "@/lib/format";
 import { isEditableStatus, type CaptureAccess, type UserRole } from "@/lib/inspections/capture/access";
 import { INSPECTIONS_PATH } from "@/lib/inspections/search-params";
 import type { DefectUsage } from "@/lib/inspections/capture/defect-usage";
@@ -116,13 +115,6 @@ import {
   pendingTasks,
   unseenIssues,
 } from "@/lib/inspections/capture/issues";
-import {
-  filledNotOrdered,
-  notOrderedNote,
-  ORDER_KEY,
-  orderSizePath,
-  sizesNotOrdered,
-} from "@/lib/inspections/capture/not-ordered";
 import { canBeSwitchedOff } from "@/lib/inspections/capture/overrides";
 import { refusedTaskIssues } from "@/lib/inspections/capture/refused";
 import type { ReopenNote } from "@/lib/inspections/capture/reopen";
@@ -176,7 +168,7 @@ import type { CaptureServerState } from "../actions";
 import { draftInspectionSummary } from "../summary-actions";
 import { AuditLogPage } from "./audit-log-page";
 import { CaptureHeader, type CaptureHeading } from "./capture-header";
-import { captureNotices, CaptureNotices, notOrderedNotice, type OrderLink } from "./capture-notices";
+import { captureNotices, CaptureNotices } from "./capture-notices";
 import { clickLeavesField } from "./click-leaves-field";
 import { ConflictDialog } from "./conflict-dialog";
 import { IssuesSheet } from "./issues-sheet";
@@ -440,11 +432,8 @@ export function CaptureScreen({
     () => captureSections(evaluation.template, report, deferredData),
     [evaluation.template, report, deferredData],
   );
-  // The order's step, where a size is ordered: what a step holds for a size the order does not list shows once it is.
-  const orderTitle = sections.find((section) => section.kind === "module" && section.key === ORDER_KEY)?.shortTitle ?? null;
   // Source Documents, the first page: each file the AI reads fills empty fields through the same autosave as typing.
-  // Values for a size the order does not list, the reading's own quantities counted, go in out of sight: the file's
-  // message says which sizes, by their names on the order.
+  // Values for a size the order does not list go in out of sight, unannounced (Kenneth, 27 October 2026).
   const sourceDocuments = useSourceDocuments({
     inspectionId,
     // Steri-AI reads only for a role with Steri-AI Reading (access.ts); without it the files only upload.
@@ -454,10 +443,7 @@ export function CaptureScreen({
       const result = applyProposals(dataRef.current, proposals, MODULE_REGISTRY, included);
       if (result.filled === 0) return { filled: 0, note: null };
       commit(result.data);
-      const notOrdered = filledNotOrdered(result, evaluation.template, MODULE_REGISTRY).map((size) =>
-        formatSize(size, { sizes: context.templateSizes }),
-      );
-      return { filled: result.filled, note: orderTitle === null ? null : notOrderedNote(notOrdered, orderTitle) };
+      return { filled: result.filled, note: null };
     },
   });
   // What a tab, a sidebar row, a progress step and Previous or Next open: Source Documents first, with General
@@ -712,7 +698,7 @@ export function CaptureScreen({
   /**
    * Opens the page of an issue's section with its path in focus, or the
    * section's title when the path is empty or nothing there takes the focus:
-   * an issue link, and a step's Open Order (a size's row on the order).
+   * an issue link.
    */
   const goTo = useCallback(
     (issue: Pick<ValidationIssue, "moduleKey" | "path">) => {
@@ -770,16 +756,6 @@ export function CaptureScreen({
     [closeBlocked, goTo],
   );
 
-  // A step's Open Order, for its values saved for sizes the order does not list: the order's page, at the size's
-  // quantity, on this screen. None without the order's step.
-  const openOrder = useCallback((size: string) => goTo({ moduleKey: ORDER_KEY, path: [...orderSizePath(size)] }), [goTo]);
-  const orderLink = useMemo<OrderLink | null>(
-    () =>
-      orderTitle === null
-        ? null
-        : { title: orderTitle, href: `/inspections/${inspectionId}?module=${ORDER_KEY}`, open: openOrder },
-    [orderTitle, inspectionId, openOrder],
-  );
 
   // Photos and files of this inspection still on this device hold submit up (BUILD_SPEC 8.1); the save pill shows the badge.
   const uploadsWaiting = useUploadsWaiting(inspectionId);
@@ -1211,7 +1187,6 @@ export function CaptureScreen({
                 keptFocus={keptFocus}
                 defectUsage={defectUsage}
                 summaryAssist={summaryAssist}
-                order={orderLink}
                 refusedStores={refusedStores}
                 onFocusReported={keepSize}
                 onUnreadableRemoved={focusTitleAfterRemoval}
@@ -1314,8 +1289,6 @@ type SharedSectionProps = {
   defectUsage: DefectUsage;
   /** The Steri-AI Summary slot for the conclusion's Capture; null where the inspection cannot be changed here. */
   summaryAssist: SummaryAssist | null;
-  /** The order's page, where a step's values for a size it does not list show once it is ordered; null without it. */
-  order: OrderLink | null;
   /** Every focus a section's module or form reports, so its size is kept for the next section. */
   onFocusReported: (focus: CaptureFocus) => void;
   onModuleChange: (key: string, value: unknown) => void;
@@ -1516,10 +1489,7 @@ type SectionPartProps = SharedSectionProps & {
 /**
  * One section on the open page: its frame with its result, its form, its
  * comment and its photos; switched off, its frame with the switched-off
- * panel. Values saved for sizes the order does not list, which the form does
- * not show, are named in a notice at its top, with Open Order (Kenneth, 27
- * October 2026: "why is the carton number not being auto filled?"), for
- * every module and custom module alike.
+ * panel.
  */
 function SectionPart({
   section,
@@ -1543,7 +1513,6 @@ function SectionPart({
   keptFocus,
   defectUsage,
   summaryAssist,
-  order,
   refusedEntries,
   onFocusReported,
   onUnreadableRemoved,
@@ -1581,13 +1550,6 @@ function SectionPart({
 
   const namespace: DataNamespace = section.kind === "module" ? "modules" : "custom";
   const entry = data[namespace][section.key];
-  // What the form cannot show: values saved for sizes the order does not list (6.2 rule 4). Gone once they are ordered.
-  const notice = notOrderedNotice({
-    sizes: sizesNotOrdered(report.issues, section.key, entry),
-    sizeName: (size) => formatSize(size, { sizes: context.templateSizes }),
-    order,
-    canAdd: access.editable,
-  });
   // No comment box under the steps (Kenneth, 11 October 2026): the inspector writes on the conclusion's remark.
   if (section.kind === "custom") {
     const evaluation = report.custom.find((candidate) => candidate.custom.key === section.key);
@@ -1601,7 +1563,6 @@ function SectionPart({
         status={stepIcon(section.status).status}
         statusLabel={stepIcon(section.status).label}
       >
-        {notice && <CaptureNotices notices={[notice]} />}
         {evaluation && (
           <RefusedEntryStoreContext.Provider value={refusedEntries}>
             <CustomBody
@@ -1649,7 +1610,6 @@ function SectionPart({
         ) : undefined
       }
     >
-      {notice && <CaptureNotices notices={[notice]} />}
       {resolved && (
         <RefusedEntryStoreContext.Provider value={refusedEntries}>
           <ModuleBody

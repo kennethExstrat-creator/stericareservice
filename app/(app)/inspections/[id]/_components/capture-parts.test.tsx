@@ -1,7 +1,6 @@
 // The capture screen's parts as server-rendered markup: names, roles,
 // states and wording. Behaviour in the browser (autosave, issue links,
 // switching sections and modules) is covered by e2e/capture.
-import type { ReactElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 
@@ -31,7 +30,7 @@ import { TEST_REGISTRY } from "@/modules/_framework/__fixtures__/test-registry";
 import { makeTestContext } from "@/modules/_framework/testing";
 import CaptureLoading from "../loading";
 import { CaptureHeader } from "./capture-header";
-import { captureNotices, CaptureNotices, notOrderedNotice, submittedMessage, type CaptureNotice } from "./capture-notices";
+import { captureNotices, CaptureNotices, submittedMessage } from "./capture-notices";
 import { FieldControl } from "./field-control";
 import { TaskItem } from "./issues-sheet";
 import { isLoadFailure, sectionFailure } from "./load-failure";
@@ -394,69 +393,6 @@ describe("CaptureNotices", () => {
 
   it("renders nothing without notices", () => {
     expect(renderToStaticMarkup(<CaptureNotices notices={[]} />)).toBe("");
-  });
-});
-
-describe("notOrderedNotice (a step's values for sizes not on the order; Kenneth, 27 October 2026)", () => {
-  const order = { title: "Order", href: "/inspections/x?module=order_lots", open: noop };
-  const render = (notice: CaptureNotice | null) => (notice ? renderToStaticMarkup(<CaptureNotices notices={[notice]} />) : "");
-  const text = (html: string) => html.replace(/<[^>]+>/g, "");
-  const linkOf = (html: string) => tagsWith(html, "href=")[0] ?? "";
-
-  it("names the size in the warning's amber, with Open Order to the order's page", () => {
-    const html = render(notOrderedNotice({ sizes: ["L"], order, canAdd: true }));
-    const box = tagsWith(html, 'data-notice="sizes-not-ordered"')[0];
-    expect(box).toContain('role="status"');
-    expect(box).toMatch(/\bborder-warn-border\b.*\bbg-warn-tint\b.*\btext-warn\b/);
-    expect(html).toContain("lucide-triangle-alert");
-    expect(text(html)).toBe("Saved for size L, which is not on the order: add L on the Order page to see it.Open Order");
-    expect(linkOf(html)).toContain('href="/inspections/x?module=order_lots"');
-  });
-
-  it("names several sizes by the order's names for them, and the order's page by its short name", () => {
-    const html = render(
-      notOrderedNotice({
-        sizes: ["L", "XL"],
-        sizeName: (size) => (size === "L" ? "Large" : "Extra Large"),
-        order: { ...order, title: "PO Info" },
-        canAdd: true,
-      }),
-    );
-    expect(text(html)).toBe(
-      "Saved for sizes Large and Extra Large, which are not on the order: add Large and Extra Large on the PO Info page to see them.Open PO Info",
-    );
-  });
-
-  it("is none while every size it holds is ordered", () => {
-    expect(notOrderedNotice({ sizes: [], order, canAdd: true })).toBeNull();
-  });
-
-  it("opens the order on this screen, at the first size's quantity, never as a new request", () => {
-    const open = vi.fn();
-    const notice = notOrderedNotice({ sizes: ["L", "XL"], order: { ...order, open }, canAdd: true });
-    type Navigate = { onNavigate: (event: { preventDefault: () => void }) => void; prefetch: boolean };
-    const link = (notice?.action as ReactElement<{ children: ReactElement<Navigate> }>).props.children;
-    expect(link.props.prefetch).toBe(false);
-    const preventDefault = vi.fn();
-    link.props.onNavigate({ preventDefault });
-    expect(preventDefault).toHaveBeenCalledOnce();
-    expect(open).toHaveBeenCalledWith("L");
-  });
-
-  it("read-only, names the sizes alone and still opens the order's page; with no order page, has no button", () => {
-    const readOnly = render(notOrderedNotice({ sizes: ["L"], order, canAdd: false }));
-    expect(text(readOnly)).toBe("Saved for size L, which is not on the order.Open Order");
-    expect(linkOf(readOnly)).toContain('href="/inspections/x?module=order_lots"');
-    const nowhere = render(notOrderedNotice({ sizes: ["L"], order: null, canAdd: true }));
-    expect(text(nowhere)).toBe("Saved for size L, which is not on the order.");
-    expect(nowhere).not.toContain("<a");
-  });
-
-  it("gives Open Order 44 px on a touchscreen and a compact pill with a mouse", () => {
-    const link = linkOf(render(notOrderedNotice({ sizes: ["L"], order, canAdd: true })));
-    expect(link).toContain('data-size="sm"');
-    expect(link).toMatch(/\bh-8\b/);
-    expect(link).toMatch(/\btouch:h-11\b/);
   });
 });
 

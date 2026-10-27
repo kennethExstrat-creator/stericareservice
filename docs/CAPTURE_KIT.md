@@ -389,7 +389,7 @@ useIssueFocus(focusPath, {
 return <div ref={root}>...</div>;
 ```
 
-A size the order does not list never shows in a Capture, values saved for it included: the screen names such sizes in a notice at the top of the section, with Open Order to the size's row on the order (Kenneth, 27 October 2026; docs/DESIGN.md, Components), so a module needs no notice of its own.
+A size the order does not list never shows in a Capture, values saved for it included, and nothing names it: an order seldom has every size (Kenneth, 27 October 2026; BUILD_SPEC 6.2 rule 4).
 
 Mark the control that holds each value with the path an issue would carry: `issuePath` on `NumberField` (`BoxNumberField` too, its warning about a number not sampled included), `DateField`, `CountField`, `ModuleSection`, `AttachmentStatus` and `RequirementList` items, `cellIssuePath` on `CounterTable` and `MeasurementGrid`, or `{...issuePathProps(path)}` on anything else. The hook switches size or hand first, then scrolls to the closest marked element (the exact path, else its nearest parent) and focuses it: a control itself, a container's first control.
 

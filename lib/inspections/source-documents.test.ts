@@ -143,7 +143,7 @@ describe("applyProposals on Box/Carton Numbers (Kenneth, 14 October 2026)", () =
     expect(result.modules).toEqual(["carton_sampling", "dispensing_packing"]);
     // 13 box/carton numbers, and 4 values in each of the 13 boxes.
     expect(result.filled).toBe(13 + 13 * 4);
-    // The size they went in for: the steps show it once it is ordered (lib/inspections/capture/not-ordered.ts).
+    // The size they went in for: the steps show it once it is ordered.
     expect(result.sizes).toEqual(["S"]);
 
     // A size the table shows with no number in it yet is empty too.

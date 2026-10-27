@@ -14,9 +14,9 @@
 // them waiting, and the next screen to open the inspection fills them in.
 // Read Again reads a file once more, also one already read.
 //
-// A reading that fills values for sizes the order does not list says so in
-// its message, in amber and for longer: no step shows them until the size is
-// ordered (Kenneth, 27 October 2026; lib/inspections/capture not-ordered.ts).
+// A reading's message can carry a note, in amber and for longer. Values for
+// sizes the order does not list go in unannounced (Kenneth, 27 October 2026:
+// "not all order consist of all sizes").
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { useInspectionMedia } from "@/components/capture/photos/hooks";

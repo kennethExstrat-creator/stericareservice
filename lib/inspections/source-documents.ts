@@ -368,9 +368,8 @@ function samplingPlanFill(value: Record<string, unknown>): Record<string, unknow
  * the template includes (never the conclusion), only fields still empty,
  * only values each module's schema accepts. `filled` counts the values;
  * `sizes` names the sizes of the per-size steps that gained one, canonical,
- * in size order: a step shows only the sizes ordered (6.2 rule 4; the
- * capture screen says which are not, lib/inspections/capture
- * not-ordered.ts). Box/Carton Numbers take a size's list whole, into an
+ * in size order: a step shows only the sizes ordered (6.2 rule 4).
+ * Box/Carton Numbers take a size's list whole, into an
  * empty list or over one it completes (cartonSamplingFill); Dimension's
  * specs go in whole, and never its P/F (dimensionsProposal); a step's lab
  * reports take each report the reading links, beside those listed
@@ -415,8 +414,7 @@ export function applyProposals(
 
 /**
  * The message after a reading filled values in: "Steri-AI filled 3 fields
- * from PO-0001.pdf.", and `note` after it, a sentence about values no step
- * shows yet (notOrderedNote in lib/inspections/capture/not-ordered.ts).
+ * from PO-0001.pdf.", and `note` after it when there is one.
  */
 export function filledMessage(filled: number, name: string, note: string | null = null): string {
   const message = `Steri-AI filled ${filled} ${filled === 1 ? "field" : "fields"} from ${name}.`;
