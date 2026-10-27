@@ -108,7 +108,7 @@ export function reviewInspection(overrides: Partial<ReviewInspection> = {}): Rev
     lotNumbers: ["LOT-M-0001", "LOT-L-0001"],
     client: "Client A",
     manufacturer: "Manufacturer A · Plant 1",
-    inspector: { id: INSPECTOR_ID, name: "Inspector A" },
+    inspector: { id: INSPECTOR_ID, name: "Inspector A", leadId: null },
     createdAt: "2026-10-05T01:00:00.000000+00:00",
     submittedAt: "2026-10-05T06:30:00.000000+00:00",
     approvedAt: null,

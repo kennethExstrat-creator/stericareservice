@@ -3,8 +3,9 @@
 // inspection's Report page has chosen, Download PDF, which opens the
 // report's print page in a new tab where the browser saves the PDF, and
 // Report Options, the inspection's Report page, where the title, content
-// and photos are chosen. Only for those who may download it: the inspection's
-// inspector and admins, with Export Reports (the Report page's own rule).
+// and photos are chosen. Only for those who may download it, with Export
+// Reports: the inspection's inspector, their lead inspector and admins
+// (canExportInspection, the Report page's own rule).
 import Link from "next/link";
 import { ChevronRightIcon, DownloadIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";

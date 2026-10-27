@@ -109,10 +109,11 @@ export async function generateMetadata({ params }: PageProps<"/inspections/[id]/
  * Who sees what follows the role's switches (lib/auth/permissions.ts):
  * Approve and Reopen, and choosing the report photos, which are part of the
  * decision, need Approve Inspections; Download PDF needs Export Reports, for
- * the inspection's own inspector or an admin (the Report page's rule); Map
- * Label needs Defects; the AI panel follows its own (lib/inspections/ai/panel.ts)
- * and stays with the owner and admins (canExportInspection in
- * lib/export/access.ts), so a lead sees none on a team member's review.
+ * the inspection's own inspector, their lead inspector (Kenneth, 27 October
+ * 2026: leads download their team's reports) or an admin (canExportInspection
+ * in lib/export/access.ts, the Report page's rule); Map Label needs Defects;
+ * the AI panel follows its own (lib/inspections/ai/panel.ts) and stays with
+ * the owner and admins, so a lead sees none on a team member's review.
  *
  * No padding or <main> of its own: the app shell provides both.
  */
@@ -127,7 +128,11 @@ export default async function InspectionReviewPage({ params }: PageProps<"/inspe
   const { viewer, inspection, template, evaluation, overrides, photos, history } = review;
   const canApprove = userCan(user, "approve_inspections");
   const canDownload =
-    userCan(user, "export_reports") && canExportInspection({ id: user.id, role: user.role }, { inspectorId: inspection.inspector.id });
+    userCan(user, "export_reports") &&
+    canExportInspection(
+      { id: user.id, role: user.role, isLead: user.isLead },
+      { inspectorId: inspection.inspector.id, inspectorLeadId: inspection.inspector.leadId ?? null },
+    );
   const canMapLabels = userCan(user, "defects");
 
   const sizes = evaluation.ok ? evaluation.context.sizes : [];

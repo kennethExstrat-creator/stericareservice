@@ -167,6 +167,20 @@ describe("loadReview", () => {
     await expect(loadReview(client, INSPECTION_ID, admin)).rejects.toThrow("The inspection could not be loaded.");
   });
 
+  it("reads the inspector's lead, who may download the team's reports", async () => {
+    const lead = "00000000-0000-4000-8000-000000000103";
+    const { client } = fakeClient(
+      database({
+        inspections: {
+          data: inspectionRow({ inspector: { id: INSPECTOR_ID, full_name: "Inspector A", email: "inspector@example.com", lead_id: lead } }),
+        },
+      }),
+    );
+    const loaded = await loadReview(client, INSPECTION_ID, admin);
+    if (loaded.kind !== "ok") throw new Error("expected a review");
+    expect(loaded.review.inspection.inspector).toEqual({ id: INSPECTOR_ID, name: "Inspector A", leadId: lead });
+  });
+
   it("shapes the facts the page shows", async () => {
     const { client } = fakeClient(database());
     const loaded = await loadReview(client, INSPECTION_ID, admin);

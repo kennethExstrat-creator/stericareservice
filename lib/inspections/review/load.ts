@@ -30,7 +30,7 @@ export const PHOTO_URL_SECONDS = 60 * 60;
 
 /** The inspector embed names its foreign key: approved_by also points at profiles. */
 export const REVIEW_INSPECTION_SELECT =
-  `id, ref_no, status, inspection_date, po_no, product_name, lot_numbers, data, module_overrides, result, remarks, suggested_result, created_at, updated_at, submitted_at, approved_at, approved_by, inspector_id, client:clients(id, name), manufacturer:manufacturers(id, ${MANUFACTURER_NAMES_SELECT}), inspector:profiles!inspections_inspector_id_fkey(id, full_name, email), approver:profiles!inspections_approved_by_fkey(id, full_name, email), template:templates(id, code, version, resolved)` as const;
+  `id, ref_no, status, inspection_date, po_no, product_name, lot_numbers, data, module_overrides, result, remarks, suggested_result, created_at, updated_at, submitted_at, approved_at, approved_by, inspector_id, client:clients(id, name), manufacturer:manufacturers(id, ${MANUFACTURER_NAMES_SELECT}), inspector:profiles!inspections_inspector_id_fkey(id, full_name, email, lead_id), approver:profiles!inspections_approved_by_fkey(id, full_name, email), template:templates(id, code, version, resolved)` as const;
 
 const PHOTO_SELECT = "id, module_key, target, caption, storage_path, thumb_path, taken_at, flagged";
 const AUDIT_SELECT = "id, action, changes, at, actor_id, actor:profiles(full_name, email)";
@@ -50,7 +50,12 @@ export type ReviewInspection = {
   lotNumbers: string[];
   client: string | null;
   manufacturer: string | null;
-  inspector: { id: string; name: string };
+  /**
+   * `leadId`: the lead inspector whose team the inspector is in, who may
+   * download the team's reports (canExportInspection); null with no lead or
+   * when the viewer may not read the inspector's profile, absent where unknown.
+   */
+  inspector: { id: string; name: string; leadId?: string | null };
   createdAt: string;
   submittedAt: string | null;
   approvedAt: string | null;
@@ -151,7 +156,7 @@ export async function loadReview(supabase: Client, inspectionId: string, viewer:
     lotNumbers: found.lot_numbers,
     client: found.client?.name ?? null,
     manufacturer: manufacturer?.name ?? null,
-    inspector: { id: found.inspector_id, name: inspectorName },
+    inspector: { id: found.inspector_id, name: inspectorName, leadId: found.inspector?.lead_id ?? null },
     createdAt: found.created_at,
     submittedAt: found.submitted_at,
     approvedAt: found.approved_at,

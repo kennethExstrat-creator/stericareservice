@@ -150,19 +150,38 @@ describe("/inspections/[id]/review", () => {
       vi.mocked(requireUser).mockResolvedValue({ ...lead, email: "lead@test.local", fullName: lead.name, isLead: true });
       // The AI panel follows the export's rule (owner or admin): a lead gets nothing.
       vi.mocked(loadAiPanel).mockResolvedValue({ ok: false, reason: "not_found", message: "Inspection not found." });
-      const html = await render(reviewData({ viewer: lead, inspection: reviewInspection({ status }) }));
+      const html = await render(
+        reviewData({
+          viewer: lead,
+          inspection: reviewInspection({ status, inspector: { id: INSPECTOR_ID, name: "Inspector A", leadId: lead.id } }),
+        }),
+      );
       expect(button(html, "Approve")).toBe(false);
       expect(button(html, "Reopen")).toBe(false);
       expect(link(html, "Open Inspection")).toBe(true);
       expect(link(html, "Continue Inspection")).toBe(false);
       expect(link(html, "Make Changes")).toBe(false);
       expect(html).not.toContain('data-testid="ai-panel"');
-      // The export's rule: only the inspector and admins download the report.
-      expect(link(html, "Download PDF")).toBe(false);
-      expect(html).not.toContain('id="client-report"');
+      // The export's rule: a lead downloads the team's reports (Kenneth, 27 October 2026).
+      expect(link(html, "Download PDF")).toBe(true);
+      expect(html).toContain('id="client-report"');
       if (status === "submitted") expect(html).toContain("An admin checks it next, and only an admin can reopen it for changes.");
     },
   );
+
+  it("gives no download to a lead inspector on an inspection outside their team", async () => {
+    const lead = { id: "00000000-0000-4000-8000-000000000103", name: "Lina Lead", role: "inspector" as const };
+    vi.mocked(requireUser).mockResolvedValue({ ...lead, email: "lead@test.local", fullName: lead.name, isLead: true });
+    vi.mocked(loadAiPanel).mockResolvedValue({ ok: false, reason: "not_found", message: "Inspection not found." });
+    const html = await render(
+      reviewData({
+        viewer: lead,
+        inspection: reviewInspection({ inspector: { id: INSPECTOR_ID, name: "Inspector A", leadId: "00000000-0000-4000-8000-000000000199" } }),
+      }),
+    );
+    expect(link(html, "Download PDF")).toBe(false);
+    expect(html).not.toContain('id="client-report"');
+  });
 
   it.each([
     ["reopened", "Make Changes"],
