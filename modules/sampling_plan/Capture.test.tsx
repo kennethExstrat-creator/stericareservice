@@ -558,13 +558,15 @@ describe("sampling_plan Capture's Code Letter (Kenneth, 27 October 2026)", () =>
     expect(disabled(button(noLot, "Reduce the code letter for size M to L"))).toBe(false);
   });
 
-  it("says Reduced from N under a lowered letter, with an amber dot, the reason as its title and read after it", () => {
+  it("puts an amber ↓ N badge just before a lowered letter, on its line, Reduced from N and the reason as its title and read after it", () => {
     const html = render(props(SAFEDON_EG_EXAMPLE, LEVEL_I, SAMPLING_PLAN_LABELS, lettered()));
     const lowered = letterCell(html, "M");
     expect(lowered).toContain('data-reduced="true"');
     expect(lowered).toMatch(
-      new RegExp(`data-slot="reduced-from" title="Reduced from N: ${REASON}"[^>]*><span aria-hidden="true" class="[^"]*bg-warn-solid[^"]*"></span>Reduced from N<span class="sr-only">: ${REASON}</span>`),
+      new RegExp(`data-slot="reduced-from" title="Reduced from N: ${REASON}" class="[^"]*\\bbg-warn-tint\\b[^"]*"><svg[^>]*aria-hidden="true"[^>]*>[\\s\\S]*?</svg>N<span class="sr-only">, reduced from N: ${REASON}</span>`),
     );
+    // The badge comes before the letter, never under it (Kenneth, 27 October 2026, design A).
+    expect(lowered.indexOf('data-slot="reduced-from"')).toBeLessThan(lowered.indexOf('data-slot="code-letter"'));
     // At its lot's letter, or with none, a letter says nothing more.
     for (const size of ["XS", "S", "L"]) expect(letterCell(html, size)).not.toContain("reduced-from");
     // A letter lowered without a reason (a reading's) still says so.
@@ -582,7 +584,10 @@ describe("sampling_plan Capture's Code Letter (Kenneth, 27 October 2026)", () =>
     expect(html).toMatch(/data-slot="sampling-issues"[\s\S]*Size M, Code Letter: # of Gloves Sample 300 is not code M&#x27;s 315\./);
     // The size is not blocked: a warning, never a red cell.
     expect(redCells(html)).toEqual([]);
-    expect(letterCell(render(props(SAFEDON_EG_EXAMPLE, LEVEL_I, SAMPLING_PLAN_LABELS, lettered())), "M")).not.toContain("bg-warn-tint");
+    // The cell itself is not tinted (its reduced badge is amber in its own right).
+    expect(letterCell(render(props(SAFEDON_EG_EXAMPLE, LEVEL_I, SAMPLING_PLAN_LABELS, lettered())), "M")).not.toMatch(
+      /data-code-letter="M"[^>]*class="[^"]*\bbg-warn-tint\b/,
+    );
   });
 
   it("is read-only for an approved inspection: the letter and its note, no buttons", () => {
@@ -590,7 +595,7 @@ describe("sampling_plan Capture's Code Letter (Kenneth, 27 October 2026)", () =>
     expect(html).not.toContain("Reduce the code letter");
     expect(html).not.toContain("Raise the code letter");
     expect(letterCell(html, "M")).toContain(">M</span>");
-    expect(letterCell(html, "M")).toContain(">Reduced from N<");
+    expect(letterCell(html, "M")).toContain('title="Reduced from N: ');
   });
 
   it("sizes its buttons 28 px with a mouse and 44 px on any touchscreen, compact in the row (docs/DESIGN.md)", () => {
@@ -601,8 +606,12 @@ describe("sampling_plan Capture's Code Letter (Kenneth, 27 October 2026)", () =>
       expect(tag).toMatch(/\btouch:size-11\b/);
       expect(tag).toMatch(/\bfocus-ring-inset\b/);
     }
-    // Where the cell is too narrow for the letter and both, they go under it.
-    expect(letterCell(html, "S")).toMatch(/class="[^"]*\bflex-row-reverse flex-wrap\b/);
+    // One line where every cell has room for the buttons, a badge and the letter; the buttons under it where none has,
+    // so the letters line up either way.
+    for (const size of ["S", "M"]) {
+      expect(letterCell(html, size)).toMatch(/data-code-letter="[^"]+"[^>]*class="[^"]*@container/);
+      expect(letterCell(html, size)).toMatch(/class="[^"]*\bflex-col\b[^"]*fine:@min-\[9rem\]:flex-row-reverse[^"]*touch:@min-\[11rem\]:flex-row-reverse/);
+    }
   });
 });
 

@@ -69,16 +69,16 @@
 // its own Reduce, which asks why in a dialog, and Raise, back up as far as
 // its lot's letter, never above; either works that size's # of Gloves Sample
 // out again for the new letter, and no other size's. A letter below its
-// lot's says "Reduced from N", the reason as its title, and gloves typed
-// otherwise than the letter's sample are a warning on it. Read-only, the
-// letter and its note, no buttons.
+// lot's has an amber "↓ N" badge before it, "Reduced from N" and the reason
+// as its title, and gloves typed otherwise than the letter's sample are a
+// warning on it. Read-only, the letter and its badge, no buttons.
 //
 // Each test row (watertight and visual, dimension, the physical test,
 // packaging and dispensing) has a switch at its left (Kenneth, 26 October
 // 2026): switched off, the row is greyed, never hidden, its cells take no
 // typing and nothing in it is asked for. No template shows a row of gloves
 // for weight any more (shownColumns).
-import { CalculatorIcon, ChevronDownIcon, ChevronUpIcon, Settings2Icon, TableIcon } from "lucide-react";
+import { ArrowDownIcon, CalculatorIcon, ChevronDownIcon, ChevronUpIcon, Settings2Icon, TableIcon } from "lucide-react";
 import { useEffect, useId, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { toast } from "sonner";
 import {
@@ -224,8 +224,15 @@ const FORMULA_ROOM = {
 // negative margins reach into the cell's padding, so the row keeps the others' height.
 const STEP =
   "-my-1 inline-flex size-7 shrink-0 items-center justify-center rounded-full bg-clip-content p-0.5 text-muted-foreground outline-none transition-colors hover:bg-brand-100 hover:text-brand-700 focus-visible:text-brand-700 focus-ring-inset active:bg-brand-200 disabled:pointer-events-none disabled:opacity-40 touch:-my-2 touch:size-11 touch:p-1 [&_svg]:size-4 touch:[&_svg]:size-5";
-// The amber dot on a letter below its lot's, as on a figure set for the inspection (docs/DESIGN.md).
-const MARK = "size-2 shrink-0 rounded-full border border-warn bg-warn-solid touch:size-2.5";
+// A letter below its lot's: an amber badge with the lot's letter, "↓ N", just before it on the same line (Kenneth, 27
+// October 2026, design A: "the reduction note makes the code out of alignment").
+const REDUCED_BADGE =
+  "inline-flex shrink-0 items-center gap-0.5 rounded-full border border-warn-border bg-warn-tint px-1.5 text-xs leading-5 font-semibold text-warn touch:text-sm touch:leading-6 [&_svg]:size-3 touch:[&_svg]:size-3.5";
+// The Code Letter cell on one line, Reduce and Raise at its left and the badge and letter at its right, where it has room
+// for all of them, the badge included whether or not a size has one: every size's cell is as wide as the others, so all
+// of them take one line or all take two (the letter over its buttons, an iPad in portrait), and the letters line up.
+const LETTER_ONE_LINE =
+  "fine:@min-[9rem]:flex-row-reverse fine:@min-[9rem]:items-center fine:@min-[9rem]:justify-between touch:@min-[11rem]:flex-row-reverse touch:@min-[11rem]:items-center touch:@min-[11rem]:justify-between";
 
 export default function Capture({
   data,
@@ -922,14 +929,15 @@ type CodeLetterCellProps = {
 };
 
 /**
- * A size's Code Letter cell (Kenneth, 27 October 2026): the letter in bold;
- * an amber dot and "Reduced from N" under it while it is below its lot's, the
- * reason as the note's title and read after it; and the size's own Reduce
- * and Raise beside it, under it where the cell is too narrow for both (an
- * iPad in portrait). Reduce asks why first; Raise needs no reason. Gloves
+ * A size's Code Letter cell (Kenneth, 27 October 2026): the letter in bold at
+ * the cell's right; while it is below its lot's, an amber "↓ N" badge just
+ * before it, "Reduced from N" and the reason as its title and read after it;
+ * and the size's own Reduce and Raise at the cell's left, under the letter
+ * where the cell is too narrow for all of it (LETTER_ONE_LINE). Reduce asks
+ * why first; Raise needs no reason. Gloves
  * that are not the letter's sample tint the cell amber, the warning read
  * with the letter, as a count cell's is, and an issue link lands on the
- * letter. Read-only: the letter and its note alone.
+ * letter. Read-only: the letter and its badge alone.
  */
 function CodeLetterCell({
   size,
@@ -964,11 +972,18 @@ function CodeLetterCell({
       data-code-letter={size}
       data-reduced={note !== null || undefined}
       style={style}
-      className={cn(CELL, VALUE_CELL, "touch:px-1", warnings.length > 0 && "bg-warn-tint", className)}
+      className={cn(CELL, VALUE_CELL, "@container touch:px-1", warnings.length > 0 && "bg-warn-tint", className)}
     >
-      {/* Right to left: the letter at the cell's right edge, as the counts above it are, its buttons before it. */}
-      <div className="flex min-w-0 flex-row-reverse flex-wrap items-center gap-x-0.5 gap-y-2">
-        <span className="flex min-w-0 flex-col items-end">
+      {/* Right to left: the letter at the cell's right edge, as the counts above it are, its buttons at the left. */}
+      <div className={cn("flex w-full min-w-0 flex-col items-end gap-x-1 gap-y-2", LETTER_ONE_LINE)}>
+        <span className="flex shrink-0 items-center gap-1.5">
+          {note && (
+            <span data-slot="reduced-from" title={reason === null ? note : `${note}: ${reason}`} className={REDUCED_BADGE}>
+              <ArrowDownIcon aria-hidden />
+              {steps.reducedFrom}
+              <span className="sr-only">{`, reduced from ${steps.reducedFrom}${reason === null ? "" : `: ${reason}`}`}</span>
+            </span>
+          )}
           <span {...issueNoticeProps(issuePath)} className="rounded-sm outline-none focus-ring">
             <span className="sr-only">{`${label}: `}</span>
             {letter === null ? (
@@ -980,17 +995,6 @@ function CodeLetterCell({
             )}
             {warnings.length > 0 && <span className="sr-only">{` ${warnings.join(" ")}`}</span>}
           </span>
-          {note && (
-            <span
-              data-slot="reduced-from"
-              title={reason === null ? note : `${note}: ${reason}`}
-              className="inline-flex items-center gap-1 text-xs leading-tight text-muted-foreground touch:text-sm"
-            >
-              <span aria-hidden className={MARK} />
-              {note}
-              {reason !== null && <span className="sr-only">{`: ${reason}`}</span>}
-            </span>
-          )}
         </span>
         {!readOnly && (
           <span data-slot="code-letter-steps" className="inline-flex shrink-0 items-center">
