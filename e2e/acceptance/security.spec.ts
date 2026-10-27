@@ -879,7 +879,7 @@ test("delete_draft_inspection deletes only the caller's own never-submitted draf
   expect.soft((await deletionRecords(admin.client)).data, "an admin").toHaveLength(2);
 });
 
-test("signed URLs: 1 hour on screens, 24 hours in the export, and the export is for its inspector and admins only", async ({ baseURL }) => {
+test("signed URLs: 1 hour on screens, 24 hours in the export, and the export is for its inspector, their lead and admins only", async ({ baseURL }) => {
   const { inspections: i } = fx;
 
   const gallery = await probe(baseURL!, `/inspections/${i.mDraft.id}/photos`, { session: member });
@@ -904,7 +904,9 @@ test("signed URLs: 1 hour on screens, 24 hours in the export, and the export is 
 
   expect.soft((await probe(baseURL!, `/api/inspections/${i.mApproved.id}/export`, { session: admin })).status, "admin").toBe(200);
   expect.soft((await probe(baseURL!, `/api/inspections/${i.mApproved.id}/export`, { session: outsider })).status, "another inspector").toBe(404);
-  expect.soft((await probe(baseURL!, `/api/inspections/${i.mApproved.id}/export`, { session: lead })).status, "the lead (owner or admin only)").toBe(404);
+  // A lead downloads their team's reports (Kenneth, 27 October 2026), not another team's.
+  expect.soft((await probe(baseURL!, `/api/inspections/${i.mApproved.id}/export`, { session: lead })).status, "their lead").toBe(200);
+  expect.soft((await probe(baseURL!, `/api/inspections/${i.mApproved.id}/export`, { session: lead2 })).status, "another team's lead").toBe(404);
   expect.soft((await probe(baseURL!, `/api/inspections/${i.mApproved.id}/export`, { session: pending })).status, "never activated").toBe(403);
   expect.soft((await probe(baseURL!, "/api/inspections/not-a-uuid/export", { session: member })).status, "malformed id").toBe(404);
   expect.soft((await probe(baseURL!, `/api/inspections/${NOWHERE}/export`, { session: member })).status, "no such inspection").toBe(404);

@@ -169,9 +169,14 @@ export default async function CapturePage({ params, searchParams }: PageProps<"/
         reportPage={{
           generate,
           lastReport,
-          // A lead inspector reads a team member's inspection here, but only its inspector and admins export it.
+          // The export's rule, which the print route checks again: the inspection's inspector, their lead inspector
+          // (a team member's inspection, read-only here) or an admin.
           canDownload:
-            exportsReports && canExportInspection({ id: user.id, role: user.role }, { inspectorId: inspection.inspectorId }),
+            exportsReports &&
+            canExportInspection(
+              { id: user.id, role: user.role, isLead: user.isLead },
+              { inspectorId: inspection.inspectorId, inspectorLeadId: inspection.inspectorLeadId },
+            ),
           record: {
             standard: inspection.template.standard,
             productType: inspection.template.productType,

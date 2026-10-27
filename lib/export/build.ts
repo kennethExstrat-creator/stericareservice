@@ -23,9 +23,9 @@ import {
  *
  * It reads through the client it is given, so the caller decides who
  * may export: the route handler and the admin actions pass the
- * signed-in user's client (RLS: the owner or an admin), and only work no
- * session can do (a review started by an inspector's submit) passes the
- * service role.
+ * signed-in user's client (RLS: the owner, their lead inspector or an
+ * admin), and only work no session can do (a review started by an
+ * inspector's submit) passes the service role.
  * ------------------------------------------------------------------ */
 
 export type ExportFailureReason =
@@ -46,9 +46,10 @@ export type ExportResult =
 
 export type BuildExportOptions = {
   /**
-   * The signed-in user asking. Only the inspection's inspector or an admin
-   * gets it (anyone else: `not_found`, as if it did not exist). Leave it out
-   * only for server work that has checked access itself.
+   * The signed-in user asking. Only the inspection's inspector, their lead
+   * inspector (a viewer with `isLead`) or an admin gets it (anyone else:
+   * `not_found`, as if it did not exist). Leave it out only for server work
+   * that has checked access itself.
    */
   viewer?: ExportViewer;
   /** The module registry; tests pass the framework's test modules. */
@@ -66,7 +67,8 @@ export async function buildInspectionExport(
 ): Promise<ExportResult> {
   const loaded = await loadInspectionRecord(supabase, inspectionId);
   if (!loaded.ok) return loaded;
-  if (options.viewer && !canExportInspection(options.viewer, loaded.record)) {
+  const inspection = { inspectorId: loaded.record.inspectorId, inspectorLeadId: loaded.record.inspector?.leadId ?? null };
+  if (options.viewer && !canExportInspection(options.viewer, inspection)) {
     return { ok: false, reason: "not_found", message: "Inspection not found." };
   }
   const evaluation = evaluateRecord(loaded.record, options.registry ?? MODULE_REGISTRY);

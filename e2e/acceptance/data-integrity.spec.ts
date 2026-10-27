@@ -788,8 +788,9 @@ test("a lead inspector reads a team draft and writes nothing: no autosave, no lo
     await expect(page.getByRole("heading", { level: 1, name: team.refNo })).toBeVisible();
     await expect(page.getByRole("button", { name: "Approve" })).toHaveCount(0);
     await expect(page.getByRole("button", { name: "Reopen" })).toHaveCount(0);
+    // Downloading is reading: a lead downloads their team's reports (Kenneth, 27 October 2026).
     const exported = await page.request.get(`/api/inspections/${team.id}/export`);
-    expect(exported.status(), "the export is for the inspector and admins").toBe(404);
+    expect(exported.status(), "the export is for the inspector, their lead and admins").toBe(200);
 
     expect(writes, "requests that could write, from the lead's screens").toEqual([]);
     expect(await localCopyKeys(page, team.id), "no local copy of a team draft on the lead's device").toEqual([]);

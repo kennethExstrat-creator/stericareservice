@@ -243,7 +243,7 @@ export type CaptureScreenProps = {
 export type CaptureReport = {
   generate: GenerateAvailability;
   lastReport: LastReport | null;
-  /** Download PDF: the export's rule (the inspection's inspector or an admin), which the print route checks again. */
+  /** Download PDF: the export's rule (the inspection's inspector, their lead inspector or an admin), which the print route checks again. */
   canDownload: boolean;
   /** The template version's standard and product type, the row's submit time and result: for the preview's export. */
   record: { standard: Standard; productType: ProductType; submittedAt: string | null; result: InspectionResult | null } | null;

@@ -503,7 +503,8 @@ export function stdEgRecord(overrides: Partial<InspectionRecord> = {}): Inspecti
     client: null,
     manufacturer: { id: IDS.manufacturer, name: manufacturerLabel(STD_EG_FACTORY) },
     inspectorId: IDS.inspector,
-    inspector: { id: IDS.inspector, fullName: TEST_INSPECTOR.name, email: "inspector@test.local" },
+    // In no lead inspector's team: a test that needs one gives the inspector a leadId.
+    inspector: { id: IDS.inspector, fullName: TEST_INSPECTOR.name, email: "inspector@test.local", leadId: null },
     photos: stdEgPhotos(),
     files: stdEgFiles(),
     ...overrides,
@@ -561,6 +562,7 @@ export function stdEgTables(record: InspectionRecord = stdEgRecord()): Record<st
           id: record.inspector.id,
           full_name: record.inspector.fullName,
           email: record.inspector.email,
+          lead_id: record.inspector.leadId,
         },
       },
     ],

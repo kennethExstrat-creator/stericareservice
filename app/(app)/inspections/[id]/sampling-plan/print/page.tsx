@@ -15,16 +15,19 @@ import { SamplingPlanPrintStyles } from "./_components/print-styles";
  * The plan built once per request, for the title and the page, as the
  * report's print route builds its report: the inspection export (BUILD_SPEC
  * 9.1) read through the signed-in user's client, with the export's own rule
- * on top (canExportInspection: the inspection's inspector or an admin), so
- * whoever may print the report may print its sampling plan, and anyone else
- * gets the same 404 as for an inspection that does not exist. The session is
- * checked first. An inspection with no Sampling Plan step has none to print.
+ * on top (canExportInspection: the inspection's inspector, their lead
+ * inspector or an admin), so whoever may print the report may print its
+ * sampling plan, and anyone else gets the same 404 as for an inspection that
+ * does not exist. The session is checked first. An inspection with no
+ * Sampling Plan step has none to print.
  */
 const loadPlan = cache(async (id: string) => {
   const user = await requireUser();
   const inspectionId = parseInspectionId(id);
   if (!inspectionId) notFound();
-  const result = await buildInspectionExport(await createClient(), inspectionId, { viewer: { id: user.id, role: user.role } });
+  const result = await buildInspectionExport(await createClient(), inspectionId, {
+    viewer: { id: user.id, role: user.role, isLead: user.isLead },
+  });
   if (!result.ok) {
     if (result.reason === "not_found") notFound();
     // The app's error screen offers Try again: nothing prints without the export.

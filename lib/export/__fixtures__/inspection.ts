@@ -25,6 +25,10 @@ export const IDS = {
   inspector: TEST_INSPECTOR.id,
   admin: TEST_ADMIN_ID,
   otherInspector: "55555555-5555-4555-8555-555555555555",
+  /** The lead inspector whose team the inspector is in (profiles.lead_id). */
+  lead: "88888888-8888-4888-8888-888888888881",
+  /** Another team's lead inspector. */
+  otherLead: "88888888-8888-4888-8888-888888888882",
   photoVisual: "66666666-6666-4666-8666-000000000001",
   photoWeight: "66666666-6666-4666-8666-000000000002",
   photoUntagged: "66666666-6666-4666-8666-000000000003",
@@ -145,7 +149,7 @@ export function makeInspectionRow(overrides: Row = {}, template: Row = {}): Row 
     client: { id: IDS.client, name: "Client A", logo_path: PATHS.logo },
     // The factory with its company and brand, as INSPECTION_RECORD_SELECT embeds it: "Manufacturer A · Factory 1".
     manufacturer: { id: IDS.manufacturer, factory_name: "Factory 1", company: { name: "Company A", brand: { name: "Manufacturer A" } } },
-    inspector: { id: IDS.inspector, full_name: "Inspector A", email: "inspector@test.local" },
+    inspector: { id: IDS.inspector, full_name: "Inspector A", email: "inspector@test.local", lead_id: IDS.lead },
     ...overrides,
   };
 }

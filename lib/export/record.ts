@@ -17,7 +17,7 @@ export type ExportClient = SupabaseClient<Database>;
 
 /** The inspection, its template version and the names the export shows, in one request. */
 export const INSPECTION_RECORD_SELECT =
-  `id, ref_no, status, inspection_date, inspector_id, data, module_overrides, result, suggested_result, remarks, report_url, created_at, updated_at, submitted_at, approved_at, template:templates(id, code, version, standard, product_type, resolved, source_file_path), client:clients(id, name, logo_path), manufacturer:manufacturers(id, ${MANUFACTURER_NAMES_SELECT}), inspector:profiles!inspections_inspector_id_fkey(id, full_name, email)` as const;
+  `id, ref_no, status, inspection_date, inspector_id, data, module_overrides, result, suggested_result, remarks, report_url, created_at, updated_at, submitted_at, approved_at, template:templates(id, code, version, standard, product_type, resolved, source_file_path), client:clients(id, name, logo_path), manufacturer:manufacturers(id, ${MANUFACTURER_NAMES_SELECT}), inspector:profiles!inspections_inspector_id_fkey(id, full_name, email, lead_id)` as const;
 
 const PHOTO_SELECT =
   "id, module_key, target, storage_path, thumb_path, caption, taken_at, include_in_report, flagged, created_at";
@@ -74,9 +74,14 @@ export type InspectionRecord = {
   client: { id: string; name: string; logoPath: string | null } | null;
   /** The factory, named by its label (manufacturerLabel): "Top Glove · TG-F40". */
   manufacturer: { id: string; name: string } | null;
-  /** Always set (6.2 rule 11); `inspector` holds the profile when it could be read. */
+  /**
+   * Always set (6.2 rule 11); `inspector` holds the profile when it could be
+   * read, with `leadId`, the lead inspector whose team they are in
+   * (profiles.lead_id), whom buildInspectionExport lets export it too
+   * (canExportInspection's inspectorLeadId).
+   */
   inspectorId: string;
-  inspector: { id: string; fullName: string | null; email: string | null } | null;
+  inspector: { id: string; fullName: string | null; email: string | null; leadId: string | null } | null;
   photos: PhotoRecord[];
   files: FileRecord[];
 };
@@ -149,7 +154,9 @@ export async function loadInspectionRecord(client: ExportClient, inspectionId: s
       client: clientRow ? { id: clientRow.id, name: clientRow.name, logoPath: clientRow.logo_path } : null,
       manufacturer: manufacturer ? { id: manufacturer.id, name: manufacturerLabel(manufacturer) } : null,
       inspectorId: inspection.inspector_id,
-      inspector: inspector ? { id: inspector.id, fullName: inspector.full_name, email: inspector.email } : null,
+      inspector: inspector
+        ? { id: inspector.id, fullName: inspector.full_name, email: inspector.email, leadId: inspector.lead_id ?? null }
+        : null,
       photos: photos.data.map((photo) => ({
         id: photo.id,
         moduleKey: photo.module_key,

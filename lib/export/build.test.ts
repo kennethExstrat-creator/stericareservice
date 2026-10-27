@@ -14,11 +14,16 @@ import {
   PATHS,
   UPDATED_AT,
 } from "./__fixtures__/inspection";
+import { canExportInspection } from "./access";
 import { buildInspectionExport, type BuildExportOptions } from "./build";
+import { INSPECTION_RECORD_SELECT, loadInspectionRecord } from "./record";
 import { EXPORT_URL_TTL_SECONDS } from "./sign";
 
 const EXPORTED_AT = "2026-10-06T02:00:00.000Z";
 const ADMIN = { id: IDS.admin, role: "admin" } as const;
+/** The lead inspector whose team the fixture's inspector is in. */
+const LEAD = { id: IDS.lead, role: "inspector", isLead: true } as const;
+const NOT_FOUND = { ok: false, reason: "not_found", message: "Inspection not found." } as const;
 
 function setup(options: FakeSupabaseOptions = {}) {
   return createFakeSupabase({ tables: makeTables(), objects: makeObjects(), ...options });
@@ -319,13 +324,46 @@ describe("buildInspectionExport", () => {
     expect((await exportOf(unreadable)).inspector).toEqual({ id: IDS.inspector, name: "Unknown inspector" });
   });
 
-  it("is for the inspection's inspector or an admin only", async () => {
+  it("is for the inspection's inspector, their lead inspector or an admin only", async () => {
     expect((await build(setup(), { viewer: { id: IDS.inspector, role: "inspector" } })).ok).toBe(true);
-    expect(await build(setup(), { viewer: { id: IDS.otherInspector, role: "inspector" } })).toEqual({
-      ok: false,
-      reason: "not_found",
-      message: "Inspection not found.",
+    expect(await build(setup(), { viewer: { id: IDS.otherInspector, role: "inspector" } })).toEqual(NOT_FOUND);
+    // The lead of the inspector's team (Kenneth, 27 October 2026), not another team's.
+    expect((await build(setup(), { viewer: LEAD })).ok).toBe(true);
+    expect(await build(setup(), { viewer: { id: IDS.otherLead, role: "inspector", isLead: true } })).toEqual(NOT_FOUND);
+    // Not flagged a lead inspector, as Steri-AI's viewers are not: no way in as their lead.
+    expect(await build(setup(), { viewer: { id: IDS.lead, role: "inspector" } })).toEqual(NOT_FOUND);
+  });
+
+  it("reads the inspector's lead inspector with the inspection, and keeps it out of the export", async () => {
+    expect(INSPECTION_RECORD_SELECT).toContain("inspector:profiles!inspections_inspector_id_fkey(id, full_name, email, lead_id)");
+    const loaded = await loadInspectionRecord(setup().client, IDS.inspection);
+    expect(loaded.ok && loaded.record.inspector).toEqual({
+      id: IDS.inspector,
+      fullName: "Inspector A",
+      email: "inspector@test.local",
+      leadId: IDS.lead,
     });
+    expect((await exportOf()).inspector).toEqual({ id: IDS.inspector, name: "Inspector A", email: "inspector@test.local" });
+  });
+
+  it("lets no lead inspector in when the inspector is in no team, or their profile cannot be read", async () => {
+    const withInspector = (inspector: Record<string, unknown> | null) =>
+      setup({ tables: { ...makeTables(), inspections: [makeInspectionRow({ inspector })] } });
+    const noTeam = withInspector({ id: IDS.inspector, full_name: "Inspector A", email: "inspector@test.local", lead_id: null });
+    expect(await build(noTeam, { viewer: LEAD })).toEqual(NOT_FOUND);
+    expect(await build(withInspector(null), { viewer: LEAD })).toEqual(NOT_FOUND);
+    // Its inspector and admins still export it.
+    expect((await build(withInspector(null), { viewer: { id: IDS.inspector, role: "inspector" } })).ok).toBe(true);
+    expect((await build(withInspector(null))).ok).toBe(true);
+  });
+
+  it("leaves Steri-AI with the inspector and admins: the record it hands the rule names the lead inside `inspector` only", async () => {
+    // lib/inspections/ai passes the record itself, and the panel the whole session user, isLead included.
+    const loaded = await loadInspectionRecord(setup().client, IDS.inspection);
+    if (!loaded.ok) throw new Error(loaded.message);
+    expect(canExportInspection(LEAD, loaded.record)).toBe(false);
+    expect(canExportInspection({ id: IDS.inspector, role: "inspector" }, loaded.record)).toBe(true);
+    expect(canExportInspection(ADMIN, loaded.record)).toBe(true);
   });
 
   it("answers not found for an unknown id or one that is not a UUID", async () => {

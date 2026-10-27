@@ -14,17 +14,19 @@ import { ReportPrintStyles } from "./_components/print-styles";
  * The report built once per request, for the title and the page: the
  * inspection export (BUILD_SPEC 9.1) read through the signed-in user's
  * client, with the export's own rule on top (canExportInspection: the
- * inspection's inspector or an admin), so whoever may download the export
- * may print the report, and anyone else gets the same 404 as for an
- * inspection that does not exist. The session is checked first, then the
- * role's Export Reports, as the export route checks it.
+ * inspection's inspector, their lead inspector or an admin), so whoever may
+ * download the export may print the report, and anyone else gets the same
+ * 404 as for an inspection that does not exist. The session is checked
+ * first, then the role's Export Reports, as the export route checks it.
  */
 const loadReport = cache(async (id: string) => {
   const user = await requireUser();
   if (!userCan(user, "export_reports")) notFound();
   const inspectionId = parseInspectionId(id);
   if (!inspectionId) notFound();
-  const result = await buildInspectionExport(await createClient(), inspectionId, { viewer: { id: user.id, role: user.role } });
+  const result = await buildInspectionExport(await createClient(), inspectionId, {
+    viewer: { id: user.id, role: user.role, isLead: user.isLead },
+  });
   if (!result.ok) {
     if (result.reason === "not_found") notFound();
     // The app's error screen offers Try again: nothing prints without the export.

@@ -1,7 +1,7 @@
 // The print route as the server renders it: the session first, the export's
-// access rule (the inspection's inspector or an admin; anyone else the same
-// 404 as for no inspection), the report at true size with its print rules,
-// the bar over it, and the PDF's name (docs/REPORT.md).
+// access rule (the inspection's inspector, their lead inspector or an admin;
+// anyone else the same 404 as for no inspection), the report at true size
+// with its print rules, the bar over it, and the PDF's name (docs/REPORT.md).
 import { renderToStaticMarkup } from "react-dom/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -25,6 +25,14 @@ type User = Awaited<ReturnType<typeof requireUser>>;
 const INSPECTOR: User = { id: STD_EG_IDS.inspector, email: "inspector@test.local", fullName: "Inspector A", role: "inspector" };
 const ADMIN: User = { id: "00000000-0000-4000-8000-000000000102", email: "admin@test.local", fullName: "Admin A", role: "admin" };
 const OTHER: User = { id: "00000000-0000-4000-8000-000000000103", email: "other@test.local", fullName: "Inspector B", role: "inspector" };
+const LEAD: User = { id: "00000000-0000-4000-8000-000000000104", email: "lead@test.local", fullName: "Lead A", role: "inspector", isLead: true };
+const OTHER_LEAD: User = { id: "00000000-0000-4000-8000-000000000105", email: "lead2@test.local", fullName: "Lead B", role: "inspector", isLead: true };
+
+/** The STD_EG inspection, its inspector in the team of the lead inspector `leadId`. */
+function inTeamOf(leadId: string): InspectionRecord {
+  const record = stdEgRecord();
+  return { ...record, inspector: record.inspector && { ...record.inspector, leadId } };
+}
 
 function signedInAs(user: User, record: InspectionRecord = stdEgRecord(), options: FakeSupabaseOptions = {}) {
   vi.mocked(requireUser).mockResolvedValue(user);
@@ -74,6 +82,14 @@ describe("/inspections/[id]/report/print", () => {
   it("gives an admin any inspection's report", async () => {
     signedInAs(ADMIN);
     expect(await render()).toContain("data-report-document");
+  });
+
+  it("gives the inspector's lead inspector the report, as the export does, and another team's lead the same 404", async () => {
+    signedInAs(LEAD, inTeamOf(LEAD.id));
+    expect(await render()).toContain("data-report-document");
+    expect(await generateMetadata(props())).toEqual({ title: { absolute: "INS-2025-0001 Pre-Shipment Inspection Report" } });
+    signedInAs(OTHER_LEAD, inTeamOf(LEAD.id));
+    await expect(render()).rejects.toThrow("NEXT_HTTP_ERROR_FALLBACK;404");
   });
 
   it("answers another inspector with the same 404 as for no inspection, as the export does", async () => {

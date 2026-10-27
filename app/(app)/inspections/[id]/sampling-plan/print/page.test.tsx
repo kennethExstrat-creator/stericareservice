@@ -1,8 +1,9 @@
 // The sampling plan's print route as the server renders it (Kenneth, 27
 // October 2026): the session is checked first, the export is read through
-// the user's own client with the export's rule on top (the inspector or an
-// admin), an inspection the user may not read is the same 404 as one that
-// does not exist, and the page prints at A4 landscape under its bar.
+// the user's own client with the export's rule on top (the inspector, their
+// lead inspector or an admin), an inspection the user may not read is the
+// same 404 as one that does not exist, and the page prints at A4 landscape
+// under its bar.
 import { renderToStaticMarkup } from "react-dom/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -23,6 +24,7 @@ import SamplingPlanPrintPage, { generateMetadata } from "./page";
 
 const INSPECTION = "0b5c7d1e-2f3a-4b5c-8d9e-0f1a2b3c4d5e";
 const INSPECTOR = "4f5a6b7c-8d9e-4f0a-9b1c-2d3e4f5a6b7c";
+const LEAD = "5a6b7c8d-9e0f-4a1b-8c2d-3e4f5a6b7c8d";
 const CLIENT = { from: () => null };
 
 const paramsFor = (id: string) => ({ params: Promise.resolve({ id }) }) as PageProps<"/inspections/[id]/sampling-plan/print">;
@@ -56,12 +58,16 @@ describe("/inspections/[id]/sampling-plan/print", () => {
     expect(buildInspectionExport).not.toHaveBeenCalled();
   });
 
-  it("reads the export through the user's own client, which only the inspection's inspector or an admin gets", async () => {
+  it("reads the export through the user's own client, which only the inspection's inspector, their lead inspector or an admin gets", async () => {
     await render();
     expect(buildInspectionExport).toHaveBeenCalledWith(CLIENT, INSPECTION, { viewer: { id: INSPECTOR, role: "inspector" } });
     vi.mocked(requireUser).mockResolvedValue({ id: "a-admin", email: "admin@test.local", fullName: "Admin", role: "admin" });
     await render();
     expect(vi.mocked(buildInspectionExport).mock.calls.at(-1)?.[2]).toEqual({ viewer: { id: "a-admin", role: "admin" } });
+    // A lead inspector says so: the export lets them in for their team's inspections (Kenneth, 27 October 2026).
+    vi.mocked(requireUser).mockResolvedValue({ id: LEAD, email: "lead@test.local", fullName: "Test Lead", role: "inspector", isLead: true });
+    await render();
+    expect(vi.mocked(buildInspectionExport).mock.calls.at(-1)?.[2]).toEqual({ viewer: { id: LEAD, role: "inspector", isLead: true } });
   });
 
   it("is a 404 for an inspection the user may not read, one that does not exist, or an address that is no inspection", async () => {

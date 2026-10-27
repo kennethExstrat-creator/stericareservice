@@ -34,6 +34,15 @@ const OTHER_INSPECTOR: Session = {
   status: "active",
   user: { id: IDS.otherInspector, email: "other@test.local", fullName: "Inspector B", role: "inspector" },
 };
+/** The lead inspector whose team the inspection's inspector is in. */
+const LEAD: Session = {
+  status: "active",
+  user: { id: IDS.lead, email: "lead@test.local", fullName: "Lead A", role: "inspector", isLead: true },
+};
+const OTHER_LEAD: Session = {
+  status: "active",
+  user: { id: IDS.otherLead, email: "lead2@test.local", fullName: "Lead B", role: "inspector", isLead: true },
+};
 
 function signedInAs(session: Session, options: FakeSupabaseOptions = {}) {
   vi.mocked(getSession).mockResolvedValue(session);
@@ -75,6 +84,19 @@ describe("GET /api/inspections/[id]/export", () => {
     expect((await get()).status).toBe(200);
   });
 
+  it("gives the inspector's lead inspector the download, and another team's lead a 404 (Kenneth, 27 October 2026)", async () => {
+    signedInAs(LEAD);
+    const response = await get();
+    expect(response.status).toBe(200);
+    expect(response.headers.get("content-disposition")).toBe('attachment; filename="INS-2026-0042-export.json"');
+    expect(ExportSchema.safeParse(await response.json()).success).toBe(true);
+
+    signedInAs(OTHER_LEAD);
+    const other = await get();
+    expect(other.status).toBe(404);
+    expect(await other.json()).toEqual({ error: "not_found", message: "Inspection not found." });
+  });
+
   it("answers 404 to another inspector, as if the inspection did not exist", async () => {
     // Row Level Security would hide the row too; the route checks on its own.
     signedInAs(OTHER_INSPECTOR);
@@ -104,7 +126,7 @@ describe("GET /api/inspections/[id]/export", () => {
     expect(await response.json()).toEqual({ error: "forbidden", message: "This account is not active." });
   });
 
-  // Roles and permissions (migration 20261027150000): Export Reports, on top of owner-or-admin.
+  // Roles and permissions (migration 20261027150000): Export Reports, on top of the export's rule.
   it("answers 403 to a role without Export Reports, before reading any inspection", async () => {
     if (ADMIN.status !== "active") throw new Error("expected an active session");
     signedInAs({

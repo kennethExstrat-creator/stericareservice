@@ -67,8 +67,12 @@ import { unreachable } from "./unreachable";
 /** Under the pages: what Download PDF does with them. */
 export const PREVIEW_CAPTION = "Download PDF opens these pages in a new tab: choose Save as PDF in the print dialog.";
 
-/** Why Download PDF waits for a lead inspector reading a team member's inspection: the export's rule. */
-export const DOWNLOAD_NOT_ALLOWED = "The inspection's inspector and admins can download its report.";
+/**
+ * Why Download PDF waits: the role's Export Reports is off. The export's rule
+ * lets everyone who can open an inspection download it (its inspector, their
+ * lead inspector, admins).
+ */
+export const DOWNLOAD_NOT_ALLOWED = "Your role does not allow exporting reports.";
 
 /**
  * The options and the preview side by side: on a desktop (`xl`, from 1280 px

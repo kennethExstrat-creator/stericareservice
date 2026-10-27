@@ -153,8 +153,9 @@ flagged original left out.
   opens by itself once the fonts and photos have loaded; choose Save as PDF there. The print bar's Print / Save as PDF
   opens it again; Back returns to the Report page. The page's title names the PDF: "INS-2026-0001 Pre-Shipment
   Inspection Report".
-- **Who:** the export's rule, checked on the server: the inspection's inspector or an admin. Anyone else gets the same
-  404 as for no inspection; the Report page greys Download PDF for a lead inspector reading a team member's inspection.
+- **Who:** the export's rule, checked on the server: the inspection's inspector, their lead inspector or an admin
+  (Kenneth, 27 October 2026), with a role that allows Export Reports. Anyone else gets the same 404 as for no
+  inspection; the Report page greys Download PDF for a role without Export Reports.
 - **The print rules** (`print-styles.tsx`, in the print page only): `@page { size: <width>mm <height>mm; margin: 0 }`,
   so each page is one sheet; nothing but the pages on paper (the app shell, the bar and the toasts are hidden; the
   elements around the pages give up their boxes); tints print as drawn (`print-color-adjust: exact`).

@@ -12,20 +12,23 @@ import type { CaptureMeta } from "./evaluate";
 /**
  * Reads one inspection for the capture screen and its actions, always with
  * the signed-in user's client (lib/supabase/server): Row Level Security
- * decides whether it exists for this user (inspectors see their own, admins
- * every one). The template is the exact version the inspection started
- * with (`templates.resolved`), the per-inspection overrides come as stored.
+ * decides whether it exists for this user (inspectors see their own, lead
+ * inspectors their team's too, admins every one). The template is the exact
+ * version the inspection started with (`templates.resolved`), the
+ * per-inspection overrides come as stored.
  */
 
 type Client = SupabaseClient<Database>;
 
 /**
  * The inspector embed names its foreign key because approved_by also points
- * at profiles. The template's standard and product type are for the Report
- * page's preview, which builds an export from the screen's copy.
+ * at profiles; its lead_id is for the Report page's Download PDF (the
+ * export's rule lets the inspector's lead inspector export it). The
+ * template's standard and product type are for the Report page's preview,
+ * which builds an export from the screen's copy.
  */
 export const CAPTURE_SELECT =
-  `id, ref_no, status, data, module_overrides, updated_at, inspection_date, inspector_id, submitted_at, result, template:templates(id, code, version, standard, product_type, resolved), client:clients(id, name), manufacturer:manufacturers(id, ${MANUFACTURER_NAMES_SELECT}), inspector:profiles!inspections_inspector_id_fkey(id, full_name, email)` as const;
+  `id, ref_no, status, data, module_overrides, updated_at, inspection_date, inspector_id, submitted_at, result, template:templates(id, code, version, standard, product_type, resolved), client:clients(id, name), manufacturer:manufacturers(id, ${MANUFACTURER_NAMES_SELECT}), inspector:profiles!inspections_inspector_id_fkey(id, full_name, email, lead_id)` as const;
 
 type CaptureRow = {
   id: string;
@@ -41,7 +44,7 @@ type CaptureRow = {
   template: { id: string; code: string; version: number; standard: Standard; product_type: ProductType; resolved: unknown } | null;
   client: { id: string; name: string } | null;
   manufacturer: ({ id: string } & ManufacturerNames) | null;
-  inspector: { id: string; full_name: string | null; email: string | null } | null;
+  inspector: { id: string; full_name: string | null; email: string | null; lead_id: string | null } | null;
 };
 
 export type CaptureInspection = {
@@ -54,6 +57,8 @@ export type CaptureInspection = {
   overrides: ModuleOverrides;
   inspectionDate: string;
   inspectorId: string;
+  /** The inspector's lead inspector (profiles.lead_id); null when they have none or the profile cannot be read. */
+  inspectorLeadId: string | null;
   submittedAt: string | null;
   result: InspectionResult | null;
   template: {
@@ -146,6 +151,7 @@ export function toCaptureLoad(row: CaptureRow): CaptureLoad {
       overrides: parseModuleOverrides(row.module_overrides),
       inspectionDate: row.inspection_date,
       inspectorId: row.inspector_id,
+      inspectorLeadId: row.inspector?.lead_id ?? null,
       submittedAt: row.submitted_at,
       result: row.result,
       template: {

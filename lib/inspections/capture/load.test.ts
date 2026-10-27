@@ -10,6 +10,7 @@ import {
 
 const ID = "7c2d4e1a-0b3f-4a5c-9d8e-1f2a3b4c5d6e";
 const INSPECTOR = "0a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d";
+const LEAD = "1b2c3d4e-5f6a-4b7c-9d8e-0f1a2b3c4d5e";
 
 function row(overrides: Record<string, unknown> = {}) {
   return {
@@ -33,7 +34,7 @@ function row(overrides: Record<string, unknown> = {}) {
       factory_name: "Factory 1",
       company: { name: "Company A", brand: { name: "Manufacturer A" } },
     },
-    inspector: { id: INSPECTOR, full_name: null, email: "inspector@test.local" },
+    inspector: { id: INSPECTOR, full_name: null, email: "inspector@test.local", lead_id: LEAD },
     ...overrides,
   };
 }
@@ -50,6 +51,8 @@ describe("toCaptureLoad", () => {
       status: "draft",
       updatedAt: "2026-10-06T09:14:03.123456+00:00",
       inspectorId: INSPECTOR,
+      // For the Report page's Download PDF: the export's rule lets the inspector's lead inspector export it.
+      inspectorLeadId: LEAD,
       manufacturerLabel: "Manufacturer A · Factory 1",
       // The header line names no factory.
       manufacturerBrand: "Manufacturer A",
@@ -80,13 +83,19 @@ describe("toCaptureLoad", () => {
     expect(named({ name: "Company B", brand: { name: "Manufacturer B" } })).toEqual(["Manufacturer B · Company B", "Manufacturer B · Company B"]);
   });
 
-  it("still records the inspector when their profile cannot be read", () => {
+  it("still records the inspector when their profile cannot be read, with no lead inspector", () => {
     const loaded = toCaptureLoad(row({ inspector: null, client: null, manufacturer: null }));
     expect(loaded.kind === "found" && loaded.inspection.meta).toMatchObject({
       inspector: { id: INSPECTOR, name: "Inspector" },
       client: null,
       manufacturer: null,
     });
+    expect(loaded.kind === "found" && loaded.inspection.inspectorLeadId).toBeNull();
+  });
+
+  it("reads an inspector in no lead inspector's team as having none", () => {
+    const loaded = toCaptureLoad(row({ inspector: { id: INSPECTOR, full_name: null, email: "inspector@test.local", lead_id: null } }));
+    expect(loaded.kind === "found" && loaded.inspection.inspectorLeadId).toBeNull();
   });
 
   it("reads the template's AI setting through its schema, off when it says nothing", () => {

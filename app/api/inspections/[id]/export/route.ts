@@ -5,8 +5,8 @@ import { createClient } from "@/lib/supabase/server";
 
 /*
  * GET /api/inspections/[id]/export (BUILD_SPEC 9.1): the inspection export as
- * a JSON download, for its inspector or an admin whose role allows Export
- * Reports.
+ * a JSON download, for its inspector, their lead inspector or an admin, whose
+ * role allows Export Reports.
  *
  *   401  not signed in
  *   403  signed in, but the account is not active, or its role does not
@@ -18,7 +18,8 @@ import { createClient } from "@/lib/supabase/server";
  *
  * proxy.ts lets /api through without redirecting; this handler checks the
  * session and the role itself, reads through the signed-in user's client
- * (Row Level Security) and checks owner-or-admin again on the record.
+ * (Row Level Security) and checks the export's rule again on the record
+ * (canExportInspection: the inspector, their lead inspector or an admin).
  */
 
 const NO_STORE = { "Cache-Control": "private, no-store", "X-Content-Type-Options": "nosniff" } as const;
@@ -51,7 +52,7 @@ export async function GET(_request: NextRequest, context: RouteContext<"/api/ins
 
   const supabase = await createClient();
   const result = await buildInspectionExport(supabase, inspectionId, {
-    viewer: { id: session.user.id, role: session.user.role },
+    viewer: { id: session.user.id, role: session.user.role, isLead: session.user.isLead },
   });
   if (!result.ok) {
     const [status, code] = FAILURE_STATUS[result.reason];

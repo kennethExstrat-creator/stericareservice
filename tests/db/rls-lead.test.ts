@@ -128,6 +128,25 @@ describe("RLS: lead inspector", { timeout: 30_000 }, () => {
     expect(sorted(...ids)).toEqual(sorted(lead, people.inspector));
   });
 
+  // The export's rule (lib/export/access.ts; Kenneth, 27 October 2026): a lead exports a team member's
+  // inspection, known by its inspector's lead_id, which the export reads with the lead's own session.
+  it("reads the lead of each inspection's inspector, as the export's rule asks", async () => {
+    const rows = await asUser(db, lead, (tx) =>
+      tx.query<{ id: string; lead_id: string | null }>(
+        `select i.id::text as id, p.lead_id::text as lead_id
+           from public.inspections i
+           left join public.profiles p on p.id = i.inspector_id`,
+      ),
+    );
+    expect(Object.fromEntries(rows.rows.map((row) => [row.id, row.lead_id]))).toEqual({
+      [draft.id]: lead,
+      [submitted.id]: lead,
+      [approved.id]: lead,
+      // Their own: a lead inspector is in no team.
+      [own.id]: null,
+    });
+  });
+
   it("is told who is in their team, and nothing about anyone else's", async () => {
     const answers = await asUser(db, lead, async (tx) => ({
       isLead: (await column<boolean>(tx, "select public.is_lead()"))[0],

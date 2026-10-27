@@ -69,7 +69,7 @@ export function liveReportExport(input: LiveExportInput): InspectionExport | nul
     client: meta.client ? { id: meta.client.id, name: meta.client.name, logoPath: null } : null,
     manufacturer: manufacturer ? { id: manufacturer.id, name: manufacturer.name } : null,
     inspectorId: inspector.id,
-    inspector: { id: inspector.id, fullName: inspector.name, email: null },
+    inspector: { id: inspector.id, fullName: inspector.name, email: null, leadId: null },
     photos: photos.map((photo) => ({
       id: photo.id,
       moduleKey: photo.moduleKey,
