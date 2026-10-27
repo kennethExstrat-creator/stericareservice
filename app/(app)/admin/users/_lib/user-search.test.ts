@@ -6,6 +6,8 @@ import {
   matchingIds,
   MAX_SEARCH_LENGTH,
   noMatchMessage,
+  phoneDigits,
+  phoneSpellings,
   queryAfterViewChange,
   readSearch,
   uidSpellings,
@@ -14,11 +16,11 @@ import {
 } from "./user-search";
 
 const PEOPLE = [
-  { id: "olga", uid: "SC-0042", fullName: "Olga Óther", email: "olga@test.local" },
-  { id: "ivan", uid: "SC-0420", fullName: "Ivan Inspector", email: "ivan@example.com" },
-  { id: "ngan", uid: "SC-10000", fullName: "Ngan Boon Keat", email: "lead@test.local" },
+  { id: "olga", uid: "SC-0042", fullName: "Olga Óther", email: "olga@test.local", phone: "+60 12-345 6789" },
+  { id: "ivan", uid: "SC-0420", fullName: "Ivan Inspector", email: "ivan@example.com", phone: "(03) 7788 1122" },
+  { id: "ngan", uid: "SC-10000", fullName: "Ngan Boon Keat", email: "lead@test.local", phone: null },
   // Invited without a name, and from before UIDs.
-  { id: "nobody", uid: null, fullName: null, email: "new@test.local" },
+  { id: "nobody", uid: null, fullName: null, email: "new@test.local", phone: null },
 ];
 
 const ENTRIES: SearchEntry[] = PEOPLE.map((person) => ({ id: person.id, text: userSearchText(person) }));
@@ -63,11 +65,40 @@ describe("the search on /admin/users", () => {
     expect(found("SC-0042 ivan")).toEqual([]);
   });
 
+  it("finds someone by their phone number, whatever spaces, brackets or hyphens it is typed with", () => {
+    for (const query of ["+60 12-345 6789", "+60123456789", "60123456789", "012-345 6789", "0123456789", "12 345", "6789"]) {
+      expect(found(query), query).toEqual(["olga"]);
+    }
+    for (const query of ["(03) 7788 1122", "03-7788 1122", "0377881122", "+603 7788 1122", "7788-1122"]) {
+      expect(found(query), query).toEqual(["ivan"]);
+    }
+    // A phone number and a word: every word must match.
+    expect(found("olga 6789")).toEqual(["olga"]);
+    expect(found("ivan 6789")).toEqual([]);
+    expect(found("012-999 0000")).toEqual([]);
+  });
+
   it("shows everyone without a search, spaces included", () => {
     expect(found("")).toBeNull();
     expect(found("   ")).toBeNull();
     expect(isSearching(" \t")).toBe(false);
     expect(isSearching("a")).toBe(true);
+  });
+
+  it("spells a phone number by its digits, a Malaysian one saved without its country code with it too", () => {
+    expect(phoneSpellings("+60 12-345 6789")).toEqual(["60123456789"]);
+    expect(phoneSpellings("012-345 6789")).toEqual(["0123456789", "60123456789"]);
+    expect(phoneSpellings("(03) 7788 1122")).toEqual(["0377881122", "60377881122"]);
+    expect(phoneSpellings("+44 20 7946 0958")).toEqual(["442079460958"]);
+    expect(phoneSpellings(null)).toEqual([]);
+    expect(phoneSpellings("")).toEqual([]);
+  });
+
+  it("reads a search as a phone number only when it is digits, spaces, brackets, hyphens and a leading +", () => {
+    expect(phoneDigits(" +60 12-345 6789 ")).toBe("60123456789");
+    expect(phoneDigits("(03) 7788-1122")).toBe("0377881122");
+    expect(phoneDigits("42")).toBe("42");
+    for (const query of ["SC-0042", "olga 6789", "6789+", "()", "-", ""]) expect(phoneDigits(query), query).toBeNull();
   });
 
   it("spells a UID the ways an admin may type it", () => {

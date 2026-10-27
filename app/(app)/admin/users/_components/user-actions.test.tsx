@@ -1,17 +1,21 @@
 // The row menu's dialogs, drawn on the server: each names the person in its
 // title, with their UID beside the title, never inside it, so every dialog
-// keeps its name. Change Name is in rename-dialog.test.tsx. The dialogs are
-// drawn in place here (a portal draws nothing on the server).
+// keeps its name. Edit Details is in details-dialog.test.tsx, Copy Invite
+// Link in invite-link-dialog.test.tsx. The dialogs are drawn in place here (a
+// portal draws nothing on the server).
 import type { ReactNode } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 
 vi.mock("../actions", () => ({
   assignLead: vi.fn(),
+  cancelInvite: vi.fn(),
   changeRole: vi.fn(),
+  createInviteLink: vi.fn(),
   deactivateUser: vi.fn(),
+  editUserDetails: vi.fn(),
   reactivateUser: vi.fn(),
-  renameUser: vi.fn(),
+  resendInvite: vi.fn(),
   sendPasswordLink: vi.fn(),
 }));
 vi.mock("@/components/ui/dialog", () => {
@@ -39,7 +43,7 @@ vi.mock("@/components/ui/alert-dialog", () => {
   };
 });
 
-import { changeRole } from "../actions";
+import { cancelInvite, changeRole, resendInvite } from "../actions";
 import { ConfirmDialog, confirmation, LeadsTeamDialog, PlacementDialog } from "./user-actions";
 import type { UserActionsTarget } from "./user-menu";
 
@@ -50,6 +54,7 @@ const OLGA: UserActionsTarget = {
   uid: "SC-0042",
   name: "Olga Other",
   fullName: "Olga Other",
+  phone: null,
   email: "olga@test.local",
   role: "inspector",
   status: "active",
@@ -74,6 +79,8 @@ describe("the user dialogs", () => {
   it.each([
     ["send-link", "Send a Password Link to Olga Other?"],
     ["unblock", "Let Olga Other Sign In Again?"],
+    ["resend-invite", "Resend the Invite to Olga Other?"],
+    ["cancel-invite", "Cancel the Invite to Olga Other?"],
     ["deactivate", "Deactivate Olga Other?"],
     ["reactivate", "Reactivate Olga Other?"],
     ["activate", "Activate Olga Other?"],
@@ -128,5 +135,40 @@ describe("the user dialogs", () => {
       expect(html).not.toContain("title-with-uid");
     }
     expect(confirm).toContain("<div>Deactivate Olga Other?</div>");
+  });
+});
+
+describe("the invitation dialogs", () => {
+  const ZED: UserActionsTarget = { ...OLGA, uid: "SC-0044", name: "zed@example.com", fullName: null, email: "zed@example.com", status: "invited" };
+
+  it("resends the invite to the address on the profile, and says Copy Invite Link is there if email fails", () => {
+    const resend = confirmation("resend-invite", ZED);
+    expect(resend).toMatchObject({ confirm: "Resend Invite", pending: "Sending…", action: resendInvite, fields: { userId: ZED.id } });
+    expect(resend.destructive).toBeUndefined();
+    const html = renderToStaticMarkup(<ConfirmDialog confirmation={resend} onClose={noop} returnFocusTo={nowhere} />);
+    expect(html).toContain('We email <span class="font-medium text-foreground">zed@example.com</span> a new link to create their');
+    expect(html).toContain("Any link sent or copied before stops working.");
+    expect(html).toContain("choose Copy Invite Link instead");
+    expect(html).toMatch(/<button[^>]*type="submit"[^>]*>Resend Invite<\/button>/);
+    expect(html).toContain(`<input type="hidden" name="userId" value="${ZED.id}"/>`);
+  });
+
+  it("asks before cancelling an invite, in red, with Keep Invite rather than a second Cancel", () => {
+    const cancel = confirmation("cancel-invite", ZED);
+    expect(cancel).toMatchObject({ confirm: "Cancel Invite", dismiss: "Keep Invite", destructive: true, action: cancelInvite });
+    const html = renderToStaticMarkup(<ConfirmDialog confirmation={cancel} onClose={noop} returnFocusTo={nowhere} />);
+    expect(html).toMatch(titleWithUid("Cancel the Invite to zed@example.com?", "SC-0044"));
+    expect(html).toContain("This removes the account the invite made for");
+    expect(html).toContain("You can invite the address again later.");
+    expect(html).toContain(">Keep Invite</div>");
+    expect(html).not.toMatch(/>Cancel<\/div>/);
+    expect(html).toMatch(/<button[^>]*data-variant="destructive"[^>]*type="submit"[^>]*>Cancel Invite<\/button>/);
+  });
+
+  it("keeps Cancel on every other confirmation", () => {
+    const html = renderToStaticMarkup(
+      <ConfirmDialog confirmation={confirmation("deactivate", OLGA)} onClose={noop} returnFocusTo={nowhere} />,
+    );
+    expect(html).toContain(">Cancel</div>");
   });
 });

@@ -53,10 +53,21 @@ describe("InviteUserDialog", () => {
     const html = renderToStaticMarkup(<InviteUserDialog leads={LEADS} />);
     expect(html).toMatch(/<button[^>]*>(?:(?!<\/button>).)*Invite User<\/button>/);
     expect(html).toContain(">Invite a User</div>");
-    expect(html).toContain(">Full Name</label>");
     expect(html).toContain(">Email</label>");
     expect(html).toContain(">Send Invite</button>");
     expect(renderToStaticMarkup(<InviteUserDialog label="Invite Your First User" />)).toContain("Invite Your First User");
+  });
+
+  it("asks for the address and the role only: the invitee gives their own name, phone and password", () => {
+    const html = renderToStaticMarkup(<InviteUserDialog leads={LEADS} />);
+    expect(html).not.toContain("Full Name");
+    expect(html).not.toContain('name="fullName"');
+    expect(html).not.toContain('name="phone"');
+    // One field to type in: the email (the role's radios are buttons, each with a hidden native input).
+    expect(html.match(/<input(?![^>]*type="hidden")(?![^>]*aria-hidden="true")[^>]*>/g)).toEqual([
+      expect.stringContaining('name="email"'),
+    ]);
+    expect(html).toContain("They get an email with a link to create their account: their name, phone and password.");
   });
 
   it("says there is no lead inspector to choose yet", () => {

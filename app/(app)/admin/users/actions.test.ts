@@ -12,11 +12,14 @@ import { createAdminClient, isAdminClientConfigured } from "@/lib/supabase/admin
 import { createClient } from "@/lib/supabase/server";
 import {
   assignLead,
+  cancelInvite,
   changeRole,
+  createInviteLink,
   deactivateUser,
+  editUserDetails,
   inviteUser,
   reactivateUser,
-  renameUser,
+  resendInvite,
   sendPasswordLink,
   type ActionResult,
 } from "./actions";
@@ -27,6 +30,8 @@ const NEW = "5f6e7d8c-9b0a-4c1d-8e2f-3a4b5c6d7e8f";
 const LEAD = "1b2c3d4e-5f60-4a7b-8c9d-0e1f2a3b4c5d";
 const LEAD_TWO = "2c3d4e5f-6071-4b8c-9d0e-1f2a3b4c5d6e";
 const MEMBER = "3d4e5f60-7182-4c9d-8e0f-2a3b4c5d6e7f";
+/** Invited and activated, not joined yet: no name, and no password. */
+const INVITED = "4e5f6071-8293-4d0e-9f1a-3b4c5d6e7f80";
 const IDLE: ActionResult = { status: "idle" };
 /** At the role field when no active lead inspector other than the person exists: the lead picker is empty. */
 const NOBODY = "Nobody can lead them yet. Choose Lead Inspector or Admin, or make someone a lead inspector first.";
@@ -40,12 +45,14 @@ type Row = {
   id: string;
   email: string | null;
   full_name: string | null;
+  phone: string | null;
   role: "inspector" | "admin";
   active: boolean;
   is_lead: boolean;
   lead_id: string | null;
   created_at: string;
   updated_at: string;
+  joined_at: string | null;
 };
 
 type Query = { client: "user" | "admin"; calls: Array<[string, unknown[]]> };
@@ -58,12 +65,14 @@ function row(id: string, email: string, fullName: string | null, extra: Partial<
     id,
     email,
     full_name: fullName,
+    phone: null,
     role: "inspector",
     active: true,
     is_lead: false,
     lead_id: null,
     created_at: CREATED,
     updated_at: "2026-10-02T00:00:00Z",
+    joined_at: "2026-10-02T00:00:00Z",
     ...extra,
   };
 }
@@ -72,11 +81,15 @@ let rows: Map<string, Row>;
 let queries: Query[];
 /** False: a project that has not run migration 20261007170000. */
 let teams: boolean;
+/** False: a project that has not run migration 20261027140000 (phones and joined_at). */
+let accounts: boolean;
 /** Makes the matching operations fail: updates, reads, or only the count of lead inspectors. */
 let failures: { update?: Failure; read?: Failure; leads?: Failure };
 
 const MISSING_READ = { code: "42703", message: "column profiles.is_lead does not exist" };
 const MISSING_WRITE = { code: "PGRST204", message: "Could not find the 'is_lead' column of 'profiles' in the schema cache" };
+const MISSING_ACCOUNT_READ = { code: "42703", message: "column profiles.phone does not exist" };
+const MISSING_ACCOUNT_WRITE = { code: "PGRST204", message: "Could not find the 'phone' column of 'profiles' in the schema cache" };
 
 function project(source: Row | undefined, columns: string): Record<string, unknown> | null {
   if (!source) return null;
@@ -94,8 +107,13 @@ function fakeClient(kind: "user" | "admin") {
     function run(single: boolean): { data: unknown; error: unknown } {
       const columns = String(arg("select")?.[0] ?? "");
       const update = arg("update")?.[0] as Partial<Row> | undefined;
-      const touchesTeams = /is_lead|lead_id/.test(columns) || (update && ("is_lead" in update || "lead_id" in update));
+      const touchesTeams =
+        /is_lead|lead_id/.test(columns) ||
+        eqs().some(([column]) => /is_lead|lead_id/.test(column)) ||
+        (update && ("is_lead" in update || "lead_id" in update));
       if (!teams && touchesTeams) return { data: null, error: update ? MISSING_WRITE : MISSING_READ };
+      const touchesAccounts = /phone|joined_at/.test(columns) || (update && ("phone" in update || "joined_at" in update));
+      if (!accounts && touchesAccounts) return { data: null, error: update ? MISSING_ACCOUNT_WRITE : MISSING_ACCOUNT_READ };
 
       const matching = [...rows.values()].filter((candidate) =>
         eqs().every(([column, value]) => candidate[column as keyof Row] === value),
@@ -134,13 +152,36 @@ function fakeClient(kind: "user" | "admin") {
     resetPasswordForEmail: vi.fn().mockResolvedValue({ data: {}, error: null }),
     admin: {
       inviteUserByEmail: vi.fn(async () => {
-        // Supabase Auth creates the user; the sign-up trigger makes an inactive inspector.
-        rows.set(NEW, row(NEW, "jane.tan@example.com", "Jane Tan", { active: false, updated_at: CREATED }));
+        // Supabase Auth creates the user; the sign-up trigger makes an inactive inspector, with no
+        // name (the invite gives none) and not joined (no password).
+        rows.set(NEW, row(NEW, "jane.tan@example.com", null, { active: false, updated_at: CREATED, joined_at: null }));
         return { data: { user: { id: NEW } }, error: null };
       }),
       updateUserById: vi.fn().mockResolvedValue({ data: { user: {} }, error: null }),
       // Deactivated accounts are banned; tests that need a pending one say so.
       getUserById: vi.fn().mockResolvedValue({ data: { user: { banned_until: "2126-09-12T08:00:00Z" } }, error: null }),
+      // A link, nothing emailed: for the user who has the address.
+      generateLink: vi.fn(async ({ type, email }: { type: string; email: string }) => {
+        const user = [...rows.values()].find((candidate) => candidate.email === email);
+        return {
+          data: {
+            properties: {
+              action_link: `https://project.supabase.co/auth/v1/verify?token=${type}-hash&type=${type}`,
+              email_otp: "123456",
+              hashed_token: `${type}-hash`,
+              redirect_to: "https://qc.example.com",
+              verification_type: type,
+            },
+            user: { id: user?.id ?? NEW },
+          },
+          error: null,
+        };
+      }),
+      // The profile goes with the auth user (on delete cascade).
+      deleteUser: vi.fn(async (id: string) => {
+        rows.delete(id);
+        return { data: { user: {} }, error: null };
+      }),
     },
   };
   return { from, auth };
@@ -165,8 +206,7 @@ function form(fields: Record<string, string>): FormData {
   return data;
 }
 
-const inviteForm = (overrides: Record<string, string> = {}) =>
-  form({ email: "  Jane.Tan@Example.com ", fullName: " Jane Tan ", role: "admin", ...overrides });
+const inviteForm = (overrides: Record<string, string> = {}) => form({ email: "  Jane.Tan@Example.com ", role: "admin", ...overrides });
 
 beforeEach(() => {
   vi.stubEnv("NEXT_PUBLIC_SITE_URL", "https://qc.example.com");
@@ -177,6 +217,7 @@ beforeEach(() => {
   vi.mocked(isAdminClientConfigured).mockReturnValue(true);
   vi.spyOn(console, "error").mockImplementation(() => {});
   teams = true;
+  accounts = true;
   failures = {};
   queries = [];
   rows = new Map(
@@ -186,6 +227,8 @@ beforeEach(() => {
       row(LEAD_TWO, "leo@test.local", "Leo Lead", { is_lead: true }),
       row(MEMBER, "ivan@test.local", "Ivan Inspector", { lead_id: LEAD }),
       row(OTHER, "olga@test.local", "Olga Other", { lead_id: LEAD_TWO }),
+      // In no team, so the team counts of the tests below stay as they are.
+      row(INVITED, "zed@example.com", null, { joined_at: null }),
     ].map((entry) => [entry.id, entry]),
   );
   userClient = fakeClient("user");
@@ -201,14 +244,17 @@ afterEach(() => {
 });
 
 describe("every action", () => {
-  const calls: Array<[string, () => Promise<ActionResult>]> = [
+  const calls: Array<[string, () => Promise<unknown>]> = [
     ["inviteUser", () => inviteUser(IDLE, inviteForm())],
-    ["renameUser", () => renameUser(IDLE, form({ userId: OTHER, fullName: "Olga Tan" }))],
+    ["editUserDetails", () => editUserDetails(IDLE, form({ userId: OTHER, fullName: "Olga Tan", phone: "" }))],
     ["changeRole", () => changeRole(IDLE, form({ userId: OTHER, role: "admin" }))],
     ["assignLead", () => assignLead(IDLE, form({ userId: OTHER, leadId: LEAD }))],
     ["deactivateUser", () => deactivateUser(IDLE, form({ userId: OTHER }))],
     ["reactivateUser", () => reactivateUser(IDLE, form({ userId: OTHER }))],
     ["sendPasswordLink", () => sendPasswordLink(IDLE, form({ userId: OTHER }))],
+    ["resendInvite", () => resendInvite(IDLE, form({ userId: INVITED }))],
+    ["createInviteLink", () => createInviteLink(IDLE, form({ userId: INVITED }))],
+    ["cancelInvite", () => cancelInvite(IDLE, form({ userId: INVITED }))],
   ];
 
   it.each(calls)("%s refuses anyone who is not an active admin", async (_name, run) => {
@@ -222,8 +268,18 @@ describe("every action", () => {
   });
 
   it.each(calls.slice(1))("%s refuses a user id that is not a uuid", async (name) => {
-    const action = { renameUser, changeRole, assignLead, deactivateUser, reactivateUser, sendPasswordLink }[name]!;
-    const result = await action(IDLE, form({ userId: "1 or 1=1", role: "admin", leadId: LEAD }));
+    const action = {
+      editUserDetails,
+      changeRole,
+      assignLead,
+      deactivateUser,
+      reactivateUser,
+      sendPasswordLink,
+      resendInvite,
+      createInviteLink,
+      cancelInvite,
+    }[name]!;
+    const result = await action(IDLE, form({ userId: "1 or 1=1", fullName: "Olga", role: "admin", leadId: LEAD }));
     expect(result).toMatchObject({ status: "error", message: expect.stringContaining("could not be found") });
     expect(createClient).not.toHaveBeenCalled();
   });
@@ -235,21 +291,21 @@ describe("every action", () => {
 });
 
 describe("inviteUser", () => {
-  it("invites through the admin client, then activates the new profile with its role and name", async () => {
+  it("invites through the admin client, then activates the new profile in its role, with no name", async () => {
     const result = await inviteUser(IDLE, inviteForm());
 
     expect(result).toEqual({
       status: "success",
-      message: "Invite sent to jane.tan@example.com. They choose a password from the link in the email.",
+      message: "Invite sent to jane.tan@example.com. From the link in it they create their account: name, phone and password.",
     });
-    expect(adminClient.auth.admin.inviteUserByEmail).toHaveBeenCalledWith("jane.tan@example.com", {
-      data: { full_name: "Jane Tan" },
+    // No name: the invitee gives their own on Account Creation.
+    expect(adminClient.auth.admin.inviteUserByEmail).toHaveBeenCalledExactlyOnceWith("jane.tan@example.com", {
       redirectTo: "https://qc.example.com/auth/confirm",
     });
     expect(updates()).toEqual([
       {
         client: "admin",
-        fields: { role: "admin", is_lead: false, lead_id: null, full_name: "Jane Tan", active: true },
+        fields: { role: "admin", is_lead: false, lead_id: null, active: true },
         // Only if nobody changed it since the read.
         eq: [
           ["id", NEW],
@@ -264,7 +320,7 @@ describe("inviteUser", () => {
     const result = await inviteUser(IDLE, inviteForm({ role: "inspector", leadId: LEAD }));
 
     expect(result).toMatchObject({ status: "success", message: expect.stringMatching(/They work in Lina Lead's team\.$/) });
-    expect(updates()[0].fields).toEqual({ role: "inspector", is_lead: false, lead_id: LEAD, full_name: "Jane Tan", active: true });
+    expect(updates()[0].fields).toEqual({ role: "inspector", is_lead: false, lead_id: LEAD, active: true });
   });
 
   it("invites a lead inspector", async () => {
@@ -318,7 +374,7 @@ describe("inviteUser", () => {
   it("invites with roles only on a project without lead inspectors, and refuses a lead inspector there", async () => {
     teams = false;
     expect(await inviteUser(IDLE, inviteForm({ role: "inspector" }))).toMatchObject({ status: "success" });
-    expect(updates()[0].fields).toEqual({ role: "inspector", full_name: "Jane Tan", active: true });
+    expect(updates()[0].fields).toEqual({ role: "inspector", active: true });
 
     rows.delete(NEW);
     expect(await inviteUser(IDLE, inviteForm({ role: "lead", email: "lena@example.com" }))).toMatchObject({
@@ -344,10 +400,11 @@ describe("inviteUser", () => {
   it("says so plainly when the invite went out but the account could not be activated", async () => {
     failures.update = { code: "57014", message: "statement timeout" };
 
+    // The list names them by their email until they give a name.
     expect(await inviteUser(IDLE, inviteForm())).toEqual({
       status: "warning",
       message:
-        "Invite sent to jane.tan@example.com, but the account could not be activated. Choose Activate next to Jane Tan, then make them an admin.",
+        "Invite sent to jane.tan@example.com, but the account could not be activated. Choose Activate next to jane.tan@example.com, then make them an admin.",
     });
     expect(refresh).toHaveBeenCalledOnce();
   });
@@ -356,7 +413,7 @@ describe("inviteUser", () => {
     failures.update = { code: "57014", message: "statement timeout" };
     expect(await inviteUser(IDLE, inviteForm({ role: "inspector", leadId: LEAD }))).toMatchObject({
       status: "warning",
-      message: expect.stringMatching(/Choose Activate next to Jane Tan\.$/),
+      message: expect.stringMatching(/Choose Activate next to jane\.tan@example\.com\.$/),
     });
   });
 
@@ -437,6 +494,27 @@ describe("inviteUser", () => {
     expect(result).toMatchObject({ fieldErrors: { email: expect.stringContaining("Reactivate") } });
   });
 
+  it("points an address invited already at Resend Invite and Copy Invite Link", async () => {
+    const result = await inviteUser(IDLE, inviteForm({ email: "Zed@Example.com" }));
+    expect(result).toMatchObject({
+      status: "error",
+      fieldErrors: {
+        email:
+          "That email has been invited already. To send them a new link, choose Resend Invite or Copy Invite Link next to their name.",
+      },
+    });
+    expect(adminClient.auth.admin.inviteUserByEmail).not.toHaveBeenCalled();
+  });
+
+  it("checks an address on a project without Account Creation, as before", async () => {
+    accounts = false;
+    expect(await inviteUser(IDLE, inviteForm({ email: "olga@test.local" }))).toMatchObject({
+      fieldErrors: { email: expect.stringContaining("already has an account") },
+    });
+    rows.delete(NEW);
+    expect(await inviteUser(IDLE, inviteForm())).toMatchObject({ status: "success" });
+  });
+
   it("maps Auth's own duplicate error to the same message", async () => {
     adminClient.auth.admin.inviteUserByEmail.mockResolvedValue({
       data: { user: null },
@@ -448,14 +526,13 @@ describe("inviteUser", () => {
   });
 
   it("returns field errors and sends nothing for an invalid form", async () => {
-    const result = await inviteUser(IDLE, form({ email: "jane@", fullName: "", role: "owner" }));
+    const result = await inviteUser(IDLE, form({ email: "jane@", role: "owner" }));
 
     expect(result).toEqual({
       status: "error",
       message: "Check the highlighted fields.",
       fieldErrors: {
         email: "Enter a valid email address, like name@example.com.",
-        fullName: "Enter their full name.",
         role: "Choose Inspector, Lead Inspector or Admin.",
       },
     });
@@ -464,15 +541,20 @@ describe("inviteUser", () => {
   });
 });
 
-describe("renameUser", () => {
-  const rename = (userId: string, fullName: string) => renameUser(IDLE, form({ userId, fullName }));
+describe("editUserDetails", () => {
+  const edit = (userId: string, fullName: string, phone = "") => editUserDetails(IDLE, form({ userId, fullName, phone }));
 
-  it("renames through the admin's own client, so RLS applies, then the copy Supabase Auth keeps", async () => {
-    const result = await rename(OTHER, "Olga Tan");
+  it("saves the name and phone through the admin's own client, so RLS applies, then the name Supabase Auth keeps", async () => {
+    const result = await edit(OTHER, "Olga Tan", " +60 12-345  6789 ");
 
-    expect(result).toEqual({ status: "success", message: "Olga Other is now Olga Tan." });
-    expect(updates()).toEqual([{ client: "user", fields: { full_name: "Olga Tan" }, eq: [["id", OTHER]] }]);
-    expect(rows.get(OTHER)?.full_name).toBe("Olga Tan");
+    expect(result).toEqual({
+      status: "success",
+      message: "Olga Other is now Olga Tan. Their phone number is now +60 12-345 6789.",
+    });
+    expect(updates()).toEqual([
+      { client: "user", fields: { full_name: "Olga Tan", phone: "+60 12-345 6789" }, eq: [["id", OTHER]] },
+    ]);
+    expect(rows.get(OTHER)).toMatchObject({ full_name: "Olga Tan", phone: "+60 12-345 6789" });
     // Only full_name: Auth merges it into the metadata it has.
     expect(adminClient.auth.admin.updateUserById).toHaveBeenCalledExactlyOnceWith(OTHER, {
       user_metadata: { full_name: "Olga Tan" },
@@ -483,31 +565,55 @@ describe("renameUser", () => {
     expect(refresh).toHaveBeenCalledOnce();
   });
 
-  it("saves the name trimmed and on one line", async () => {
-    expect(await rename(OTHER.toUpperCase(), "  Ngan \t Boon\r\n Keat ")).toEqual({
+  it("says what changed: the name, the phone, both or neither", async () => {
+    expect(await edit(OTHER, "Olga Tan")).toEqual({ status: "success", message: "Olga Other is now Olga Tan." });
+    expect(await edit(OTHER, "Olga Tan", "012-345 6789")).toEqual({
       status: "success",
-      message: "Olga Other is now Ngan Boon Keat.",
+      message: "Olga Tan's phone number is now 012-345 6789.",
     });
-    expect(updates()).toEqual([{ client: "user", fields: { full_name: "Ngan Boon Keat" }, eq: [["id", OTHER]] }]);
-  });
-
-  it("renames anyone: the admin themselves, a deactivated account, someone with no name yet", async () => {
-    expect(await rename(SELF, "Ada Admin")).toEqual({ status: "success", message: "Test Admin is now Ada Admin." });
-
-    rows.get(OTHER)!.active = false;
-    expect(await rename(OTHER, "Olga Tan")).toMatchObject({ status: "success" });
-
-    rows.get(MEMBER)!.full_name = null;
-    expect(await rename(MEMBER, "Ivan Tan")).toEqual({ status: "success", message: "ivan@test.local is now Ivan Tan." });
+    expect(await edit(OTHER, "Olga Tan", "")).toEqual({ status: "success", message: "Olga Tan's phone number is removed." });
+    expect(await edit(OTHER, " Olga  Tan ")).toEqual({ status: "success", message: "Olga Tan's details stay as they were." });
     expect(updates().map((update) => update.fields)).toEqual([
-      { full_name: "Ada Admin" },
-      { full_name: "Olga Tan" },
-      { full_name: "Ivan Tan" },
+      { full_name: "Olga Tan", phone: null },
+      { full_name: "Olga Tan", phone: "012-345 6789" },
+      { full_name: "Olga Tan", phone: null },
+      { full_name: "Olga Tan", phone: null },
     ]);
   });
 
-  it("says so when the name stays the same", async () => {
-    expect(await rename(OTHER, " Olga  Other ")).toEqual({ status: "success", message: "Olga Other keeps the same name." });
+  it("saves the name trimmed and on one line", async () => {
+    expect(await edit(OTHER.toUpperCase(), "  Ngan \t Boon\r\n Keat ")).toEqual({
+      status: "success",
+      message: "Olga Other is now Ngan Boon Keat.",
+    });
+    expect(updates()).toEqual([{ client: "user", fields: { full_name: "Ngan Boon Keat", phone: null }, eq: [["id", OTHER]] }]);
+  });
+
+  it("edits anyone: the admin themselves, a deactivated account, someone invited with no name yet", async () => {
+    expect(await edit(SELF, "Ada Admin", "03-1234 5678")).toEqual({
+      status: "success",
+      message: "Test Admin is now Ada Admin. Their phone number is now 03-1234 5678.",
+    });
+
+    rows.get(OTHER)!.active = false;
+    expect(await edit(OTHER, "Olga Tan")).toMatchObject({ status: "success" });
+
+    // Named by their email until now; what they enter on Account Creation replaces it.
+    expect(await edit(INVITED, "Zed Zainal", "012-345 6789")).toEqual({
+      status: "success",
+      message: "zed@example.com is now Zed Zainal. Their phone number is now 012-345 6789.",
+    });
+    expect(rows.get(INVITED)).toMatchObject({ full_name: "Zed Zainal", phone: "012-345 6789", joined_at: null });
+  });
+
+  it("leaves the phone as it is when the form sends no phone field", async () => {
+    rows.get(OTHER)!.phone = "012-345 6789";
+    expect(await editUserDetails(IDLE, form({ userId: OTHER, fullName: "Olga Tan" }))).toEqual({
+      status: "success",
+      message: "Olga Other is now Olga Tan.",
+    });
+    expect(updates()).toEqual([{ client: "user", fields: { full_name: "Olga Tan" }, eq: [["id", OTHER]] }]);
+    expect(rows.get(OTHER)?.phone).toBe("012-345 6789");
   });
 
   it.each([
@@ -515,18 +621,39 @@ describe("renameUser", () => {
     ["spaces only", "   ", "Enter their name."],
     ["101 characters", "x".repeat(101), "Keep the name to 100 characters or fewer."],
     ["a hidden control character", "Olga\u0000Tan", "The name holds a hidden control character. Type it again."],
-  ])("refuses %s at the field, before touching Supabase", async (_case, fullName, message) => {
-    expect(await rename(OTHER, fullName)).toEqual({ status: "error", message, fieldErrors: { fullName: message } });
+  ])("refuses %s at the name field, before touching Supabase", async (_case, fullName, message) => {
+    expect(await edit(OTHER, fullName)).toEqual({ status: "error", message, fieldErrors: { fullName: message } });
     expect(createClient).not.toHaveBeenCalled();
     expect(createAdminClient).not.toHaveBeenCalled();
   });
 
+  it("refuses a phone number that is not one at the phone field, the name's problem first", async () => {
+    const phone = "Enter a phone number, like +60 12-345 6789 or 012-345 6789.";
+    expect(await edit(OTHER, "Olga Tan", "call me")).toEqual({ status: "error", message: phone, fieldErrors: { phone } });
+    expect(await edit(OTHER, "", "12345")).toEqual({
+      status: "error",
+      message: "Enter their name.",
+      fieldErrors: { fullName: "Enter their name.", phone },
+    });
+    expect(createClient).not.toHaveBeenCalled();
+  });
+
+  it("puts the database's refusal of a phone number at the phone field", async () => {
+    failures.update = { code: "23514", message: 'new row for relation "profiles" violates check constraint "profiles_phone_format"' };
+    expect(await edit(OTHER, "Olga Tan", "012-345 6789")).toEqual({
+      status: "error",
+      message: MESSAGES.phoneRefused,
+      fieldErrors: { phone: MESSAGES.phoneRefused },
+    });
+    expect(refresh).not.toHaveBeenCalled();
+  });
+
   it("takes exactly 100 characters", async () => {
-    expect(await rename(OTHER, "x".repeat(100))).toMatchObject({ status: "success" });
+    expect(await edit(OTHER, "x".repeat(100))).toMatchObject({ status: "success" });
   });
 
   it("asks for the name when the form has none", async () => {
-    expect(await renameUser(IDLE, form({ userId: OTHER }))).toEqual({
+    expect(await editUserDetails(IDLE, form({ userId: OTHER, phone: "" }))).toEqual({
       status: "error",
       message: "Enter their name.",
       fieldErrors: { fullName: "Enter their name." },
@@ -536,14 +663,14 @@ describe("renameUser", () => {
   it("refuses an admin whose account was deactivated, before reading anything", async () => {
     vi.mocked(authorizeAction).mockResolvedValue({ ok: false, error: "This account has been deactivated." });
 
-    expect(await rename(OTHER, "Olga Tan")).toEqual({ status: "error", message: "This account has been deactivated." });
+    expect(await edit(OTHER, "Olga Tan")).toEqual({ status: "error", message: "This account has been deactivated." });
     expect(authorizeAction).toHaveBeenCalledWith("admin");
     expect(createClient).not.toHaveBeenCalled();
     expect(createAdminClient).not.toHaveBeenCalled();
   });
 
   it("says when the user no longer exists, and changes nothing", async () => {
-    expect(await rename(NEW, "Jane Tan")).toEqual({ status: "error", message: MESSAGES.userNotFound });
+    expect(await edit(NEW, "Jane Tan")).toEqual({ status: "error", message: MESSAGES.userNotFound });
     expect(updates()).toEqual([]);
     expect(adminClient.auth.admin.updateUserById).not.toHaveBeenCalled();
     expect(refresh).not.toHaveBeenCalled();
@@ -566,14 +693,14 @@ describe("renameUser", () => {
 
     it("none: the account went (or RLS hid it) since the read", async () => {
       updateAnswers(() => ({ data: [], error: null }));
-      expect(await rename(OTHER, "Olga Tan")).toEqual({ status: "error", message: MESSAGES.userNotFound });
+      expect(await edit(OTHER, "Olga Tan")).toEqual({ status: "error", message: MESSAGES.userNotFound });
       expect(adminClient.auth.admin.updateUserById).not.toHaveBeenCalled();
       expect(refresh).not.toHaveBeenCalled();
     });
 
     it("more than one: never reported as a success", async () => {
       updateAnswers(() => ({ data: [{ id: OTHER }, { id: MEMBER }], error: null }));
-      expect(await rename(OTHER, "Olga Tan")).toEqual({ status: "error", message: MESSAGES.unexpected });
+      expect(await edit(OTHER, "Olga Tan")).toEqual({ status: "error", message: MESSAGES.unexpected });
       expect(console.error).toHaveBeenCalled();
       expect(adminClient.auth.admin.updateUserById).not.toHaveBeenCalled();
     });
@@ -581,7 +708,7 @@ describe("renameUser", () => {
 
   it("surfaces the database's refusal in plain words, and leaves Auth alone", async () => {
     failures.update = { code: "42501", message: "permission denied for table profiles" };
-    expect(await rename(OTHER, "Olga Tan")).toEqual({ status: "error", message: MESSAGES.notAllowed });
+    expect(await edit(OTHER, "Olga Tan")).toEqual({ status: "error", message: MESSAGES.notAllowed });
     expect(adminClient.auth.admin.updateUserById).not.toHaveBeenCalled();
     expect(refresh).not.toHaveBeenCalled();
   });
@@ -592,7 +719,7 @@ describe("renameUser", () => {
       error: { status: 500, message: "Database error updating user" },
     });
 
-    expect(await rename(OTHER, "Olga Tan")).toEqual({ status: "success", message: "Olga Other is now Olga Tan." });
+    expect(await edit(OTHER, "Olga Tan")).toEqual({ status: "success", message: "Olga Other is now Olga Tan." });
     expect(rows.get(OTHER)?.full_name).toBe("Olga Tan");
     expect(console.error).toHaveBeenCalledWith(
       "[admin/users] name saved; Supabase Auth keeps the old one",
@@ -601,15 +728,28 @@ describe("renameUser", () => {
     );
   });
 
-  it("renames without the secret key, leaving Auth's copy as it was", async () => {
+  it("saves without the secret key, leaving Auth's copy as it was", async () => {
     vi.mocked(isAdminClientConfigured).mockReturnValue(false);
-    expect(await rename(OTHER, "Olga Tan")).toMatchObject({ status: "success" });
+    expect(await edit(OTHER, "Olga Tan")).toMatchObject({ status: "success" });
     expect(createAdminClient).not.toHaveBeenCalled();
   });
 
-  it("renames on a project without lead inspectors too", async () => {
+  it("saves on a project without lead inspectors too", async () => {
     teams = false;
-    expect(await rename(OTHER, "Olga Tan")).toMatchObject({ status: "success" });
+    expect(await edit(OTHER, "Olga Tan", "012-345 6789")).toMatchObject({ status: "success" });
+  });
+
+  it("saves the name alone on a project without phone numbers, and says what a phone needs", async () => {
+    accounts = false;
+    expect(await edit(OTHER, "Olga Tan")).toEqual({ status: "success", message: "Olga Other is now Olga Tan." });
+    expect(updates()).toEqual([{ client: "user", fields: { full_name: "Olga Tan" }, eq: [["id", OTHER]] }]);
+
+    expect(await edit(OTHER, "Olga Tan", "012-345 6789")).toEqual({
+      status: "error",
+      message: MESSAGES.accountsMissing,
+      fieldErrors: { phone: MESSAGES.accountsMissing },
+    });
+    expect(updates()).toHaveLength(1);
   });
 });
 
@@ -1041,6 +1181,306 @@ describe("sendPasswordLink", () => {
     expect(await sendPasswordLink(IDLE, form({ userId: OTHER }))).toMatchObject({
       status: "error",
       message: expect.stringContaining("email limit for this hour"),
+    });
+  });
+});
+
+describe("invitations not yet answered", () => {
+  const CONFIRM = "https://qc.example.com/auth/confirm";
+  const COPY_INSTEAD = "Or choose Copy Invite Link and send them the link yourself.";
+
+  /** Supabase Auth's account for the invitee: never opened (unconfirmed) and not banned unless said. */
+  function authUser(extra: Record<string, unknown> = {}) {
+    adminClient.auth.admin.getUserById.mockResolvedValue({
+      data: { user: { id: INVITED, email: "zed@example.com", email_confirmed_at: null, banned_until: null, ...extra } },
+      error: null,
+    } as never);
+  }
+
+  beforeEach(() => authUser());
+
+  describe.each([
+    ["resendInvite", resendInvite],
+    ["createInviteLink", createInviteLink],
+  ] as const)("%s", (_name, action) => {
+    const run = (userId: string) => action(IDLE, form({ userId }));
+
+    it("refuses someone who has created their account, pointing at Send Password Link, and asks Auth nothing", async () => {
+      expect(await run(OTHER)).toEqual({
+        status: "error",
+        message: "Olga Other has already created their account. If they need a new link, choose Send Password Link next to their name.",
+      });
+      expect(adminClient.auth.admin.getUserById).not.toHaveBeenCalled();
+    });
+
+    it("refuses an account that is not active: no link would let them in", async () => {
+      rows.get(INVITED)!.active = false;
+      expect(await run(INVITED)).toEqual({
+        status: "error",
+        message:
+          "zed@example.com's account is not active, so a link would not let them in. Choose Activate or Reactivate next to their name first.",
+      });
+      expect(adminClient.auth.admin.getUserById).not.toHaveBeenCalled();
+    });
+
+    it("refuses while a ban blocks their sign-in", async () => {
+      authUser({ banned_until: "2126-09-12T08:00:00Z" });
+      expect(await run(INVITED)).toEqual({
+        status: "error",
+        message: "zed@example.com's sign-in is blocked, so a link would not let them in. Choose Lift Sign-In Block first.",
+      });
+      expect(adminClient.auth.admin.inviteUserByEmail).not.toHaveBeenCalled();
+      expect(adminClient.auth.admin.generateLink).not.toHaveBeenCalled();
+    });
+
+    it("says when Supabase Auth has no such account, or does not answer", async () => {
+      adminClient.auth.admin.getUserById.mockResolvedValue({
+        data: { user: null },
+        error: { status: 404, code: "user_not_found", message: "User not found" },
+      } as never);
+      expect(await run(INVITED)).toEqual({ status: "error", message: MESSAGES.userNotFound });
+      adminClient.auth.admin.getUserById.mockResolvedValue({
+        data: { user: null },
+        error: { status: 503, message: "Service unavailable" },
+      } as never);
+      expect(await run(INVITED)).toEqual({ status: "error", message: "Supabase Auth did not answer (Service unavailable). Try again." });
+    });
+
+    it("says when the user no longer exists", async () => {
+      expect(await run(NEW)).toEqual({ status: "error", message: MESSAGES.userNotFound });
+    });
+
+    it("is switched off without the secret key, before reading anything", async () => {
+      vi.mocked(isAdminClientConfigured).mockReturnValue(false);
+      expect(await run(INVITED)).toEqual({ status: "error", message: MESSAGES.missingSecretKey });
+      expect(createClient).not.toHaveBeenCalled();
+      expect(createAdminClient).not.toHaveBeenCalled();
+    });
+
+    it("says what is needed on a project without Account Creation", async () => {
+      accounts = false;
+      expect(await run(INVITED)).toEqual({ status: "error", message: MESSAGES.accountsMissing });
+    });
+
+    it("changes no profile", async () => {
+      await run(INVITED);
+      expect(updates()).toEqual([]);
+      expect(refresh).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("resendInvite", () => {
+    const resend = () => resendInvite(IDLE, form({ userId: INVITED }));
+
+    it("invites an address that never opened its invite again, with a new link", async () => {
+      adminClient.auth.admin.inviteUserByEmail.mockResolvedValue({ data: { user: { id: INVITED } }, error: null } as never);
+
+      expect(await resend()).toEqual({
+        status: "success",
+        message: "A new invite went to zed@example.com. The link in the earlier one no longer works.",
+      });
+      expect(adminClient.auth.admin.inviteUserByEmail).toHaveBeenCalledExactlyOnceWith("zed@example.com", { redirectTo: CONFIRM });
+      expect(adminClient.auth.resetPasswordForEmail).not.toHaveBeenCalled();
+    });
+
+    it("sends a password link to someone who opened the invite without finishing: Supabase invites only once", async () => {
+      authUser({ email_confirmed_at: "2026-10-26T09:00:00Z" });
+
+      expect(await resend()).toEqual({
+        status: "success",
+        message:
+          "zed@example.com opened the invite before without finishing, and Supabase sends an invite only once, so a password link went to zed@example.com instead. From it they go on to create their account.",
+      });
+      expect(adminClient.auth.admin.inviteUserByEmail).not.toHaveBeenCalled();
+      // The secret-key client: the admin's own would leave a PKCE code verifier in their cookies.
+      expect(adminClient.auth.resetPasswordForEmail).toHaveBeenCalledExactlyOnceWith("zed@example.com", { redirectTo: CONFIRM });
+      expect(userClient.auth.resetPasswordForEmail).not.toHaveBeenCalled();
+    });
+
+    it("sends the password link when Supabase refuses the invite as taken: they opened it a moment ago", async () => {
+      adminClient.auth.admin.inviteUserByEmail.mockResolvedValue({
+        data: { user: null },
+        error: { code: "email_exists", status: 422, message: "A user with this email address has already been registered" },
+      } as never);
+
+      expect(await resend()).toMatchObject({ status: "success", message: expect.stringContaining("a password link went to") });
+      expect(adminClient.auth.resetPasswordForEmail).toHaveBeenCalledOnce();
+    });
+
+    it("explains an email Supabase did not send, and offers a link sent by hand", async () => {
+      adminClient.auth.admin.inviteUserByEmail.mockResolvedValue({
+        data: { user: null },
+        error: { code: "email_address_not_authorized", status: 400, message: "Email address not authorized" },
+      } as never);
+      const refused = await resend();
+      expect(refused).toMatchObject({ status: "error", message: expect.stringMatching(/^The invite email could not be sent: .*custom SMTP/) });
+      expect(refused).toMatchObject({ message: expect.stringContaining(COPY_INSTEAD) });
+
+      authUser({ email_confirmed_at: "2026-10-26T09:00:00Z" });
+      adminClient.auth.resetPasswordForEmail.mockResolvedValue({
+        data: null,
+        error: { code: "over_email_send_rate_limit", status: 429, message: "email rate limit exceeded" },
+      } as never);
+      expect(await resend()).toEqual({
+        status: "error",
+        message: expect.stringMatching(/^The password link could not be sent: Supabase's email limit for this hour/),
+      });
+      expect(await resend()).toMatchObject({ message: expect.stringContaining(COPY_INSTEAD) });
+    });
+
+    it("does not offer a link by hand when Supabase refused the server's key: the link needs it too", async () => {
+      adminClient.auth.admin.inviteUserByEmail.mockResolvedValue({
+        data: { user: null },
+        error: { status: 401, message: "Invalid API key" },
+      } as never);
+      const result = await resend();
+      expect(result).toMatchObject({ status: "error", message: expect.stringContaining("SUPABASE_SECRET_KEY") });
+      expect(result).not.toMatchObject({ message: expect.stringContaining("Copy Invite Link") });
+    });
+  });
+
+  describe("createInviteLink", () => {
+    const create = () => createInviteLink(IDLE, form({ userId: INVITED }));
+    const MESSAGE =
+      "It signs zed@example.com in to create their account. It works once, within an hour, and any earlier link no longer works, the one in their invite email included.";
+
+    it("makes an invite link for an address that never opened its invite, on /auth/confirm, emailing nothing", async () => {
+      expect(await create()).toEqual({
+        status: "link",
+        link: `${CONFIRM}?token_hash=invite-hash&type=invite`,
+        message: MESSAGE,
+      });
+      expect(adminClient.auth.admin.generateLink).toHaveBeenCalledExactlyOnceWith({ type: "invite", email: "zed@example.com" });
+      expect(adminClient.auth.admin.inviteUserByEmail).not.toHaveBeenCalled();
+      expect(adminClient.auth.resetPasswordForEmail).not.toHaveBeenCalled();
+      // The link signs its holder in: it goes to the admin who asked, never into a log.
+      expect(console.error).not.toHaveBeenCalled();
+    });
+
+    it("never hands out Supabase's own action_link", async () => {
+      const result = await create();
+      expect(JSON.stringify(result)).not.toContain("supabase.co");
+    });
+
+    it("makes a magic link, checked as an email link, for someone who opened the invite without finishing", async () => {
+      authUser({ email_confirmed_at: "2026-10-26T09:00:00Z" });
+      expect(await create()).toEqual({ status: "link", link: `${CONFIRM}?token_hash=magiclink-hash&type=email`, message: MESSAGE });
+      expect(adminClient.auth.admin.generateLink).toHaveBeenCalledExactlyOnceWith({ type: "magiclink", email: "zed@example.com" });
+    });
+
+    it("makes the magic link when Supabase refuses the invite link as taken: they opened it a moment ago", async () => {
+      adminClient.auth.admin.generateLink.mockResolvedValueOnce({
+        data: { properties: null, user: null },
+        error: { code: "email_exists", status: 422, message: "A user with this email address has already been registered" },
+      } as never);
+      expect(await create()).toMatchObject({ status: "link", link: `${CONFIRM}?token_hash=magiclink-hash&type=email` });
+      expect(adminClient.auth.admin.generateLink.mock.calls.map(([params]) => params.type)).toEqual(["invite", "magiclink"]);
+    });
+
+    it("explains a refused link in plain words", async () => {
+      adminClient.auth.admin.generateLink.mockResolvedValue({
+        data: { properties: null, user: null },
+        error: { status: 401, message: "Invalid API key" },
+      } as never);
+      expect(await create()).toEqual({
+        status: "error",
+        message:
+          "The invite link was not created: Supabase refused the server's key. Check that SUPABASE_SECRET_KEY is the secret key of this project.",
+      });
+    });
+
+    it("undoes an account Supabase made to hold the link when the invitee's went in the meantime", async () => {
+      adminClient.auth.admin.generateLink.mockResolvedValue({
+        data: {
+          properties: { action_link: "", email_otp: "", hashed_token: "signup-hash", redirect_to: "", verification_type: "signup" },
+          user: { id: NEW },
+        },
+        error: null,
+      } as never);
+      expect(await create()).toEqual({ status: "error", message: MESSAGES.userNotFound });
+      expect(adminClient.auth.admin.deleteUser).toHaveBeenCalledExactlyOnceWith(NEW);
+    });
+  });
+
+  describe("cancelInvite", () => {
+    const cancel = (userId: string = INVITED) => cancelInvite(IDLE, form({ userId }));
+
+    it("deletes the account nobody created, which takes its profile with it", async () => {
+      expect(await cancel()).toEqual({
+        status: "success",
+        message: "The invite to zed@example.com is cancelled: its link no longer works, and the address can be invited again.",
+      });
+      expect(adminClient.auth.admin.deleteUser).toHaveBeenCalledExactlyOnceWith(INVITED);
+      expect(rows.has(INVITED)).toBe(false);
+      expect(refresh).toHaveBeenCalledOnce();
+    });
+
+    it.each([
+      ["as the page sends it", SELF],
+      ["in upper case", SELF.toUpperCase()],
+    ])("refuses to cancel your own account (your id %s)", async (_case, userId) => {
+      expect(await cancel(userId)).toEqual({ status: "error", message: MESSAGES.selfCancel });
+      expect(createClient).not.toHaveBeenCalled();
+      expect(createAdminClient).not.toHaveBeenCalled();
+    });
+
+    it("refuses an account someone has created: Deactivate stops those", async () => {
+      expect(await cancel(OTHER)).toEqual({
+        status: "error",
+        message:
+          "Olga Other has already created their account, so there is no invite to cancel. To stop them signing in, choose Deactivate.",
+      });
+      expect(adminClient.auth.admin.deleteUser).not.toHaveBeenCalled();
+    });
+
+    it("cancels an invite whose account is no longer active too", async () => {
+      rows.get(INVITED)!.active = false;
+      expect(await cancel()).toMatchObject({ status: "success" });
+    });
+
+    it("moves an invited lead inspector's team first, naming it", async () => {
+      rows.get(INVITED)!.is_lead = true;
+      rows.get(OTHER)!.lead_id = INVITED;
+      expect(await cancel()).toEqual({
+        status: "error",
+        message:
+          "zed@example.com leads 1 inspector: Olga Other. Choose another lead inspector for them first (Change Lead Inspector, next to their name).",
+      });
+      expect(adminClient.auth.admin.deleteUser).not.toHaveBeenCalled();
+    });
+
+    it("says so in plain words when the database keeps the account", async () => {
+      adminClient.auth.admin.deleteUser.mockResolvedValue({
+        data: { user: null },
+        error: { status: 500, code: "unexpected_failure", message: "Database error deleting user" },
+      } as never);
+      expect(await cancel()).toEqual({
+        status: "error",
+        message:
+          "The invite to zed@example.com was not cancelled: records in the app point at their account, so the database keeps it. To stop them signing in, choose Deactivate instead.",
+      });
+      expect(refresh).not.toHaveBeenCalled();
+    });
+
+    it("counts an account already gone as cancelled: another admin did it a moment ago", async () => {
+      adminClient.auth.admin.deleteUser.mockResolvedValue({
+        data: { user: null },
+        error: { status: 404, code: "user_not_found", message: "User not found" },
+      } as never);
+      expect(await cancel()).toMatchObject({ status: "success" });
+      expect(refresh).toHaveBeenCalledOnce();
+    });
+
+    it("cancels on a project without lead inspectors", async () => {
+      teams = false;
+      expect(await cancel()).toMatchObject({ status: "success" });
+    });
+
+    it("says when the user no longer exists, and is switched off without the secret key", async () => {
+      expect(await cancel(NEW)).toEqual({ status: "error", message: MESSAGES.userNotFound });
+      vi.mocked(isAdminClientConfigured).mockReturnValue(false);
+      expect(await cancel()).toEqual({ status: "error", message: MESSAGES.missingSecretKey });
+      expect(adminClient.auth.admin.deleteUser).not.toHaveBeenCalled();
     });
   });
 });

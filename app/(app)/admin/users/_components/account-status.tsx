@@ -2,6 +2,7 @@ import {
   BanIcon,
   CircleCheckIcon,
   ClockIcon,
+  MailIcon,
   ShieldCheckIcon,
   UserRoundIcon,
   UsersRoundIcon,
@@ -14,9 +15,12 @@ import { cn } from "@/lib/utils";
 
 // Account states borrow the status tokens (docs/DESIGN.md) with icons that fit
 // accounts: active is green, waiting for an admin is amber, deactivated is a
-// neutral slate. Always icon plus words, never colour alone.
+// neutral slate. Invited waits on the person, not the admin, so it reads as
+// not done yet: the dashed slate of Not Done. Always icon plus words, never
+// colour alone.
 const ACCOUNT_STATUS: Record<AccountStatus, { label: string; icon: LucideIcon; className: string }> = {
   active: { label: "Active", icon: CircleCheckIcon, className: STATUS_TINT_CLASS.pass },
+  invited: { label: "Invited", icon: MailIcon, className: STATUS_TINT_CLASS.not_done },
   pending: { label: "Pending Activation", icon: ClockIcon, className: STATUS_TINT_CLASS.warn },
   deactivated: { label: "Deactivated", icon: BanIcon, className: STATUS_TINT_CLASS.info },
 };

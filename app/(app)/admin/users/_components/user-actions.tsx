@@ -6,8 +6,11 @@ import {
   BanIcon,
   EllipsisIcon,
   KeyRoundIcon,
+  LinkIcon,
   LockOpenIcon,
+  MailXIcon,
   OctagonXIcon,
+  SendIcon,
   TriangleAlertIcon,
   UserCheckIcon,
   UserCogIcon,
@@ -51,20 +54,24 @@ import { currentPlacement, needsLead, TEAM_MESSAGES, type RoleChoice } from "@/l
 import type { LeadOption, UserField } from "@/lib/auth/users";
 import {
   assignLead,
+  cancelInvite,
   changeRole,
   deactivateUser,
   reactivateUser,
+  resendInvite,
   sendPasswordLink,
   type ActionResult,
 } from "../actions";
 import { teamHref } from "../_lib/team-filter";
 import { cn } from "@/lib/utils";
-import { RenameDialog } from "./rename-dialog";
+import { DetailsDialog } from "./details-dialog";
+import { InviteLinkDialog } from "./invite-link-dialog";
 import { focusRole, LeadField, RoleField, roleChoicesFor, SCROLLING_DIALOG } from "./role-fields";
 import { TitleWithUid } from "./uid-badge";
 import { unreachable } from "./unreachable";
 import {
   activationNeedsPlacement,
+  DESTRUCTIVE,
   DIALOG_TITLE,
   leadChoicesFor,
   MENU_LABEL,
@@ -77,11 +84,14 @@ type ServerAction = (previous: ActionResult, formData: FormData) => Promise<Acti
 
 /** Each menu item's icon; its words are MENU_LABEL (user-menu.ts). */
 const MENU_ICON: Record<Kind, LucideIcon> = {
-  "change-name": UserPenIcon,
+  "edit-details": UserPenIcon,
   "change-role": UserCogIcon,
   "change-lead": UsersRoundIcon,
   "send-link": KeyRoundIcon,
   unblock: LockOpenIcon,
+  "resend-invite": SendIcon,
+  "copy-invite-link": LinkIcon,
+  "cancel-invite": MailXIcon,
   deactivate: BanIcon,
   reactivate: UserCheckIcon,
   activate: UserCheckIcon,
@@ -94,13 +104,15 @@ export type Confirmation = {
   description: ReactNode;
   confirm: string;
   pending: string;
+  /** The button that changes nothing, when "Cancel" would read as the action itself (Cancel Invite). */
+  dismiss?: string;
   destructive?: boolean;
   action: ServerAction;
   fields: Record<string, string>;
 };
 
 export function confirmation(
-  kind: "send-link" | "unblock" | "deactivate" | "reactivate" | "activate",
+  kind: "send-link" | "unblock" | "resend-invite" | "cancel-invite" | "deactivate" | "reactivate" | "activate",
   user: UserActionsTarget,
 ): Confirmation {
   const title = DIALOG_TITLE[kind](user.name);
@@ -132,6 +144,40 @@ export function confirmation(
         confirm: "Lift Block",
         pending: "Lifting…",
         action: reactivateUser,
+        fields: target,
+      };
+    case "resend-invite":
+      return {
+        title,
+        uid,
+        description: (
+          <>
+            We email <span className="font-medium text-foreground">{user.email}</span> a new link to create their
+            account: name, phone and password. Any link sent or copied before stops working. If email does not reach
+            them, choose Copy Invite Link instead and send the link yourself.
+          </>
+        ),
+        confirm: "Resend Invite",
+        pending: "Sending…",
+        action: resendInvite,
+        fields: target,
+      };
+    case "cancel-invite":
+      return {
+        title,
+        uid,
+        description: (
+          <>
+            This removes the account the invite made for{" "}
+            <span className="font-medium text-foreground">{user.email}</span>: the links sent to it stop working, and
+            they leave this list. You can invite the address again later.
+          </>
+        ),
+        confirm: "Cancel Invite",
+        pending: "Cancelling…",
+        dismiss: "Keep Invite",
+        destructive: true,
+        action: cancelInvite,
         fields: target,
       };
     case "deactivate":
@@ -174,24 +220,105 @@ export function UserActions({
   user,
   teams = true,
   leads = [],
+  invites = true,
 }: {
   user: UserActionsTarget;
   /** False until the project has lead inspectors (migration 20261007170000). */
   teams?: boolean;
   /** Active lead inspectors, for the lead pickers. */
   leads?: readonly LeadOption[];
+  /** False without the secret key: no invite can be resent, copied or cancelled. */
+  invites?: boolean;
 }) {
   const [kind, setKind] = useState<Kind | null>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const openingDialog = useRef(false);
   const noteId = useId();
-  const groups = menuGroups(user, { teams });
+  const groups = menuGroups(user, { teams, invites });
 
   if (groups.length === 0) return null;
 
   const close = () => setKind(null);
   // Nobody leads themselves; the only lead inspector is told there is no other one.
   const { choices: leadChoices, emptyHint } = leadChoicesFor(user.id, leads);
+
+  /** The dialog an item opens. */
+  function dialogFor(item: Kind): ReactNode {
+    switch (item) {
+      case "edit-details":
+        return <DetailsDialog key={item} user={user} onClose={close} returnFocusTo={triggerRef} />;
+      case "copy-invite-link":
+        return <InviteLinkDialog key={item} user={user} onClose={close} returnFocusTo={triggerRef} />;
+      case "change-role":
+        return (
+          <PlacementDialog
+            key={item}
+            user={user}
+            title={DIALOG_TITLE["change-role"](user.name)}
+            description={teams ? currentPlacement(user.role, user.lead?.name ?? null) : "Only admins manage users and approve inspections."}
+            confirm="Save Role"
+            pending="Saving…"
+            action={changeRole}
+            choices={roleChoicesFor(teams)}
+            askLead={teams}
+            leads={leadChoices}
+            emptyHint={emptyHint}
+            onClose={close}
+            returnFocusTo={triggerRef}
+          />
+        );
+      case "change-lead":
+        return (
+          <PlacementDialog
+            key={item}
+            user={user}
+            title={DIALOG_TITLE["change-lead"](user.name)}
+            description={user.lead ? `They work in ${user.lead.name}'s team now.` : "They are in no lead inspector's team yet."}
+            confirm="Save Lead Inspector"
+            pending="Saving…"
+            action={assignLead}
+            choices={null}
+            askLead
+            leads={leadChoices}
+            emptyHint={emptyHint}
+            onClose={close}
+            returnFocusTo={triggerRef}
+          />
+        );
+      case "activate":
+      case "reactivate":
+        // An inspector in no team is placed as they are let in.
+        if (!activationNeedsPlacement(user, teams)) break;
+        return (
+          <PlacementDialog
+            key={item}
+            user={user}
+            title={DIALOG_TITLE[item](user.name)}
+            description="An inspector works in a lead inspector's team. Choose their role, and their lead inspector if they are an inspector."
+            confirm={item === "activate" ? "Activate" : "Reactivate"}
+            pending={item === "activate" ? "Activating…" : "Reactivating…"}
+            action={reactivateUser}
+            choices={roleChoicesFor(teams)}
+            askLead
+            leads={leadChoices}
+            emptyHint={emptyHint}
+            onClose={close}
+            returnFocusTo={triggerRef}
+          />
+        );
+      case "deactivate":
+      case "cancel-invite":
+        // Someone who leads a team keeps it until it has moved: the way to it instead.
+        if (user.team.length === 0) break;
+        return <LeadsTeamDialog key={item} user={user} onClose={close} returnFocusTo={triggerRef} />;
+      case "send-link":
+      case "unblock":
+      case "resend-invite":
+        break;
+    }
+    // Everything else asks once and goes: a confirmation (confirmation() words it).
+    return <ConfirmDialog key={item} confirmation={confirmation(item, user)} onClose={close} returnFocusTo={triggerRef} />;
+  }
 
   return (
     <>
@@ -222,7 +349,7 @@ export function UserActions({
                 return (
                   <DropdownMenuItem
                     key={item}
-                    variant={item === "deactivate" ? "destructive" : "default"}
+                    variant={DESTRUCTIVE.has(item) ? "destructive" : "default"}
                     onSelect={() => {
                       openingDialog.current = true;
                       setKind(item);
@@ -246,74 +373,7 @@ export function UserActions({
         </DropdownMenuContent>
       </DropdownMenu>
 
-      {kind === "change-name" && <RenameDialog key={kind} user={user} onClose={close} returnFocusTo={triggerRef} />}
-      {kind === "change-role" && (
-        <PlacementDialog
-          key={kind}
-          user={user}
-          title={DIALOG_TITLE["change-role"](user.name)}
-          description={teams ? currentPlacement(user.role, user.lead?.name ?? null) : "Only admins manage users and approve inspections."}
-          confirm="Save Role"
-          pending="Saving…"
-          action={changeRole}
-          choices={roleChoicesFor(teams)}
-          askLead={teams}
-          leads={leadChoices}
-          emptyHint={emptyHint}
-          onClose={close}
-          returnFocusTo={triggerRef}
-        />
-      )}
-      {kind === "change-lead" && (
-        <PlacementDialog
-          key={kind}
-          user={user}
-          title={DIALOG_TITLE["change-lead"](user.name)}
-          description={user.lead ? `They work in ${user.lead.name}'s team now.` : "They are in no lead inspector's team yet."}
-          confirm="Save Lead Inspector"
-          pending="Saving…"
-          action={assignLead}
-          choices={null}
-          askLead
-          leads={leadChoices}
-          emptyHint={emptyHint}
-          onClose={close}
-          returnFocusTo={triggerRef}
-        />
-      )}
-      {(kind === "activate" || kind === "reactivate") && activationNeedsPlacement(user, teams) && (
-        <PlacementDialog
-          key={kind}
-          user={user}
-          title={DIALOG_TITLE[kind](user.name)}
-          description="An inspector works in a lead inspector's team. Choose their role, and their lead inspector if they are an inspector."
-          confirm={kind === "activate" ? "Activate" : "Reactivate"}
-          pending={kind === "activate" ? "Activating…" : "Reactivating…"}
-          action={reactivateUser}
-          choices={roleChoicesFor(teams)}
-          askLead
-          leads={leadChoices}
-          emptyHint={emptyHint}
-          onClose={close}
-          returnFocusTo={triggerRef}
-        />
-      )}
-      {kind === "deactivate" && user.team.length > 0 && (
-        <LeadsTeamDialog key={kind} user={user} onClose={close} returnFocusTo={triggerRef} />
-      )}
-      {kind !== null &&
-        kind !== "change-name" &&
-        kind !== "change-role" &&
-        kind !== "change-lead" &&
-        !((kind === "activate" || kind === "reactivate") && activationNeedsPlacement(user, teams)) &&
-        !(kind === "deactivate" && user.team.length > 0) && (
-          <ConfirmDialog
-            key={kind}
-            confirmation={confirmation(kind, user)}
-            onClose={close}
-            returnFocusTo={triggerRef}
-          />
-        )}
+      {kind !== null && dialogFor(kind)}
     </>
   );
 }
@@ -384,7 +444,7 @@ export function ConfirmDialog({
 
           <AlertDialogFooter>
             <AlertDialogCancel type="button" disabled={pending}>
-              Cancel
+              {confirmation.dismiss ?? "Cancel"}
             </AlertDialogCancel>
             <Button type="submit" variant={confirmation.destructive ? "destructive" : "default"} disabled={pending}>
               {pending && <Spinner aria-hidden />}

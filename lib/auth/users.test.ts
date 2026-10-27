@@ -13,21 +13,27 @@ import {
   InviteUserSchema,
   MESSAGES,
   NAME_MAX_LENGTH,
-  RenameUserSchema,
+  UserDetailsSchema,
   UserTargetSchema,
   accountStatus,
   authConfirmUrl,
+  describeCancelError,
   describeEmailError,
+  describeLinkError,
   describeProfileError,
   displayName,
   findProfileByEmail,
   firstFieldErrors,
   getUserDirectory,
+  inviteLinkUrl,
   isBanned,
   isEmailRejected,
   isEmailTaken,
+  isMissingAccountColumn,
   isMissingUidColumn,
+  isPhoneRefused,
   isUntouched,
+  linkWouldHelp,
 } from "./users";
 
 const VIEWER = "7c2d4e1a-0b3f-4a5c-9d8e-1f2a3b4c5d6e";
@@ -35,46 +41,40 @@ const OTHER = "0a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d";
 const NEW = "5f6e7d8c-9b0a-4c1d-8e2f-3a4b5c6d7e8f";
 
 describe("InviteUserSchema", () => {
-  it("trims and lowercases the email and trims the name", () => {
-    const result = InviteUserSchema.parse({ email: "  Jane.Tan@Example.COM ", fullName: "  Jane Tan ", role: "admin" });
-    expect(result).toEqual({ email: "jane.tan@example.com", fullName: "Jane Tan", role: "admin" });
+  it("trims and lowercases the email", () => {
+    const result = InviteUserSchema.parse({ email: "  Jane.Tan@Example.COM ", role: "admin" });
+    expect(result).toEqual({ email: "jane.tan@example.com", role: "admin" });
+  });
+
+  it("takes no name: the invitee gives their own on Account Creation", () => {
+    // A name sent anyway (a form from before) is dropped, never saved.
+    expect(InviteUserSchema.parse({ email: "jane@example.com", fullName: "Jane Tan", role: "inspector" })).toEqual({
+      email: "jane@example.com",
+      role: "inspector",
+    });
   });
 
   it("accepts the test.local addresses the e2e specs use", () => {
-    expect(InviteUserSchema.safeParse({ email: "e2e-users-ab12cd@test.local", fullName: "E2E", role: "inspector" }).success).toBe(true);
+    expect(InviteUserSchema.safeParse({ email: "e2e-users-ab12cd@test.local", role: "inspector" }).success).toBe(true);
   });
 
   it.each([
-    [{ email: "", fullName: "Jane", role: "inspector" }, "email", "Enter their email address."],
-    [{ email: "jane@", fullName: "Jane", role: "inspector" }, "email", "Enter a valid email address, like name@example.com."],
-    [{ email: "jane@example.com", fullName: "   ", role: "inspector" }, "fullName", "Enter their full name."],
-    [{ email: "jane@example.com", fullName: "x".repeat(101), role: "inspector" }, "fullName", "Keep the name to 100 characters or fewer."],
-    [{ email: "jane@example.com", fullName: "Jane\u0000Tan", role: "inspector" }, "fullName", "The name holds a hidden control character. Type it again."],
-    [{ email: "jane@example.com", fullName: "Jane", role: "owner" }, "role", "Choose Inspector, Lead Inspector or Admin."],
+    [{ email: "", role: "inspector" }, "email", "Enter their email address."],
+    [{ email: "jane@", role: "inspector" }, "email", "Enter a valid email address, like name@example.com."],
+    [{ email: `${"x".repeat(250)}@example.com`, role: "inspector" }, "email", "That email address is too long."],
+    [{ email: "jane@example.com", role: "owner" }, "role", "Choose Inspector, Lead Inspector or Admin."],
     // A field missing from the form arrives as null.
-    [{ email: null, fullName: null, role: null }, "email", "Enter their email address."],
+    [{ email: null, role: null }, "email", "Enter their email address."],
   ])("explains what is wrong with %j", (input, field, message) => {
     const result = InviteUserSchema.safeParse(input);
     expect(result.success).toBe(false);
     expect(firstFieldErrors(result.error!)).toMatchObject({ [field]: message });
   });
 
-  it("takes the name by Change Name's rules, so Change Name can save any invited name unedited", () => {
-    const invited = (fullName: string) =>
-      InviteUserSchema.parse({ email: "jane@example.com", fullName, role: "inspector" }).fullName;
-    expect(invited("x".repeat(NAME_MAX_LENGTH))).toHaveLength(100);
-    expect(invited("  Ngan \t Boon\r\nKeat  ")).toBe("Ngan Boon Keat");
-    for (const fullName of ["x".repeat(NAME_MAX_LENGTH), "  Ngan \t Boon\r\nKeat  ", "Q"]) {
-      const name = invited(fullName);
-      expect(RenameUserSchema.parse({ userId: OTHER, fullName: name }).fullName).toBe(name);
-    }
-  });
-
   it("reports one message per field", () => {
-    const result = InviteUserSchema.safeParse({ email: null, fullName: null, role: null });
+    const result = InviteUserSchema.safeParse({ email: null, role: null });
     expect(firstFieldErrors(result.error!)).toEqual({
       email: "Enter their email address.",
-      fullName: "Enter their full name.",
       role: "Choose Inspector, Lead Inspector or Admin.",
     });
   });
@@ -102,18 +102,21 @@ describe("role and target schemas", () => {
   });
 });
 
-describe("RenameUserSchema", () => {
+describe("UserDetailsSchema", () => {
+  const details = (fullName: unknown, phone: unknown = "") => UserDetailsSchema.safeParse({ userId: OTHER, fullName, phone });
+
   it("keeps the name on one line: trimmed, with runs of spaces, tabs and line breaks made one space", () => {
-    expect(RenameUserSchema.parse({ userId: OTHER.toUpperCase(), fullName: "  Ngan \t Boon\r\nKeat  " })).toEqual({
+    expect(UserDetailsSchema.parse({ userId: OTHER.toUpperCase(), fullName: "  Ngan \t Boon\r\nKeat  ", phone: "" })).toEqual({
       userId: OTHER,
       fullName: "Ngan Boon Keat",
+      phone: null,
     });
   });
 
   it("takes 1 to 100 characters", () => {
     expect(NAME_MAX_LENGTH).toBe(100);
-    expect(RenameUserSchema.parse({ userId: OTHER, fullName: "x".repeat(100) }).fullName).toHaveLength(100);
-    expect(RenameUserSchema.parse({ userId: OTHER, fullName: "Q" }).fullName).toBe("Q");
+    expect(details("x".repeat(100)).data?.fullName).toHaveLength(100);
+    expect(details("Q").data?.fullName).toBe("Q");
   });
 
   it.each([
@@ -124,13 +127,46 @@ describe("RenameUserSchema", () => {
     ["a hidden control character", "Ngan\u0000Keat", "The name holds a hidden control character. Type it again."],
     ["a pasted next-line character", "Ngan\u0085Keat", "The name holds a hidden control character. Type it again."],
   ])("refuses %s, at the name", (_case, fullName, message) => {
-    const result = RenameUserSchema.safeParse({ userId: OTHER, fullName });
+    const result = details(fullName);
     expect(result.success).toBe(false);
     expect(firstFieldErrors(result.error!)).toEqual({ fullName: message });
   });
 
+  it("takes a phone number as typed, on one line, and blank as none", () => {
+    expect(details("Olga", " +60 12-345 6789 ").data?.phone).toBe("+60 12-345 6789");
+    expect(details("Olga", "(03)  1234\t5678").data?.phone).toBe("(03) 1234 5678");
+    expect(details("Olga", "012-345 6789").data?.phone).toBe("012-345 6789");
+    // An account from before phones may stay without one.
+    expect(details("Olga", "").data?.phone).toBeNull();
+    expect(details("Olga", "   ").data?.phone).toBeNull();
+  });
+
+  it("leaves the phone as it is when the form has no such field", () => {
+    expect(details("Olga", null).data?.phone).toBeUndefined();
+    expect(UserDetailsSchema.parse({ userId: OTHER, fullName: "Olga" }).phone).toBeUndefined();
+  });
+
+  it.each([
+    ["too few digits", "12345"],
+    ["words", "call me"],
+    ["more than 15 digits", "+60 12 345 6789 0000 1"],
+    ["a hyphen at the end", "0123456789-"],
+    ["a plus and a hyphen", "+-0123456789"],
+  ])("refuses a phone number with %s, at the phone", (_case, phone) => {
+    const result = details("Olga", phone);
+    expect(result.success).toBe(false);
+    expect(firstFieldErrors(result.error!)).toEqual({ phone: "Enter a phone number, like +60 12-345 6789 or 012-345 6789." });
+  });
+
+  it("reports the name and the phone at once", () => {
+    expect(firstFieldErrors(details("", "x").error!)).toEqual({
+      fullName: "Enter their name.",
+      phone: "Enter a phone number, like +60 12-345 6789 or 012-345 6789.",
+    });
+  });
+
   it("refuses anything that is not a user id", () => {
-    const result = RenameUserSchema.safeParse({ userId: "1 or 1=1", fullName: "Ngan Boon Keat" });
+    const result = UserDetailsSchema.safeParse({ userId: "1 or 1=1", fullName: "Ngan Boon Keat", phone: "" });
     expect(firstFieldErrors(result.error!)).toEqual({ userId: MESSAGES.userNotFound });
   });
 });
@@ -142,7 +178,7 @@ describe("the lead inspector in a form", () => {
       leadId: NEW,
     });
     expect(ChangeRoleSchema.parse({ userId: OTHER, role: "lead", leadId: "" }).leadId).toBeUndefined();
-    expect(InviteUserSchema.parse({ email: "a@example.com", fullName: "A", role: "lead", leadId: null }).leadId).toBeUndefined();
+    expect(InviteUserSchema.parse({ email: "a@example.com", role: "lead", leadId: null }).leadId).toBeUndefined();
     expect(ChangeRoleSchema.safeParse({ userId: OTHER, role: "inspector", leadId: "lina" }).success).toBe(false);
   });
 
@@ -171,9 +207,25 @@ describe("accountStatus", () => {
   const changed = (active: boolean) => ({ active, created_at: created, updated_at: "2026-10-02T10:00:00Z" });
   const bannedUntil = "2126-09-12T08:00:00Z";
 
-  it("is active whenever the profile is active", () => {
+  it("is active whenever the profile is active and its person has joined", () => {
     expect(accountStatus(changed(true), null, now)).toBe("active");
     expect(accountStatus(untouched(true), null, now)).toBe("active");
+    expect(accountStatus({ ...changed(true), joined_at: "2026-10-03T00:00:00Z" }, null, now)).toBe("active");
+  });
+
+  it("is invited while an active account's person has not created it yet", () => {
+    expect(accountStatus({ ...changed(true), joined_at: null }, null, now)).toBe("invited");
+    // A ban does not change it: the list flags the blocked sign-in beside it.
+    expect(accountStatus({ ...changed(true), joined_at: null }, bannedUntil, now)).toBe("invited");
+  });
+
+  it("counts everyone as joined on a database without joined_at (migration 20261027140000)", () => {
+    expect(accountStatus(changed(true), null, now)).toBe("active");
+  });
+
+  it("is pending or deactivated when inactive, joined or not", () => {
+    expect(accountStatus({ ...untouched(false), joined_at: null }, null, now)).toBe("pending");
+    expect(accountStatus({ ...changed(false), joined_at: null }, null, now)).toBe("deactivated");
   });
 
   it("is pending while the inactive profile is as sign-up made it, sign-in details or not", () => {
@@ -301,6 +353,54 @@ describe("errors in plain words", () => {
       /^Lead inspectors need a database update first/,
     );
   });
+
+  it("says when the database has no phone numbers yet, and when it refuses one", () => {
+    for (const error of [
+      { code: "PGRST204", message: "Could not find the 'phone' column of 'profiles' in the schema cache" },
+      { code: "42703", message: "column profiles.joined_at does not exist" },
+    ]) {
+      expect(describeProfileError(error)).toBe(MESSAGES.accountsMissing);
+    }
+    expect(MESSAGES.accountsMissing).toContain("20261027140000_profile_phone_and_joined.sql");
+    const refused = { code: "23514", message: 'new row for relation "profiles" violates check constraint "profiles_phone_format"' };
+    expect(isPhoneRefused(refused)).toBe(true);
+    expect(describeProfileError(refused)).toBe(MESSAGES.phoneRefused);
+    expect(isPhoneRefused({ code: "23514", message: "cannot remove the last active admin" })).toBe(false);
+  });
+});
+
+describe("invite links and cancelled invites in plain words", () => {
+  it("explains a refused invite link without blaming the mailer: nothing is emailed", () => {
+    expect(describeLinkError({ status: 401, message: "Invalid API key" })).toBe(
+      "The invite link was not created: Supabase refused the server's key. Check that SUPABASE_SECRET_KEY is the secret key of this project.",
+    );
+    expect(describeLinkError({ status: 404, code: "user_not_found", message: "User with this email not found" })).toBe(
+      MESSAGES.userNotFound,
+    );
+    expect(describeLinkError({ status: 429, code: "over_request_rate_limit", message: "Request rate limit reached" })).toMatch(
+      /too many requests to Supabase just now/,
+    );
+    expect(describeLinkError({ status: 500, message: "Database error finding user" })).toBe(
+      "The invite link was not created: Database error finding user.",
+    );
+    expect(describeLinkError({ message: "" })).toBe("The invite link was not created: Supabase did not say why.");
+  });
+
+  it("says why an invite could not be cancelled, pointing at Deactivate when records keep the account", () => {
+    expect(describeCancelError({ status: 500, code: "unexpected_failure", message: "Database error deleting user" }, "jo@example.com")).toBe(
+      "The invite to jo@example.com was not cancelled: records in the app point at their account, so the database keeps it. To stop them signing in, choose Deactivate instead.",
+    );
+    expect(describeCancelError({ code: "not_admin", message: "User not allowed" }, "Jo")).toMatch(/SUPABASE_SECRET_KEY/);
+    expect(describeCancelError({ status: 503, message: "Service unavailable" }, "Jo")).toBe(
+      "The invite to Jo was not cancelled: Service unavailable.",
+    );
+  });
+
+  it("offers a link sent by hand after any refused email but one the server's key caused", () => {
+    expect(linkWouldHelp({ code: "email_address_not_authorized", message: "not authorized" })).toBe(true);
+    expect(linkWouldHelp({ code: "over_email_send_rate_limit", status: 429, message: "email rate limit exceeded" })).toBe(true);
+    expect(linkWouldHelp({ status: 401, message: "Invalid API key" })).toBe(false);
+  });
 });
 
 describe("helpers", () => {
@@ -315,6 +415,31 @@ describe("helpers", () => {
   it("sends email links to /auth/confirm on the site URL", () => {
     vi.stubEnv("NEXT_PUBLIC_SITE_URL", "https://qc.example.com/");
     expect(authConfirmUrl()).toBe("https://qc.example.com/auth/confirm");
+  });
+
+  it("builds Copy Invite Link's address on /auth/confirm, never Supabase's own link", () => {
+    vi.stubEnv("NEXT_PUBLIC_SITE_URL", "https://qc.example.com");
+    const tokenHash = "5d41402abc4b2a76b9719d911017c592ae2c3a5e9ac2d1d6e2e5e1b2";
+    expect(inviteLinkUrl({ hashed_token: tokenHash, verification_type: "invite" })).toBe(
+      `https://qc.example.com/auth/confirm?token_hash=${tokenHash}&type=invite`,
+    );
+    // A magic link is checked as an email link: /auth/confirm accepts no "magiclink".
+    expect(inviteLinkUrl({ hashed_token: tokenHash, verification_type: "magiclink" })).toBe(
+      `https://qc.example.com/auth/confirm?token_hash=${tokenHash}&type=email`,
+    );
+    // Any other kind is not handed out.
+    expect(inviteLinkUrl({ hashed_token: tokenHash, verification_type: "signup" })).toBeNull();
+    expect(inviteLinkUrl({ hashed_token: "", verification_type: "invite" })).toBeNull();
+  });
+
+  it("recognises a database without phones or Account Creation, and nothing else", () => {
+    expect(isMissingAccountColumn({ code: "42703", message: "column profiles.phone does not exist" })).toBe(true);
+    expect(isMissingAccountColumn({ code: "42703", message: "column profiles.joined_at does not exist" })).toBe(true);
+    expect(isMissingAccountColumn({ code: "PGRST204", message: "Could not find the 'phone' column of 'profiles' in the schema cache" })).toBe(true);
+    expect(isMissingAccountColumn({ code: "42703", message: "column profiles.uid does not exist" })).toBe(false);
+    expect(isMissingAccountColumn({ code: "42703", message: "column profiles.telephone does not exist" })).toBe(false);
+    expect(isMissingAccountColumn({ code: "23514", message: "phone" })).toBe(false);
+    expect(isMissingAccountColumn(null)).toBe(false);
   });
 
   it("bans deactivated accounts for a century", () => {
@@ -573,37 +698,37 @@ describe("getUserDirectory with lead inspectors", () => {
     // Nobody is flagged for a team the project does not have yet.
     expect(users.every((user) => !user.missingLead && user.lead === null && user.roleChoice !== "lead")).toBe(true);
     expect(calls.filter(([method]) => method === "select").map(([, args]) => args[0])).toEqual([
-      "id, email, full_name, role, active, created_at, updated_at, is_lead, lead_id, uid",
+      "id, email, full_name, role, active, created_at, updated_at, is_lead, lead_id, uid, phone, joined_at",
       "id, email, full_name, role, active, created_at, updated_at",
     ]);
   });
 });
 
+/** A fake client whose reads answer `results` in turn, recording each select. */
+function client(results: Result[], selects: string[]) {
+  let read = 0;
+  return {
+    from: vi.fn(() => {
+      const calls: Array<[string, unknown[]]> = [];
+      const builder = query(results[Math.min(read, results.length - 1)], calls);
+      read += 1;
+      const select = builder.select as (...args: unknown[]) => unknown;
+      builder.select = (...args: unknown[]) => {
+        selects.push(String(args[0]));
+        return select(...args);
+      };
+      return builder;
+    }),
+  } as never;
+}
+
 describe("getUserDirectory with UIDs", () => {
-  const FULL = "id, email, full_name, role, active, created_at, updated_at, is_lead, lead_id, uid";
+  const FULL = "id, email, full_name, role, active, created_at, updated_at, is_lead, lead_id, uid, phone, joined_at";
   const WITHOUT_UID = "id, email, full_name, role, active, created_at, updated_at, is_lead, lead_id";
   const LEGACY = "id, email, full_name, role, active, created_at, updated_at";
   const MISSING_UID = { code: "42703", message: "column profiles.uid does not exist" };
   const MISSING_TEAMS = { code: "42703", message: "column profiles.is_lead does not exist" };
   const withTeams = PROFILES.map((profile) => ({ ...profile, is_lead: false, lead_id: null }));
-
-  /** A fake client whose reads answer `results` in turn, recording each select. */
-  function client(results: Result[], selects: string[]) {
-    let read = 0;
-    return {
-      from: vi.fn(() => {
-        const calls: Array<[string, unknown[]]> = [];
-        const builder = query(results[Math.min(read, results.length - 1)], calls);
-        read += 1;
-        const select = builder.select as (...args: unknown[]) => unknown;
-        builder.select = (...args: unknown[]) => {
-          selects.push(String(args[0]));
-          return select(...args);
-        };
-        return builder;
-      }),
-    } as never;
-  }
 
   beforeEach(() => vi.mocked(isAdminClientConfigured).mockReturnValue(false));
   afterEach(() => vi.resetAllMocks());
@@ -663,6 +788,118 @@ describe("getUserDirectory with UIDs", () => {
   });
 });
 
+describe("getUserDirectory with phones and invitations", () => {
+  const FULL = "id, email, full_name, role, active, created_at, updated_at, is_lead, lead_id, uid, phone, joined_at";
+  const WITH_UID = "id, email, full_name, role, active, created_at, updated_at, is_lead, lead_id, uid";
+  const LEGACY = "id, email, full_name, role, active, created_at, updated_at";
+  const MISSING_PHONE = { code: "42703", message: "column profiles.phone does not exist" };
+  const MISSING_JOINED = { code: "42703", message: "column profiles.joined_at does not exist" };
+  const INVITED = "2b3c4d5e-6f70-4a8b-9c0d-1e2f3a4b5c6d";
+  const ROWS = [
+    ...PROFILES.map((profile, index) => ({
+      ...profile,
+      is_lead: false,
+      lead_id: null,
+      uid: `SC-000${index + 1}`,
+      phone: index === 0 ? "+60 12-345 6789" : null,
+      joined_at: profile.created_at,
+    })),
+    // Invited and activated, not joined yet: no name, so the list names them by their email.
+    {
+      id: INVITED,
+      email: "zed@example.com",
+      full_name: null,
+      role: "inspector",
+      active: true,
+      created_at: "2026-10-05T00:00:00Z",
+      updated_at: "2026-10-05T00:00:01Z",
+      is_lead: true,
+      lead_id: null,
+      uid: "SC-0004",
+      phone: null,
+      joined_at: null,
+    },
+  ];
+
+  beforeEach(() => vi.mocked(isAdminClientConfigured).mockReturnValue(false));
+  afterEach(() => vi.resetAllMocks());
+
+  it("gives each person their phone, and calls an active account that has not joined Invited", async () => {
+    const selects: string[] = [];
+    vi.mocked(createClient).mockResolvedValue(client([{ data: ROWS, error: null }], selects));
+
+    const { users } = await getUserDirectory(VIEWER);
+
+    expect(selects).toEqual([FULL]);
+    expect(users.map((user) => [user.email, user.status, user.phone])).toEqual([
+      ["new@test.local", "pending", null],
+      ["olga@test.local", "deactivated", null],
+      ["admin@test.local", "active", "+60 12-345 6789"],
+      ["zed@example.com", "invited", null],
+    ]);
+    expect(users.find((user) => user.id === INVITED)).toMatchObject({ fullName: null, roleChoice: "lead" });
+  });
+
+  it("keeps an invited account Invited when a ban blocks it, and flags the blocked sign-in", async () => {
+    vi.mocked(isAdminClientConfigured).mockReturnValue(true);
+    vi.mocked(createAdminClient).mockReturnValue({
+      auth: {
+        admin: {
+          listUsers: vi.fn().mockResolvedValue({ data: { users: [{ id: INVITED, banned_until: "2126-09-12T00:00:00Z" }] }, error: null }),
+        },
+      },
+    } as never);
+    vi.mocked(createClient).mockResolvedValue(client([{ data: ROWS, error: null }], []));
+
+    const { users } = await getUserDirectory(VIEWER);
+
+    expect(users.find((user) => user.id === INVITED)).toMatchObject({ status: "invited", signInBlocked: true });
+  });
+
+  it("reads the list again without them on a project that has not run their migration: no phones, everyone joined", async () => {
+    for (const missing of [MISSING_PHONE, MISSING_JOINED]) {
+      const selects: string[] = [];
+      // As the database without those columns answers.
+      const withoutAccounts = ROWS.map((row) => {
+        const copy: Partial<(typeof ROWS)[number]> = { ...row };
+        delete copy.phone;
+        delete copy.joined_at;
+        return copy;
+      });
+      vi.mocked(createClient).mockResolvedValue(
+        client([{ data: null, error: missing }, { data: withoutAccounts, error: null }], selects),
+      );
+
+      const directory = await getUserDirectory(VIEWER);
+
+      expect(selects, missing.message).toEqual([FULL, WITH_UID]);
+      expect(directory, missing.message).toMatchObject({ uids: true, teams: true });
+      expect(directory.users.every((user) => user.phone === null), missing.message).toBe(true);
+      expect(directory.users.find((user) => user.id === INVITED)?.status, missing.message).toBe("active");
+    }
+  });
+
+  it("reads roles only when the project has none of the later columns either", async () => {
+    const selects: string[] = [];
+    vi.mocked(createClient).mockResolvedValue(
+      client(
+        [
+          { data: null, error: MISSING_PHONE },
+          { data: null, error: { code: "42703", message: "column profiles.is_lead does not exist" } },
+          { data: PROFILES, error: null },
+        ],
+        selects,
+      ),
+    );
+
+    const directory = await getUserDirectory(VIEWER);
+
+    expect(selects).toEqual([FULL, WITH_UID, LEGACY]);
+    expect(directory).toMatchObject({ uids: false, teams: false });
+    expect(directory.users.map((user) => user.status)).toEqual(["pending", "deactivated", "active"]);
+  });
+});
+
 describe("isMissingUidColumn", () => {
   it("recognises the answers for a project without UIDs, and nothing else", () => {
     expect(isMissingUidColumn({ code: "42703", message: "column profiles.uid does not exist" })).toBe(true);
@@ -676,18 +913,42 @@ describe("isMissingUidColumn", () => {
 });
 
 describe("findProfileByEmail", () => {
-  it("matches case-insensitively with LIKE wildcards escaped", async () => {
+  it("matches case-insensitively with LIKE wildcards escaped, and says whether its person has joined", async () => {
     const calls: Array<[string, unknown[]]> = [];
-    const client = { from: vi.fn(() => query({ data: [{ id: OTHER, active: true }], error: null }, calls)) };
+    const fake = {
+      from: vi.fn(() => query({ data: [{ id: OTHER, active: true, joined_at: "2026-10-02T00:00:00Z" }], error: null }, calls)),
+    };
 
-    const found = await findProfileByEmail(client as never, "first_last@example.com");
+    const found = await findProfileByEmail(fake as never, "first_last@example.com");
 
-    expect(found).toEqual({ id: OTHER, active: true });
+    expect(found).toEqual({ id: OTHER, active: true, joined: true });
     expect(calls).toContainEqual(["ilike", ["email", "first\\_last@example.com"]]);
   });
 
-  it("returns null when nobody has the address", async () => {
-    const client = { from: vi.fn(() => query({ data: [], error: null })) };
-    expect(await findProfileByEmail(client as never, "nobody@example.com")).toBeNull();
+  it("tells an invite not yet answered apart", async () => {
+    const fake = { from: vi.fn(() => query({ data: [{ id: OTHER, active: true, joined_at: null }], error: null })) };
+    expect(await findProfileByEmail(fake as never, "olga@test.local")).toEqual({ id: OTHER, active: true, joined: false });
+  });
+
+  it("counts everyone as joined on a project without joined_at", async () => {
+    const selects: string[] = [];
+    const fake = client(
+      [
+        { data: null, error: { code: "42703", message: "column profiles.joined_at does not exist" } },
+        { data: [{ id: OTHER, active: false }], error: null },
+      ],
+      selects,
+    );
+    expect(await findProfileByEmail(fake, "olga@test.local")).toEqual({ id: OTHER, active: false, joined: true });
+    expect(selects).toEqual(["id, active, joined_at", "id, active"]);
+  });
+
+  it("returns null when nobody has the address, and throws for any other error", async () => {
+    const empty = { from: vi.fn(() => query({ data: [], error: null })) };
+    expect(await findProfileByEmail(empty as never, "nobody@example.com")).toBeNull();
+    const broken = { from: vi.fn(() => query({ data: null, error: { code: "57014", message: "statement timeout" } })) };
+    await expect(findProfileByEmail(broken as never, "nobody@example.com")).rejects.toThrow(
+      "Could not check for an existing account: statement timeout",
+    );
   });
 });

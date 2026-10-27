@@ -4,6 +4,7 @@ import { getSiteUrl } from "@/lib/env";
 import { createAdminClient, isAdminClientConfigured } from "@/lib/supabase/admin";
 import type { Database } from "@/lib/supabase/database.types";
 import { createClient } from "@/lib/supabase/server";
+import { fullNameSchema, OptionalPhoneSchema } from "./fields";
 import { RoleChoiceSchema, TEAM_MESSAGES, canLead, roleChoiceOf, type RoleChoice } from "./org";
 import { isMissingTeamColumn } from "./team";
 
@@ -12,6 +13,11 @@ import { isMissingTeamColumn } from "./team";
  * user directory an admin sees, and plain-words versions of the errors
  * Supabase Auth and the database return. Server only: the directory reads
  * sign-in details with the secret key.
+ *
+ * Joining by invitation (Kenneth, 27 October 2026): an admin invites an email
+ * address in a role; the person gives their name, phone and password on
+ * Account Creation (/create-account), which sets profiles.joined_at. Until
+ * then the list shows them as Invited, by their email.
  */
 
 export type UserRole = Database["public"]["Enums"]["user_role"];
@@ -42,34 +48,14 @@ const LeadChoiceSchema = z.preprocess(
   z.uuid({ error: TEAM_MESSAGES.leadGone }).toLowerCase().optional(),
 );
 
-/**
- * The longest name the app saves for someone, from an invite or Change Name.
- * Declared above the schemas: they read it while this module loads.
- */
-export const NAME_MAX_LENGTH = 100;
-
-/** One line: any run of spaces, tabs or pasted line breaks becomes a single space (as lib/admin/reference.ts). */
-function oneLine(value: string): string {
-  return value.replace(/\s+/g, " ").trim();
-}
+/** The longest name the app saves for someone; the name rules live in ./fields.ts, shared with Account Creation. */
+export { NAME_MAX_LENGTH } from "./fields";
 
 /**
- * The name the app shows for someone everywhere (profiles.full_name), on one
- * line, 1 to 100 characters. Any other control character (a pasted NUL or
- * NEL, which no line break rule catches) is refused rather than saved where
- * nobody can see it. The invite and Change Name share these rules: Change
- * Name opens with the saved name, and Save takes any name the app saved,
- * unedited.
+ * An invite: the address and the role chosen (with an inspector's lead
+ * inspector). No name: the invitee gives their own name, phone and password
+ * on Account Creation.
  */
-function fullNameSchema(missing: string) {
-  return z
-    .string({ error: missing })
-    .overwrite(oneLine)
-    .min(1, missing)
-    .max(NAME_MAX_LENGTH, `Keep the name to ${NAME_MAX_LENGTH} characters or fewer.`)
-    .refine((name) => !/\p{Cc}/u.test(name), "The name holds a hidden control character. Type it again.");
-}
-
 export const InviteUserSchema = z.object({
   email: z
     .string({ error: "Enter their email address." })
@@ -78,19 +64,25 @@ export const InviteUserSchema = z.object({
     .min(1, "Enter their email address.")
     .max(254, "That email address is too long.")
     .pipe(z.email({ error: "Enter a valid email address, like name@example.com." })),
-  fullName: fullNameSchema("Enter their full name."),
   role: RoleChoiceSchema,
   leadId: LeadChoiceSchema,
 });
 export type InviteUserInput = z.infer<typeof InviteUserSchema>;
 
-/** Fields a user form can mark: the invite's, the role and lead in every dialog, and Change Name's. */
-export type UserField = "email" | "fullName" | "role" | "leadId";
+/** Fields a user form can mark: the invite's, the role and lead in every dialog, and Edit Details'. */
+export type UserField = "email" | "fullName" | "phone" | "role" | "leadId";
 
-/** Change Name: someone's name, by the invite's rules (fullNameSchema). */
-export const RenameUserSchema = z.object({
+/**
+ * Edit Details: someone's name and phone number, by Account Creation's rules
+ * (./fields.ts), so the dialog takes whatever an invitee entered there,
+ * unedited. The phone may stay blank, as it is for accounts from before
+ * phones: blank saves none. A form without the field at all leaves the
+ * phone as it is.
+ */
+export const UserDetailsSchema = z.object({
   userId: UserIdSchema,
   fullName: fullNameSchema("Enter their name."),
+  phone: z.preprocess((value) => (value === null ? undefined : value), OptionalPhoneSchema.optional()),
 });
 
 /** Change Role: inspector (in a lead's team), lead inspector or admin. */
@@ -144,17 +136,45 @@ export function authConfirmUrl(): string {
   return `${getSiteUrl()}/auth/confirm`;
 }
 
+/**
+ * How /auth/confirm checks each kind of link Copy Invite Link hands out. An
+ * invite keeps its type. A magic link, for someone who opened their invite
+ * but never finished, is checked as an email link, which the route accepts
+ * (it accepts no "magiclink"): Supabase finds the token either way, and the
+ * route sends them into the app, which takes an account that has not joined
+ * to Account Creation.
+ */
+const CONFIRM_TYPE: Readonly<Partial<Record<string, "invite" | "email">>> = { invite: "invite", magiclink: "email" };
+
+/**
+ * The address Copy Invite Link gives the admin, from what
+ * auth.admin.generateLink() answers; null for any other kind of link. It
+ * lands on /auth/confirm, which verifies the token hash itself, on any
+ * device. Never Supabase's own action_link: that verifies on Supabase's
+ * server and hands the session over in the address's #fragment, which this
+ * app's server never sees.
+ */
+export function inviteLinkUrl(properties: { hashed_token: string; verification_type: string }): string | null {
+  const type = CONFIRM_TYPE[properties.verification_type];
+  if (!type || !properties.hashed_token) return null;
+  return `${authConfirmUrl()}?${new URLSearchParams({ token_hash: properties.hashed_token, type })}`;
+}
+
 /* ------------------------------------------------------------------ *
  * Account status
  * ------------------------------------------------------------------ */
 
 /**
  * - `active`: may sign in and read data.
+ * - `invited`: active, but the person has not created their account yet
+ *   (Account Creation sets profiles.joined_at). An invite activates the
+ *   account it makes, in the role the admin chose; until the person joins,
+ *   the app sends their session to /create-account.
  * - `pending`: never let in. New auth accounts start inactive (a safety net in
  *   case public sign-up is switched on) and wait for an admin.
  * - `deactivated`: shut out by an admin.
  */
-export type AccountStatus = "active" | "pending" | "deactivated";
+export type AccountStatus = "active" | "invited" | "pending" | "deactivated";
 
 /** Sign-in details from Supabase Auth; only the secret key can read them. */
 export type SignInDetails = {
@@ -162,7 +182,17 @@ export type SignInDetails = {
   bannedUntil: string | null;
 };
 
-type ProfileState = { active: boolean; created_at: string; updated_at: string };
+type ProfileState = {
+  active: boolean;
+  created_at: string;
+  updated_at: string;
+  /**
+   * When they created their account; null while an invite is unanswered.
+   * Absent where the database has no such column (migration 20261027140000
+   * not run): everyone has joined there, as before.
+   */
+  joined_at?: string | null;
+};
 
 /**
  * True while a profile is exactly as the sign-up trigger made it. Insert sets
@@ -185,10 +215,11 @@ export function isBanned(bannedUntil: string | null | undefined, now: number = D
  * deactivated it) and Supabase Auth does not ban it. This holds even after
  * the person tried to sign in, which the last sign-in time cannot tell.
  * Every other inactive account counts as deactivated: calling a blocked
- * person "pending" could invite an admin to let them back in.
+ * person "pending" could invite an admin to let them back in. An active
+ * account is invited until its person has joined.
  */
 export function accountStatus(profile: ProfileState, bannedUntil?: string | null, now: number = Date.now()): AccountStatus {
-  if (profile.active) return "active";
+  if (profile.active) return profile.joined_at === null ? "invited" : "active";
   return isUntouched(profile) && !isBanned(bannedUntil, now) ? "pending" : "deactivated";
 }
 
@@ -206,7 +237,14 @@ export type UserListItem = {
    */
   uid: string | null;
   email: string;
+  /** Null until they give one: someone invited goes by their email until they create their account. */
   fullName: string | null;
+  /**
+   * Their phone number as typed, null when they have none: accounts from
+   * before phones until someone adds one, and everyone on a project that has
+   * not run migration 20261027140000.
+   */
+  phone: string | null;
   role: UserRole;
   /** Inspector, lead inspector or admin (lib/auth/org.ts). */
   roleChoice: RoleChoice;
@@ -272,6 +310,8 @@ type DirectoryRow = Pick<Profile, "id" | "email" | "full_name" | "role" | "activ
   is_lead?: boolean | null;
   lead_id?: string | null;
   uid?: string | null;
+  phone?: string | null;
+  joined_at?: string | null;
 };
 
 /**
@@ -285,37 +325,92 @@ export function isMissingUidColumn(error: ErrorLike | null | undefined): boolean
   return (error.code === "42703" || error.code === "PGRST204") && /(?:^|[\s.'"])uid(?:[\s'"]|$)/.test(error.message ?? "");
 }
 
+/**
+ * The database has no phone numbers or Account Creation yet (migration
+ * 20261027140000): the same answers as above, for profiles.phone or
+ * profiles.joined_at.
+ */
+export function isMissingAccountColumn(error: ErrorLike | null | undefined): boolean {
+  if (!error) return false;
+  return (
+    (error.code === "42703" || error.code === "PGRST204") &&
+    /(?:^|[\s.'"])(?:phone|joined_at)(?:[\s'"]|$)/.test(error.message ?? "")
+  );
+}
+
 function listError(error: ErrorLike): Error {
   return new Error(`Could not load the user list: ${error.message}`);
 }
 
+type ProfileRead = { rows: DirectoryRow[]; teams: boolean; uids: boolean };
+
+/** One way to read the list, and which of the later columns it reads. */
+type ListRead = {
+  teams: boolean;
+  uids: boolean;
+  accounts: boolean;
+  read: () => PromiseLike<{ data: DirectoryRow[] | null; error: ErrorLike | null }>;
+};
+
 /**
- * Everyone's profile, with their place in the teams and their UID when the
- * database has them. A project that has not run migration 20261008140000
- * (UIDs), or 20261007170000 (lead inspectors), answers 42703 for the missing
- * column: the list is read again without it, so the screen works as before.
- * The migrations run in order, so a project without lead inspectors has no
- * UIDs either.
+ * Everyone's profile, with their place in the teams, their UID, phone and
+ * whether they have joined, as far as the database has them. A project that
+ * has not run a migration (20261007170000 lead inspectors, 20261008140000
+ * UIDs, 20261027140000 phones and Account Creation) answers 42703 for the
+ * first missing column it meets: the list is read again without that column,
+ * so the screen works as before. The migrations run in order, so a project
+ * without one has none of the later ones either; without the last, phone is
+ * null and everyone has joined.
  */
-async function readProfiles(supabase: ServerClient): Promise<{ rows: DirectoryRow[]; teams: boolean; uids: boolean }> {
-  const full = await supabase
-    .from("profiles")
-    .select("id, email, full_name, role, active, created_at, updated_at, is_lead, lead_id, uid");
-  if (!full.error) return { rows: full.data ?? [], teams: true, uids: true };
+async function readProfiles(supabase: ServerClient): Promise<ProfileRead> {
+  const reads: readonly ListRead[] = [
+    {
+      teams: true,
+      uids: true,
+      accounts: true,
+      read: () =>
+        supabase
+          .from("profiles")
+          .select("id, email, full_name, role, active, created_at, updated_at, is_lead, lead_id, uid, phone, joined_at"),
+    },
+    {
+      teams: true,
+      uids: true,
+      accounts: false,
+      read: () =>
+        supabase.from("profiles").select("id, email, full_name, role, active, created_at, updated_at, is_lead, lead_id, uid"),
+    },
+    {
+      teams: true,
+      uids: false,
+      accounts: false,
+      read: () => supabase.from("profiles").select("id, email, full_name, role, active, created_at, updated_at, is_lead, lead_id"),
+    },
+    {
+      teams: false,
+      uids: false,
+      accounts: false,
+      read: () => supabase.from("profiles").select("id, email, full_name, role, active, created_at, updated_at"),
+    },
+  ];
 
-  if (isMissingUidColumn(full.error)) {
-    const withoutUid = await supabase
-      .from("profiles")
-      .select("id, email, full_name, role, active, created_at, updated_at, is_lead, lead_id");
-    if (!withoutUid.error) return { rows: withoutUid.data ?? [], teams: true, uids: false };
-    if (!isMissingTeamColumn(withoutUid.error)) throw listError(withoutUid.error);
-  } else if (!isMissingTeamColumn(full.error)) {
-    throw listError(full.error);
+  for (let index = 0; index < reads.length; ) {
+    const { data, error } = await reads[index].read();
+    if (!error) return { rows: data ?? [], teams: reads[index].teams, uids: reads[index].uids };
+    const missing = isMissingAccountColumn(error)
+      ? "accounts"
+      : isMissingUidColumn(error)
+        ? "uids"
+        : isMissingTeamColumn(error)
+          ? "teams"
+          : null;
+    // On to the next read without the missing column.
+    const next = missing ? reads.findIndex((read, at) => at > index && !read[missing]) : -1;
+    if (next === -1) throw listError(error);
+    index = next;
   }
-
-  const legacy = await supabase.from("profiles").select("id, email, full_name, role, active, created_at, updated_at");
-  if (legacy.error) throw listError(legacy.error);
-  return { rows: legacy.data ?? [], teams: false, uids: false };
+  // Never reached: the last read has none of the later columns, so any error there is thrown above.
+  throw new Error("Could not load the user list.");
 }
 
 /**
@@ -363,6 +458,7 @@ export async function getUserDirectory(viewerId: string): Promise<UserDirectory>
       uid: profile.uid ?? null,
       email: profile.email ?? "",
       fullName: profile.full_name,
+      phone: profile.phone ?? null,
       role: profile.role,
       roleChoice,
       status: accountStatus(profile, signIn?.bannedUntil, now),
@@ -412,15 +508,26 @@ async function loadSignInDetails(): Promise<Map<string, SignInDetails>> {
   return details;
 }
 
-/** The profile with this email, if any (case-insensitive: `_` is escaped so it is not a wildcard). */
-export async function findProfileByEmail(
-  supabase: ServerClient,
-  email: string,
-): Promise<Pick<Profile, "id" | "active"> | null> {
+/** An account found by its address: whether it is active, and whether its person has joined. */
+export type ExistingAccount = { id: string; active: boolean; joined: boolean };
+
+/**
+ * The profile with this email, if any (case-insensitive: `_` is escaped so it
+ * is not a wildcard). On a project without migration 20261027140000 everyone
+ * has joined.
+ */
+export async function findProfileByEmail(supabase: ServerClient, email: string): Promise<ExistingAccount | null> {
   const pattern = email.replace(/[\\%_]/g, (match) => `\\${match}`);
-  const { data, error } = await supabase.from("profiles").select("id, active").ilike("email", pattern).limit(1);
-  if (error) throw new Error(`Could not check for an existing account: ${error.message}`);
-  return data?.[0] ?? null;
+  const found = await supabase.from("profiles").select("id, active, joined_at").ilike("email", pattern).limit(1);
+  if (!found.error) {
+    const row = found.data?.[0];
+    return row ? { id: row.id, active: row.active, joined: row.joined_at !== null } : null;
+  }
+  if (!isMissingAccountColumn(found.error)) throw new Error(`Could not check for an existing account: ${found.error.message}`);
+  const legacy = await supabase.from("profiles").select("id, active").ilike("email", pattern).limit(1);
+  if (legacy.error) throw new Error(`Could not check for an existing account: ${legacy.error.message}`);
+  const row = legacy.data?.[0];
+  return row ? { ...row, joined: true } : null;
 }
 
 /* ------------------------------------------------------------------ *
@@ -436,11 +543,28 @@ export const MESSAGES = {
   unexpected: "Something went wrong. Try again, and reload the page if it keeps happening.",
   selfDeactivate: "You cannot deactivate your own account. Ask another admin to do it.",
   selfDemote: "You cannot remove your own admin role. Ask another admin to do it.",
+  selfCancel: "You cannot cancel your own account.",
   lastAdmin: "This would leave the app without an active admin. Make someone else an admin first.",
   notAllowed: "You do not have permission to do that.",
+  accountsMissing:
+    "Phone numbers and Account Creation need a database update first: apply supabase/migrations/20261027140000_profile_phone_and_joined.sql, then reload this page.",
+  phoneRefused: "The database did not take that phone number. Enter it like +60 12-345 6789 or 012-345 6789.",
 } as const;
 
 type ErrorLike = { code?: string | null; status?: number | null; message?: string | null };
+
+/** Supabase Auth refused the server's secret key (or it belongs to another project). */
+function isKeyRefused(error: ErrorLike): boolean {
+  return (
+    error.status === 401 ||
+    error.code === "not_admin" ||
+    error.code === "no_authorization" ||
+    error.code === "bad_jwt" ||
+    /invalid api key/i.test(error.message ?? "")
+  );
+}
+
+const KEY_HELP = "Check that SUPABASE_SECRET_KEY is the secret key of this project.";
 
 /** Supabase Auth says the address already belongs to an account. */
 export function isEmailTaken(error: ErrorLike): boolean {
@@ -469,15 +593,7 @@ export function describeEmailError(error: ErrorLike, what: "invite" | "password 
   const message = error.message ?? "";
   const subject = what === "invite" ? "The invite email" : "The password link";
 
-  if (
-    error.status === 401 ||
-    error.code === "not_admin" ||
-    error.code === "no_authorization" ||
-    error.code === "bad_jwt" ||
-    /invalid api key/i.test(message)
-  ) {
-    return `${subject} was not sent: Supabase refused the server's key. Check that SUPABASE_SECRET_KEY is the secret key of this project.`;
-  }
+  if (isKeyRefused(error)) return `${subject} was not sent: Supabase refused the server's key. ${KEY_HELP}`;
   if (error.code === "email_address_not_authorized" || /not authori[sz]ed/i.test(message)) {
     return `${subject} could not be sent: Supabase's built-in mailer only delivers to members of the project's team. To email anyone, ${SMTP_HELP}.`;
   }
@@ -505,6 +621,53 @@ export function describeEmailError(error: ErrorLike, what: "invite" | "password 
 }
 
 /**
+ * True when an email failed for a reason a link sent by hand avoids (Copy
+ * Invite Link): the mailer's limits, its settings, the address. Not when
+ * Supabase refused the server's key, which the link needs too.
+ */
+export function linkWouldHelp(error: ErrorLike): boolean {
+  return !isKeyRefused(error);
+}
+
+/** Supabase Auth has no such user (any more). */
+export function isUserGone(error: ErrorLike): boolean {
+  return error.code === "user_not_found" || error.status === 404;
+}
+
+/**
+ * An Auth error from making an invite link (auth.admin.generateLink).
+ * Nothing is emailed, so the mailer's limits never apply.
+ */
+export function describeLinkError(error: ErrorLike): string {
+  if (isKeyRefused(error)) return `The invite link was not created: Supabase refused the server's key. ${KEY_HELP}`;
+  if (isUserGone(error)) return MESSAGES.userNotFound;
+  if (error.code === "over_request_rate_limit" || error.status === 429) {
+    return "The invite link was not created: too many requests to Supabase just now. Wait a minute and try again.";
+  }
+  return `The invite link was not created: ${error.message || "Supabase did not say why"}.`;
+}
+
+/**
+ * An Auth error from deleting an account that has not joined (Cancel
+ * Invite). Supabase Auth answers "Database error deleting user" when the
+ * database refuses: a row of the app still points at the account (the
+ * profile goes with it, but an inspection or the audit log keeps it).
+ */
+export function describeCancelError(error: ErrorLike, name: string): string {
+  const subject = `The invite to ${name} was not cancelled`;
+  if (isKeyRefused(error)) return `${subject}: Supabase refused the server's key. ${KEY_HELP}`;
+  if (/database error deleting user/i.test(error.message ?? "")) {
+    return `${subject}: records in the app point at their account, so the database keeps it. To stop them signing in, choose Deactivate instead.`;
+  }
+  return `${subject}: ${error.message || "Supabase did not say why"}.`;
+}
+
+/** The database refused a phone number (profiles_phone_format, migration 20261027140000), which the app's check let through. */
+export function isPhoneRefused(error: ErrorLike): boolean {
+  return error.code === "23514" && /phone/i.test(error.message ?? "");
+}
+
+/**
  * The database's own words for the team rules (migration 20261007170000),
  * which the actions check first. They show up here when something changed
  * in between, for example another admin demoting the lead just chosen.
@@ -525,7 +688,9 @@ export function describeProfileError(error: ErrorLike): string {
     const rule = TEAM_RULE_MESSAGES.find(([pattern]) => pattern.test(message));
     if (rule) return rule[1];
   }
+  if (isPhoneRefused(error)) return MESSAGES.phoneRefused;
   if (isMissingTeamColumn(error)) return TEAM_MESSAGES.teamsMissing;
+  if (isMissingAccountColumn(error)) return MESSAGES.accountsMissing;
   if (error.code === "42501") return MESSAGES.notAllowed;
   return `The change could not be saved: ${message || "the database did not say why"}.`;
 }

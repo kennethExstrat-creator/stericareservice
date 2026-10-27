@@ -12,12 +12,15 @@ vi.mock("@/lib/auth/users", async (importOriginal) => ({
 }));
 vi.mock("./actions", () => ({
   inviteUser: vi.fn(),
-  renameUser: vi.fn(),
+  editUserDetails: vi.fn(),
   changeRole: vi.fn(),
   assignLead: vi.fn(),
   deactivateUser: vi.fn(),
   reactivateUser: vi.fn(),
   sendPasswordLink: vi.fn(),
+  resendInvite: vi.fn(),
+  createInviteLink: vi.fn(),
+  cancelInvite: vi.fn(),
 }));
 vi.mock("next/navigation", async (importOriginal) => ({
   ...(await importOriginal<typeof import("next/navigation")>()),
@@ -36,6 +39,7 @@ const me: UserListItem = {
   uid: "SC-0001",
   email: "admin@test.local",
   fullName: "Test Admin",
+  phone: null,
   role: "admin",
   roleChoice: "admin",
   status: "active",
@@ -64,6 +68,7 @@ const olga: UserListItem = {
   uid: "SC-0002",
   email: "olga@test.local",
   fullName: "Olga Other",
+  phone: "+60 12-345 6789",
   role: "inspector",
   roleChoice: "inspector",
   isSelf: false,
@@ -249,22 +254,22 @@ describe("/admin/users: UIDs and the search", () => {
     return { input, label };
   }
 
-  it("starts the list with each person's UID, and searches by name, email or UID", async () => {
+  it("starts the list with each person's UID, and searches by name, email, phone or UID", async () => {
     const html = await render(directory({ users: [me, lina, olga] }));
     expect(html).toMatch(/<thead[^>]*><tr[^>]*><th[^>]*>UID<\/th>/);
     expect(bodyRows(html).map((row) => row.match(/data-slot="uid"[^>]*>([^<]*)</)?.[1])).toEqual(["SC-0001", "SC-0003", "SC-0002"]);
 
     const { input, label } = searchBox(html);
     expect(label).toBe("Search");
-    expect(input).toContain('placeholder="Name, email or UID"');
+    expect(input).toContain('placeholder="Name, email, phone or UID"');
     expect(input).toContain('value=""');
     // Nothing to clear yet.
     expect(html).not.toContain('aria-label="Clear Search"');
     expect(html).toContain('role="status">3 people.</p>');
   });
 
-  it("opens with the search in the address, and shows only who it finds, by UID, name or email", async () => {
-    for (const q of ["SC-0002", "sc-0002", "olga", "OLGA@test"]) {
+  it("opens with the search in the address, and shows only who it finds, by UID, name, email or phone", async () => {
+    for (const q of ["SC-0002", "sc-0002", "olga", "OLGA@test", "012-345 6789", "+60123456789", "345 6789"]) {
       const html = await render(directory({ users: [me, lina, olga] }), { q });
       const rows = bodyRows(html);
       expect(rows, q).toHaveLength(1);
@@ -280,7 +285,7 @@ describe("/admin/users: UIDs and the search", () => {
     const rows = bodyRows(html);
     expect(rows).toHaveLength(1);
     expect(rows[0]).toContain('data-slot="no-match"');
-    expect(rows[0]).toMatch(/colSpan="9"/);
+    expect(rows[0]).toMatch(/colSpan="10"/);
     expect(rows[0]).toContain("Nobody matches “SC-9999”.");
     expect(rows[0]).toMatch(/<button[^>]*type="button"[^>]*>Clear Search<\/button>/);
     expect(html).toContain('role="status">0 of 3 people.</p>');
@@ -291,7 +296,39 @@ describe("/admin/users: UIDs and the search", () => {
     const html = await render(directory({ users: before, uids: false }), { q: "lina" });
     expect(html).not.toContain(">UID</th>");
     expect(html).not.toContain('data-slot="uid"');
-    expect(searchBox(html).input).toContain('placeholder="Name or email"');
+    expect(searchBox(html).input).toContain('placeholder="Name, email or phone"');
     expect(bodyRows(html)).toHaveLength(1);
+  });
+});
+
+describe("/admin/users: invitations not yet answered", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(requireAdmin).mockResolvedValue({ id: ME, email: "admin@test.local", fullName: "Test Admin", role: "admin" });
+  });
+
+  const zed: UserListItem = {
+    ...olga,
+    id: "4e5f6071-8293-4d0e-9f1a-3b4c5d6e7f80",
+    uid: "SC-0044",
+    email: "zed@example.com",
+    fullName: null,
+    phone: null,
+    status: "invited",
+    lastSignInAt: null,
+  };
+
+  it("lists someone invited as Invited, by their email, and finds them by it", async () => {
+    const html = await render(directory({ users: [me, olga, zed] }), { q: "zed@" });
+    const rows = bodyRows(html);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toContain('data-status="invited"');
+    expect(rows[0]).toContain(">Invited</span>");
+    expect(rows[0]).toContain('aria-label="Actions for zed@example.com"');
+  });
+
+  it("tells the admin, when they are the only one, that each invitee creates their own account", async () => {
+    const html = await render(directory({ users: [me], leads: [] }));
+    expect(html).toContain("Each one gets an email with a link to create their account.");
   });
 });

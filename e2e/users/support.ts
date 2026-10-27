@@ -49,6 +49,47 @@ export async function createThrowaway(fullName: string, { activate = true }: { a
   return { id, email, password, fullName };
 }
 
+/**
+ * A throwaway account as an invite leaves it until its person joins: no
+ * password and no name, so it has not joined (migration 20261027140000),
+ * activated as the invite activates it. Its address stays unconfirmed, as
+ * when nobody has opened the invite, unless `opened`. Nothing is emailed.
+ * Delete it with deleteAccount() in a finally block.
+ */
+export async function createInvitee({ opened = false }: { opened?: boolean } = {}): Promise<{ id: string; email: string }> {
+  const admin = createTestAdminClient();
+  const email = throwawayAddress();
+  const { data, error } = await admin.auth.admin.createUser({ email, email_confirm: opened });
+  if (error) throw new Error(`Could not create ${email}: ${error.message}`);
+
+  const id = data.user.id;
+  const { error: profileError } = await admin.from("profiles").update({ active: true }).eq("id", id);
+  if (profileError) {
+    await admin.auth.admin.deleteUser(id);
+    throw new Error(`Could not activate ${email}: ${profileError.message}`);
+  }
+  return { id, email };
+}
+
+/** A profile's name, phone and whether its person has joined (checks of what an action wrote). */
+export async function detailsOf(id: string) {
+  const { data, error } = await createTestAdminClient()
+    .from("profiles")
+    .select("full_name, phone, joined_at")
+    .eq("id", id)
+    .single();
+  if (error) throw new Error(`Could not read the details of ${id}: ${error.message}`);
+  return data;
+}
+
+/** True while Supabase Auth still has the account (Cancel Invite deletes it). */
+export async function accountExists(id: string): Promise<boolean> {
+  const { data, error } = await createTestAdminClient().auth.admin.getUserById(id);
+  if (error?.status === 404) return false;
+  if (error) throw new Error(`Could not read the auth user ${id}: ${error.message}`);
+  return Boolean(data.user);
+}
+
 /** Activates or deactivates a throwaway account's profile with the secret key (setup only). */
 export async function setActive(id: string, active: boolean): Promise<void> {
   const { error } = await createTestAdminClient().from("profiles").update({ active }).eq("id", id);

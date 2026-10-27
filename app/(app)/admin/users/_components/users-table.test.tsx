@@ -5,24 +5,28 @@ import { describe, expect, it, vi } from "vitest";
 import type { UserListItem } from "@/lib/auth/users";
 
 vi.mock("../actions", () => ({
-  renameUser: vi.fn(),
+  editUserDetails: vi.fn(),
   changeRole: vi.fn(),
   assignLead: vi.fn(),
   deactivateUser: vi.fn(),
   reactivateUser: vi.fn(),
   sendPasswordLink: vi.fn(),
   inviteUser: vi.fn(),
+  resendInvite: vi.fn(),
+  createInviteLink: vi.fn(),
+  cancelInvite: vi.fn(),
 }));
 
 import { EmailText, UsersTable } from "./users-table";
 
 const LEAD_ID = "1b2c3d4e-5f60-4a7b-8c9d-0e1f2a3b4c5d";
 
-const base: Pick<UserListItem, "roleChoice" | "lead" | "team" | "missingLead"> = {
+const base: Pick<UserListItem, "roleChoice" | "lead" | "team" | "missingLead" | "phone"> = {
   roleChoice: "inspector",
   lead: null,
   team: [],
   missingLead: false,
+  phone: null,
 };
 
 const USERS: UserListItem[] = [
@@ -32,6 +36,7 @@ const USERS: UserListItem[] = [
     uid: "SC-0001",
     email: "admin@test.local",
     fullName: "Test Admin",
+    phone: "+60 12-345 6789",
     role: "admin",
     roleChoice: "admin",
     status: "active",
@@ -114,11 +119,35 @@ describe("UsersTable", () => {
   const [admin, olga, pending] = rows(html);
 
   it("names its columns in Title Case, with an accessible caption", () => {
-    expect(html).toContain('<caption class="sr-only">Users, their UIDs, roles, lead inspectors and access</caption>');
-    for (const header of ["UID", "Name", "Email", "Role", "Lead Inspector", "Status", "Last Signed In", "Added"]) {
+    expect(html).toContain('<caption class="sr-only">Users, their UIDs, phone numbers, roles, lead inspectors and access</caption>');
+    for (const header of ["UID", "Name", "Email", "Phone", "Role", "Lead Inspector", "Status", "Last Signed In", "Added"]) {
       expect(html).toContain(`>${header}</th>`);
     }
     expect(html).toContain('<span class="sr-only">Actions</span>');
+  });
+
+  it("gives the phone its own column from 1440 px without a touchscreen, after the email", () => {
+    const headers = [...html.matchAll(/<th\s[^>]*>([^<]*)</g)].map((match) => match[1]);
+    expect(headers.indexOf("Phone")).toBe(headers.indexOf("Email") + 1);
+    expect(html).toMatch(/<th[^>]*class="[^"]*\bhidden fine:min-\[90rem\]:table-cell\b[^"]*"[^>]*>Phone<\/th>/);
+    // Beside it a long name keeps two lines: the Name column keeps 144 px there.
+    expect(html).toMatch(/<th[^>]*class="[^"]*\bfine:min-\[90rem\]:min-w-36\b[^"]*"[^>]*>Name<\/th>/);
+    // On one line in tabular figures: a number never breaks between its groups.
+    expect(admin).toMatch(
+      /<td data-slot="phone" class="[^"]*\bhidden fine:min-\[90rem\]:table-cell\b[^"]*"><span class="whitespace-nowrap tabular-nums">\+60 12-345 6789<\/span><\/td>/,
+    );
+    // None yet: a dash, which a screen reader hears as words.
+    expect(olga).toMatch(
+      /<td data-slot="phone" class="[^"]*"><span aria-hidden="true">—<\/span><span class="sr-only">No phone number<\/span><\/td>/,
+    );
+  });
+
+  it("puts the phone under the name below 1440 px and on every touchscreen, where its column drops out", () => {
+    expect(admin).toContain(
+      '<span class="text-muted-foreground fine:min-[90rem]:hidden" data-slot="phone-under-name"><span class="sr-only">Phone </span><span class="whitespace-nowrap tabular-nums">+60 12-345 6789</span></span>',
+    );
+    // Nothing for someone without one.
+    expect(olga).not.toContain('data-slot="phone-under-name"');
   });
 
   it("starts every row with the UID, in tabular figures and on one line, at every width", () => {
@@ -144,7 +173,7 @@ describe("UsersTable", () => {
     const withoutUids = renderToStaticMarkup(<UsersTable users={USERS.map((user) => ({ ...user, uid: null }))} showSignIns uids={false} />);
     expect(withoutUids).not.toContain(">UID</th>");
     expect(withoutUids).not.toContain('data-slot="uid"');
-    expect(withoutUids).toContain('<caption class="sr-only">Users, their roles, lead inspectors and access</caption>');
+    expect(withoutUids).toContain('<caption class="sr-only">Users, their phone numbers, roles, lead inspectors and access</caption>');
     expect(withoutUids).toMatch(/<th[^>]*class="[^"]*\bpl-4\b[^"]*"[^>]*>Name<\/th>/);
   });
 
@@ -158,6 +187,18 @@ describe("UsersTable", () => {
     expect(olga).toContain("Deactivated");
     expect(pending).toContain("Pending Activation");
     for (const row of [admin, olga, pending]) expect(row).toMatch(/<svg[^>]*aria-hidden="true"/);
+  });
+
+  it("shows someone invited who has not joined as Invited, named by their email", () => {
+    const invited = renderToStaticMarkup(
+      <UsersTable users={[{ ...USERS[2], status: "invited", email: "zed@example.com", lastSignInAt: null }]} showSignIns />,
+    );
+    const [row] = rows(invited);
+    expect(row).toMatch(/data-slot="account-status" data-status="invited"[^>]*>.*Invited<\/span>/);
+    // The dashed slate of Not Done: it waits on the person, not the admin.
+    expect(row).toMatch(/data-status="invited" class="[^"]*\bborder-dashed\b/);
+    expect(row).toContain('<span class="[overflow-wrap:anywhere]">zed@<wbr/>example.com</span>');
+    expect(row).toContain('aria-label="Actions for zed@example.com"');
   });
 
   it("dates rows in Malaysian time, and says Never for no sign-in", () => {
@@ -265,8 +306,11 @@ describe("UsersTable: lead inspectors and their teams", () => {
 
   it("says so when a filter leaves nobody, across every column", () => {
     const empty = renderToStaticMarkup(<UsersTable users={[]} showSignIns emptyMessage="Every active inspector has a lead inspector." />);
-    expect(empty).toMatch(/<td[^>]*colSpan="9"[^>]*>Every active inspector has a lead inspector\.<\/td>/);
+    expect(empty).toMatch(/<td[^>]*colSpan="10"[^>]*>Every active inspector has a lead inspector\.<\/td>/);
     const withoutUids = renderToStaticMarkup(<UsersTable users={[]} showSignIns uids={false} emptyMessage="Nobody here yet." />);
-    expect(withoutUids).toMatch(/<td[^>]*colSpan="8"[^>]*>Nobody here yet\.<\/td>/);
+    expect(withoutUids).toMatch(/<td[^>]*colSpan="9"[^>]*>Nobody here yet\.<\/td>/);
+    // As many columns as the header has.
+    const header = renderToStaticMarkup(<UsersTable users={[]} showSignIns />).match(/<thead[^>]*>.*<\/thead>/)![0];
+    expect(header.match(/<th\s/g)).toHaveLength(10);
   });
 });

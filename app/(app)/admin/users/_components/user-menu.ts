@@ -8,8 +8,10 @@ export type UserActionsTarget = {
   uid: string | null;
   /** How the app names them: their full name, else their email. */
   name: string;
-  /** Their full name as saved, null when they have none: Change Name starts from it. */
+  /** Their full name as saved, null when they have none: Edit Details starts from it. */
   fullName: string | null;
+  /** Their phone number as saved, null when they have none: Edit Details starts from it too. */
+  phone: string | null;
   email: string;
   /** Inspector, lead inspector or admin. */
   role: RoleChoice;
@@ -24,40 +26,54 @@ export type UserActionsTarget = {
 };
 
 export type MenuAction =
-  | "change-name"
+  | "edit-details"
   | "change-role"
   | "change-lead"
   | "send-link"
   | "unblock"
+  | "resend-invite"
+  | "copy-invite-link"
+  | "cancel-invite"
   | "deactivate"
   | "reactivate"
   | "activate";
 
 /** Each item as the menu says it: labels, so in Title Case (Kenneth, 8 October 2026). Messages that name an item quote these. */
 export const MENU_LABEL: Readonly<Record<MenuAction, string>> = {
-  "change-name": "Change Name",
+  "edit-details": "Edit Details",
   "change-role": "Change Role",
   "change-lead": "Change Lead Inspector",
   "send-link": "Send Password Link",
   unblock: "Lift Sign-In Block",
+  "resend-invite": "Resend Invite",
+  "copy-invite-link": "Copy Invite Link",
+  "cancel-invite": "Cancel Invite",
   deactivate: "Deactivate",
   reactivate: "Reactivate",
   activate: "Activate",
 };
 
+/** The items that take something away, in the menu's destructive red. */
+export const DESTRUCTIVE: ReadonlySet<MenuAction> = new Set(["cancel-invite", "deactivate"]);
+
 /**
  * The title of the dialog each item opens, naming the person: titles are
  * labels too, so in Title Case, a question keeping its question mark. "In"
- * keeps its capital in "Sign In", where it belongs to the verb. Deactivate on
- * someone who still leads a team opens "leads-team" instead, which says who
- * to move first.
+ * keeps its capital in "Sign In", where it belongs to the verb. Deactivate or
+ * Cancel Invite on someone who still leads a team opens "leads-team" instead,
+ * which says who to move first. Copy Invite Link asks first, then shows the
+ * link under "invite-link".
  */
-export const DIALOG_TITLE: Readonly<Record<MenuAction | "leads-team", (name: string) => string>> = {
-  "change-name": (name) => `Change ${name}'s Name`,
+export const DIALOG_TITLE: Readonly<Record<MenuAction | "leads-team" | "invite-link", (name: string) => string>> = {
+  "edit-details": (name) => `Edit ${name}'s Details`,
   "change-role": (name) => `Change ${name}'s Role`,
   "change-lead": (name) => `Change ${name}'s Lead Inspector`,
   "send-link": (name) => `Send a Password Link to ${name}?`,
   unblock: (name) => `Let ${name} Sign In Again?`,
+  "resend-invite": (name) => `Resend the Invite to ${name}?`,
+  "copy-invite-link": (name) => `Create an Invite Link for ${name}?`,
+  "invite-link": (name) => `Invite Link for ${name}`,
+  "cancel-invite": (name) => `Cancel the Invite to ${name}?`,
   deactivate: (name) => `Deactivate ${name}?`,
   "leads-team": (name) => `${name} Still Leads a Team`,
   reactivate: (name) => `Reactivate ${name}?`,
@@ -65,27 +81,43 @@ export const DIALOG_TITLE: Readonly<Record<MenuAction | "leads-team", (name: str
 };
 
 /**
- * What an admin can do to this person, in menu groups. Anyone's name can
- * change, the admin's own included, active or deactivated. Nobody can change
- * their own role or deactivate themselves (the actions refuse it too), and
- * password links only go to accounts that can sign in: a blocked sign-in is
- * lifted first. A pending account is activated first: any other change, a
- * new name included, would make it look like a deactivated one (it counts
- * as pending only while nothing has changed its profile, accountStatus() in
- * lib/auth/users.ts). With teams (migration 20261007170000), inspectors who
- * are not leads can be moved to another lead inspector's team.
+ * What an admin can do to this person, in menu groups. Anyone's details can
+ * change, the admin's own included, active, invited or deactivated. Nobody
+ * can change their own role or deactivate themselves (the actions refuse it
+ * too), and password links only go to accounts that can sign in: a blocked
+ * sign-in is lifted first. A pending account is activated first: any other
+ * change, new details included, would make it look like a deactivated one
+ * (it counts as pending only while nothing has changed its profile,
+ * accountStatus() in lib/auth/users.ts). With teams (migration
+ * 20261007170000), inspectors who are not leads can be moved to another lead
+ * inspector's team.
+ *
+ * Someone invited has no password to reset yet: their invite is resent, a
+ * link copied to send by hand, or the invite cancelled, which removes the
+ * account. Those three need the secret key (`invites`); while a ban blocks
+ * the account the links would not let them in, so it is lifted first.
  */
-export function menuGroups(user: UserActionsTarget, { teams = true }: { teams?: boolean } = {}): MenuAction[][] {
+export function menuGroups(
+  user: UserActionsTarget,
+  { teams = true, invites = true }: { teams?: boolean; invites?: boolean } = {},
+): MenuAction[][] {
   const access: MenuAction = user.signInBlocked ? "unblock" : "send-link";
-  if (user.isSelf) return user.status === "active" ? [["change-name", access]] : [];
+  if (user.isSelf) return user.status === "active" ? [["edit-details", access]] : [];
   const team: MenuAction[] = teams && user.role === "inspector" ? ["change-lead"] : [];
   switch (user.status) {
     case "active":
-      return [["change-name", "change-role", ...team, access], ["deactivate"]];
+      return [["edit-details", "change-role", ...team, access], ["deactivate"]];
+    case "invited": {
+      const links: MenuAction[] = invites && !user.signInBlocked ? ["resend-invite", "copy-invite-link"] : [];
+      const unblock: MenuAction[] = user.signInBlocked ? ["unblock"] : [];
+      const leave: MenuAction[] = invites ? ["cancel-invite", "deactivate"] : ["deactivate"];
+      const groups: MenuAction[][] = [links, ["edit-details", "change-role", ...team, ...unblock], leave];
+      return groups.filter((group) => group.length > 0);
+    }
     case "pending":
       return [["activate"]];
     case "deactivated":
-      return [["reactivate", "change-name", "change-role", ...team]];
+      return [["reactivate", "edit-details", "change-role", ...team]];
   }
 }
 

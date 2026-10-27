@@ -140,12 +140,12 @@ test("the UID column, and the search by UID, name and email", async ({ page }) =
   await test.step("the UID column comes first, one SC- number per person, on one line in tabular figures", async () => {
     if (!uids) {
       await expect(page.getByRole("columnheader", { name: "UID", exact: true })).toHaveCount(0);
-      await expect(searchBox(page)).toHaveAttribute("placeholder", "Name or email");
+      await expect(searchBox(page)).toHaveAttribute("placeholder", "Name, email or phone");
       noUids("The UID column");
       return;
     }
     await expect(page.getByRole("columnheader").first()).toHaveText("UID");
-    await expect(searchBox(page)).toHaveAttribute("placeholder", "Name, email or UID");
+    await expect(searchBox(page)).toHaveAttribute("placeholder", "Name, email, phone or UID");
     for (const person of [admin, inspector, lead]) {
       await expect(uidCell(rowFor(page, person.email))).toHaveText(person.uid!);
     }
@@ -279,9 +279,9 @@ test("the UID column, and the search by UID, name and email", async ({ page }) =
   await test.step("the dialogs show the UID beside the name and keep their names", async () => {
     await page.goto("/admin/users");
     await rowFor(page, admin.email).getByRole("button", { name: /^Actions for / }).click();
-    await page.getByRole("menuitem", { name: "Change Name", exact: true }).click();
+    await page.getByRole("menuitem", { name: "Edit Details", exact: true }).click();
     const dialog = page.getByRole("dialog");
-    await expect(dialog.getByRole("heading", { name: `Change ${admin.name}'s Name`, exact: true })).toBeVisible();
+    await expect(dialog.getByRole("heading", { name: `Edit ${admin.name}'s Details`, exact: true })).toBeVisible();
     if (uids) {
       await expect(dialog.locator('[data-slot="uid"]')).toHaveText(`UID ${admin.uid}`);
       await shot(page, "uid-dialog");

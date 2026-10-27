@@ -6,6 +6,7 @@ import {
   createThrowaway,
   deleteAccount,
   deleteAccountsWithEmail,
+  detailsOf,
   profileByEmail,
   profileOf,
   rowFor,
@@ -21,8 +22,9 @@ import {
 
 // /admin/users: who can reach it, the list, the invite dialog and accounts
 // waiting for activation. The lifecycle of one account (role, deactivate,
-// reactivate) is in lifecycle.spec.ts; lead inspectors and their teams in
-// e2e/org. Every spec here runs on a project with or without lead
+// reactivate) is in lifecycle.spec.ts, Edit Details in details.spec.ts,
+// invitations not yet answered in invites.spec.ts; lead inspectors and their
+// teams in e2e/org. Every spec here runs on a project with or without lead
 // inspectors (migration 20261007170000): without, the screen sets roles only.
 
 test.afterAll(async () => {
@@ -72,6 +74,13 @@ test("the admin sees everyone, with themselves marked and protected", async ({ p
   for (const header of ["Name", "Role", "Status", "Last Signed In"]) {
     await expect(page.getByRole("columnheader", { name: header, exact: true })).toBeVisible();
   }
+  // Email and Phone have their own columns from 1280 and 1440 px without a touchscreen; elsewhere they sit under
+  // the name (the desktop project is 1440 px wide).
+  for (const header of ["Email", "Phone"]) {
+    await expect(page.getByRole("columnheader", { name: header, exact: true })).toBeVisible({
+      visible: test.info().project.name === "desktop",
+    });
+  }
   const teams = await teamsReady();
   if (teams) {
     // Each lead's team, one at a time (e2e/org checks the teams themselves).
@@ -102,22 +111,26 @@ test("the admin sees everyone, with themselves marked and protected", async ({ p
   }
   await shot(page, "admin-list");
 
-  // No way to lock yourself out: no deactivate, no demotion. Your own name you can change.
+  // No way to lock yourself out: no deactivate, no demotion. Your own details you can change.
   await me.getByRole("button", { name: /^Actions for / }).click();
-  await expect(page.getByRole("menuitem", { name: "Change Name", exact: true })).toBeVisible();
+  await expect(page.getByRole("menuitem", { name: "Edit Details", exact: true })).toBeVisible();
   await expect(page.getByRole("menuitem", { name: "Send Password Link", exact: true })).toBeVisible();
   await expect(page.getByRole("menuitem", { name: "Deactivate" })).toHaveCount(0);
   await expect(page.getByRole("menuitem", { name: "Change Role" })).toHaveCount(0);
   await shot(page, "admin-own-menu");
   await page.keyboard.press("Escape");
-  // Gone, not only closing: Change Name is in both menus, and a menu animates out.
+  // Gone, not only closing: Edit Details is in both menus, and a menu animates out.
   await expect(page.getByRole("menu")).toHaveCount(0);
 
   // Menu items are labels, in Title Case (Kenneth, 8 October 2026).
   await inspector.getByRole("button", { name: /^Actions for / }).click();
-  const items = ["Change Name", "Change Role", "Send Password Link", "Deactivate", ...(teams ? ["Change Lead Inspector"] : [])];
+  const items = ["Edit Details", "Change Role", "Send Password Link", "Deactivate", ...(teams ? ["Change Lead Inspector"] : [])];
   for (const item of items) {
     await expect(page.getByRole("menuitem", { name: item, exact: true })).toBeVisible();
+  }
+  // Invitations are for accounts not yet created: someone who signs in has none of them.
+  for (const item of ["Resend Invite", "Copy Invite Link", "Cancel Invite"]) {
+    await expect(page.getByRole("menuitem", { name: item, exact: true })).toHaveCount(0);
   }
   await shot(page, "admin-row-menu");
   await page.keyboard.press("Escape");
@@ -142,30 +155,30 @@ test("the invite dialog explains every problem in place", async ({ page, context
   expect(await chromeNames(dialog, "radio")).toEqual(roleRadios(teams));
   await shot(page, "invite-dialog");
 
-  await test.step("an empty form marks both fields", async () => {
+  // The address and the role only: the invitee gives their own name, phone and password on Account Creation.
+  await expect(dialog.getByRole("textbox")).toHaveCount(1);
+  await expect(dialog.getByLabel("Full Name")).toHaveCount(0);
+  await expect(dialog).toContainText("They get an email with a link to create their account: their name, phone and password.");
+
+  await test.step("an empty form marks the email", async () => {
     await dialog.getByRole("button", { name: "Send Invite", exact: true }).click();
-    const name = dialog.getByLabel("Full Name", { exact: true });
     const email = dialog.getByLabel("Email", { exact: true });
-    await expect(name).toHaveAttribute("aria-invalid", "true");
     await expect(email).toHaveAttribute("aria-invalid", "true");
-    await expect(dialog.getByText("Enter their full name.")).toBeVisible();
     await expect(dialog.getByText("Enter their email address.")).toBeVisible();
-    // The error text is the field's description, and focus goes to the first problem.
-    await expect(name).toHaveAccessibleDescription("Enter their full name.");
-    await expect(name).toBeFocused();
+    // The error text is the field's description, and focus goes to the problem.
+    await expect(email).toHaveAccessibleDescription("Enter their email address.");
+    await expect(email).toBeFocused();
     await shot(page, "invite-errors");
   });
 
   await test.step("an address that already has an account stops before any email, and every choice stays", async () => {
-    await dialog.getByLabel("Full Name", { exact: true }).fill("Someone Else");
     await dialog.getByLabel("Email", { exact: true }).fill(TEST_ACCOUNTS.inspector.toUpperCase());
-    await expect(dialog.getByText("Enter their full name.")).toHaveCount(0);
+    await expect(dialog.getByText("Enter their email address.")).toHaveCount(0);
     // React resets a form after its action: the role must not flip back to Inspector when the invite is refused.
     await pickRole(dialog, "Admin");
     await dialog.getByRole("button", { name: "Send Invite", exact: true }).click();
     await expect(dialog.getByText(/That email already has an account/)).toBeVisible();
     await expect(dialog.getByLabel("Email", { exact: true })).toHaveValue(TEST_ACCOUNTS.inspector.toUpperCase());
-    await expect(dialog.getByLabel("Full Name", { exact: true })).toHaveValue("Someone Else");
     await expect(dialog.getByRole("radio", { name: /^Admin\b/ })).toBeChecked();
     await expect(dialog.getByRole("radio", { name: /^Inspector\b/ })).not.toBeChecked();
     await shot(page, "invite-existing");
@@ -191,7 +204,6 @@ test("an invite to a new address is sent, or refused with a clear reason", async
     await page.goto("/admin/users");
     await page.getByRole("button", { name: "Invite User", exact: true }).click();
     const dialog = page.getByRole("dialog", { name: "Invite a User", exact: true });
-    await dialog.getByLabel("Full Name", { exact: true }).fill("E2E Invitee");
     await dialog.getByLabel("Email", { exact: true }).fill(email);
     // An inspector would need a lead inspector first; a lead inspector needs none.
     if (await teamsReady()) await pickRole(dialog, "Lead Inspector");
@@ -209,10 +221,13 @@ test("an invite to a new address is sent, or refused with a clear reason", async
     await shot(page, "invite-result");
 
     if (await sent.isVisible()) {
-      // New accounts start inactive; the invite activates the one it created.
+      // New accounts start inactive; the invite activates the one it created. Invited, by its email, until
+      // its person creates it on Account Creation: no name yet.
       await expect(dialog).toBeHidden();
-      await expect(statusOf(rowFor(page, email))).toHaveText("Active");
-      expect(await profileByEmail(email)).toMatchObject({ active: true, role: "inspector", full_name: "E2E Invitee" });
+      await expect(statusOf(rowFor(page, email))).toHaveText("Invited");
+      const profile = await profileByEmail(email);
+      expect(profile).toMatchObject({ active: true, role: "inspector", full_name: null });
+      expect(await detailsOf(profile!.id)).toMatchObject({ phone: null, joined_at: null });
     } else if (await notSent.isVisible()) {
       await expect(notSent).toContainText("custom SMTP");
       await expect(rowFor(page, email)).toHaveCount(0);

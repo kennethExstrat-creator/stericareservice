@@ -44,7 +44,7 @@ export function UsersScreen({
   directory: UserDirectory;
   /** The ?team= value: a lead inspector's id, "none", or nothing for everyone. */
   team: string | string[] | undefined;
-  /** The ?q= value: a name, email or UID to find. */
+  /** The ?q= value: a name, email, phone number or UID to find. */
   search?: string | string[] | undefined;
 }) {
   const { users, adminApi, teams, uids, leads } = directory;
@@ -103,7 +103,7 @@ export function UsersScreen({
         {/* The search and the Team picker side by side from 768 px, the count beside them from 1024 px. */}
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <div className="flex flex-col gap-3 md:flex-row md:flex-wrap md:items-center md:gap-x-6">
-            <UserSearchBox placeholder={uids ? "Name, email or UID" : "Name or email"} />
+            <UserSearchBox placeholder={uids ? "Name, email, phone or UID" : "Name, email or phone"} />
             {teams && <TeamFilter value={filterValue(filter)} options={filterOptions(users)} />}
           </div>
           <UserSearchSummary filter={filter} shown={shown.length} total={users.length} />
@@ -115,6 +115,7 @@ export function UsersScreen({
           teams={teams}
           uids={uids}
           leads={leads}
+          invites={canInvite}
           emptyMessage={emptyMessage(filter)}
           filter={filter}
         />
@@ -128,8 +129,8 @@ export function UsersScreen({
               <EmptyTitle>Only You So Far</EmptyTitle>
               <EmptyDescription>
                 {teams
-                  ? "Invite your lead inspectors first, then their inspectors. Each one gets an email with a link to choose a password."
-                  : "Invite your inspectors. Each one gets an email with a link to choose a password."}
+                  ? "Invite your lead inspectors first, then their inspectors. Each one gets an email with a link to create their account."
+                  : "Invite your inspectors. Each one gets an email with a link to create their account."}
               </EmptyDescription>
             </EmptyHeader>
             {canInvite && (

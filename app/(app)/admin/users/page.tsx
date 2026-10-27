@@ -16,12 +16,13 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 /**
- * /admin/users (BUILD_SPEC 3 and 10): everyone with an account, invites,
- * roles, lead inspectors and their teams, deactivation, and each person's UID.
- * Inspectors get a 404 from requireAdmin(); the layout above is not a
- * security boundary, so this page checks for itself. ?team= shows one lead
- * inspector's team, or the inspectors in no team (_lib/team-filter.ts); ?q=
- * finds people in it by name, email or UID (_lib/user-search.ts).
+ * /admin/users (BUILD_SPEC 3 and 10): everyone with an account, their UID,
+ * name, email and phone, invites and the invitations not yet answered, roles,
+ * lead inspectors and their teams, and deactivation. Inspectors get a 404
+ * from requireAdmin(); the layout above is not a security boundary, so this
+ * page checks for itself. ?team= shows one lead inspector's team, or the
+ * inspectors in no team (_lib/team-filter.ts); ?q= finds people in it by
+ * name, email, phone number or UID (_lib/user-search.ts).
  *
  * No outer padding or width: the app shell's main area provides both.
  */

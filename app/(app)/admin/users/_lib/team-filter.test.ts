@@ -10,6 +10,7 @@ function user(id: string, overrides: Partial<UserListItem> = {}): UserListItem {
     uid: null,
     email: `${id}@test.local`,
     fullName: null,
+    phone: null,
     role: "inspector",
     roleChoice: "inspector",
     status: "active",

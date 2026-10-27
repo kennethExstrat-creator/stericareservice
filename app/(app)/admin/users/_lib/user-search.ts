@@ -1,13 +1,15 @@
-// /admin/users?q=: find someone by name, email or UID, as the admin types,
-// within the view the Team picker shows (team-filter.ts). The list is short
-// and already on the page, so it filters in the browser, as the reference
-// lists do: every word of the search appears in the person's name, email or
-// UID, in any order, ignoring case and accents. Pure; client-safe.
+// /admin/users?q=: find someone by name, email, phone number or UID, as the
+// admin types, within the view the Team picker shows (team-filter.ts). The
+// list is short and already on the page, so it filters in the browser, as
+// the reference lists do: every word of the search appears in the person's
+// name, email, phone digits or UID, in any order, ignoring case and accents.
+// A search that is a phone number as typed is matched by its digits alone.
+// Pure; client-safe.
 import { matchesSearch, normaliseForSearch, searchText } from "@/lib/admin/reference";
 import type { UserListItem } from "@/lib/auth/users";
 import type { TeamFilter } from "./team-filter";
 
-/** Longer than any name, email or UID the list holds. */
+/** Longer than any name, email, phone number or UID the list holds. */
 export const MAX_SEARCH_LENGTH = 200;
 
 /** The search a ?q= value asks for: the first one, as typed. */
@@ -29,9 +31,39 @@ export function uidSpellings(uid: string): string[] {
   return [...new Set([`SC-${digits}`, `SC${digits}`, `SC-${number}`, `SC${number}`])];
 }
 
-/** What a person is found by: their name, email and UID, normalised once. */
-export function userSearchText(user: Pick<UserListItem, "fullName" | "email" | "uid">): string {
-  return searchText(user.fullName, user.email, ...(user.uid ? uidSpellings(user.uid) : []));
+/**
+ * A phone number as the search finds it: its digits alone, without the
+ * spaces, brackets and hyphens it was typed with, so "+60 12-345 6789" is
+ * found by 0123456789, 012-345 6789 or +60123456789, and any run of its
+ * digits. A Malaysian number saved without the country code (012-345 6789:
+ * one 0 in front) is found with it too (60123456789); one saved with it
+ * already holds the local number (60123456789 holds 0123456789).
+ */
+export function phoneSpellings(phone: string | null | undefined): string[] {
+  const digits = phone?.replace(/\D/g, "") ?? "";
+  if (!digits) return [];
+  return /^0[1-9]/.test(digits) ? [digits, `60${digits.slice(1)}`] : [digits];
+}
+
+/** What a person is found by: their name, email, phone digits and UID, normalised once. */
+export function userSearchText(user: Pick<UserListItem, "fullName" | "email" | "uid"> & { phone?: string | null }): string {
+  return searchText(
+    user.fullName,
+    user.email,
+    ...phoneSpellings(user.phone),
+    ...(user.uid ? uidSpellings(user.uid) : []),
+  );
+}
+
+/**
+ * The digits of a search that is a phone number as typed, with or without a
+ * + in front and spaces, brackets or hyphens between the digits; null for
+ * any other search. Such a search finds the number whatever its spacing.
+ */
+export function phoneDigits(query: string): string | null {
+  const trimmed = query.trim();
+  if (!/^\+?[\d\s()-]*\d[\d\s()-]*$/.test(trimmed)) return null;
+  return trimmed.replace(/\D/g, "");
 }
 
 /** One person, as the search sees them. */
@@ -53,10 +85,16 @@ export function queryAfterViewChange(current: string, addressQuery: string): str
   return addressQuery.trim() ? current : "";
 }
 
-/** The ids of the people a search leaves showing, or null without one: everyone. */
+/**
+ * The ids of the people a search leaves showing, or null without one:
+ * everyone. A phone number searched as typed ("012-345 6789") is also found
+ * by its digits, which the person's search text holds without spacing.
+ */
 export function matchingIds(entries: readonly SearchEntry[], query: string): Set<string> | null {
   if (!isSearching(query)) return null;
-  return new Set(entries.filter((entry) => matchesSearch(entry.text, query)).map((entry) => entry.id));
+  const digits = phoneDigits(query);
+  const found = (entry: SearchEntry) => matchesSearch(entry.text, query) || (digits !== null && entry.text.includes(digits));
+  return new Set(entries.filter(found).map((entry) => entry.id));
 }
 
 function people(count: number): string {

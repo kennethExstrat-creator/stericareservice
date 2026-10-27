@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   activationNeedsPlacement,
+  DESTRUCTIVE,
   DIALOG_TITLE,
   leadChoicesFor,
   MENU_LABEL,
@@ -15,6 +16,7 @@ const person = (overrides: Partial<UserActionsTarget> = {}): UserActionsTarget =
   uid: "SC-0042",
   name: "Olga Other",
   fullName: "Olga Other",
+  phone: null,
   email: "olga@test.local",
   role: "inspector",
   status: "active",
@@ -26,47 +28,77 @@ const person = (overrides: Partial<UserActionsTarget> = {}): UserActionsTarget =
 });
 
 describe("menuGroups", () => {
-  it("offers an active inspector a new name, a role, another team, a password link and deactivation", () => {
-    expect(menuGroups(person())).toEqual([["change-name", "change-role", "change-lead", "send-link"], ["deactivate"]]);
+  it("offers an active inspector new details, a role, another team, a password link and deactivation", () => {
+    expect(menuGroups(person())).toEqual([["edit-details", "change-role", "change-lead", "send-link"], ["deactivate"]]);
   });
 
   it("moves only inspectors between teams: lead inspectors and admins work in none", () => {
-    expect(menuGroups(person({ role: "lead", lead: null }))).toEqual([["change-name", "change-role", "send-link"], ["deactivate"]]);
-    expect(menuGroups(person({ role: "admin", lead: null }))).toEqual([["change-name", "change-role", "send-link"], ["deactivate"]]);
+    expect(menuGroups(person({ role: "lead", lead: null }))).toEqual([["edit-details", "change-role", "send-link"], ["deactivate"]]);
+    expect(menuGroups(person({ role: "admin", lead: null }))).toEqual([["edit-details", "change-role", "send-link"], ["deactivate"]]);
   });
 
   it("offers roles only on a project without lead inspectors", () => {
     expect(menuGroups(person({ lead: null }), { teams: false })).toEqual([
-      ["change-name", "change-role", "send-link"],
+      ["edit-details", "change-role", "send-link"],
       ["deactivate"],
     ]);
   });
 
-  it("lets admins change their own name, but never their own role, and never deactivate themselves", () => {
+  it("lets admins edit their own details, but never their own role, and never deactivate themselves", () => {
     const self = menuGroups(person({ role: "admin", isSelf: true, lead: null })).flat();
-    expect(self).toEqual(["change-name", "send-link"]);
+    expect(self).toEqual(["edit-details", "send-link"]);
   });
 
-  it("only activates an account that was never active: no links, no new name or role yet", () => {
-    // Any change to its profile, a name included, would make it look deactivated.
+  it("only activates an account that was never active: no links, no new details or role yet", () => {
+    // Any change to its profile, new details included, would make it look deactivated.
     expect(menuGroups(person({ status: "pending", lead: null }))).toEqual([["activate"]]);
     expect(menuGroups(person({ status: "pending", role: "admin", lead: null }))).toEqual([["activate"]]);
   });
 
-  it("reactivates a deactivated account, sends it no links, and can still rename and move it", () => {
+  it("reactivates a deactivated account, sends it no links, and can still edit its details and move it", () => {
     expect(menuGroups(person({ status: "deactivated", role: "admin", lead: null }))).toEqual([
-      ["reactivate", "change-name", "change-role"],
+      ["reactivate", "edit-details", "change-role"],
     ]);
-    expect(menuGroups(person({ status: "deactivated" }))).toEqual([["reactivate", "change-name", "change-role", "change-lead"]]);
+    expect(menuGroups(person({ status: "deactivated" }))).toEqual([["reactivate", "edit-details", "change-role", "change-lead"]]);
+  });
+
+  it("offers someone invited their invite again, a link to copy, new details, a role, a team, and Cancel Invite", () => {
+    const invited = person({ status: "invited", name: "zed@example.com", fullName: null, email: "zed@example.com" });
+    expect(menuGroups(invited)).toEqual([
+      ["resend-invite", "copy-invite-link"],
+      ["edit-details", "change-role", "change-lead"],
+      ["cancel-invite", "deactivate"],
+    ]);
+    // No password link: they have no account to sign in to yet.
+    expect(menuGroups(invited).flat()).not.toContain("send-link");
+    expect(menuGroups({ ...invited, role: "lead", lead: null })).toEqual([
+      ["resend-invite", "copy-invite-link"],
+      ["edit-details", "change-role"],
+      ["cancel-invite", "deactivate"],
+    ]);
+  });
+
+  it("offers no invite actions without the secret key, which they need", () => {
+    expect(menuGroups(person({ status: "invited" }), { invites: false })).toEqual([
+      ["edit-details", "change-role", "change-lead"],
+      ["deactivate"],
+    ]);
+  });
+
+  it("lifts a blocked sign-in on someone invited before any link: the links would not let them in", () => {
+    expect(menuGroups(person({ status: "invited", signInBlocked: true }))).toEqual([
+      ["edit-details", "change-role", "change-lead", "unblock"],
+      ["cancel-invite", "deactivate"],
+    ]);
   });
 
   it("lifts a blocked sign-in before any password link", () => {
     expect(menuGroups(person({ signInBlocked: true }))).toEqual([
-      ["change-name", "change-role", "change-lead", "unblock"],
+      ["edit-details", "change-role", "change-lead", "unblock"],
       ["deactivate"],
     ]);
     expect(menuGroups(person({ signInBlocked: true, isSelf: true, role: "admin", lead: null }))).toEqual([
-      ["change-name", "unblock"],
+      ["edit-details", "unblock"],
     ]);
   });
 });
@@ -74,15 +106,22 @@ describe("menuGroups", () => {
 describe("MENU_LABEL", () => {
   it("names every item in Title Case, a hyphenated word with a capital on each part", () => {
     expect(MENU_LABEL).toEqual({
-      "change-name": "Change Name",
+      "edit-details": "Edit Details",
       "change-role": "Change Role",
       "change-lead": "Change Lead Inspector",
       "send-link": "Send Password Link",
       unblock: "Lift Sign-In Block",
+      "resend-invite": "Resend Invite",
+      "copy-invite-link": "Copy Invite Link",
+      "cancel-invite": "Cancel Invite",
       deactivate: "Deactivate",
       reactivate: "Reactivate",
       activate: "Activate",
     });
+  });
+
+  it("marks what takes something away in red: Cancel Invite and Deactivate", () => {
+    expect([...DESTRUCTIVE].sort()).toEqual(["cancel-invite", "deactivate"]);
   });
 });
 
@@ -90,12 +129,16 @@ describe("DIALOG_TITLE", () => {
   it("titles each dialog for the person in Title Case, the small words in lower case, a question keeping its mark", () => {
     const titles = Object.fromEntries(Object.entries(DIALOG_TITLE).map(([kind, title]) => [kind, title("Olga Other")]));
     expect(titles).toEqual({
-      "change-name": "Change Olga Other's Name",
+      "edit-details": "Edit Olga Other's Details",
       "change-role": "Change Olga Other's Role",
       "change-lead": "Change Olga Other's Lead Inspector",
       "send-link": "Send a Password Link to Olga Other?",
       // "In" belongs to the verb here, as in the Sign In button.
       unblock: "Let Olga Other Sign In Again?",
+      "resend-invite": "Resend the Invite to Olga Other?",
+      "copy-invite-link": "Create an Invite Link for Olga Other?",
+      "invite-link": "Invite Link for Olga Other",
+      "cancel-invite": "Cancel the Invite to Olga Other?",
       deactivate: "Deactivate Olga Other?",
       "leads-team": "Olga Other Still Leads a Team",
       reactivate: "Reactivate Olga Other?",
@@ -105,6 +148,7 @@ describe("DIALOG_TITLE", () => {
 
   it("leaves the name as it is: a name is no label, nor is the email shown for someone with none", () => {
     expect(DIALOG_TITLE["send-link"]("olga@test.local")).toBe("Send a Password Link to olga@test.local?");
+    expect(DIALOG_TITLE["resend-invite"]("zed@example.com")).toBe("Resend the Invite to zed@example.com?");
     expect(DIALOG_TITLE["leads-team"]("ngan boon keat")).toBe("ngan boon keat Still Leads a Team");
   });
 });

@@ -57,7 +57,7 @@ export function RoleField({
   return (
     <FieldSet className="gap-3" aria-describedby={error ? `${id}-role-error` : undefined}>
       {/* A fieldset's legend is no flex item, so the FieldSet's gap never reaches it: its own mb-3 sets the
-          12 px under it, the gap-3 between Full Name, Email or Lead Inspector and their controls. */}
+          12 px under it, the gap-3 between Email or Lead Inspector and their controls. */}
       <FieldLegend variant="label" className="leading-snug">
         Role
       </FieldLegend>

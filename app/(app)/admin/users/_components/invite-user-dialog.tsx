@@ -29,8 +29,11 @@ import { unreachable } from "./unreachable";
 type FieldErrors = Partial<Record<UserField, string>>;
 
 /**
- * "Invite User": the button and its dialog. Disabled, with the reason shown on
- * the page, when the server has no secret key to send invites with.
+ * "Invite User": the button and its dialog, which asks for the address and
+ * the role (and an inspector's lead inspector). No name: the invitee gives
+ * their name, phone and password on Account Creation, from the link in the
+ * email. Disabled, with the reason shown on the page, when the server has no
+ * secret key to send invites with.
  */
 export function InviteUserDialog({
   disabled = false,
@@ -99,14 +102,12 @@ function InviteForm({
   onPendingChange: (pending: boolean) => void;
 }) {
   const id = useId();
-  const nameRef = useRef<HTMLInputElement>(null);
   const emailRef = useRef<HTMLInputElement>(null);
   const roleRef = useRef<HTMLDivElement>(null);
   const leadRef = useRef<HTMLButtonElement>(null);
   // Controlled, and submitted by hand (submitAction): React resets a form after its action, and the role's
   // RadioGroup and the lead's Select would go back to their first values on that reset, so a failed invite
   // keeps everything the admin chose.
-  const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [role, setRole] = useState<RoleChoice>("inspector");
   const [leadId, setLeadId] = useState("");
@@ -120,8 +121,7 @@ function InviteForm({
       setFieldErrors(errors);
       // To the first field marked, in the form's order. With nobody to lead
       // them the action marks the role, not the empty, disabled picker.
-      if (errors.fullName) nameRef.current?.focus();
-      else if (errors.email) emailRef.current?.focus();
+      if (errors.email) emailRef.current?.focus();
       else if (errors.role) focusRole(roleRef.current);
       else if (errors.leadId) leadRef.current?.focus();
 
@@ -139,36 +139,18 @@ function InviteForm({
   }, IDLE);
 
   const formError = state.status === "error" && !state.fieldErrors ? state.message : null;
-  const nameError = fieldErrors.fullName;
   const emailError = fieldErrors.email;
 
   return (
     <form onSubmit={submitAction(formAction, pending)} noValidate className="grid gap-6">
       <DialogHeader>
         <DialogTitle className="text-lg font-bold">Invite a User</DialogTitle>
-        <DialogDescription>They get an email with a link to choose a password and sign in.</DialogDescription>
+        <DialogDescription>
+          They get an email with a link to create their account: their name, phone and password.
+        </DialogDescription>
       </DialogHeader>
 
       <FieldGroup className="gap-5">
-        <Field data-invalid={nameError ? true : undefined}>
-          <FieldLabel htmlFor={`${id}-name`}>Full Name</FieldLabel>
-          <Input
-            ref={nameRef}
-            id={`${id}-name`}
-            name="fullName"
-            autoComplete="off"
-            autoCapitalize="words"
-            value={fullName}
-            onChange={(event) => {
-              setFullName(event.target.value);
-              if (nameError) setFieldErrors((errors) => ({ ...errors, fullName: undefined }));
-            }}
-            aria-invalid={nameError ? true : undefined}
-            aria-describedby={nameError ? `${id}-name-error` : undefined}
-          />
-          {nameError && <FieldError id={`${id}-name-error`}>{nameError}</FieldError>}
-        </Field>
-
         <Field data-invalid={emailError ? true : undefined}>
           <FieldLabel htmlFor={`${id}-email`}>Email</FieldLabel>
           <Input
