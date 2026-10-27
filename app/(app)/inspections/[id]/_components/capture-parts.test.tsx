@@ -808,9 +808,9 @@ describe("CaptureHeader", () => {
           templateName: "Standard examination gloves",
           templateVersion: 3,
           clientName: "Client A",
-          // The page passes the inspection's name for it, its label (27 October 2026: the same everywhere).
-          manufacturerLabel: "Manufacturer A · Factory 1",
-          manufacturerName: "Manufacturer A · Factory 1",
+          manufacturerLabel: "Brand A · Factory 1",
+          // The page passes the brand (manufacturerBrand).
+          manufacturerName: "Brand A",
           inspectionDate: "2026-10-06",
           inspectorName: "Inspector A",
         }}
@@ -818,9 +818,9 @@ describe("CaptureHeader", () => {
     );
     expect(html).toMatch(/<h1[^>]*>.*INS-2026-0001/);
     expect(html).toContain('data-status="reopened"');
-    for (const fact of ["Client A", "Manufacturer A · Factory 1"]) expect(html).toContain(fact);
-    // Kept short (Kenneth): no template line, date or inspector in the header.
-    for (const gone of ["Standard examination gloves", "6 Oct 2026", "Inspector A"]) expect(html).not.toContain(gone);
+    for (const fact of ["Client A", "Brand A"]) expect(html).toContain(fact);
+    // Kept short (Kenneth): no template line, factory, date or inspector in the header.
+    for (const gone of ["Standard examination gloves", "Factory 1", "6 Oct 2026", "Inspector A"]) expect(html).not.toContain(gone);
     // The actions take a row of their own below 1280 px and sit beside the title from 1280 px.
     const header = tagsWith(html, 'data-slot="page-header"')[0];
     expect(header).toContain("md:flex-col");

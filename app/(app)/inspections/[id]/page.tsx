@@ -150,7 +150,7 @@ export default async function CapturePage({ params, searchParams }: PageProps<"/
           templateVersion: inspection.template.version,
           clientName: inspection.meta.client?.name ?? null,
           manufacturerLabel: inspection.manufacturerLabel,
-          manufacturerName: inspection.meta.manufacturer?.name ?? null,
+          manufacturerName: inspection.manufacturerBrand,
           inspectionDate: inspection.inspectionDate,
           inspectorName,
         }}

@@ -378,14 +378,19 @@ function supabaseDatabase(url: string, secretKey: string): CleanDatabase {
       }));
     },
     untouched: async () => {
-      const [clients, manufacturers, accounts] = await Promise.all([
+      const [clients, brands, companies, accounts] = await Promise.all([
         supabase.from("clients").select("name").like("name", "E2E%").order("name"),
-        supabase.from("manufacturers").select("name").like("name", "E2E%").order("name"),
+        supabase.from("manufacturer_brands").select("name").like("name", "E2E%").order("name"),
+        supabase.from("manufacturer_companies").select("name").like("name", "E2E%").order("name"),
         supabase.from("profiles").select("email").like("email", "e2e-%@test.local").order("email"),
       ]);
       return {
         clients: dataOf("Reading clients", clients).map((row) => row.name),
-        manufacturers: dataOf("Reading manufacturers", manufacturers).map((row) => row.name),
+        // Brands, then companies: a company's factories go with it (manufacturers.name only repeats its name).
+        manufacturers: [
+          ...dataOf("Reading manufacturer brands", brands).map((row) => row.name),
+          ...dataOf("Reading manufacturer companies", companies).map((row) => row.name),
+        ],
         accounts: dataOf("Reading accounts", accounts).flatMap((row) => (row.email ? [row.email] : [])),
       };
     },

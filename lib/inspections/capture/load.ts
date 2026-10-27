@@ -6,7 +6,7 @@ import { aiReviewOnSubmit, ResolvedTemplateSchema, type ModuleOverrides, type Re
 import type { Database } from "@/lib/supabase/database.types";
 import { parseModuleOverrides } from "@/lib/templates";
 import type { InspectionData, InspectionFileRef } from "@/modules/_framework";
-import { MANUFACTURER_NAMES_SELECT, manufacturerLabel, personLabel, type ManufacturerNames } from "../format";
+import { MANUFACTURER_NAMES_SELECT, manufacturerBrand, manufacturerLabel, personLabel, type ManufacturerNames } from "../format";
 import type { CaptureMeta } from "./evaluate";
 
 /**
@@ -70,6 +70,8 @@ export type CaptureInspection = {
   meta: CaptureMeta;
   /** "Top Glove · TG-F40" (manufacturerLabel): the same as `meta.manufacturer.name`. */
   manufacturerLabel: string | null;
+  /** "Top Glove": the header line names no factory (manufacturerBrand). */
+  manufacturerBrand: string | null;
 };
 
 export type CaptureLoad =
@@ -163,6 +165,7 @@ export function toCaptureLoad(row: CaptureRow): CaptureLoad {
         manufacturer,
       },
       manufacturerLabel: manufacturer?.name ?? null,
+      manufacturerBrand: row.manufacturer ? manufacturerBrand(row.manufacturer) : null,
     },
   };
 }

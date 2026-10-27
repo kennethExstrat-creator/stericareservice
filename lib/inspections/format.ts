@@ -62,6 +62,15 @@ export function manufacturerLabel(manufacturer: ManufacturerNames): string {
 }
 
 /**
+ * The manufacturer without its factory: its brand, or its company when it
+ * has none. For the capture screen's header line, which names no factory
+ * (Kenneth, 7 October 2026: the header was crowded).
+ */
+export function manufacturerBrand(manufacturer: ManufacturerNames): string | null {
+  return manufacturer.company?.brand?.name.trim() || manufacturer.company?.name.trim() || null;
+}
+
+/**
  * Every name a document may print for the factory, for Steri-AI to match it
  * by: brand, company and factory, each once ("Top Glove · Terang Nusa Sdn.
  * Bhd. · TG-F40", "Hartalega · Hartalega NGC").
@@ -80,12 +89,20 @@ const BY_LABEL = new Intl.Collator("en-GB", { sensitivity: "base", numeric: true
 
 /**
  * The pickers' manufacturers: each factory by its label, in the labels'
- * order. Two with the same label (one brand's companies with a factory of
- * the same name) come in their companies' order.
+ * order. Factories whose labels would read the same (one brand's companies
+ * with a factory of the same name) go by their full names instead, so a
+ * picker never offers two alike.
  */
 export function manufacturerOptions(manufacturers: readonly (ManufacturerNames & { id: string })[]): { id: string; label: string }[] {
-  return manufacturers
-    .map((manufacturer) => ({ id: manufacturer.id, label: manufacturerLabel(manufacturer), fullName: manufacturerFullName(manufacturer) }))
+  const named = manufacturers.map((manufacturer) => ({
+    id: manufacturer.id,
+    label: manufacturerLabel(manufacturer),
+    fullName: manufacturerFullName(manufacturer),
+  }));
+  const uses = new Map<string, number>();
+  for (const { label } of named) uses.set(label.toLowerCase(), (uses.get(label.toLowerCase()) ?? 0) + 1);
+  return named
+    .map(({ id, label, fullName }) => ({ id, label: (uses.get(label.toLowerCase()) ?? 0) > 1 ? fullName : label, fullName }))
     .sort((a, b) => BY_LABEL.compare(a.label, b.label) || BY_LABEL.compare(a.fullName, b.fullName) || a.id.localeCompare(b.id))
     .map(({ id, label }) => ({ id, label }));
 }

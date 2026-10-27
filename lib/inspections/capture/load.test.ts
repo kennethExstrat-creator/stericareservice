@@ -51,6 +51,8 @@ describe("toCaptureLoad", () => {
       updatedAt: "2026-10-06T09:14:03.123456+00:00",
       inspectorId: INSPECTOR,
       manufacturerLabel: "Manufacturer A · Factory 1",
+      // The header line names no factory.
+      manufacturerBrand: "Manufacturer A",
       // The standard and product type too: the Report page's preview builds an export from the screen's copy.
       template: { id: "t1", code: "TEST_EG", version: 4, standard: "EN455", productType: "examination" },
     });

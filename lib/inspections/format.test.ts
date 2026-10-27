@@ -5,6 +5,7 @@ import {
   MANUFACTURER_NAMES_SELECT,
   manufacturerFullName,
   manufacturerLabel,
+  manufacturerBrand,
   manufacturerOptions,
   personLabel,
   type ManufacturerNames,
@@ -89,6 +90,15 @@ describe("manufacturerLabel", () => {
   });
 });
 
+describe("manufacturerBrand", () => {
+  it("gives the brand without the factory, or the company when there is no brand", () => {
+    expect(manufacturerBrand(factory("Top Glove", "Terang Nusa Sdn. Bhd.", "TG-F40"))).toBe("Top Glove");
+    expect(manufacturerBrand(factory(" Hartalega ", "Hartalega NGC"))).toBe("Hartalega");
+    expect(manufacturerBrand(factory(null, "Beta Gloves", "Plant 2"))).toBe("Beta Gloves");
+    expect(manufacturerBrand({ factory_name: "Plant 2", company: null })).toBeNull();
+  });
+});
+
 describe("manufacturerFullName", () => {
   it("gives every name a document may print: brand, company and factory", () => {
     expect(manufacturerFullName(factory("Top Glove", "Terang Nusa Sdn. Bhd.", "TG-F40"))).toBe(
@@ -135,14 +145,16 @@ describe("manufacturerOptions", () => {
     expect(rows.map((row) => row.id)).toEqual(["m1", "m2", "m3", "m4"]);
   });
 
-  it("puts factories with the same label in their companies' order", () => {
+  it("names factories whose labels would read the same by their full names, in their companies' order", () => {
     const rows = [
       { id: "m1", ...factory("Top Glove", "TG Two Sdn. Bhd.", "F1") },
-      { id: "m2", ...factory("Top Glove", "TG One Sdn. Bhd.", "F1") },
+      { id: "m2", ...factory("Top Glove", "TG One Sdn. Bhd.", "f1") },
+      { id: "m3", ...factory("Top Glove", "TG One Sdn. Bhd.", "F2") },
     ];
     expect(manufacturerOptions(rows)).toEqual([
-      { id: "m2", label: "Top Glove · F1" },
-      { id: "m1", label: "Top Glove · F1" },
+      { id: "m3", label: "Top Glove · F2" },
+      { id: "m2", label: "Top Glove · TG One Sdn. Bhd. · f1" },
+      { id: "m1", label: "Top Glove · TG Two Sdn. Bhd. · F1" },
     ]);
   });
 

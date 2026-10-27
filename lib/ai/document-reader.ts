@@ -41,7 +41,7 @@ The documents have no set layout: purchase orders, sales orders, packing lists, 
 
 Rules:
 - Only report what the document states. Never guess or invent a value: leave it null.
-- Client and manufacturer: you get lists with ids. Return the id of the entry that names the same company (ignore case, punctuation, "Sdn Bhd", "Ltd", "Inc" and similar). If no entry clearly matches, return null for the id and still give the name as printed. The client is the buyer; the manufacturer is the factory or supplier that makes the gloves.
+- Client and manufacturer: you get lists with ids. Return the id of the entry that names the same company (ignore case, punctuation, "Sdn Bhd", "Ltd", "Inc" and similar); a manufacturer entry gives its brand, operating company and factory, and the document may print any of them. If no entry clearly matches, return null for the id and still give the name as printed. The client is the buyer; the manufacturer is the factory or supplier that makes the gloves.
 - Product type: examination for disposable examination gloves (nitrile, latex, vinyl exam gloves); surgical for sterile surgical gloves. Null when unclear.
 - Sizes: one entry per size ordered, with the cases (cartons) ordered and the lot or batch numbers. Give cases only when the document states cases or cartons, or states the case packing so the count is exact; otherwise null.
 - Dates as YYYY-MM-DD. Read day/month order from the document's own conventions; when only month and year are printed, use the first of the month.
