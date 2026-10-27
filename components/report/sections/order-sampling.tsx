@@ -195,6 +195,16 @@ function Figure({ column, cell }: { column: LotsColumn; cell: LotsCell | undefin
   );
 }
 
+/** The lot numbers with a break point after each hyphen, where the width estimate may break them (lotPieces); spaces kept. */
+function LotText({ text }: { text: string }) {
+  return text.split(/(?<=-)/).map((piece, index) => (
+    <Fragment key={index}>
+      {index > 0 && <wbr />}
+      {piece}
+    </Fragment>
+  ));
+}
+
 function LotsBlock({ table }: { table: OrderLotsTable }) {
   const width = (id: string) => `${(table.widths[id] ?? 0).toFixed(2)}%`;
   const columns: ReportColumn[] = [
@@ -207,7 +217,7 @@ function LotsBlock({ table }: { table: OrderLotsTable }) {
     key: row.size,
     cells: {
       size: row.label,
-      lot: row.lots.length > 0 ? row.lotText : <span className="text-slate-600">{row.lotText}</span>,
+      lot: row.lots.length > 0 ? <LotText text={row.lotText} /> : <span className="text-slate-600">{row.lotText}</span>,
       ...Object.fromEntries(table.columns.map((column) => [column.id, <Figure key={column.id} column={column} cell={row.cells[column.id]} />])),
     },
   }));

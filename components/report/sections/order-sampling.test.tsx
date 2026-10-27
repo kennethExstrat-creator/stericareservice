@@ -21,6 +21,8 @@ function pagesOf(doc: InspectionExport): string[] {
 /** The text of some markup, tags dropped and spaces collapsed. */
 const text = (html: string) =>
   html
+    // A lot number's break points (<wbr>) are no text.
+    .replace(/<wbr\/>/g, "")
     .replace(/<[^>]+>/g, " ")
     .replace(/&amp;/g, "&")
     .replace(/&#x27;/g, "'")
@@ -55,6 +57,9 @@ describe("Section 02's page", () => {
     expect(text(page)).toContain("Order Lots & Sampling Plan Order Sampling Quantity Gloves per Test Boxes");
     expect(text(page)).toContain("Size Lot Number Cases Gloves Share Cases Inner Boxes Gloves Watertight & Visual Dimension FAB Packaging & Dispensing");
     expect(text(page)).toContain("M LOT-A01 2,900 5,800,000 100% 50 50 500 500 13 13 13 Total 2,900 5,800,000 100% 50 50 500 500 13 13 13");
+    // A long lot number may break after its hyphen, as the column widths assume; "&" stays with "Dispensing".
+    expect(page).toContain(">LOT-<wbr/>A01<");
+    expect(page).toContain("Packaging &amp;\u00a0Dispensing");
     expect(page).toMatch(/data-slot="report-share-bar" data-share="100" class="[^"]*"><span class="[^"]*bg-brand-500" style="width:100%">/);
     expect(Array.from(page.matchAll(/<col style="width:[\d.]+%"\/>/g))).toHaveLength(12);
   });

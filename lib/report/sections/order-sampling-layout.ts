@@ -98,6 +98,11 @@ export function lineStarts(words: readonly string[], width: number, style: TextS
   return starts.length === 0 ? [0] : starts;
 }
 
+/** A lot number's pieces where the page may break it: at spaces, and after each hyphen (the lot cell's <wbr>, lotPieces). */
+export function lotPieces(text: string): string[] {
+  return text.split(/\s+/).flatMap((word) => word.split(/(?<=-)/)).filter((piece) => piece !== "");
+}
+
 /** How many lines a text wraps to in a width; one for no text. */
 export function wrappedLines(text: string, width: number, style: TextStyle): number {
   return lineStarts(wordsOf(text), width, style).length;
@@ -290,7 +295,9 @@ function cardsHeight(blocks: Blocks, width: number): number {
  * for its caption in two lines and for its widest figure (the totals' in
  * bold), and the page's width is shared out in proportion to that, as the
  * design spaces them. Where those do not all fit, the captions give way
- * first, down to their longest word; the figures never do.
+ * first, down to their longest word, then the lot numbers, down to their
+ * longest piece (a long lot number, "12345-67890-1234", breaks after a
+ * hyphen beside "Packaging & Dispensing"); the figures never do.
  */
 export function lotsColumnWidths(table: Omit<OrderLotsTable, "widths">, width: number): Record<string, number> {
   const T = R.table;
@@ -314,12 +321,16 @@ export function lotsColumnWidths(table: Omit<OrderLotsTable, "widths">, width: n
   const preferred = columns.map((column) => Math.max(twoLineWidth(column.caption, style), column.content) + T.insetX);
   const least = columns.map((column) => Math.max(longestWord(column.caption), column.content) + T.insetX);
   const sum = (values: readonly number[]) => values.reduce((total, value) => total + value, 0);
+  const lot = columns.findIndex((column) => column.key === "lot");
+  const lotPiece = Math.max(0, ...table.rows.flatMap((row) => lotPieces(row.lotText).map((piece) => textWidth(piece, { pt: T.pt }))));
+  const leastOfAll = least.map((value, index) => (index === lot ? Math.min(value, Math.max(longestWord(table.lotHeader), lotPiece) + T.insetX) : value));
   let widths: number[];
   if (sum(preferred) <= width) widths = preferred.map((value) => (value * width) / sum(preferred));
   else if (sum(least) < width) {
     const share = (width - sum(least)) / (sum(preferred) - sum(least));
     widths = least.map((value, index) => value + (preferred[index] - value) * share);
-  } else widths = least.map((value) => (value * width) / sum(least));
+  } else if (sum(leastOfAll) < width) widths = least.map((value, index) => (index === lot ? width - (sum(least) - value) : value));
+  else widths = leastOfAll.map((value) => (value * width) / sum(leastOfAll));
   return Object.fromEntries(columns.map((column, index) => [column.key, (widths[index] / width) * 100]));
 }
 
@@ -335,7 +346,7 @@ export function lotsHeight(table: OrderLotsTable, width: number): number {
     (sum, row) =>
       sum +
       T.rowFrame +
-      T.line * Math.max(wrappedLines(row.label, inside("size"), { pt: T.pt, bold: true }), wrappedLines(row.lotText, inside("lot"), { pt: T.pt })),
+      T.line * Math.max(wrappedLines(row.label, inside("size"), { pt: T.pt, bold: true }), lineStarts(lotPieces(row.lotText), inside("lot"), { pt: T.pt }).length),
     0,
   );
   return T.heading + T.groups + T.headerFrame + header * T.headerLine + rows + T.totalsFrame + T.line;

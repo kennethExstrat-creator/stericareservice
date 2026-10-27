@@ -7,6 +7,7 @@
 // The model is imported first: it loads the sections' registry, which the
 // builder's defineSection comes from (lib/report/sections/index.ts).
 import { describe, expect, it } from "vitest";
+import { formatCount } from "@/lib/format";
 import { buildReportModel, type ReportSectionPlanEntry } from "../model";
 import { makeSafedonExport, makeStdEgExport, withReportOptions } from "../__fixtures__/exports";
 import type { InspectionExport } from "@/lib/schemas/export";
@@ -23,9 +24,22 @@ import {
   type CartonRow,
   type CartonStrips,
   type GloveCard,
+  type LotsColumn,
   type OrderSamplingContent,
 } from "./order-sampling";
-import { captionText, layoutOrderSampling, lineStarts, ORDER_SAMPLING_ROOM, stripHeight, textWidth, trackWidth, twoLineWidth, wrappedLines } from "./order-sampling-layout";
+import {
+  captionText,
+  layoutOrderSampling,
+  lineStarts,
+  lotPieces,
+  lotsColumnWidths,
+  ORDER_SAMPLING_ROOM,
+  stripHeight,
+  textWidth,
+  trackWidth,
+  twoLineWidth,
+  wrappedLines,
+} from "./order-sampling-layout";
 
 function sectionOf(doc: InspectionExport): OrderSamplingContent {
   const content = buildReportModel(doc).sections.orderSampling;
@@ -445,5 +459,51 @@ describe("the pages", () => {
     expect(new Set(cartons).size).toBe(30);
     expect(Math.min(...cartons)).toBeGreaterThanOrEqual(1);
     expect(Math.max(...cartons)).toBeLessThanOrEqual(2000);
+  });
+});
+
+describe("a long lot number beside long captions", () => {
+  // Placeholder figures shaped like an inspection Kenneth printed (27 October 2026): one size, a long hyphenated lot number, every test.
+  const totals: Record<string, number> = {
+    "order.cases": 2900,
+    "order.gloves": 2900000,
+    "order.share": 100,
+    "sampling.cases": 54,
+    "sampling.innerUnits": 54,
+    "sampling.gloves": 315,
+    "sampling.glovesWatertightVisual": 315,
+    "sampling.glovesDimensions": 13,
+    "sampling.glovesPhysical": 13,
+    "sampling.innerUnitsDispensing": 8,
+  };
+  const columns: LotsColumn[] = (
+    [
+      ["order.cases", "order", "Cases"],
+      ["order.gloves", "order", "Gloves"],
+      ["order.share", "order", "Share"],
+      ["sampling.cases", "quantity", "Cases"],
+      ["sampling.innerUnits", "quantity", "Inner Boxes"],
+      ["sampling.gloves", "quantity", "Gloves"],
+      ["sampling.glovesWatertightVisual", "tests", "Watertight & Visual"],
+      ["sampling.glovesDimensions", "tests", "Dimension"],
+      ["sampling.glovesPhysical", "tests", "FAB"],
+      ["sampling.innerUnitsDispensing", "units", "Packaging & Dispensing"],
+    ] as const
+  ).map(([id, group, label]) => ({ id, group, label }));
+  const lot = "12345-67890-1234";
+  const cells = Object.fromEntries(Object.entries(totals).map(([id, value]) => [id, { value, tone: null }]));
+  const table = { title: "Order Lots & Sampling Plan", sizeHeader: "Size", lotHeader: "Lot Number", groups: [], columns, totals, rows: [{ size: "M", label: "M", lots: [lot], lotText: lot, cells }] };
+  const width = 210 - ORDER_SAMPLING_ROOM.margins;
+
+  it("keeps every figure whole and '& Dispensing' on one line; the lot number breaks after a hyphen instead", () => {
+    const widths = lotsColumnWidths(table, width);
+    const inside = (id: string) => (widths[id] / 100) * width - 2.4;
+    for (const [id, value] of Object.entries(totals)) {
+      if (id !== "order.share") expect(inside(id), id).toBeGreaterThanOrEqual(textWidth(formatCount(value), { pt: 9, tabular: true, bold: true }) - 1e-9);
+    }
+    expect(inside("sampling.innerUnitsDispensing")).toBeGreaterThanOrEqual(textWidth("& Dispensing", { pt: 8.5 }) - 1e-9);
+    expect(Object.values(widths).reduce((sum, value) => sum + value, 0)).toBeCloseTo(100, 6);
+    expect(lotPieces(lot)).toEqual(["12345-", "67890-", "1234"]);
+    expect(lineStarts(lotPieces(lot), inside("lot"), { pt: 9 })).toHaveLength(2);
   });
 });
