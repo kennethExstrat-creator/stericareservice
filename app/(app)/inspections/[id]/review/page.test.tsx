@@ -104,6 +104,8 @@ describe("/inspections/[id]/review", () => {
     expect(button(html, "Reopen")).toBe(true);
     expect(link(html, "Open Inspection")).toBe(true);
     expect(html).toMatch(new RegExp(`<a[^>]*href="/inspections/${INSPECTION_ID}/report/print\\?print=1"[^>]*>(?:(?!</a>).)*Download PDF</a>`));
+    // Once, on the Client Report card: the header has none.
+    expect(html.match(/Download PDF<\/a>/g)).toHaveLength(1);
     expect(html).toContain('id="client-report"');
     // The buttons say it waits for them: no notice.
     expect(html).not.toContain("Waiting for Your Review");

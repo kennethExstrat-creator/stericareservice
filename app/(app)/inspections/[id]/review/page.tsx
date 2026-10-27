@@ -177,7 +177,7 @@ export default async function InspectionReviewPage({ params }: PageProps<"/inspe
           Inspections
         </Link>
       </Button>
-      <ReviewHeader review={review} canApprove={canApprove} canDownload={canDownload} />
+      <ReviewHeader review={review} canApprove={canApprove} />
 
       <div className="flex flex-col gap-5 pt-1 xl:grid xl:grid-cols-[11.5rem_minmax(0,1fr)] xl:items-start xl:gap-8">
         <PageIndex items={index} />
