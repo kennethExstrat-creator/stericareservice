@@ -13,7 +13,9 @@
 // The page's scroll padding matches them, so a field reached with Enter or
 // Tab is scrolled clear of every bar: the screen's own, plus the open
 // module's sticky parts as they are on screen (its size bar and the header
-// rows of a table that follows it at the top, a totals row at the bottom).
+// rows of a table that follows it at the top, a totals row at the bottom),
+// and Source Documents' add controls pinned over its files (Kenneth, 27
+// October 2026; file-slot.tsx).
 // Measured, because their heights depend on the pointer (44 px targets on
 // touch), on the module, and on the width (the tab bar gives way to the
 // sidebar from 1280 px). The class defaults in capture-screen.tsx hold
@@ -24,8 +26,8 @@ import { useEffect, useLayoutEffect, type RefObject } from "react";
 /** Space between a bar and the field scrolled up to it. */
 const GAP_PX = 8;
 
-/** A module's parts that may stick to the page while their section is open. */
-const MODULE_STICKY = '[data-slot="size-tabs-bar"], thead, tfoot';
+/** A section's parts that may stick to the page while it is open: a module's, and Source Documents' pinned add controls. */
+const MODULE_STICKY = '[data-slot="size-tabs-bar"], [data-slot="file-add-bar"], thead, tfoot';
 
 const useIsomorphicLayoutEffect = typeof window === "undefined" ? useEffect : useLayoutEffect;
 
@@ -91,9 +93,10 @@ export function useStickyOffsets(
 
 /**
  * Heights of the open module's parts that stick to the page: the size bar
- * plus the tallest table header that sticks below it, and the tallest
- * totals row stuck at the bottom. Parts inside a scroller of their own (a
- * measurement grid's header) stick there, not to the page, and do not count.
+ * (or Source Documents' add controls, pinned at the same place) plus the
+ * tallest table header that sticks below it, and the tallest totals row
+ * stuck at the bottom. Parts inside a scroller of their own (a measurement
+ * grid's header) stick there, not to the page, and do not count.
  */
 export function moduleStickyHeights(panel: HTMLElement): StickyHeights {
   let sizeBar = 0;

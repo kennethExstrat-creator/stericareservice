@@ -371,6 +371,8 @@ Speed:
 
 > **Since 26 October 2026 (Kenneth: "make the source document to support excel and csv file reading"):** Source Documents' Files, on the capture screen and on New Inspection, also take Excel (`.xlsx`, `.xls`) and CSV files, up to 10 MB for Steri-AI. They are stored as they are; Steri-AI reads each as text, sheet by sheet, with the same fill rules as a PDF, and Preview shows each sheet as a table. Details in docs/AI.md, "Source Documents".
 
+> **Since 27 October 2026 (Kenneth: "pagination with 10 files per page, the uplaod section should be pin at the top"):** Source Documents' Files on the capture screen lists the newest file first, ten to a page, with "Showing 1–10 of 23", Previous / Next and the page numbers under the rows once there are more than ten; the upload (Add Document, or the drop area with a mouse) sits above the rows, pinned under the screen's bars while they scroll. Details in docs/AI.md, "Source Documents", and docs/DESIGN.md.
+
 ---
 
 ## 9. AI hand-offs

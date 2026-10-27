@@ -13,9 +13,13 @@
 // October 2026). New Inspection's
 // Source Documents card hands its files over to this page on Create. On the
 // page it is the main column, General Information on its left
-// (capture-screen.tsx ActivePage; Kenneth, 26 October 2026).
+// (capture-screen.tsx ActivePage; Kenneth, 26 October 2026). Files lists the
+// newest file first, ten to a page, under Add Document (the drop area with a
+// mouse), which stays pinned under the screen's bars while the rows scroll
+// (Kenneth, 27 October 2026: "pagination with 10 files per page, the uplaod
+// section should be pin at the top"; FileSlot's pageSize).
 import { useState, type Ref } from "react";
-import { FileSlot } from "@/components/capture/files";
+import { FILES_PER_PAGE, FileSlot } from "@/components/capture/files";
 import type { SlotFile } from "@/components/capture/photos/photo-model";
 import { Button } from "@/components/ui/button";
 import { SOURCE_DOCUMENTS_KEY, SOURCE_DOCUMENTS_TITLE } from "@/lib/inspections/source-documents";
@@ -65,6 +69,7 @@ export function SourceDocumentsPage({ id, tabLabelledBy, titleRef, inspectionId,
           fileExtra={(file) => <AiMark file={file} documents={documents} readOnly={readOnly} />}
           fileActions={(file) => <ReadAgainButton file={file} documents={documents} readOnly={readOnly} />}
           compactRows
+          pageSize={FILES_PER_PAGE}
         />
       ) : (
         <SourceMedia inspectionId={inspectionId} readOnly={readOnly} />

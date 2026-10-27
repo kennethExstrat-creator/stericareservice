@@ -2,7 +2,9 @@
 
 // Lab reports and certificates as rows: name, kind, upload state, and Open
 // (a signed URL in a new tab), Try Again or Delete where they apply. An
-// Excel or CSV file has its own icon, and Preview shows its sheets.
+// Excel or CSV file has its own icon, and Preview shows its sheets. With
+// `paging` (Source Documents, ten a page), one page of the rows, and the
+// pages under them (FilePagination).
 import { useRef, useState, type ReactNode } from "react";
 import {
   DownloadIcon,
@@ -22,6 +24,8 @@ import { spreadsheetTypeOf } from "@/lib/photos/sniff";
 import { fetchSheets, storedSheetsUrl } from "@/lib/spreadsheets/preview";
 import { cn } from "@/lib/utils";
 import { FileDeleteDialog } from "./file-delete-dialog";
+import { pageRows } from "./file-pages";
+import { FilePagination, type FilePaging } from "./file-pagination";
 import { downloadUrl, FilePreviewDialog, type PreviewFile } from "./file-preview-dialog";
 
 /** A file row's icon: a spreadsheet's for an Excel or CSV file (by its name, else its type), a document's for any other. */
@@ -65,9 +69,11 @@ export function FileList({
   fileExtra,
   fileActions,
   compactRows = false,
+  paging,
   className,
 }: {
   inspectionId: string;
+  /** Every file of the list, in the order shown, also with `paging`: Delete keeps its file when it moves to another page. */
   files: readonly SlotFile[];
   canEditUploaded: boolean;
   canEditQueued: boolean;
@@ -87,17 +93,24 @@ export function FileList({
    * once uploaded, and Preview (on the page), Download and Delete as icons.
    */
   compactRows?: boolean;
+  /**
+   * One page of the files at a time, the pages under the rows (Source
+   * Documents: ten a page). The rows can then take the focus, for a file
+   * asked for (FileSlot's focusFileId).
+   */
+  paging?: FilePaging;
   className?: string;
 }) {
   const [deleting, setDeleting] = useState<string | null>(null);
   const listRef = useRef<HTMLUListElement>(null);
   const deletingFile = files.find((file) => file.id === deleting) ?? null;
   const [previewing, setPreviewing] = useState<PreviewFile | null>(null);
+  const rows = paging ? pageRows(files, paging.page, paging.pageSize) : files;
 
   return (
     <>
       <ul ref={listRef} className={cn("divide-y divide-border overflow-hidden rounded-lg bg-card ring-1 ring-border", className)}>
-        {files.map((file) => {
+        {rows.map((file) => {
           const canDelete = file.queued ? canEditQueued || file.state === "failed" : canEditUploaded;
           return (
             <li
@@ -105,8 +118,9 @@ export function FileList({
               data-slot="file-row"
               data-file-id={file.id}
               data-upload-state={file.state}
+              tabIndex={paging ? -1 : undefined}
               // relative: anchors the buttons' sr-only names (docs/DESIGN.md).
-              className="relative flex flex-wrap items-center gap-x-3 gap-y-2 px-3 py-2.5"
+              className={cn("relative flex flex-wrap items-center gap-x-3 gap-y-2 px-3 py-2.5", paging && "outline-none focus-ring-inset")}
             >
               <FileRowIcon file={file} />
               <div className="min-w-0 flex-1">
@@ -199,6 +213,7 @@ export function FileList({
           );
         })}
       </ul>
+      {paging && <FilePagination total={files.length} {...paging} />}
       {compactRows && <FilePreviewDialog file={previewing} onClose={() => setPreviewing(null)} />}
       {deletingFile && (
         <FileDeleteDialog
