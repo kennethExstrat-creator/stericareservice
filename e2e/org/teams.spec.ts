@@ -1,7 +1,7 @@
 import { expect, test, type Browser, type Locator, type Page } from "@playwright/test";
 import { INSPECTOR_IN_CHARGE } from "@/lib/auth/org";
 import { signIn, TEST_ACCOUNTS } from "../support/session";
-import { chooseRowAction, pickLead, pickRole, rowFor, statusOf, teamsReady, toast } from "../users/support";
+import { chooseRowAction, pickLead, pickRole, roleRadio, rowFor, statusOf, teamsReady, toast } from "../users/support";
 import { createOrgFixture, type Account, type OrgFixture } from "./fixtures";
 
 /**
@@ -254,7 +254,7 @@ test.describe("an admin on /admin/users", () => {
 
     await expect(dialog.getByRole("alert").filter({ hasText: `${fixture.leoLead.name} leads 2 inspectors` })).toBeVisible();
     // React resets a form after its action; this one submits by hand, so the Radix choices stay.
-    await expect(dialog.getByRole("radio", { name: /^Inspector\b/ })).toBeChecked();
+    await expect(roleRadio(dialog, "Inspector")).toBeChecked();
     await expect(dialog.getByRole("combobox", { name: "Lead Inspector" })).toHaveText(fixture.linaLead.name);
     await shot(page, "demote-lead-refused");
     await dialog.getByRole("button", { name: "Cancel" }).click();
@@ -287,7 +287,7 @@ test.describe("an admin on /admin/users", () => {
     await expect(statusOf(row)).toHaveText("Pending Activation");
 
     const dialog = await chooseRowAction(page, row, "Activate");
-    await expect(dialog.getByRole("radio", { name: /^Inspector\b/ })).toBeChecked();
+    await expect(roleRadio(dialog, "Inspector")).toBeChecked();
     await dialog.getByRole("button", { name: "Activate" }).click();
     const lead = dialog.getByRole("combobox", { name: "Lead Inspector" });
     await expect(lead).toHaveAttribute("aria-invalid", "true");
@@ -308,14 +308,13 @@ test.describe("an admin on /admin/users", () => {
     await page.goto("/admin/users");
     await page.getByRole("button", { name: "Invite User", exact: true }).click();
     const dialog = page.getByRole("dialog", { name: "Invite a User", exact: true });
-    await dialog.getByLabel("Full Name", { exact: true }).fill("E2E Org Invitee");
     // Already an account: refused before any email, whatever the mailer.
     await dialog.getByLabel("Email", { exact: true }).fill(fixture.bea.email);
     await pickLead(page, dialog, fixture.leoLead.name);
     await dialog.getByRole("button", { name: "Send Invite", exact: true }).click();
 
     await expect(dialog.getByText(/That email already has an account/)).toBeVisible();
-    await expect(dialog.getByRole("radio", { name: /^Inspector\b/ })).toBeChecked();
+    await expect(roleRadio(dialog, "Inspector")).toBeChecked();
     await expect(dialog.getByRole("combobox", { name: "Lead Inspector" })).toHaveText(fixture.leoLead.name);
     await shot(page, "invite-refused");
     await dialog.getByRole("button", { name: "Cancel" }).click();

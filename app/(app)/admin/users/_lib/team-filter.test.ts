@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { UserListItem } from "@/lib/auth/users";
+import { ADMIN, INSPECTOR, LEAD as LEAD_ROLE, SENIOR } from "./roles.testing";
 import { applyTeamFilter, EVERYONE, filterOptions, filterValue, NO_LEAD, readTeamFilter, teamHref } from "./team-filter";
 
 const LEAD = "1b2c3d4e-5f60-4a7b-8c9d-0e1f2a3b4c5d";
@@ -11,9 +12,9 @@ function user(id: string, overrides: Partial<UserListItem> = {}): UserListItem {
     email: `${id}@test.local`,
     fullName: null,
     phone: null,
-    role: "inspector",
-    roleChoice: "inspector",
+    role: INSPECTOR,
     status: "active",
+    joined: true,
     createdAt: "2026-10-01T00:00:00Z",
     lastSignInAt: null,
     signInBlocked: false,
@@ -26,9 +27,9 @@ function user(id: string, overrides: Partial<UserListItem> = {}): UserListItem {
 }
 
 const USERS = [
-  user("admin", { role: "admin", roleChoice: "admin", fullName: "Ada Admin" }),
+  user("admin", { role: ADMIN, fullName: "Ada Admin" }),
   user("ivan", { fullName: "Ivan Inspector", lead: { id: LEAD, name: "Lina Lead" } }),
-  user(LEAD, { fullName: "Lina Lead", roleChoice: "lead", team: [{ id: "ivan", name: "Ivan Inspector", active: true }] }),
+  user(LEAD, { fullName: "Lina Lead", role: LEAD_ROLE, team: [{ id: "ivan", name: "Ivan Inspector", active: true }] }),
   user("gail", { fullName: "Gail Grandfathered", missingLead: true }),
 ];
 
@@ -74,5 +75,14 @@ describe("team filter", () => {
       { value: LEAD, label: "Lina Lead's Team (1)" },
     ]);
     expect(filterOptions(USERS.filter((u) => !u.missingLead)).map((option) => option.value)).toEqual([EVERYONE, LEAD]);
+  });
+
+  it("counts anyone whose role sees their team's as a lead, a custom role too", () => {
+    const sam = user("sam", { fullName: "Sam Senior", role: SENIOR, team: [{ id: "ivan", name: "Ivan Inspector", active: true }] });
+    const withSam = [...USERS, sam];
+    expect(filterOptions(withSam).map((option) => option.label)).toContain("Sam Senior's Team (1)");
+    expect(readTeamFilter("sam", withSam)).toEqual({ kind: "team", leadId: "sam", leadName: "Sam Senior" });
+    // Someone whose role sees every inspection leads no team, whatever the address says.
+    expect(readTeamFilter("admin", withSam)).toEqual({ kind: "everyone" });
   });
 });

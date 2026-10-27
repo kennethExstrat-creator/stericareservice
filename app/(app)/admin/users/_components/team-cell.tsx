@@ -1,6 +1,7 @@
-// Where someone sits in the teams, for the user list: an inspector's lead
-// inspector (a link to that team), a lead inspector's team size (a link to
-// it), the problem of an active inspector in no team, or nothing for admins.
+// Where someone sits in the teams, for the user list, by what their role
+// sees: their own inspections, their lead inspector (a link to that team) or
+// the problem of an active one in no team; their team's, the team's size (a
+// link to it); every inspection, nothing.
 import Link from "next/link";
 import { TriangleAlertIcon } from "lucide-react";
 import type { UserListItem } from "@/lib/auth/users";
@@ -34,7 +35,7 @@ export function NoLeadBadge() {
 }
 
 export function TeamCell({ user }: { user: UserListItem }) {
-  if (user.roleChoice === "admin") {
+  if (user.role.access === "all") {
     return (
       <span className="text-muted-foreground">
         <span aria-hidden>—</span>
@@ -42,7 +43,7 @@ export function TeamCell({ user }: { user: UserListItem }) {
       </span>
     );
   }
-  if (user.roleChoice === "lead") {
+  if (user.role.access === "team") {
     const size = user.team.length;
     // Short and fixed, so on one line: a row stays one line high on desktop beside the UID column.
     if (size === 0) return <span className="whitespace-nowrap text-muted-foreground">No team yet</span>;

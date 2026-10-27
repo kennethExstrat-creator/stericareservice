@@ -50,7 +50,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Spinner } from "@/components/ui/spinner";
 import { submitAction } from "@/lib/admin/submit";
-import { currentPlacement, needsLead, TEAM_MESSAGES, type RoleChoice } from "@/lib/auth/org";
+import { currentPlacement, defaultRole, needsLead, roleValue, TEAM_MESSAGES, type RoleOption } from "@/lib/auth/org";
 import type { LeadOption, UserField } from "@/lib/auth/users";
 import {
   assignLead,
@@ -66,7 +66,7 @@ import { teamHref } from "../_lib/team-filter";
 import { cn } from "@/lib/utils";
 import { DetailsDialog } from "./details-dialog";
 import { InviteLinkDialog } from "./invite-link-dialog";
-import { focusRole, LeadField, RoleField, roleChoicesFor, SCROLLING_DIALOG } from "./role-fields";
+import { focusRole, LeadField, RoleField, SCROLLING_DIALOG } from "./role-fields";
 import { TitleWithUid } from "./uid-badge";
 import { unreachable } from "./unreachable";
 import {
@@ -192,11 +192,14 @@ export function confirmation(
         action: deactivateUser,
         fields: target,
       };
+    // Someone invited who has not created their account has no password yet: a link to create it is what they need.
     case "reactivate":
       return {
         title,
         uid,
-        description: `They can sign in again with their current password and pick up where they left off.${team}`,
+        description: user.joined
+          ? `They can sign in again with their current password and pick up where they left off.${team}`
+          : `They have not created their account yet. Once it is active again, send them a new link to create it: Resend Invite or Copy Invite Link, next to their name.${team}`,
         confirm: "Reactivate",
         pending: "Reactivating…",
         action: reactivateUser,
@@ -206,7 +209,9 @@ export function confirmation(
       return {
         title,
         uid,
-        description: `This account has never been active. Once activated they can sign in with their password, or choose one from a password link.${team}`,
+        description: user.joined
+          ? `This account has never been active. Once activated they can sign in with their password, or choose one from a password link.${team}`
+          : `This account has never been active, and they have not created it yet. Once it is active, send them a link to create it: Resend Invite or Copy Invite Link, next to their name.${team}`,
         confirm: "Activate",
         pending: "Activating…",
         action: reactivateUser,
@@ -220,6 +225,7 @@ export function UserActions({
   user,
   teams = true,
   leads = [],
+  roles = [],
   invites = true,
 }: {
   user: UserActionsTarget;
@@ -227,6 +233,8 @@ export function UserActions({
   teams?: boolean;
   /** Active lead inspectors, for the lead pickers. */
   leads?: readonly LeadOption[];
+  /** The roles to choose from (UserDirectory.roles), for Change Role and an activation that places someone. */
+  roles?: readonly RoleOption[];
   /** False without the secret key: no invite can be resent, copied or cancelled. */
   invites?: boolean;
 }) {
@@ -259,7 +267,7 @@ export function UserActions({
             confirm="Save Role"
             pending="Saving…"
             action={changeRole}
-            choices={roleChoicesFor(teams)}
+            choices={roles}
             askLead={teams}
             leads={leadChoices}
             emptyHint={emptyHint}
@@ -287,18 +295,18 @@ export function UserActions({
         );
       case "activate":
       case "reactivate":
-        // An inspector in no team is placed as they are let in.
+        // Someone whose role needs a lead, in no team, is placed as they are let in.
         if (!activationNeedsPlacement(user, teams)) break;
         return (
           <PlacementDialog
             key={item}
             user={user}
             title={DIALOG_TITLE[item](user.name)}
-            description="An inspector works in a lead inspector's team. Choose their role, and their lead inspector if they are an inspector."
+            description={`People with the ${user.role.name} role work in a lead inspector's team. Choose their lead inspector, or another role.`}
             confirm={item === "activate" ? "Activate" : "Reactivate"}
             pending={item === "activate" ? "Activating…" : "Reactivating…"}
             action={reactivateUser}
-            choices={roleChoicesFor(teams)}
+            choices={roles}
             askLead
             leads={leadChoices}
             emptyHint={emptyHint}
@@ -480,11 +488,20 @@ function TeamNote({ user }: { user: UserActionsTarget }) {
   );
 }
 
+/** The role a placement dialog starts on: theirs when it is one of the choices, else the built-in Inspector. */
+function startingRole(current: RoleOption, choices: readonly RoleOption[] | null): string {
+  const value = roleValue(current);
+  if (!choices || choices.some((option) => roleValue(option) === value)) return value;
+  const fallback = defaultRole(choices);
+  return fallback ? roleValue(fallback) : value;
+}
+
 /**
  * The role and lead of one person: Change Role, Change Lead Inspector, and
- * activating an inspector who is in no team. It holds a Radix RadioGroup
- * and Select, so it submits by hand (submitAction): a refused change leaves
- * every choice where the admin put it, next to the reason.
+ * activating someone whose role needs a lead and who is in no team. It holds
+ * a Radix RadioGroup and Select, so it submits by hand (submitAction): a
+ * refused change leaves every choice where the admin put it, next to the
+ * reason.
  */
 export function PlacementDialog({
   user,
@@ -507,7 +524,7 @@ export function PlacementDialog({
   pending: string;
   action: ServerAction;
   /** The roles to choose from, or null to keep their role (Change Lead Inspector). */
-  choices: readonly RoleChoice[] | null;
+  choices: readonly RoleOption[] | null;
   /** Ask for a lead when the role needs one (teams exist). */
   askLead: boolean;
   leads: readonly LeadOption[];
@@ -517,7 +534,7 @@ export function PlacementDialog({
   returnFocusTo: RefObject<HTMLButtonElement | null>;
 }) {
   const id = useId();
-  const [role, setRole] = useState<RoleChoice>(choices && !choices.includes(user.role) ? choices[0] : user.role);
+  const [role, setRole] = useState(() => startingRole(user.role, choices));
   const [leadId, setLeadId] = useState(user.lead && leads.some((lead) => lead.id === user.lead?.id) ? user.lead.id : "");
   const [fieldErrors, setFieldErrors] = useState<Partial<Record<UserField, string>>>({});
   const roleRef = useRef<HTMLDivElement>(null);
@@ -535,9 +552,11 @@ export function PlacementDialog({
   }, IDLE);
 
   const formError = state.status === "error" && !state.fieldErrors ? state.message : null;
-  const showLead = askLead && needsLead(role);
-  // Someone who leads a team keeps leading it until it has moved (the action refuses too).
-  const leadsTeam = choices !== null && user.role === "lead" && role !== "lead" && user.team.length > 0;
+  // The role chosen; Change Lead Inspector keeps theirs.
+  const chosen = choices ? choices.find((option) => roleValue(option) === role) : user.role;
+  const showLead = askLead && chosen !== undefined && needsLead(chosen.access);
+  // Someone who leads a team keeps a role that sees their team's until it has moved (the action refuses too).
+  const leadsTeam = choices !== null && user.role.access === "team" && chosen?.access !== "team" && user.team.length > 0;
 
   return (
     <Dialog
@@ -573,7 +592,7 @@ export function PlacementDialog({
             <RoleField
               id={id}
               value={role}
-              choices={choices}
+              roles={choices}
               error={fieldErrors.role}
               groupRef={roleRef}
               onChange={(next) => {

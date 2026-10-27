@@ -1,32 +1,18 @@
 "use client";
 
-// The Role choice (Inspector, Lead Inspector, Admin) and the Lead Inspector
-// picker, shared by the Invite, Change Role, Change Lead Inspector and
-// Activate dialogs. Controlled, with the values sent through hidden inputs:
-// every dialog that holds them submits by hand (lib/admin/submit.ts), so
-// React's form reset never sends a Radix control back to its first value
-// after a refused change.
+// The Role choice (the roles of public.roles: the built-in ones, then custom
+// roles) and the Lead Inspector picker, shared by the Invite, Change Role,
+// Change Lead Inspector and Activate dialogs. Controlled, with the values
+// sent through hidden inputs: every dialog that holds them submits by hand
+// (lib/admin/submit.ts), so React's form reset never sends a Radix control
+// back to its first value after a refused change.
 import type { Ref } from "react";
 import { Field, FieldDescription, FieldError, FieldLabel, FieldLegend, FieldSet } from "@/components/ui/field";
 import { RadioGroup } from "@/components/ui/radio-group";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import {
-  ROLE_CHOICE_DESCRIPTION,
-  ROLE_CHOICE_LABEL,
-  ROLE_CHOICES,
-  RoleChoiceSchema,
-  TEAM_MESSAGES,
-  type RoleChoice,
-} from "@/lib/auth/org";
+import { roleHint, roleValue, TEAM_MESSAGES, type RoleOption } from "@/lib/auth/org";
 import type { LeadOption } from "@/lib/auth/users";
 import { RadioCard } from "../../_components/radio-card";
-
-/** Before migration 20261007170000 there are no lead inspectors to choose. */
-export const ROLES_WITHOUT_TEAMS: readonly RoleChoice[] = ["inspector", "admin"];
-
-export function roleChoicesFor(teams: boolean): readonly RoleChoice[] {
-  return teams ? ROLE_CHOICES : ROLES_WITHOUT_TEAMS;
-}
 
 /** Dialogs that hold the role choice scroll inside the viewport: an iPad in landscape, or with its keyboard up, is short. */
 export const SCROLLING_DIALOG = "max-h-[calc(100dvh-2rem)] overflow-y-auto";
@@ -38,18 +24,24 @@ export function focusRole(group: HTMLElement | null): void {
   radio?.focus();
 }
 
+/**
+ * One card per role, in the order given (the directory's: Admin, Lead
+ * Inspector, Inspector, then custom roles by name), each saying what its
+ * people see. The value sent is the role's id (roleValue()).
+ */
 export function RoleField({
   id,
   value,
   onChange,
-  choices = ROLE_CHOICES,
+  roles,
   error,
   groupRef,
 }: {
   id: string;
-  value: RoleChoice;
-  onChange: (choice: RoleChoice) => void;
-  choices?: readonly RoleChoice[];
+  /** The chosen role's value (roleValue()). */
+  value: string;
+  onChange: (value: string) => void;
+  roles: readonly RoleOption[];
   error?: string;
   /** The radio group, for focusRole(). */
   groupRef?: Ref<HTMLDivElement>;
@@ -58,26 +50,26 @@ export function RoleField({
     <FieldSet className="gap-3" aria-describedby={error ? `${id}-role-error` : undefined}>
       {/* A fieldset's legend is no flex item, so the FieldSet's gap never reaches it: its own mb-3 sets the
           12 px under it, the gap-3 between Email or Lead Inspector and their controls. */}
-      <FieldLegend variant="label" className="leading-snug">
+      <FieldLegend id={`${id}-role-legend`} variant="label" className="leading-snug">
         Role
       </FieldLegend>
       <RadioGroup
         ref={groupRef}
         value={value}
         onValueChange={(next) => {
-          const parsed = RoleChoiceSchema.safeParse(next);
-          if (parsed.success) onChange(parsed.data);
+          if (roles.some((role) => roleValue(role) === next)) onChange(next);
         }}
         className="grid gap-2"
+        aria-labelledby={`${id}-role-legend`}
         aria-invalid={error ? true : undefined}
       >
-        {choices.map((choice) => (
+        {roles.map((role) => (
           <RadioCard
-            key={choice}
-            id={`${id}-role-${choice}`}
-            value={choice}
-            title={ROLE_CHOICE_LABEL[choice]}
-            description={ROLE_CHOICE_DESCRIPTION[choice]}
+            key={roleValue(role)}
+            id={`${id}-role-${roleValue(role)}`}
+            value={roleValue(role)}
+            title={role.name}
+            description={roleHint(role)}
           />
         ))}
       </RadioGroup>

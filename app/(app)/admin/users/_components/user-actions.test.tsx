@@ -43,7 +43,9 @@ vi.mock("@/components/ui/alert-dialog", () => {
   };
 });
 
-import { cancelInvite, changeRole, resendInvite } from "../actions";
+import { radioNames, radiosIn } from "../../_components/radio-card.testing";
+import { cancelInvite, changeRole, reactivateUser, resendInvite } from "../actions";
+import { FIELD, INSPECTOR, LEAD, REVIEWER, ROLES, SENIOR } from "../_lib/roles.testing";
 import { ConfirmDialog, confirmation, LeadsTeamDialog, PlacementDialog } from "./user-actions";
 import type { UserActionsTarget } from "./user-menu";
 
@@ -56,8 +58,9 @@ const OLGA: UserActionsTarget = {
   fullName: "Olga Other",
   phone: null,
   email: "olga@test.local",
-  role: "inspector",
+  role: INSPECTOR,
   status: "active",
+  joined: true,
   signInBlocked: false,
   isSelf: false,
   lead: LINA,
@@ -93,7 +96,7 @@ describe("the user dialogs", () => {
 
   it("shows the UID beside Change Role and Change Lead Inspector", () => {
     for (const [title, choices] of [
-      ["Change Olga Other's Role", ["inspector", "lead", "admin"]],
+      ["Change Olga Other's Role", ROLES],
       ["Change Olga Other's Lead Inspector", null],
     ] as const) {
       const html = renderToStaticMarkup(
@@ -119,7 +122,7 @@ describe("the user dialogs", () => {
   });
 
   it("shows the UID beside the title when a lead inspector still leads a team", () => {
-    const lead = { ...OLGA, uid: "SC-10000", role: "lead" as const, lead: null, team: ["Ivan Inspector"] };
+    const lead = { ...OLGA, uid: "SC-10000", role: LEAD, lead: null, team: ["Ivan Inspector"] };
     const html = renderToStaticMarkup(<LeadsTeamDialog user={lead} onClose={noop} returnFocusTo={nowhere} />);
     expect(html).toMatch(titleWithUid("Olga Other Still Leads a Team", "SC-10000"));
   });
@@ -138,8 +141,18 @@ describe("the user dialogs", () => {
   });
 });
 
+/** Someone invited who has not created their account: no name, and no password. */
+const ZED: UserActionsTarget = {
+  ...OLGA,
+  uid: "SC-0044",
+  name: "zed@example.com",
+  fullName: null,
+  email: "zed@example.com",
+  status: "invited",
+  joined: false,
+};
+
 describe("the invitation dialogs", () => {
-  const ZED: UserActionsTarget = { ...OLGA, uid: "SC-0044", name: "zed@example.com", fullName: null, email: "zed@example.com", status: "invited" };
 
   it("resends the invite to the address on the profile, and says Copy Invite Link is there if email fails", () => {
     const resend = confirmation("resend-invite", ZED);
@@ -170,5 +183,95 @@ describe("the invitation dialogs", () => {
       <ConfirmDialog confirmation={confirmation("deactivate", OLGA)} onClose={noop} returnFocusTo={nowhere} />,
     );
     expect(html).toContain(">Cancel</div>");
+  });
+});
+
+describe("Activate and Reactivate", () => {
+  it("speak of passwords to someone who has created their account", () => {
+    expect(confirmation("reactivate", OLGA).description).toBe(
+      "They can sign in again with their current password and pick up where they left off. They are back in Lina Lead's team.",
+    );
+    expect(confirmation("activate", { ...OLGA, lead: null }).description).toBe(
+      "This account has never been active. Once activated they can sign in with their password, or choose one from a password link.",
+    );
+  });
+
+  it("speak of the link to create their account to someone invited, who has no password yet", () => {
+    const reactivate = confirmation("reactivate", { ...ZED, status: "deactivated" });
+    expect(reactivate).toMatchObject({ confirm: "Reactivate", action: reactivateUser });
+    expect(reactivate.description).toBe(
+      "They have not created their account yet. Once it is active again, send them a new link to create it: Resend Invite or Copy Invite Link, next to their name. They are back in Lina Lead's team.",
+    );
+    const activate = confirmation("activate", { ...ZED, status: "pending", lead: null });
+    expect(activate.description).toBe(
+      "This account has never been active, and they have not created it yet. Once it is active, send them a link to create it: Resend Invite or Copy Invite Link, next to their name.",
+    );
+    for (const { description } of [reactivate, activate]) expect(description).not.toMatch(/password/i);
+  });
+});
+
+describe("the role pickers", () => {
+  /** Change Role for `user`, drawn in place. */
+  function changeRoleDialog(user: UserActionsTarget, choices = ROLES) {
+    return renderToStaticMarkup(
+      <PlacementDialog
+        user={user}
+        title={`Change ${user.name}'s Role`}
+        description=""
+        confirm="Save Role"
+        pending="Saving…"
+        action={changeRole}
+        choices={choices}
+        askLead
+        leads={[{ ...LINA, teamSize: 1 }]}
+        emptyHint=""
+        onClose={noop}
+        returnFocusTo={nowhere}
+      />,
+    );
+  }
+  const checked = (html: string) => radiosIn(html).find((radio) => radio["aria-checked"] === "true")?.value;
+
+  it("offers every role by name, the built-in ones first, each saying what it sees, and sends the role's id", () => {
+    const html = changeRoleDialog(OLGA);
+    expect(radioNames(html)).toEqual([
+      { name: "Admin", description: "Sees All Inspections" },
+      { name: "Lead Inspector", description: "Sees Team Inspections" },
+      { name: "Inspector", description: "Sees Own Inspections" },
+      { name: "Field Inspector", description: "Sees Own Inspections" },
+      { name: "QA Reviewer", description: "Sees All Inspections" },
+      { name: "Senior Lead", description: "Sees Team Inspections" },
+    ]);
+    expect(radiosIn(html).map((radio) => radio.value)).toEqual(ROLES.map((role) => role.id));
+    // Their own role chosen to start with, and sent as it is.
+    expect(checked(html)).toBe(INSPECTOR.id);
+    expect(html).toContain(`<input type="hidden" name="role" value="${INSPECTOR.id}"/>`);
+    // The group is named by its legend, so a screen reader hears "Role".
+    expect(html).toMatch(/<legend[^>]*id="([^"]+)"[^>]*>Role<\/legend>/);
+    const legend = html.match(/<legend[^>]*id="([^"]+)"[^>]*>Role<\/legend>/)![1];
+    expect(html).toMatch(new RegExp(`role="radiogroup"[^>]*aria-labelledby="${legend}"`));
+  });
+
+  it("asks for a lead for a role that sees its own inspections, custom or not, and for no other", () => {
+    for (const role of [INSPECTOR, FIELD]) {
+      expect(changeRoleDialog({ ...OLGA, role }), role.name).toContain('name="leadId"');
+    }
+    for (const role of [LEAD, REVIEWER, SENIOR]) {
+      expect(changeRoleDialog({ ...OLGA, role, lead: null }), role.name).not.toContain('name="leadId"');
+    }
+  });
+
+  it("starts on Inspector when their role is not one of the choices", () => {
+    expect(checked(changeRoleDialog({ ...OLGA, role: { ...REVIEWER, id: "77777777-7777-4777-8777-777777777777" } }))).toBe(INSPECTOR.id);
+  });
+
+  it("warns, before saving, that someone who leads a team keeps a role that sees their team's", () => {
+    const lead = { ...OLGA, role: SENIOR, lead: null, team: ["Ivan Inspector"] };
+    // Their own role, which leads a team: nothing to warn about yet.
+    expect(changeRoleDialog(lead)).not.toContain('data-slot="team-note"');
+    // A dialog that starts on a role leading no team (theirs was not on the list) warns at once.
+    expect(changeRoleDialog({ ...lead, role: { ...SENIOR, id: "77777777-7777-4777-8777-777777777777" } })).toContain(
+      'data-slot="team-note"',
+    );
   });
 });

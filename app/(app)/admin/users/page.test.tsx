@@ -5,7 +5,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { UserDirectory, UserListItem } from "@/lib/auth/users";
 
-vi.mock("@/lib/auth/session", () => ({ requireAdmin: vi.fn() }));
+vi.mock("@/lib/auth/session", () => ({ requirePermission: vi.fn() }));
 vi.mock("@/lib/auth/users", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/auth/users")>()),
   getUserDirectory: vi.fn(),
@@ -27,8 +27,9 @@ vi.mock("next/navigation", async (importOriginal) => ({
   useRouter: () => ({ push: vi.fn() }),
 }));
 
-import { requireAdmin } from "@/lib/auth/session";
+import { requirePermission } from "@/lib/auth/session";
 import { getUserDirectory } from "@/lib/auth/users";
+import { ADMIN, INSPECTOR, LEAD as LEAD_ROLE, REVIEWER, ROLES } from "./_lib/roles.testing";
 import UsersPage, { generateMetadata } from "./page";
 
 const ME = "7c2d4e1a-0b3f-4a5c-9d8e-1f2a3b4c5d6e";
@@ -40,9 +41,9 @@ const me: UserListItem = {
   email: "admin@test.local",
   fullName: "Test Admin",
   phone: null,
-  role: "admin",
-  roleChoice: "admin",
+  role: ADMIN,
   status: "active",
+  joined: true,
   createdAt: "2026-10-01T00:00:00Z",
   lastSignInAt: "2026-10-06T01:00:00Z",
   signInBlocked: false,
@@ -57,8 +58,7 @@ const lina: UserListItem = {
   uid: "SC-0003",
   email: "lina@test.local",
   fullName: "Lina Lead",
-  role: "inspector",
-  roleChoice: "lead",
+  role: LEAD_ROLE,
   isSelf: false,
   team: [{ id: "0a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d", name: "Olga Other", active: true }],
 };
@@ -69,8 +69,7 @@ const olga: UserListItem = {
   email: "olga@test.local",
   fullName: "Olga Other",
   phone: "+60 12-345 6789",
-  role: "inspector",
-  roleChoice: "inspector",
+  role: INSPECTOR,
   isSelf: false,
   lead: { id: LEAD, name: "Lina Lead" },
 };
@@ -90,6 +89,7 @@ const directory = (overrides: Partial<UserDirectory>): UserDirectory => ({
   teams: true,
   uids: true,
   leads: [{ id: LEAD, name: "Lina Lead", teamSize: 1 }],
+  roles: [...ROLES],
   ...overrides,
 });
 
@@ -109,26 +109,28 @@ const bodyRows = (html: string) => html.split("<tbody")[1]?.split("<tr").slice(1
 describe("/admin/users", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    vi.mocked(requireAdmin).mockResolvedValue({ id: ME, email: "admin@test.local", fullName: "Test Admin", role: "admin" });
+    vi.mocked(requirePermission).mockResolvedValue({ id: ME, email: "admin@test.local", fullName: "Test Admin", role: "admin" });
   });
 
-  it("names the page only for an admin", async () => {
+  it("names the page only for someone who may manage users: the built-in Admin role", async () => {
     expect(await generateMetadata()).toEqual({ title: "Users" });
-    expect(requireAdmin).toHaveBeenCalledOnce();
+    expect(requirePermission).toHaveBeenCalledExactlyOnceWith("users");
   });
 
-  it("names nothing for anyone else: the 404 from requireAdmin() wins over the title", async () => {
+  it("names nothing for anyone else: the 404 from requirePermission() wins over the title", async () => {
     // Next resolves metadata apart from the page, so a static title would
-    // still say "Users" on an inspector's 404.
+    // still say "Users" on an inspector's 404, or a custom role's that sees every inspection.
     const notFound = Object.assign(new Error("NEXT_HTTP_ERROR_FALLBACK;404"), { digest: "NEXT_HTTP_ERROR_FALLBACK;404" });
-    vi.mocked(requireAdmin).mockRejectedValue(notFound);
+    vi.mocked(requirePermission).mockRejectedValue(notFound);
     await expect(generateMetadata()).rejects.toBe(notFound);
+    await expect(render(directory({}))).rejects.toBe(notFound);
+    expect(getUserDirectory).not.toHaveBeenCalled();
   });
 
-  it("checks for an admin first and lists the directory for that admin", async () => {
+  it("checks the users permission first and lists the directory for that admin", async () => {
     const html = await render(directory({}));
 
-    expect(requireAdmin).toHaveBeenCalledOnce();
+    expect(requirePermission).toHaveBeenCalledExactlyOnceWith("users");
     expect(getUserDirectory).toHaveBeenCalledWith(ME);
     expect(html).toContain("Olga Other");
     expect(inviteButton(html)).not.toMatch(/disabled=""/);
@@ -172,7 +174,7 @@ describe("/admin/users", () => {
 describe("/admin/users: lead inspectors and teams", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    vi.mocked(requireAdmin).mockResolvedValue({ id: ME, email: "admin@test.local", fullName: "Test Admin", role: "admin" });
+    vi.mocked(requirePermission).mockResolvedValue({ id: ME, email: "admin@test.local", fullName: "Test Admin", role: "admin" });
   });
 
   it("shows the team column and the Team picker", async () => {
@@ -243,7 +245,7 @@ describe("/admin/users: lead inspectors and teams", () => {
 describe("/admin/users: UIDs and the search", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    vi.mocked(requireAdmin).mockResolvedValue({ id: ME, email: "admin@test.local", fullName: "Test Admin", role: "admin" });
+    vi.mocked(requirePermission).mockResolvedValue({ id: ME, email: "admin@test.local", fullName: "Test Admin", role: "admin" });
   });
 
   /** The search box: its label and its input. */
@@ -304,7 +306,7 @@ describe("/admin/users: UIDs and the search", () => {
 describe("/admin/users: invitations not yet answered", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    vi.mocked(requireAdmin).mockResolvedValue({ id: ME, email: "admin@test.local", fullName: "Test Admin", role: "admin" });
+    vi.mocked(requirePermission).mockResolvedValue({ id: ME, email: "admin@test.local", fullName: "Test Admin", role: "admin" });
   });
 
   const zed: UserListItem = {
@@ -315,6 +317,7 @@ describe("/admin/users: invitations not yet answered", () => {
     fullName: null,
     phone: null,
     status: "invited",
+    joined: false,
     lastSignInAt: null,
   };
 
@@ -329,6 +332,32 @@ describe("/admin/users: invitations not yet answered", () => {
 
   it("tells the admin, when they are the only one, that each invitee creates their own account", async () => {
     const html = await render(directory({ users: [me], leads: [] }));
-    expect(html).toContain("Each one gets an email with a link to create their account.");
+    expect(html).toContain("Each one creates their account from a link: we email it, or you send it yourself.");
+  });
+});
+
+describe("/admin/users: roles", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(requirePermission).mockResolvedValue({ id: ME, email: "admin@test.local", fullName: "Test Admin", role: "admin" });
+  });
+
+  const quinn: UserListItem = {
+    ...olga,
+    id: "4e5f6071-8293-4d0e-9f1a-3b4c5d6e7f80",
+    uid: "SC-0045",
+    email: "quinn@test.local",
+    fullName: "Quinn Reviewer",
+    phone: null,
+    role: REVIEWER,
+    lead: null,
+  };
+
+  it("names each person's role in the Role column, a custom role by its own name", async () => {
+    const html = await render(directory({ users: [me, olga, quinn] }));
+    const row = bodyRows(html).find((cells) => cells.includes("Quinn Reviewer")) ?? "";
+    expect(row).toMatch(/data-slot="role" data-role="custom" data-access="all"[^>]*>.*QA Reviewer<\/span>/);
+    // Every inspection in sight: in no lead inspector's team.
+    expect(row).toContain('<span class="sr-only">In no team</span>');
   });
 });

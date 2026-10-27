@@ -4,11 +4,13 @@ import {
   ClockIcon,
   MailIcon,
   ShieldCheckIcon,
+  ShieldIcon,
   UserRoundIcon,
   UsersRoundIcon,
   type LucideIcon,
 } from "lucide-react";
-import { ROLE_CHOICE_LABEL, type RoleChoice } from "@/lib/auth/org";
+import type { RoleOption } from "@/lib/auth/org";
+import type { RoleAccess } from "@/lib/auth/permissions";
 import type { AccountStatus } from "@/lib/auth/users";
 import { STATUS_TINT_CLASS } from "@/lib/design/status";
 import { cn } from "@/lib/utils";
@@ -44,26 +46,42 @@ export function AccountStatusBadge({ status }: { status: AccountStatus }) {
   );
 }
 
-const ROLE_ICON: Record<RoleChoice, LucideIcon> = {
-  inspector: UserRoundIcon,
-  lead: UsersRoundIcon,
-  admin: ShieldCheckIcon,
+/** What a role's people see, as its icon: one person, a team, or everyone (a shield). */
+const ACCESS_ICON: Record<RoleAccess, LucideIcon> = {
+  own: UserRoundIcon,
+  team: UsersRoundIcon,
+  all: ShieldIcon,
 };
 
-/** Inspector, Lead Inspector or Admin: an icon and words, admins in brand blue. */
-export function RoleLabel({ role }: { role: RoleChoice }) {
-  const Icon = ROLE_ICON[role];
+/**
+ * Longer names wrap: a custom role may have up to 60 characters, and on one
+ * line it would squeeze every other column (the Role column is 176 px wide
+ * on an iPad in portrait). Shorter ones, "Lead Inspector" among them, stay on
+ * one line, so a row stays one line high on desktop.
+ */
+const ONE_LINE_ROLE_NAME = 16;
+
+/**
+ * Someone's role by its name, custom roles too, with an icon for what it
+ * sees: the built-in Admin role, which alone manages users and roles, with a
+ * checked shield in brand blue.
+ */
+export function RoleLabel({ role }: { role: Pick<RoleOption, "builtIn" | "name" | "access"> }) {
+  const admin = role.builtIn === "admin";
+  const Icon = admin ? ShieldCheckIcon : ACCESS_ICON[role.access];
   return (
     <span
       data-slot="role"
-      data-role={role}
+      data-role={role.builtIn ?? "custom"}
+      data-access={role.access}
       className={cn(
-        "inline-flex items-center gap-1.5 whitespace-nowrap",
-        role === "admin" ? "font-semibold text-brand-700" : role === "lead" ? "font-medium text-foreground" : "text-foreground",
+        "inline-flex items-center gap-1.5",
+        role.name.length > ONE_LINE_ROLE_NAME ? "whitespace-normal" : "whitespace-nowrap",
+        admin ? "font-semibold text-brand-700" : role.access === "own" ? "text-foreground" : "font-medium text-foreground",
       )}
     >
       <Icon aria-hidden className="size-4 shrink-0" />
-      {ROLE_CHOICE_LABEL[role]}
+      {role.name}
     </span>
   );
 }

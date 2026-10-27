@@ -3,6 +3,7 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 import type { UserListItem } from "@/lib/auth/users";
+import { ADMIN, FIELD, INSPECTOR, LEAD, REVIEWER, SENIOR } from "../_lib/roles.testing";
 
 vi.mock("../actions", () => ({
   editUserDetails: vi.fn(),
@@ -21,8 +22,9 @@ import { EmailText, UsersTable } from "./users-table";
 
 const LEAD_ID = "1b2c3d4e-5f60-4a7b-8c9d-0e1f2a3b4c5d";
 
-const base: Pick<UserListItem, "roleChoice" | "lead" | "team" | "missingLead" | "phone"> = {
-  roleChoice: "inspector",
+const base: Pick<UserListItem, "role" | "joined" | "lead" | "team" | "missingLead" | "phone"> = {
+  role: INSPECTOR,
+  joined: true,
   lead: null,
   team: [],
   missingLead: false,
@@ -37,8 +39,7 @@ const USERS: UserListItem[] = [
     email: "admin@test.local",
     fullName: "Test Admin",
     phone: "+60 12-345 6789",
-    role: "admin",
-    roleChoice: "admin",
+    role: ADMIN,
     status: "active",
     // 17:30 UTC on the 5th is already the 6th in Malaysia.
     createdAt: "2026-10-05T17:30:00Z",
@@ -52,7 +53,6 @@ const USERS: UserListItem[] = [
     uid: "SC-0002",
     email: "olga@test.local",
     fullName: "Olga Other",
-    role: "inspector",
     status: "deactivated",
     createdAt: "2026-09-01T02:00:00Z",
     lastSignInAt: "2026-09-30T02:00:00Z",
@@ -66,7 +66,6 @@ const USERS: UserListItem[] = [
     uid: "SC-0003",
     email: "new@test.local",
     fullName: null,
-    role: "inspector",
     status: "pending",
     createdAt: "2026-10-06T03:00:00Z",
     lastSignInAt: null,
@@ -82,8 +81,7 @@ const LEADS: UserListItem[] = [
     uid: "SC-0004",
     email: "lina@test.local",
     fullName: "Lina Lead",
-    role: "inspector",
-    roleChoice: "lead",
+    role: LEAD,
     status: "active",
     createdAt: "2026-10-01T02:00:00Z",
     lastSignInAt: null,
@@ -100,7 +98,6 @@ const LEADS: UserListItem[] = [
     uid: "SC-10000",
     email: "gail@test.local",
     fullName: "Gail Grandfathered",
-    role: "inspector",
     status: "active",
     createdAt: "2026-10-01T02:00:00Z",
     lastSignInAt: null,
@@ -262,10 +259,11 @@ describe("UsersTable: lead inspectors and their teams", () => {
   const html = renderToStaticMarkup(<UsersTable users={[...USERS, ...LEADS]} showSignIns />);
   const [admin, olga, , lina, gail] = rows(html);
 
-  it("says Inspector, Lead Inspector or Admin", () => {
-    expect(admin).toMatch(/data-role="admin"[^>]*>.*Admin<\/span>/);
-    expect(lina).toMatch(/data-role="lead"[^>]*>.*Lead Inspector<\/span>/);
-    expect(olga).toMatch(/data-role="inspector"[^>]*>.*Inspector<\/span>/);
+  it("says Inspector, Lead Inspector or Admin, the Admin role in brand blue with a checked shield", () => {
+    expect(admin).toMatch(/data-slot="role" data-role="admin" data-access="all" class="[^"]*\btext-brand-700\b[^"]*">.*Admin<\/span>/);
+    expect(admin).toContain("lucide-shield-check");
+    expect(lina).toMatch(/data-slot="role" data-role="lead" data-access="team"[^>]*>.*Lead Inspector<\/span>/);
+    expect(olga).toMatch(/data-slot="role" data-role="inspector" data-access="own"[^>]*>.*Inspector<\/span>/);
   });
 
   it("links an inspector's lead to that team, and a lead's team size to the team", () => {
@@ -302,6 +300,36 @@ describe("UsersTable: lead inspectors and their teams", () => {
     const withoutTeams = renderToStaticMarkup(<UsersTable users={USERS} showSignIns teams={false} />);
     expect(withoutTeams).not.toContain(">Lead Inspector</th>");
     expect(withoutTeams).not.toContain("team-under-role");
+  });
+
+  it("names custom roles too, and places their people by what the role sees", () => {
+    const custom = renderToStaticMarkup(
+      <UsersTable
+        users={[
+          { ...USERS[0], id: "2b3c4d5e-6f70-4a8b-9c0d-1e2f3a4b5c6d", isSelf: false, email: "quinn@test.local", fullName: "Quinn", role: REVIEWER },
+          { ...LEADS[0], role: SENIOR },
+          { ...USERS[1], status: "active", role: FIELD },
+          { ...LEADS[1], role: { ...FIELD, name: "Senior Quality Assurance Field Inspector" } },
+        ]}
+        showSignIns
+      />,
+    );
+    const [quinn, sam, olgaField, gailField] = rows(custom);
+    // Every inspection: a plain shield, not the Admin role's blue, and in no team.
+    expect(quinn).toMatch(/data-slot="role" data-role="custom" data-access="all" class="[^"]*">.*QA Reviewer<\/span>/);
+    expect(quinn).not.toContain("text-brand-700");
+    expect(quinn).toContain("lucide-shield ");
+    expect(quinn).toContain('<span class="sr-only">In no team</span>');
+    // Their team's: leads one, as a lead inspector does.
+    expect(sam).toContain(">Senior Lead</span>");
+    expect(sam).toContain(">Leads 2 inspectors</a>");
+    // Their own: a lead inspector's team, or the problem of none.
+    expect(olgaField).toContain(">Field Inspector</span>");
+    expect(olgaField).toMatch(/data-slot="team-under-role">Lead: <a/);
+    expect(gailField).toContain('data-slot="no-lead"');
+    // A short name stays on one line; a long one wraps rather than squeeze every other column.
+    expect(sam).toMatch(/data-slot="role"[^>]*class="[^"]*\bwhitespace-nowrap\b/);
+    expect(gailField).toMatch(/data-slot="role"[^>]*class="[^"]*\bwhitespace-normal\b/);
   });
 
   it("says so when a filter leaves nobody, across every column", () => {

@@ -43,6 +43,9 @@ export function filterValue(filter: TeamFilter): string {
   }
 }
 
+/** A lead inspector on the list: someone whose role, built in or custom, sees their team's inspections. */
+const leadsTeams = (user: UserListItem) => user.role.access === "team";
+
 /**
  * The filter a ?team= value asks for. Anything that is not a lead inspector
  * on the list (an old link, a typo) shows everyone rather than an empty page.
@@ -51,7 +54,7 @@ export function readTeamFilter(raw: string | string[] | undefined, users: readon
   const value = (Array.isArray(raw) ? raw[0] : raw)?.trim().toLowerCase();
   if (!value) return EVERYONE_FILTER;
   if (value === NO_LEAD) return { kind: "no-lead" };
-  const lead = users.find((user) => user.id === value && user.roleChoice === "lead");
+  const lead = users.find((user) => user.id === value && leadsTeams(user));
   if (!lead) return EVERYONE_FILTER;
   return { kind: "team", leadId: lead.id, leadName: lead.fullName?.trim() || lead.email || "This lead inspector" };
 }
@@ -79,7 +82,7 @@ export type FilterOption = { value: string; label: string };
  */
 export function filterOptions(users: readonly UserListItem[]): FilterOption[] {
   const missing = users.filter((user) => user.missingLead).length;
-  const leads = users.filter((user) => user.roleChoice === "lead");
+  const leads = users.filter(leadsTeams);
   return [
     { value: EVERYONE, label: "Everyone" },
     ...(missing > 0 ? [{ value: NO_LEAD, label: `No Lead Inspector (${missing})` }] : []),

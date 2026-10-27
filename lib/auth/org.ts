@@ -1,11 +1,12 @@
-import { z } from "zod";
 import type { Database } from "@/lib/supabase/database.types";
+import { BUILT_IN_ROLE_NAME, BUILT_IN_ROLES, builtInGrant, ROLE_ACCESS_INFO, type BuiltInRole, type RoleAccess } from "./permissions";
 
 /**
  * Lead inspectors and their teams (Kenneth, 7 October 2026: "inspector level
  * can be inspector or lead inspector, while inspector must be assigned to be
  * managed under a lead inspector, where the lead inspector can see all the on
- * going or done inspection in the table").
+ * going or done inspection in the table"), and the roles people are given
+ * (migration 20261027150000; Kenneth, 27 October 2026: custom roles too).
  *
  * The app's half of the rules in
  * supabase/migrations/20261007170000_lead_inspectors.sql: the Users screen
@@ -14,80 +15,145 @@ import type { Database } from "@/lib/supabase/database.types";
  * in the migration together. Client-safe: the dialogs use the same rules the
  * actions enforce.
  *
- *   - Roles stay inspector and admin. A lead inspector is an inspector with
- *     profiles.is_lead; their team is the inspectors whose lead_id is theirs.
- *   - Admins are in no team and lead none. Lead inspectors have no lead.
- *   - An active inspector who is not a lead works in an active lead
- *     inspector's team. Inspectors from before the rule may have none: the
- *     Users screen lists them as a problem until an admin chooses one.
- *   - Someone who leads a team stays an active lead inspector until their
- *     team has moved to another lead.
- *   - A lead inspector reads every inspection of their team, read-only.
+ *   - Everyone has a role (public.roles): Admin, Lead Inspector, Inspector or
+ *     a custom one. What it sees (its access) is the level these rules have
+ *     always been about, and profiles.role and is_lead follow it (the
+ *     profiles guard): a role that sees every inspection makes someone an
+ *     admin there, one that sees their team's a lead inspector (is_lead),
+ *     one that sees their own an inspector. A lead's team is the people
+ *     whose lead_id is theirs.
+ *   - People whose role sees every inspection are in no team and lead none.
+ *     Those who lead one have no lead.
+ *   - An active person whose role sees their own inspections only works in
+ *     an active lead's team. Inspectors from before the rule may have none:
+ *     the Users screen lists them as a problem until an admin chooses one.
+ *   - Someone who leads a team keeps a role that sees their team's, active,
+ *     until their team has moved to another lead.
+ *   - A lead reads every inspection of their team, read-only.
  */
 
 export type UserRole = Database["public"]["Enums"]["user_role"];
 
-/** What an admin picks in the Role field: the database role, with lead inspectors told apart. */
-export const ROLE_CHOICES = ["inspector", "lead", "admin"] as const;
-export type RoleChoice = (typeof ROLE_CHOICES)[number];
+/**
+ * The built-in role for someone's level (profiles.role and is_lead): what
+ * they are on a project without roles, and the stand-in wherever their own
+ * role cannot be read. Labels are the built-in roles' names; sentences say
+ * "lead inspector".
+ */
+export type RoleChoice = BuiltInRole;
 
-export const RoleChoiceSchema = z.enum(ROLE_CHOICES, { error: "Choose Inspector, Lead Inspector or Admin." });
+export const ROLE_CHOICE_LABEL: Readonly<Record<RoleChoice, string>> = BUILT_IN_ROLE_NAME;
 
-/** The roles as labels (Title Case, Kenneth 8 October 2026); sentences say "lead inspector". */
-export const ROLE_CHOICE_LABEL: Readonly<Record<RoleChoice, string>> = {
-  inspector: "Inspector",
-  lead: "Lead Inspector",
-  admin: "Admin",
-};
-
-/** One line each in the role pickers, so a dialog fits an iPad in landscape. */
-export const ROLE_CHOICE_DESCRIPTION: Readonly<Record<RoleChoice, string>> = {
-  inspector: "Records inspections and sees their own.",
-  lead: "Also sees their team's inspections, read-only.",
-  admin: "Manages users and templates, and approves inspections.",
-};
-
-/** How someone's current role and team read in a dialog: "They are an inspector in Lina Lead's team now." */
-export function currentPlacement(choice: RoleChoice, leadName: string | null): string {
-  switch (choice) {
-    case "admin":
-      return "They are an admin now.";
-    case "lead":
-      return "They are a lead inspector now.";
-    case "inspector":
-      return leadName ? `They are an inspector in ${leadName}'s team now.` : "They are an inspector in no team yet.";
-  }
-}
-
-/** The profile columns behind a choice. */
-export type Placement = { role: UserRole; is_lead: boolean; lead_id: string | null };
-
-/** The columns to store for a choice: admins and lead inspectors have no lead. */
-export function placementFor(choice: RoleChoice, leadId: string | null): Placement {
-  switch (choice) {
-    case "admin":
-      return { role: "admin", is_lead: false, lead_id: null };
-    case "lead":
-      return { role: "inspector", is_lead: true, lead_id: null };
-    case "inspector":
-      return { role: "inspector", is_lead: false, lead_id: leadId };
-  }
-}
-
-/** How a profile reads in the Role field. */
+/** The built-in role for a profile's level. */
 export function roleChoiceOf(person: { role: UserRole; isLead?: boolean | null }): RoleChoice {
   if (person.role === "admin") return "admin";
   return person.isLead ? "lead" : "inspector";
 }
 
-/** Only inspectors who are not leads work in a team, so only they need a lead. */
-export function needsLead(choice: RoleChoice): boolean {
-  return choice === "inspector";
+/** What someone sees, read from their level: their role's access, which role and is_lead always follow. */
+export function accessOf(person: { role: UserRole; isLead?: boolean | null }): RoleAccess {
+  return builtInGrant(roleChoiceOf(person)).access;
 }
 
-/** Someone who may lead a team: an active lead inspector. */
+/**
+ * A role someone can be given: a row of public.roles, built in or custom, by
+ * name, with what its people see. On a project without roles (migration
+ * 20261027150000) the built-in roles stand in for the levels, without an id.
+ */
+export type RoleOption = {
+  /** Its id; null for a stand-in on a project without roles. */
+  id: string | null;
+  /** "admin", "lead" or "inspector" for a role that comes with the app; null for a custom role. */
+  builtIn: BuiltInRole | null;
+  name: string;
+  access: RoleAccess;
+};
+
+/**
+ * What the Role field sends for a role: its id, or a stand-in's kind, which
+ * the actions read as the built-in role of that kind.
+ */
+export function roleValue(role: Pick<RoleOption, "id" | "builtIn">): string {
+  return role.id ?? role.builtIn ?? "";
+}
+
+/** A built-in role standing in for its level, on a project without roles. */
+export function standInRole(kind: BuiltInRole): RoleOption {
+  return { id: null, builtIn: kind, name: BUILT_IN_ROLE_NAME[kind], access: builtInGrant(kind).access };
+}
+
+const byName = new Intl.Collator("en-GB", { sensitivity: "base", numeric: true });
+
+/** The built-in roles first, as the app lists them (Admin, Lead Inspector, Inspector), then custom roles by name. */
+export function sortRoles<T extends Pick<RoleOption, "builtIn" | "name">>(roles: readonly T[]): T[] {
+  const rank = (role: T) => (role.builtIn ? BUILT_IN_ROLES.indexOf(role.builtIn) : BUILT_IN_ROLES.length);
+  return [...roles].sort((a, b) => rank(a) - rank(b) || byName.compare(a.name, b.name));
+}
+
+/**
+ * The role a dialog starts on when it has none of its own: the built-in
+ * Inspector, the least anyone is given, else the first.
+ */
+export function defaultRole<T extends Pick<RoleOption, "builtIn">>(roles: readonly T[]): T | undefined {
+  return roles.find((role) => role.builtIn === "inspector") ?? roles[0];
+}
+
+/** Under each role in the role pickers: what its people see, as Roles & Permissions says it. */
+export function roleHint(role: Pick<RoleOption, "access">): string {
+  return `Sees ${ROLE_ACCESS_INFO[role.access].label}`;
+}
+
+/** Only people whose role sees their own inspections work in a team, so only they need a lead. */
+export function needsLead(access: RoleAccess): boolean {
+  return access === "own";
+}
+
+/**
+ * The profile columns behind a role and a lead. With roles, the role's id:
+ * the profiles guard gives role and is_lead its access. Before roles, the
+ * level's own columns; before lead inspectors (migration 20261007170000), the
+ * role column alone.
+ */
+export type Placement =
+  | { role_id: string; lead_id: string | null }
+  | { role: UserRole; is_lead: boolean; lead_id: string | null }
+  | { role: UserRole };
+
+/**
+ * The columns to write for a role. The lead goes in the same write: kept for
+ * a role that sees its own inspections, cleared for any other, since the
+ * team rules refuse a lead there and never clear one for you.
+ */
+export function placementFor(role: RoleOption, leadId: string | null, teams = true): Placement {
+  const lead = needsLead(role.access) ? leadId : null;
+  if (role.id) return { role_id: role.id, lead_id: lead };
+  const level: UserRole = role.access === "all" ? "admin" : "inspector";
+  return teams ? { role: level, is_lead: role.access === "team", lead_id: lead } : { role: level };
+}
+
+/** The built-in roles in a sentence, as the app has always said them. */
+export const BUILT_IN_IN_WORDS: Readonly<Record<BuiltInRole, string>> = {
+  admin: "an admin",
+  lead: "a lead inspector",
+  inspector: "an inspector",
+};
+
+/**
+ * How someone's role and team read in a dialog: "They are an inspector in
+ * Lina Lead's team now." A custom role by its name: "Their role is QA
+ * Reviewer now."
+ */
+export function currentPlacement(role: RoleOption, leadName: string | null): string {
+  const team = leadName ? `${leadName}'s team` : null;
+  if (role.builtIn === "inspector") return team ? `They are an inspector in ${team} now.` : "They are an inspector in no team yet.";
+  if (role.builtIn) return `They are ${BUILT_IN_IN_WORDS[role.builtIn]} now.`;
+  if (!needsLead(role.access)) return `Their role is ${role.name} now.`;
+  return `Their role is ${role.name} now, in ${team ?? "no team yet"}.`;
+}
+
+/** Someone who may lead a team: active, with a role that sees their team's inspections. */
 export function canLead(person: { role: UserRole; isLead?: boolean | null; active: boolean }): boolean {
-  return person.active && roleChoiceOf(person) === "lead";
+  return person.active && accessOf(person) === "team";
 }
 
 /** A lead inspector in the session. */
@@ -131,15 +197,17 @@ export const TEAM_MESSAGES = {
   noLeads: "There is no active lead inspector yet. Make someone a lead inspector first.",
   /** The lead picker for the only active lead inspector, who cannot lead themselves. */
   noOtherLead: "There is no other active lead inspector. Make someone else a lead inspector first.",
-  /** An inspector needs a lead and nobody can lead them: said at the Role field, where the admin can choose otherwise. */
+  /** A role that needs a lead, and nobody can lead them: said at the Role field, where the admin can choose otherwise. */
   nobodyToLead: "Nobody can lead them yet. Choose Lead Inspector or Admin, or make someone a lead inspector first.",
   ownLead: "Nobody can be their own lead inspector. Choose someone else.",
-  /** Only inspectors who are not leads work in a team. */
-  inNoTeam: (name: string, choice: RoleChoice) =>
-    `${name} is ${choice === "admin" ? "an admin" : "a lead inspector"}, so they work in no lead inspector's team.`,
+  /** Only people whose role sees their own inspections work in a team. */
+  inNoTeam: (name: string, role: Pick<RoleOption, "builtIn" | "name">) =>
+    role.builtIn
+      ? `${name} is ${BUILT_IN_IN_WORDS[role.builtIn]}, so they work in no lead inspector's team.`
+      : `${name} has the ${role.name} role, so they work in no lead inspector's team.`,
   notALead: (name: string) => `${name} is not an active lead inspector any more. Choose another lead inspector.`,
   leadGone: "That lead inspector could not be found. Reload the page and choose again.",
-  /** Rule 5, before a lead inspector is demoted, made an admin or deactivated. */
+  /** Rule 5, before someone who leads a team gets a role that leads none, or is deactivated. */
   leadsTeam: (name: string, members: readonly string[]) =>
     `${name} leads ${inspectors(members.length)}: ${listNames(members)}. Choose another lead inspector for ${
       members.length === 1 ? "them" : "each of them"

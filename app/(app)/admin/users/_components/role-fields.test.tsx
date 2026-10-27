@@ -4,8 +4,9 @@
 // leads nowhere); a refusal about the role sits at the role, where focus goes.
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
-import { radioNames } from "../../_components/radio-card.testing";
-import { focusRole, LeadField, RoleField, ROLES_WITHOUT_TEAMS } from "./role-fields";
+import { radioNames, radiosIn } from "../../_components/radio-card.testing";
+import { INSPECTOR, LEAD, ROLES, STAND_INS } from "../_lib/roles.testing";
+import { focusRole, LeadField, RoleField } from "./role-fields";
 
 const LINA = { id: "1b2c3d4e-5f60-4a7b-8c9d-0e1f2a3b4c5d", name: "Lina Lead", teamSize: 2 };
 const NO_LEADS = "There is no active lead inspector yet. Make someone a lead inspector first.";
@@ -48,33 +49,48 @@ describe("LeadField", () => {
 });
 
 describe("RoleField", () => {
-  it("names each role's radio by the role and describes it, so Chrome does not leave it unnamed", () => {
-    // The Invite, Change Role, Change Lead Inspector and Activate dialogs all draw these radios.
-    const html = renderToStaticMarkup(<RoleField id="f" value="inspector" onChange={() => {}} />);
-    expect(radioNames(html)).toEqual([
-      { name: "Inspector", description: "Records inspections and sees their own." },
-      { name: "Lead Inspector", description: "Also sees their team's inspections, read-only." },
-      { name: "Admin", description: "Manages users and templates, and approves inspections." },
-    ]);
-    expect(html).toContain('aria-labelledby="f-role-lead-title"');
+  const field = (props: Partial<Parameters<typeof RoleField>[0]> = {}) =>
+    renderToStaticMarkup(<RoleField id="f" value={INSPECTOR.id!} roles={ROLES} onChange={() => {}} {...props} />);
 
-    const withoutTeams = renderToStaticMarkup(
-      <RoleField id="f" value="inspector" onChange={() => {}} choices={ROLES_WITHOUT_TEAMS} />,
-    );
-    expect(radioNames(withoutTeams).map((radio) => radio.name)).toEqual(["Inspector", "Admin"]);
+  it("names each role's radio by the role's name and describes what it sees, so Chrome does not leave it unnamed", () => {
+    // The Invite, Change Role and Activate dialogs all draw these radios: the built-in roles, then custom roles.
+    const html = field();
+    expect(radioNames(html)).toEqual([
+      { name: "Admin", description: "Sees All Inspections" },
+      { name: "Lead Inspector", description: "Sees Team Inspections" },
+      { name: "Inspector", description: "Sees Own Inspections" },
+      { name: "Field Inspector", description: "Sees Own Inspections" },
+      { name: "QA Reviewer", description: "Sees All Inspections" },
+      { name: "Senior Lead", description: "Sees Team Inspections" },
+    ]);
+    expect(html).toContain(`aria-labelledby="f-role-${LEAD.id}-title"`);
+    // Each sends the role's id; the one chosen is checked and in the form.
+    expect(radiosIn(html).map((radio) => radio.value)).toEqual(ROLES.map((role) => role.id));
+    expect(radiosIn(html).find((radio) => radio["aria-checked"] === "true")?.value).toBe(INSPECTOR.id);
+    expect(html).toContain(`<input type="hidden" name="role" value="${INSPECTOR.id}"/>`);
+  });
+
+  it("sends a built-in role by its kind on a project without roles", () => {
+    const html = field({ value: "inspector", roles: STAND_INS });
+    expect(radiosIn(html).map((radio) => radio.value)).toEqual(["admin", "lead", "inspector"]);
+    expect(html).toContain('<input type="hidden" name="role" value="inspector"/>');
+  });
+
+  it("names the group by its legend", () => {
+    expect(field()).toMatch(/<legend[^>]*id="f-role-legend"[^>]*>Role<\/legend>/);
+    expect(field()).toMatch(/role="radiogroup"[^>]*aria-labelledby="f-role-legend"/);
   });
 
   it("puts the role cards as far below their legend as every other field's control below its label", () => {
     // A fieldset's legend is no flex item: the FieldSet's gap never reaches it, so its own margin is the gap.
-    const html = renderToStaticMarkup(<RoleField id="f" value="inspector" onChange={() => {}} />);
-    const legend = /<legend data-slot="field-legend"[^>]*class="([^"]*)"/.exec(html)?.[1].split(" ");
+    const legend = /<legend data-slot="field-legend"[^>]*class="([^"]*)"/.exec(field())?.[1].split(" ");
     expect(legend).toContain("mb-3");
     expect(legend).not.toContain("mb-0");
     expect(legend).toContain("leading-snug");
   });
 
   it("puts a refusal about the role under the roles, as the group's description", () => {
-    const html = renderToStaticMarkup(<RoleField id="f" value="inspector" onChange={() => {}} error={NOBODY} />);
+    const html = field({ error: NOBODY });
     expect(html).toMatch(/<fieldset[^>]*aria-describedby="f-role-error"/);
     expect(html).toMatch(new RegExp(`id="f-role-error"[^>]*>${escape(NOBODY)}<`));
     expect(html).toContain('aria-invalid="true"');

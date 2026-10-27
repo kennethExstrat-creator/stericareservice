@@ -1,4 +1,4 @@
-import { TEAM_MESSAGES, type RoleChoice } from "@/lib/auth/org";
+import { needsLead, TEAM_MESSAGES, type RoleOption } from "@/lib/auth/org";
 import type { AccountStatus, LeadOption } from "@/lib/auth/users";
 
 /** What a row's menu needs to know about a person. */
@@ -13,9 +13,11 @@ export type UserActionsTarget = {
   /** Their phone number as saved, null when they have none: Edit Details starts from it too. */
   phone: string | null;
   email: string;
-  /** Inspector, lead inspector or admin. */
-  role: RoleChoice;
+  /** Their role: its name, and what its people see. */
+  role: RoleOption;
   status: AccountStatus;
+  /** False while their invite is unanswered: they have no password yet, whatever the status. */
+  joined: boolean;
   /** Active, but Supabase Auth still bans them (see UserListItem). */
   signInBlocked: boolean;
   isSelf: boolean;
@@ -89,8 +91,8 @@ export const DIALOG_TITLE: Readonly<Record<MenuAction | "leads-team" | "invite-l
  * change, new details included, would make it look like a deactivated one
  * (it counts as pending only while nothing has changed its profile,
  * accountStatus() in lib/auth/users.ts). With teams (migration
- * 20261007170000), inspectors who are not leads can be moved to another lead
- * inspector's team.
+ * 20261007170000), people whose role sees their own inspections can be moved
+ * to another lead inspector's team.
  *
  * Someone invited has no password to reset yet: their invite is resent, a
  * link copied to send by hand, or the invite cancelled, which removes the
@@ -103,7 +105,7 @@ export function menuGroups(
 ): MenuAction[][] {
   const access: MenuAction = user.signInBlocked ? "unblock" : "send-link";
   if (user.isSelf) return user.status === "active" ? [["edit-details", access]] : [];
-  const team: MenuAction[] = teams && user.role === "inspector" ? ["change-lead"] : [];
+  const team: MenuAction[] = teams && needsLead(user.role.access) ? ["change-lead"] : [];
   switch (user.status) {
     case "active":
       return [["edit-details", "change-role", ...team, access], ["deactivate"]];
@@ -136,9 +138,10 @@ export function leadChoicesFor(
 }
 
 /**
- * Activating someone who would be an inspector in no team asks for their
- * role and lead first (an active inspector works in a lead's team).
+ * Activating someone whose role needs a lead and who is in no team asks for
+ * their role and lead first (an active person with such a role works in a
+ * lead's team).
  */
 export function activationNeedsPlacement(user: UserActionsTarget, teams: boolean): boolean {
-  return teams && user.role === "inspector" && user.lead === null;
+  return teams && needsLead(user.role.access) && user.lead === null;
 }

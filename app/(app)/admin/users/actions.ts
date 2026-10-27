@@ -3,8 +3,18 @@
 import { refresh } from "next/cache";
 import { unstable_rethrow } from "next/navigation";
 import type { z } from "zod";
-import { needsLead, placementFor, roleChoiceOf, TEAM_MESSAGES, type Placement, type RoleChoice } from "@/lib/auth/org";
-import { authorizeAction } from "@/lib/auth/session";
+import {
+  accessOf,
+  BUILT_IN_IN_WORDS,
+  needsLead,
+  placementFor,
+  roleChoiceOf,
+  standInRole,
+  TEAM_MESSAGES,
+  type Placement,
+  type RoleOption,
+} from "@/lib/auth/org";
+import { authorizeAction, type ActionAuth, type SessionUser } from "@/lib/auth/session";
 import {
   anotherLeadExists,
   checkLead,
@@ -14,6 +24,7 @@ import {
   teamOf,
   teamsReady,
   type ErrorLike,
+  type Person,
 } from "@/lib/auth/team";
 import {
   ActivateSchema,
@@ -31,6 +42,7 @@ import {
   describeLinkError,
   describeProfileError,
   findProfileByEmail,
+  findRole,
   firstFieldErrors,
   firstIssue,
   formFields,
@@ -43,6 +55,7 @@ import {
   isUntouched,
   isUserGone,
   linkWouldHelp,
+  type InviteDelivery,
   type UserField,
 } from "@/lib/auth/users";
 import { createAdminClient, isAdminClientConfigured } from "@/lib/supabase/admin";
@@ -51,25 +64,64 @@ import { createClient } from "@/lib/supabase/server";
 
 /*
  * User management actions for /admin/users. Server Actions are public HTTP
- * endpoints: each one checks the caller is an active admin, validates its
- * input with zod and re-reads what it needs. Profile changes go through the
+ * endpoints: each one checks that the caller may manage users, validates its
+ * input with zod and re-reads what it needs. Managing users is the built-in
+ * Admin role's alone (lib/auth/permissions.ts, ADMIN_ONLY): a custom role
+ * that sees every inspection is refused here as an inspector is, and the
+ * database refuses it too (is_full_admin). Profile changes go through the
  * admin's own client, so RLS and the profiles guards (which keep one active
- * admin and the lead inspector rules) check them again. Only Auth work
- * (invites, invite links, bans, deleting an unanswered invite, sign-in
- * details, the name Auth keeps) uses the secret key.
+ * person with the Admin role and the lead inspector rules) check them
+ * again. Only Auth work (invites, invite links, bans, deleting an unanswered
+ * invite, sign-in details, the name Auth keeps) uses the secret key.
  *
  * Joining by invitation (Kenneth, 27 October 2026): an invite names the
  * address and the role; the person gives their name, phone and password on
- * Account Creation, which sets profiles.joined_at. Until then the account is
+ * Account Creation, which sets profiles.joined_at. The invite goes by email,
+ * or as a link the admin sends by hand (Create Link: Supabase's built-in
+ * mailer only reaches the project's team). Until they join the account is
  * Invited: an admin can resend the invite, copy a link to send by hand, or
  * cancel it.
  *
- * Lead inspectors (lib/auth/org.ts): an inspector who is not a lead works in
- * an active lead inspector's team, so making someone an inspector, inviting
- * one or activating one asks for their lead; someone who leads a team stays a
- * lead until it has moved. On a project without migration 20261007170000 the
- * actions work with roles only, as before.
+ * Roles (migration 20261027150000): any role of public.roles, stored as
+ * profiles.role_id; the profiles guard gives role and is_lead its access.
+ * Lead inspectors (lib/auth/org.ts): someone whose role sees their own
+ * inspections works in an active lead inspector's team, so giving them such
+ * a role, inviting them or activating them asks for their lead, in the same
+ * write; any other role clears it there. Someone who leads a team keeps a
+ * role that sees their team's until it has moved. A project without roles
+ * offers the built-in ones, as before; one without migration 20261007170000
+ * works with the level only.
  */
+
+/** Who may call these actions: the built-in Admin role, which alone manages users. */
+const MANAGE_USERS = { permission: "users" } as const;
+
+/** PostgREST's answer for a function it does not have (PGRST202), or Postgres's own (42883). */
+function isMissingFunction(error: ErrorLike): boolean {
+  return error.code === "PGRST202" || error.code === "42883";
+}
+
+/**
+ * The caller, when they may manage users. authorizeAction() decides on the
+ * role the session read. Where the session could not read it (a passing
+ * fault), it stands in the built-in role for their level, and a custom role
+ * that sees every inspection is an admin at that level: the database is asked
+ * then (is_full_admin), before any of the work the secret key does, which row
+ * level security never checks. A project without roles has no such function:
+ * the level is the role there.
+ */
+async function authorize(): Promise<ActionAuth> {
+  const auth = await authorizeAction(MANAGE_USERS);
+  // A role the session read and that passed is the built-in Admin role: nothing more to ask.
+  if (!auth.ok || auth.user.grant) return auth;
+  const { data, error } = await (await createClient()).rpc("is_full_admin");
+  if (error && isMissingFunction(error)) return auth;
+  if (error) {
+    console.error("[admin/users] the Admin role could not be checked", error.code, error.message);
+    return { ok: false, error: "Your role could not be checked just now. Try again." };
+  }
+  return data === true ? auth : { ok: false, error: MESSAGES.notAllowed };
+}
 
 type FieldErrors = Partial<Record<UserField, string>>;
 
@@ -82,8 +134,9 @@ export type ActionResult =
     };
 
 /**
- * Copy Invite Link's answer: the link, which goes to the admin who asked and
- * nowhere else (never into a log), and what to say about it.
+ * An answer that may carry an invite link (Invite User by Create Link, Copy
+ * Invite Link): the link, which goes to the admin who asked and nowhere else
+ * (never into a log), and what to say about it.
  */
 export type InviteLinkResult = ActionResult | { status: "link"; link: string; message: string };
 
@@ -127,16 +180,46 @@ function emailTaken({ active, joined = true }: { active: boolean; joined?: boole
 }
 
 type Client = Awaited<ReturnType<typeof createClient>>;
+type AdminClient = ReturnType<typeof createAdminClient>;
 
-/** Where someone will work: the columns to store, and their lead's name. */
-type PlacementCheck =
-  | { ok: true; fields: Partial<Placement> & Pick<Placement, "role">; leadName: string | null }
-  | { ok: false; result: ActionResult };
+type RoleCheck = { ok: true; role: RoleOption } | { ok: false; result: ActionResult };
 
 /**
- * An inspector without a lead chosen: ask for one at the lead field, or, when
- * nobody can lead them (no active lead inspector, or only the person
- * themselves), say so at the role field, where the admin can choose
+ * The role a form chose (a role's id, or a built-in role's kind), read
+ * again: what it sees never comes from the request. A role deleted since the
+ * page loaded is refused at the Role field, where the admin chooses another.
+ */
+async function chosenRole(supabase: Client, value: string): Promise<RoleCheck> {
+  const found = await findRole(supabase, value);
+  if (found.ok) return found;
+  return { ok: false, result: fail(found.message, { role: found.message }) };
+}
+
+/** Someone's role, for the words of a message: read by its id, else the built-in role for their level. */
+async function roleOfPerson(supabase: Client, person: Person): Promise<RoleOption> {
+  const level = standInRole(roleChoiceOf({ role: person.role, isLead: person.is_lead }));
+  if (!person.role_id) return level;
+  const found = await findRole(supabase, person.role_id);
+  return found.ok ? found.role : level;
+}
+
+/**
+ * Whether a Change Role choice keeps the caller in the Admin role, as their
+ * own session tells without a read: the Admin role by its kind, or by the id
+ * of the role they have (only the Admin role gets here). Anything else would
+ * take it away from them.
+ */
+function keepsOwnRole(choice: string, user: SessionUser): boolean {
+  return choice === "admin" || (Boolean(user.grant?.id) && choice === user.grant?.id);
+}
+
+/** Where someone will work: the columns to store, and their lead's name. */
+type PlacementCheck = { ok: true; fields: Placement; leadName: string | null } | { ok: false; result: ActionResult };
+
+/**
+ * A role that needs a lead, without one chosen: ask for one at the lead
+ * field, or, when nobody can lead them (no active lead inspector, or only the
+ * person themselves), say so at the role field, where the admin can choose
  * otherwise. The lead picker is empty then, so asking it would lead nowhere.
  */
 async function askForLead(supabase: Client, userId: string | null): Promise<ActionResult> {
@@ -148,25 +231,27 @@ async function askForLead(supabase: Client, userId: string | null): Promise<Acti
 
 /**
  * The role an admin chose, checked against the team rules before anything
- * changes: an inspector needs an active lead inspector who is someone else.
- * Without the lead inspector columns (a project that has not run migration
- * 20261007170000) only the role is stored, as before lead inspectors.
+ * changes: a role that sees its own inspections needs an active lead
+ * inspector who is someone else; any other role leaves the team in the same
+ * write. Without the lead inspector columns (a project that has not run
+ * migration 20261007170000) only the level is stored, as before lead
+ * inspectors.
  */
 async function choosePlacement(
   supabase: Client,
-  choice: RoleChoice,
+  role: RoleOption,
   leadId: string | null,
   userId: string | null,
 ): Promise<PlacementCheck> {
   const teams = await teamsReady(supabase);
   if (teams.error) return { ok: false, result: fail(describeProfileError(teams.error)) };
   if (!teams.ready) {
-    if (choice === "lead") {
+    if (role.access === "team") {
       return { ok: false, result: fail(TEAM_MESSAGES.teamsMissing, { role: TEAM_MESSAGES.teamsMissing }) };
     }
-    return { ok: true, fields: { role: choice === "admin" ? "admin" : "inspector" }, leadName: null };
+    return { ok: true, fields: placementFor(role, null, false), leadName: null };
   }
-  if (!needsLead(choice)) return { ok: true, fields: placementFor(choice, null), leadName: null };
+  if (!needsLead(role.access)) return { ok: true, fields: placementFor(role, null), leadName: null };
   if (!leadId) return { ok: false, result: await askForLead(supabase, userId) };
 
   const lead = await checkLead(supabase, leadId, userId);
@@ -174,10 +259,13 @@ async function choosePlacement(
     if (lead.error) console.error("[admin/users] the lead inspector could not be read", lead.error);
     return { ok: false, result: fail(lead.message, { leadId: lead.message }) };
   }
-  return { ok: true, fields: placementFor("inspector", leadId), leadName: lead.name };
+  return { ok: true, fields: placementFor(role, leadId), leadName: lead.name };
 }
 
-/** Rule 5: someone who leads a team stays a lead inspector until it has moved. Null when their team is empty. */
+/**
+ * Rule 5: someone who leads a team keeps a role that sees their team's until
+ * it has moved. Null when their team is empty.
+ */
 async function refuseWhileLeading(supabase: Client, leadId: string, name: string): Promise<ActionResult | null> {
   const { members, error } = await teamOf(supabase, leadId);
   if (error) return fail(describeProfileError(error));
@@ -185,48 +273,107 @@ async function refuseWhileLeading(supabase: Client, leadId: string, name: string
   return fail(TEAM_MESSAGES.leadsTeam(name, members.map((member) => member.name)));
 }
 
-function placedMessage(name: string, choice: RoleChoice, leadName: string | null): string {
-  switch (choice) {
-    case "admin":
-      return `${name} is now an admin.`;
-    case "lead":
-      return `${name} is now a lead inspector.`;
-    case "inspector":
-      return leadName ? `${name} is now an inspector in ${leadName}'s team.` : `${name} is now an inspector.`;
-  }
+/**
+ * What Change Role did: the built-in roles as the app has always said them
+ * ("Olga Other is now an inspector in Lina Lead's team."), a custom role by
+ * its name ("Olga Other's role is now QA Reviewer.").
+ */
+function placedMessage(name: string, role: RoleOption, leadName: string | null): string {
+  if (role.builtIn) return `${name} is now ${BUILT_IN_IN_WORDS[role.builtIn]}${leadName ? ` in ${leadName}'s team` : ""}.`;
+  return `${name}'s role is now ${role.name}${leadName ? `, in ${leadName}'s team` : ""}.`;
 }
 
 /** The second sentence after an activation that placed someone. */
-function activatedAs(choice: RoleChoice, leadName: string | null): string {
-  switch (choice) {
-    case "admin":
-      return "They are an admin.";
-    case "lead":
-      return "They are a lead inspector.";
-    case "inspector":
-      return leadName ? `They work in ${leadName}'s team.` : "They are an inspector.";
-  }
+function activatedAs(role: RoleOption, leadName: string | null): string {
+  if (role.builtIn === "inspector" && leadName) return `They work in ${leadName}'s team.`;
+  if (role.builtIn) return `They are ${BUILT_IN_IN_WORDS[role.builtIn]}.`;
+  return `Their role is ${role.name}${leadName ? `, in ${leadName}'s team` : ""}.`;
+}
+
+/** After an invite email Supabase did not send: a link the admin sends by hand gets round the mailer. */
+const CREATE_LINK_INSTEAD = " Or choose Create Link and send them the link yourself.";
+
+/** An invitation made in Supabase Auth: the account it made (or found unanswered), and the link Create Link hands out. */
+type InviteMade = { ok: true; userId: string; link: string | null } | { ok: false; result: ActionResult };
+
+/** Send Email: Supabase makes the account and emails the invite, its link landing on /auth/confirm. */
+async function emailInvite(admin: AdminClient, email: string): Promise<InviteMade> {
+  const { data, error } = await admin.auth.admin.inviteUserByEmail(email, { redirectTo: authConfirmUrl() });
+  if (!error) return { ok: true, userId: data.user.id, link: null };
+  if (isEmailTaken(error)) return { ok: false, result: emailTaken({ active: true }) };
+  console.error("[admin/users] invite refused", error.code, error.message);
+  const message = describeEmailError(error, "invite");
+  // A refused address belongs next to the field the admin typed it in.
+  if (isEmailRejected(error)) return { ok: false, result: fail(message, { email: message }) };
+  return { ok: false, result: fail(message + (linkWouldHelp(error) ? CREATE_LINK_INSTEAD : "")) };
 }
 
 /**
- * Invites someone by email and activates the account the invite creates, in
- * the role (and team) chosen. No name: they give their name, phone and
- * password on Account Creation, from the link in the email; until then the
+ * Create Link: the same invitation without an email
+ * (auth.admin.generateLink, with the secret key, which makes the account as
+ * an invite does), its link built on /auth/confirm (inviteLinkUrl), never
+ * Supabase's action_link. The link signs its holder in as the invitee, so it
+ * goes back to the admin who asked and nowhere else, never into a log.
+ */
+async function linkInvite(admin: AdminClient, email: string): Promise<InviteMade> {
+  const { data, error } = await admin.auth.admin.generateLink({ type: "invite", email });
+  if (error) {
+    if (isEmailTaken(error)) return { ok: false, result: emailTaken({ active: true }) };
+    console.error("[admin/users] invite link refused", error.code, error.message);
+    const message = describeLinkError(error);
+    return { ok: false, result: isEmailRejected(error) ? fail(message, { email: message }) : fail(message) };
+  }
+  const link = inviteLinkUrl(data.properties);
+  // The account is made either way; a link of another kind is not handed out (the warning says what to do).
+  if (!link) console.error("[admin/users] Supabase answered an invite link of another kind", data.properties.verification_type);
+  return { ok: true, userId: data.user.id, link };
+}
+
+/**
+ * After an invite whose account could not be activated. The profile stays as
+ * sign-up made it, so the list shows it as pending, by its email; Activate
+ * lets it in, and a role other than Inspector is given there or after.
+ */
+function notActivated(email: string, role: RoleOption, delivery: InviteDelivery): string {
+  const then =
+    role.builtIn === "inspector"
+      ? ""
+      : role.builtIn
+        ? `, then make them ${BUILT_IN_IN_WORDS[role.builtIn]}`
+        : `, then give them the ${role.name} role`;
+  return delivery === "email"
+    ? `Invite sent to ${email}, but the account could not be activated. Choose Activate next to ${email}${then}.`
+    : `The account for ${email} was made, but it could not be activated, so a link would not let them in. Choose Activate next to ${email}${then}, then Copy Invite Link.`;
+}
+
+/** What the invite dialog says over a link it made. */
+function linkMade(email: string, team: string): string {
+  return `Nothing was emailed: send this link to ${email} yourself, by WhatsApp or any chat. From it they create their account: name, phone and password. It works once, within an hour; for a new one, choose Copy Invite Link next to their email.${team}`;
+}
+
+/**
+ * Invites someone and activates the account the invite creates, in the role
+ * (and team) chosen: by email (Send Email), or with a link the admin sends by
+ * hand (Create Link), which the answer carries. No name: they give their
+ * name, phone and password on Account Creation, from the link; until then the
  * list names them by their email.
  */
-export async function inviteUser(_previous: ActionResult, formData: FormData): Promise<ActionResult> {
-  return guarded("inviteUser", async () => {
-    const auth = await authorizeAction("admin");
+export async function inviteUser(_previous: InviteLinkResult, formData: FormData): Promise<InviteLinkResult> {
+  return guarded<InviteLinkResult>("inviteUser", async () => {
+    const auth = await authorize();
     if (!auth.ok) return fail(auth.error);
 
-    const parsed = InviteUserSchema.safeParse(formFields(formData, ["email", "role", "leadId"]));
+    const parsed = InviteUserSchema.safeParse(formFields(formData, ["email", "role", "leadId", "delivery"]));
     if (!parsed.success) return fail("Check the highlighted fields.", firstFieldErrors(parsed.error) as FieldErrors);
-    const { email, role, leadId } = parsed.data;
+    const { email, role: choice, leadId, delivery } = parsed.data;
 
     if (!isAdminClientConfigured()) return fail(MESSAGES.missingSecretKey);
 
-    // Where they will work, settled before any email goes out.
+    // Their role and where they will work, settled before any email goes out or any link is made.
     const supabase = await createClient();
+    const chosen = await chosenRole(supabase, choice);
+    if (!chosen.ok) return chosen.result;
+    const { role } = chosen;
     const placement = await choosePlacement(supabase, role, leadId ?? null, null);
     if (!placement.ok) return placement.result;
 
@@ -236,24 +383,18 @@ export async function inviteUser(_previous: ActionResult, formData: FormData): P
     if (existing) return emailTaken(existing);
 
     const admin = createAdminClient();
-    const { data, error } = await admin.auth.admin.inviteUserByEmail(email, { redirectTo: authConfirmUrl() });
-    if (error) {
-      if (isEmailTaken(error)) return emailTaken({ active: true });
-      console.error("[admin/users] invite refused", error.code, error.message);
-      const message = describeEmailError(error, "invite");
-      // A refused address belongs next to the field the admin typed it in.
-      return isEmailRejected(error) ? fail(message, { email: message }) : fail(message);
-    }
+    const made = delivery === "link" ? await linkInvite(admin, email) : await emailInvite(admin, email);
+    if (!made.ok) return made.result;
 
     // New accounts start inactive (a safety net should public sign-up ever be
     // switched on). The invite is the admin's decision, so it activates the
     // account it created. Supabase answers an invite to an address that has
-    // an unconfirmed account by sending it again, so only a profile nobody has
-    // handled yet is changed: one an admin deactivated stays deactivated.
+    // an unconfirmed account by inviting it again, so only a profile nobody
+    // has handled yet is changed: one an admin deactivated stays deactivated.
     const { data: created, error: readError } = await admin
       .from("profiles")
       .select("id, active, created_at, updated_at")
-      .eq("id", data.user.id)
+      .eq("id", made.userId)
       .maybeSingle();
     if (created && !readError && !isUntouched(created)) return emailTaken({ active: created.active });
 
@@ -266,18 +407,25 @@ export async function inviteUser(_previous: ActionResult, formData: FormData): P
           .eq("updated_at", created.updated_at)
           .select("id")
       : { data: null, error: readError };
-    refresh();
     if (activationError || !activated?.length) {
-      console.error("[admin/users] invite sent but the profile was not activated", activationError);
-      // The profile stays as sign-up made it, so the list shows it as pending, by its email.
-      const next =
-        role === "inspector"
-          ? `Choose Activate next to ${email}.`
-          : `Choose Activate next to ${email}, then make them ${role === "admin" ? "an admin" : "a lead inspector"}.`;
-      return warn(`Invite sent to ${email}, but the account could not be activated. ${next}`);
+      console.error("[admin/users] invite made but the profile was not activated", activationError);
+      refresh();
+      return warn(notActivated(email, role, delivery));
     }
+
     const team = placement.leadName ? ` They work in ${placement.leadName}'s team.` : "";
-    return ok(`Invite sent to ${email}. From the link in it they create their account: name, phone and password.${team}`);
+    if (delivery === "email") {
+      refresh();
+      return ok(`Invite sent to ${email}. From the link in it they create their account: name, phone and password.${team}`);
+    }
+    if (!made.link) {
+      refresh();
+      return warn(`${email} is invited, but Supabase answered a link of another kind. Choose Copy Invite Link next to ${email} for one.`);
+    }
+    // No refresh() here: the dialog that shows the link may be Only You So
+    // Far's, which the new row takes off the page, link and all. The dialog
+    // refreshes the list when it closes.
+    return { status: "link", link: made.link, message: linkMade(email, team) };
   });
 }
 
@@ -329,7 +477,7 @@ function detailsSaved(
  */
 export async function editUserDetails(_previous: ActionResult, formData: FormData): Promise<ActionResult> {
   return guarded("editUserDetails", async () => {
-    const auth = await authorizeAction("admin");
+    const auth = await authorize();
     if (!auth.ok) return fail(auth.error);
 
     const parsed = UserDetailsSchema.safeParse(formFields(formData, ["userId", "fullName", "phone"]));
@@ -379,16 +527,20 @@ export async function editUserDetails(_previous: ActionResult, formData: FormDat
   });
 }
 
-/** Makes someone an inspector in a lead's team, a lead inspector or an admin. Admins cannot demote themselves. */
+/**
+ * Gives someone a role (public.roles), with their lead inspector when the
+ * role needs one, or out of their team when it does not. Nobody leaves the
+ * Admin role by their own hand.
+ */
 export async function changeRole(_previous: ActionResult, formData: FormData): Promise<ActionResult> {
   return guarded("changeRole", async () => {
-    const auth = await authorizeAction("admin");
+    const auth = await authorize();
     if (!auth.ok) return fail(auth.error);
 
     const parsed = ChangeRoleSchema.safeParse(formFields(formData, ["userId", "role", "leadId"]));
     if (!parsed.success) return invalid(parsed.error);
-    const { userId, role, leadId } = parsed.data;
-    if (userId === auth.user.id && role !== "admin") return fail(MESSAGES.selfDemote);
+    const { userId, role: choice, leadId } = parsed.data;
+    if (userId === auth.user.id && !keepsOwnRole(choice, auth.user)) return fail(MESSAGES.selfDemote);
 
     const supabase = await createClient();
     const target = await readPerson(supabase, userId);
@@ -396,9 +548,12 @@ export async function changeRole(_previous: ActionResult, formData: FormData): P
     if (!target.person) return fail(MESSAGES.userNotFound);
     const name = personName(target.person);
 
+    const chosen = await chosenRole(supabase, choice);
+    if (!chosen.ok) return chosen.result;
+    const { role } = chosen;
     const placement = await choosePlacement(supabase, role, leadId ?? null, userId);
     if (!placement.ok) return placement.result;
-    if (target.teams && target.person.is_lead && role !== "lead") {
+    if (target.teams && target.person.is_lead && role.access !== "team") {
       const refusal = await refuseWhileLeading(supabase, userId, name);
       if (refusal) return refusal;
     }
@@ -417,10 +572,10 @@ export async function changeRole(_previous: ActionResult, formData: FormData): P
   });
 }
 
-/** Moves an inspector to another lead inspector's team. */
+/** Moves someone whose role sees their own inspections to another lead inspector's team. */
 export async function assignLead(_previous: ActionResult, formData: FormData): Promise<ActionResult> {
   return guarded("assignLead", async () => {
-    const auth = await authorizeAction("admin");
+    const auth = await authorize();
     if (!auth.ok) return fail(auth.error);
 
     const parsed = AssignLeadSchema.safeParse(formFields(formData, ["userId", "leadId"]));
@@ -433,8 +588,9 @@ export async function assignLead(_previous: ActionResult, formData: FormData): P
     if (!target.person) return fail(MESSAGES.userNotFound);
     if (!target.teams) return fail(TEAM_MESSAGES.teamsMissing);
     const name = personName(target.person);
-    const choice = roleChoiceOf({ role: target.person.role, isLead: target.person.is_lead });
-    if (choice !== "inspector") return fail(TEAM_MESSAGES.inNoTeam(name, choice));
+    if (accessOf({ role: target.person.role, isLead: target.person.is_lead }) !== "own") {
+      return fail(TEAM_MESSAGES.inNoTeam(name, await roleOfPerson(supabase, target.person)));
+    }
 
     const lead = await checkLead(supabase, leadId, userId);
     if (!lead.ok) {
@@ -459,7 +615,7 @@ export async function assignLead(_previous: ActionResult, formData: FormData): P
 /** Blocks someone: no data (RLS) and no new sessions (an Auth ban). A lead inspector's team moves first. */
 export async function deactivateUser(_previous: ActionResult, formData: FormData): Promise<ActionResult> {
   return guarded("deactivateUser", async () => {
-    const auth = await authorizeAction("admin");
+    const auth = await authorize();
     if (!auth.ok) return fail(auth.error);
 
     const parsed = UserTargetSchema.safeParse(formFields(formData, ["userId"]));
@@ -508,18 +664,19 @@ export async function deactivateUser(_previous: ActionResult, formData: FormData
 }
 
 /**
- * Lets someone back in, or activates an account that was never active. An
- * inspector who is in no team gets their role and lead here first (rule 6):
- * the dialog asks for them.
+ * Lets someone back in, or activates an account that was never active.
+ * Someone whose role needs a lead and who is in no team gets their role and
+ * lead here first (rule 6): the dialog asks for them, starting from the role
+ * they have.
  */
 export async function reactivateUser(_previous: ActionResult, formData: FormData): Promise<ActionResult> {
   return guarded("reactivateUser", async () => {
-    const auth = await authorizeAction("admin");
+    const auth = await authorize();
     if (!auth.ok) return fail(auth.error);
 
     const parsed = ActivateSchema.safeParse(formFields(formData, ["userId", "role", "leadId"]));
     if (!parsed.success) return invalid(parsed.error);
-    const { userId, role, leadId } = parsed.data;
+    const { userId, role: choice, leadId } = parsed.data;
 
     const supabase = await createClient();
     const target = await readPerson(supabase, userId);
@@ -527,23 +684,22 @@ export async function reactivateUser(_previous: ActionResult, formData: FormData
     if (!target.person) return fail(MESSAGES.userNotFound);
     const current = target.person;
     const name = personName(current);
+    const level = { role: current.role, isLead: current.is_lead };
 
     // Settled before the ban is lifted, so a refusal changes nothing.
     let fields: TablesUpdate<"profiles"> = { active: true };
     let placed = "";
     // Only an account being let in: lifting a sign-in block leaves an active
     // inspector from before teams as they are (rule 6 binds changes only).
-    const inNoTeam =
-      target.teams &&
-      !current.active &&
-      roleChoiceOf({ role: current.role, isLead: current.is_lead }) === "inspector" &&
-      !current.lead_id;
+    const inNoTeam = target.teams && !current.active && accessOf(level) === "own" && !current.lead_id;
     if (inNoTeam) {
-      const choice = role ?? "inspector";
-      const placement = await choosePlacement(supabase, choice, leadId ?? null, userId);
+      // The role the dialog chose, else the one they have.
+      const chosen = await chosenRole(supabase, choice ?? current.role_id ?? roleChoiceOf(level));
+      if (!chosen.ok) return chosen.result;
+      const placement = await choosePlacement(supabase, chosen.role, leadId ?? null, userId);
       if (!placement.ok) return placement.result;
       fields = { ...placement.fields, active: true };
-      placed = ` ${activatedAs(choice, placement.leadName)}`;
+      placed = ` ${activatedAs(chosen.role, placement.leadName)}`;
     }
 
     const canLiftBan = isAdminClientConfigured();
@@ -602,7 +758,7 @@ export async function reactivateUser(_previous: ActionResult, formData: FormData
 /** Emails a link to choose a new password: for a lost invite or a forgotten password. */
 export async function sendPasswordLink(_previous: ActionResult, formData: FormData): Promise<ActionResult> {
   return guarded("sendPasswordLink", async () => {
-    const auth = await authorizeAction("admin");
+    const auth = await authorize();
     if (!auth.ok) return fail(auth.error);
 
     const parsed = UserTargetSchema.safeParse(formFields(formData, ["userId"]));
@@ -674,8 +830,6 @@ const joinedForLinks = (name: string) =>
 const inactiveForLinks = (name: string) =>
   `${name}'s account is not active, so a link would not let them in. Choose Activate or Reactivate next to their name first.`;
 
-type AdminClient = ReturnType<typeof createAdminClient>;
-
 type SignInRead = { ok: true; email: string; opened: boolean } | { ok: false; result: ActionResult };
 
 /**
@@ -712,7 +866,7 @@ const COPY_INSTEAD = " Or choose Copy Invite Link and send them the link yoursel
  */
 export async function resendInvite(_previous: ActionResult, formData: FormData): Promise<ActionResult> {
   return guarded("resendInvite", async () => {
-    const auth = await authorizeAction("admin");
+    const auth = await authorize();
     if (!auth.ok) return fail(auth.error);
 
     const parsed = UserTargetSchema.safeParse(formFields(formData, ["userId"]));
@@ -764,7 +918,7 @@ export async function resendInvite(_previous: ActionResult, formData: FormData):
  */
 export async function createInviteLink(_previous: InviteLinkResult, formData: FormData): Promise<InviteLinkResult> {
   return guarded<InviteLinkResult>("createInviteLink", async () => {
-    const auth = await authorizeAction("admin");
+    const auth = await authorize();
     if (!auth.ok) return fail(auth.error);
 
     const parsed = UserTargetSchema.safeParse(formFields(formData, ["userId"]));
@@ -823,7 +977,7 @@ export async function createInviteLink(_previous: InviteLinkResult, formData: Fo
  */
 export async function cancelInvite(_previous: ActionResult, formData: FormData): Promise<ActionResult> {
   return guarded("cancelInvite", async () => {
-    const auth = await authorizeAction("admin");
+    const auth = await authorize();
     if (!auth.ok) return fail(auth.error);
 
     const parsed = UserTargetSchema.safeParse(formFields(formData, ["userId"]));

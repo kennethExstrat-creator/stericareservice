@@ -124,6 +124,17 @@ export async function profileByEmail(email: string) {
   return data;
 }
 
+/** A profile's role (public.roles) and lead, as the database holds them. */
+export async function roleOf(id: string) {
+  const { data, error } = await createTestAdminClient()
+    .from("profiles")
+    .select("role, is_lead, lead_id, role_id")
+    .eq("id", id)
+    .single();
+  if (error) throw new Error(`Could not read the role of ${id}: ${error.message}`);
+  return data;
+}
+
 /** True while Supabase Auth bans the account (deactivation). */
 export async function isBanned(id: string): Promise<boolean> {
   const { data, error } = await createTestAdminClient().auth.admin.getUserById(id);
@@ -236,9 +247,15 @@ export async function uidsReady(): Promise<boolean> {
   throw new Error(`Could not tell whether the project has UIDs: ${error.message}`);
 }
 
-/** Picks a role in a role dialog: Inspector, Lead Inspector or Admin. */
-export async function pickRole(dialog: Locator, role: "Inspector" | "Lead Inspector" | "Admin"): Promise<void> {
-  await dialog.getByRole("radio", { name: new RegExp(`^${role}\\b`) }).click();
+/** The Role radios of the Invite, Change Role and Activate dialogs (the Invite dialog has How to Invite's too). */
+export const roleGroup = (dialog: Locator): Locator => dialog.getByRole("radiogroup", { name: "Role", exact: true });
+
+/** One role in a role dialog, by its name: Admin, Lead Inspector, Inspector, or a custom role's. */
+export const roleRadio = (dialog: Locator, role: string): Locator => roleGroup(dialog).getByRole("radio", { name: role, exact: true });
+
+/** Picks a role in a role dialog by its name. */
+export async function pickRole(dialog: Locator, role: string): Promise<void> {
+  await roleRadio(dialog, role).click();
 }
 
 /** Picks a lead inspector in a dialog's Lead Inspector picker. */
@@ -279,11 +296,66 @@ export async function chromeNames(scope: Locator, role: string): Promise<ChromeN
   }
 }
 
-/** The role radios of the Invite, Change Role and Activate dialogs, as Chrome names them. */
-export function roleRadios(teams: boolean): ChromeName[] {
+/** The built-in roles as the role pickers offer them, first, as Chrome names them: each says what it sees. */
+export function builtInRoleRadios(teams: boolean): ChromeName[] {
   return [
-    { name: "Inspector", description: "Records inspections and sees their own." },
-    ...(teams ? [{ name: "Lead Inspector", description: "Also sees their team's inspections, read-only." }] : []),
-    { name: "Admin", description: "Manages users and templates, and approves inspections." },
+    { name: "Admin", description: "Sees All Inspections" },
+    ...(teams ? [{ name: "Lead Inspector", description: "Sees Team Inspections" }] : []),
+    { name: "Inspector", description: "Sees Own Inspections" },
   ];
+}
+
+/**
+ * The Role radios of a dialog, as a screen reader hears them in Chrome's own
+ * tree: the built-in roles first, then any custom roles the project has
+ * (other specs add some while they run), each saying what it sees.
+ */
+export async function expectRoleRadios(dialog: Locator, teams: boolean): Promise<void> {
+  const radios = await chromeNames(roleGroup(dialog), "radio");
+  const builtIns = builtInRoleRadios(teams);
+  expect(radios.slice(0, builtIns.length)).toEqual(builtIns);
+  for (const radio of radios) expect(radio.description, radio.name).toMatch(/^Sees (?:Own|Team|All) Inspections$/);
+}
+
+/** Custom roles these specs make, so the sweep finds a crashed run's too. */
+const ROLE_PREFIX = "E2E_USERS";
+
+/**
+ * A throwaway custom role (public.roles) that sees `access`, with no
+ * switches on, made with the secret key. Give it to throwaway accounts only;
+ * delete them first, then the role (deleteRole): a role someone has is kept.
+ */
+export async function createThrowawayRole(access: "own" | "team" | "all"): Promise<{ id: string; name: string }> {
+  const name = `${ROLE_PREFIX} ${access} ${randomUUID().slice(0, 6)}`;
+  const { data, error } = await createTestAdminClient().from("roles").insert({ name, access, permissions: [] }).select("id, name").single();
+  if (error) throw new Error(`Could not make the role ${name}: ${error.message}`);
+  return data;
+}
+
+export async function deleteRole(id: string): Promise<void> {
+  const { error } = await createTestAdminClient().from("roles").delete().eq("id", id);
+  if (error) throw new Error(`Could not delete the throwaway role ${id}: ${error.message}`);
+}
+
+/** Removes the custom roles these specs made that nobody has any more (a crashed run's, after its accounts went). */
+export async function sweepThrowawayRoles(): Promise<void> {
+  const admin = createTestAdminClient();
+  const { data, error } = await admin.from("roles").select("id").like("name", `${ROLE_PREFIX}%`).is("built_in", null);
+  if (error?.code === "PGRST205" || error?.code === "42P01") return; // A project without roles.
+  if (error) throw new Error(`Could not list the throwaway roles: ${error.message}`);
+  for (const { id } of data) {
+    const { error: deleteError } = await admin.from("roles").delete().eq("id", id);
+    // 23001/23503: someone still has it (another run in progress); that run deletes it.
+    if (deleteError && deleteError.code !== "23001" && deleteError.code !== "23503") {
+      throw new Error(`Could not delete the throwaway role ${id}: ${deleteError.message}`);
+    }
+  }
+}
+
+/** True when the project has roles (migration 20261027150000). */
+export async function rolesReady(): Promise<boolean> {
+  const { error } = await createTestAdminClient().from("roles").select("id").limit(1);
+  if (!error) return true;
+  if (error.code === "PGRST205" || error.code === "42P01") return false;
+  throw new Error(`Could not tell whether the project has roles: ${error.message}`);
 }

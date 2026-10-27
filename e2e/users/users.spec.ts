@@ -2,17 +2,22 @@ import { expect, test } from "@playwright/test";
 import { signIn, TEST_ACCOUNTS } from "../support/session";
 import {
   chooseRowAction,
-  chromeNames,
   createThrowaway,
+  createThrowawayRole,
   deleteAccount,
   deleteAccountsWithEmail,
+  deleteRole,
   detailsOf,
+  expectRoleRadios,
   profileByEmail,
   profileOf,
+  roleOf,
+  roleRadio,
+  rolesReady,
   rowFor,
-  roleRadios,
   shot,
   statusOf,
+  sweepThrowawayRoles,
   sweepThrowaways,
   pickRole,
   teamsReady,
@@ -26,9 +31,11 @@ import {
 // invitations not yet answered in invites.spec.ts; lead inspectors and their
 // teams in e2e/org. Every spec here runs on a project with or without lead
 // inspectors (migration 20261007170000): without, the screen sets roles only.
+// Custom roles (migration 20261027150000) are made for one spec and deleted.
 
 test.afterAll(async () => {
   await sweepThrowaways();
+  await sweepThrowawayRoles();
 });
 
 test("signed out, /admin/users sends you to sign in and back", async ({ page }) => {
@@ -143,22 +150,34 @@ test("the invite dialog explains every problem in place", async ({ page, context
   await page.getByRole("button", { name: "Invite User", exact: true }).click();
   const dialog = page.getByRole("dialog", { name: "Invite a User", exact: true });
   await expect(dialog).toBeVisible();
-  await expect(dialog.getByRole("radio", { name: /^Inspector\b/ })).toBeChecked();
+  // Inspector to start with: the least anyone is given.
+  await expect(roleRadio(dialog, "Inspector")).toBeChecked();
   const teams = await teamsReady();
   if (teams) {
-    // Inspector, Lead Inspector or Admin; an inspector's lead is asked for.
-    await expect(dialog.getByRole("radio", { name: /^Lead Inspector\b/ })).toBeVisible();
+    // An inspector's lead is asked for.
+    await expect(roleRadio(dialog, "Lead Inspector")).toBeVisible();
     await expect(dialog.getByRole("combobox", { name: "Lead Inspector" })).toBeVisible();
   }
-  // Each role named and described as a screen reader hears it, in Chrome's own tree: getByRole above
-  // finds the names even where Chrome has none.
-  expect(await chromeNames(dialog, "radio")).toEqual(roleRadios(teams));
+  // Each role named and described as a screen reader hears it, in Chrome's own tree (getByRole finds the
+  // names even where Chrome has none): the built-in roles first, then any custom roles.
+  await expectRoleRadios(dialog, teams);
+  // Send Email, as before, or Create Link, a link to send by hand; the button says which.
+  await expect(dialog.getByRole("radio", { name: "Send Email", exact: true })).toBeChecked();
+  await expect(dialog.getByRole("radio", { name: "Create Link", exact: true })).not.toBeChecked();
   await shot(page, "invite-dialog");
 
   // The address and the role only: the invitee gives their own name, phone and password on Account Creation.
   await expect(dialog.getByRole("textbox")).toHaveCount(1);
   await expect(dialog.getByLabel("Full Name")).toHaveCount(0);
-  await expect(dialog).toContainText("They get an email with a link to create their account: their name, phone and password.");
+  await expect(dialog).toContainText("They create their account from a link: their name, phone and password.");
+
+  await test.step("Create Link names the button for it, and Send Email back again", async () => {
+    await dialog.getByRole("radio", { name: "Create Link", exact: true }).click();
+    await expect(dialog.getByRole("button", { name: "Create Link", exact: true })).toBeVisible();
+    await expect(dialog.getByRole("button", { name: "Send Invite", exact: true })).toHaveCount(0);
+    await dialog.getByRole("radio", { name: "Send Email", exact: true }).click();
+    await expect(dialog.getByRole("button", { name: "Send Invite", exact: true })).toBeVisible();
+  });
 
   await test.step("an empty form marks the email", async () => {
     await dialog.getByRole("button", { name: "Send Invite", exact: true }).click();
@@ -179,8 +198,8 @@ test("the invite dialog explains every problem in place", async ({ page, context
     await dialog.getByRole("button", { name: "Send Invite", exact: true }).click();
     await expect(dialog.getByText(/That email already has an account/)).toBeVisible();
     await expect(dialog.getByLabel("Email", { exact: true })).toHaveValue(TEST_ACCOUNTS.inspector.toUpperCase());
-    await expect(dialog.getByRole("radio", { name: /^Admin\b/ })).toBeChecked();
-    await expect(dialog.getByRole("radio", { name: /^Inspector\b/ })).not.toBeChecked();
+    await expect(roleRadio(dialog, "Admin")).toBeChecked();
+    await expect(roleRadio(dialog, "Inspector")).not.toBeChecked();
     await shot(page, "invite-existing");
   });
 
@@ -307,5 +326,58 @@ test("a new account starts as pending activation, and Activate lets it in", asyn
     });
   } finally {
     await deleteAccount(person.id);
+  }
+});
+
+test("a custom role that sees every inspection: given in Change Role, named in the list, and still a 404 on /admin/users", async ({
+  page,
+  context,
+  baseURL,
+  browser,
+}) => {
+  test.skip(!(await rolesReady()), "Needs supabase/migrations/20261027150000_roles_and_permissions.sql on the project");
+  // One account and one role, on one project: desktop only.
+  test.skip(test.info().project.name !== "desktop", "Changes a throwaway account's role: desktop only");
+  test.setTimeout(90_000);
+  const role = await createThrowawayRole("all");
+  const person = await createThrowaway("E2E Custom Role Person");
+  try {
+    await signIn(context, baseURL!, TEST_ACCOUNTS.admin);
+    await page.goto("/admin/users");
+    const row = rowFor(page, person.email);
+
+    await test.step("Change Role offers it after the built-in roles, saying what it sees, and gives it", async () => {
+      const dialog = await chooseRowAction(page, row, "Change Role");
+      await expectRoleRadios(dialog, await teamsReady());
+      await expect(roleRadio(dialog, role.name)).toHaveAccessibleDescription("Sees All Inspections");
+      await pickRole(dialog, role.name);
+      // Every inspection in sight: no lead to choose.
+      await expect(dialog.getByRole("combobox", { name: "Lead Inspector" })).toHaveCount(0);
+      await shot(page, "custom-role");
+      await dialog.getByRole("button", { name: "Save Role", exact: true }).click();
+      await expect(toast(page, `${person.fullName}'s role is now ${role.name}.`)).toBeVisible();
+      await expect(dialog).toBeHidden();
+      await expect(row.locator('[data-slot="role"]')).toHaveText(role.name);
+      // The role's id, and in no team: the database gives the level its access.
+      expect(await roleOf(person.id)).toMatchObject({ role_id: role.id, role: "admin", is_lead: false, lead_id: null });
+    });
+
+    await test.step("they see every inspection, but never the Users page: that is the Admin role's alone", async () => {
+      const theirs = await browser.newContext({ baseURL });
+      try {
+        await signIn(theirs, baseURL!, person.email, person.password, { fresh: true });
+        const theirPage = await theirs.newPage();
+        const response = await theirPage.goto("/admin/users");
+        expect(response?.status()).toBe(404);
+        await expect(theirPage.getByRole("heading", { name: "Users", level: 1 })).toHaveCount(0);
+        expect(await response?.text()).not.toContain("Users · SteriCare QC");
+      } finally {
+        await theirs.close();
+      }
+    });
+  } finally {
+    // The account first: a role someone has is kept.
+    await deleteAccount(person.id);
+    await deleteRole(role.id);
   }
 });

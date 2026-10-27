@@ -10,7 +10,9 @@ import { canLead, isLeadInspector, TEAM_MESSAGES } from "./org";
  *
  * Until a project has run migration 20261007170000 the columns are missing;
  * these reads say so (`teams: false`) instead of failing, so the Users
- * screen keeps working as it did and explains what is needed.
+ * screen keeps working as it did and explains what is needed. Before
+ * migration 20261027150000 nobody has a role_id: everyone is the built-in
+ * role for their level.
  */
 
 type Client = SupabaseClient<Database>;
@@ -26,7 +28,13 @@ export function isMissingTeamColumn(error: ErrorLike | null | undefined): boolea
   return (error.code === "42703" || error.code === "PGRST204") && /is_lead|lead_id/.test(error.message ?? "");
 }
 
-/** Someone's account and place in the teams. */
+/** The database has no profiles.role_id yet (migration 20261027150000): the same answers as above. */
+export function isMissingRoleColumn(error: ErrorLike | null | undefined): boolean {
+  if (!error) return false;
+  return (error.code === "42703" || error.code === "PGRST204") && /role_id/.test(error.message ?? "");
+}
+
+/** Someone's account, role and place in the teams. */
 export type Person = {
   id: string;
   email: string | null;
@@ -35,6 +43,8 @@ export type Person = {
   active: boolean;
   is_lead: boolean;
   lead_id: string | null;
+  /** Their role (public.roles); null on a project without roles. */
+  role_id: string | null;
 };
 
 export type PersonRead = {
@@ -44,19 +54,39 @@ export type PersonRead = {
   error: ErrorLike | null;
 };
 
-/** One person, with their place in the teams when the database has them. */
+/**
+ * One person, with their role and their place in the teams as far as the
+ * database has them. A project without a migration answers 42703 for the
+ * first missing column it meets: read again without it, as the user list
+ * does. The migrations run in order, so without lead inspectors there are no
+ * roles either.
+ */
 export async function readPerson(supabase: Client, id: string): Promise<PersonRead> {
   const found = await supabase
     .from("profiles")
-    .select("id, email, full_name, role, active, is_lead, lead_id")
+    .select("id, email, full_name, role, active, is_lead, lead_id, role_id")
     .eq("id", id)
     .maybeSingle();
-  if (!isMissingTeamColumn(found.error)) return { teams: true, person: found.data, error: found.error };
+  if (!isMissingRoleColumn(found.error) && !isMissingTeamColumn(found.error)) {
+    return { teams: true, person: found.data, error: found.error };
+  }
+
+  if (isMissingRoleColumn(found.error)) {
+    const withoutRoles = await supabase
+      .from("profiles")
+      .select("id, email, full_name, role, active, is_lead, lead_id")
+      .eq("id", id)
+      .maybeSingle();
+    if (!isMissingTeamColumn(withoutRoles.error)) {
+      const person = withoutRoles.data ? { ...withoutRoles.data, role_id: null } : null;
+      return { teams: true, person, error: withoutRoles.error };
+    }
+  }
 
   const legacy = await supabase.from("profiles").select("id, email, full_name, role, active").eq("id", id).maybeSingle();
   return {
     teams: false,
-    person: legacy.data ? { ...legacy.data, is_lead: false, lead_id: null } : null,
+    person: legacy.data ? { ...legacy.data, is_lead: false, lead_id: null, role_id: null } : null,
     error: legacy.error,
   };
 }

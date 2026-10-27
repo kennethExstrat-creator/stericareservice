@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { ADMIN, FIELD, INSPECTOR, LEAD as LEAD_ROLE, REVIEWER, SENIOR } from "../_lib/roles.testing";
 import {
   activationNeedsPlacement,
   DESTRUCTIVE,
@@ -18,8 +19,9 @@ const person = (overrides: Partial<UserActionsTarget> = {}): UserActionsTarget =
   fullName: "Olga Other",
   phone: null,
   email: "olga@test.local",
-  role: "inspector",
+  role: INSPECTOR,
   status: "active",
+  joined: true,
   signInBlocked: false,
   isSelf: false,
   lead: LEAD,
@@ -33,8 +35,15 @@ describe("menuGroups", () => {
   });
 
   it("moves only inspectors between teams: lead inspectors and admins work in none", () => {
-    expect(menuGroups(person({ role: "lead", lead: null }))).toEqual([["edit-details", "change-role", "send-link"], ["deactivate"]]);
-    expect(menuGroups(person({ role: "admin", lead: null }))).toEqual([["edit-details", "change-role", "send-link"], ["deactivate"]]);
+    expect(menuGroups(person({ role: LEAD_ROLE, lead: null }))).toEqual([["edit-details", "change-role", "send-link"], ["deactivate"]]);
+    expect(menuGroups(person({ role: ADMIN, lead: null }))).toEqual([["edit-details", "change-role", "send-link"], ["deactivate"]]);
+  });
+
+  it("goes by what a custom role sees: one that sees its own works in a team, any other in none", () => {
+    expect(menuGroups(person({ role: FIELD }))).toEqual([["edit-details", "change-role", "change-lead", "send-link"], ["deactivate"]]);
+    for (const role of [REVIEWER, SENIOR]) {
+      expect(menuGroups(person({ role, lead: null })), role.name).toEqual([["edit-details", "change-role", "send-link"], ["deactivate"]]);
+    }
   });
 
   it("offers roles only on a project without lead inspectors", () => {
@@ -45,18 +54,18 @@ describe("menuGroups", () => {
   });
 
   it("lets admins edit their own details, but never their own role, and never deactivate themselves", () => {
-    const self = menuGroups(person({ role: "admin", isSelf: true, lead: null })).flat();
+    const self = menuGroups(person({ role: ADMIN, isSelf: true, lead: null })).flat();
     expect(self).toEqual(["edit-details", "send-link"]);
   });
 
   it("only activates an account that was never active: no links, no new details or role yet", () => {
     // Any change to its profile, new details included, would make it look deactivated.
     expect(menuGroups(person({ status: "pending", lead: null }))).toEqual([["activate"]]);
-    expect(menuGroups(person({ status: "pending", role: "admin", lead: null }))).toEqual([["activate"]]);
+    expect(menuGroups(person({ status: "pending", role: ADMIN, lead: null }))).toEqual([["activate"]]);
   });
 
   it("reactivates a deactivated account, sends it no links, and can still edit its details and move it", () => {
-    expect(menuGroups(person({ status: "deactivated", role: "admin", lead: null }))).toEqual([
+    expect(menuGroups(person({ status: "deactivated", role: ADMIN, lead: null }))).toEqual([
       ["reactivate", "edit-details", "change-role"],
     ]);
     expect(menuGroups(person({ status: "deactivated" }))).toEqual([["reactivate", "edit-details", "change-role", "change-lead"]]);
@@ -71,7 +80,7 @@ describe("menuGroups", () => {
     ]);
     // No password link: they have no account to sign in to yet.
     expect(menuGroups(invited).flat()).not.toContain("send-link");
-    expect(menuGroups({ ...invited, role: "lead", lead: null })).toEqual([
+    expect(menuGroups({ ...invited, role: LEAD_ROLE, lead: null })).toEqual([
       ["resend-invite", "copy-invite-link"],
       ["edit-details", "change-role"],
       ["cancel-invite", "deactivate"],
@@ -97,7 +106,7 @@ describe("menuGroups", () => {
       ["edit-details", "change-role", "change-lead", "unblock"],
       ["deactivate"],
     ]);
-    expect(menuGroups(person({ signInBlocked: true, isSelf: true, role: "admin", lead: null }))).toEqual([
+    expect(menuGroups(person({ signInBlocked: true, isSelf: true, role: ADMIN, lead: null }))).toEqual([
       ["edit-details", "unblock"],
     ]);
   });
@@ -154,11 +163,14 @@ describe("DIALOG_TITLE", () => {
 });
 
 describe("activationNeedsPlacement", () => {
-  it("asks for a role and a lead when an inspector in no team is let in", () => {
+  it("asks for a role and a lead when someone whose role needs a lead is let in without one", () => {
     expect(activationNeedsPlacement(person({ lead: null }), true)).toBe(true);
+    expect(activationNeedsPlacement(person({ role: FIELD, lead: null }), true)).toBe(true);
     expect(activationNeedsPlacement(person(), true)).toBe(false);
-    expect(activationNeedsPlacement(person({ role: "lead", lead: null }), true)).toBe(false);
-    expect(activationNeedsPlacement(person({ role: "admin", lead: null }), true)).toBe(false);
+    expect(activationNeedsPlacement(person({ role: LEAD_ROLE, lead: null }), true)).toBe(false);
+    expect(activationNeedsPlacement(person({ role: ADMIN, lead: null }), true)).toBe(false);
+    expect(activationNeedsPlacement(person({ role: REVIEWER, lead: null }), true)).toBe(false);
+    expect(activationNeedsPlacement(person({ role: SENIOR, lead: null }), true)).toBe(false);
     expect(activationNeedsPlacement(person({ lead: null }), false)).toBe(false);
   });
 });

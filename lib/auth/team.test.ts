@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   anotherLeadExists,
   checkLead,
+  isMissingRoleColumn,
   isMissingTeamColumn,
   loadTeam,
   personName,
@@ -41,28 +42,53 @@ function fakeClient(respond: (query: Query) => Result) {
 
 const selected = (query: Query) => String(query.calls.find(([name]) => name === "select")?.[1][0] ?? "");
 const MISSING = { code: "42703", message: "column profiles.is_lead does not exist" };
+const MISSING_ROLE = { code: "42703", message: "column profiles.role_id does not exist" };
+const LEAD_ROLE = "22222222-2222-4222-8222-222222222222";
 
-const lina = { id: LEAD, email: "lina@test.local", full_name: "Lina Lead", role: "inspector", active: true, is_lead: true, lead_id: null };
+/** Lina as a project without roles reads her, then with her role. */
+const linaWithoutRole = { id: LEAD, email: "lina@test.local", full_name: "Lina Lead", role: "inspector", active: true, is_lead: true, lead_id: null };
+const lina = { ...linaWithoutRole, role_id: LEAD_ROLE };
 
 afterEach(() => vi.restoreAllMocks());
 
-describe("isMissingTeamColumn", () => {
-  it("recognises a project without the lead inspector columns, in a read and in a write", () => {
+describe("isMissingTeamColumn and isMissingRoleColumn", () => {
+  it("recognise a project without the lead inspector columns, in a read and in a write", () => {
     expect(isMissingTeamColumn(MISSING)).toBe(true);
     expect(isMissingTeamColumn({ code: "PGRST204", message: "Could not find the 'lead_id' column of 'profiles' in the schema cache" })).toBe(true);
     expect(isMissingTeamColumn({ code: "42703", message: "column profiles.colour does not exist" })).toBe(false);
     expect(isMissingTeamColumn({ code: "42501", message: "permission denied" })).toBe(false);
     expect(isMissingTeamColumn(null)).toBe(false);
   });
+
+  it("recognise a project without roles (migration 20261027150000), and tell it from one without teams", () => {
+    expect(isMissingRoleColumn(MISSING_ROLE)).toBe(true);
+    expect(isMissingRoleColumn({ code: "PGRST204", message: "Could not find the 'role_id' column of 'profiles' in the schema cache" })).toBe(true);
+    expect(isMissingRoleColumn(MISSING)).toBe(false);
+    expect(isMissingTeamColumn(MISSING_ROLE)).toBe(false);
+    expect(isMissingRoleColumn({ code: "23503", message: 'violates foreign key constraint "profiles_role_id_fkey"' })).toBe(false);
+    expect(isMissingRoleColumn(null)).toBe(false);
+  });
 });
 
 describe("readPerson", () => {
-  it("reads someone with their place in the teams", async () => {
-    const { client } = fakeClient(() => ({ data: lina, error: null }));
+  it("reads someone with their role and their place in the teams", async () => {
+    const { client, queries } = fakeClient(() => ({ data: lina, error: null }));
     expect(await readPerson(client, LEAD)).toEqual({ teams: true, person: lina, error: null });
+    expect(selected(queries[0])).toBe("id, email, full_name, role, active, is_lead, lead_id, role_id");
   });
 
-  it("falls back to the role only on a project without teams, and says so", async () => {
+  it("reads them again without a role on a project without roles", async () => {
+    const { client, queries } = fakeClient((query) =>
+      selected(query).includes("role_id") ? { data: null, error: MISSING_ROLE } : { data: linaWithoutRole, error: null },
+    );
+    expect(await readPerson(client, LEAD)).toEqual({ teams: true, person: { ...linaWithoutRole, role_id: null }, error: null });
+    expect(queries.map(selected)).toEqual([
+      "id, email, full_name, role, active, is_lead, lead_id, role_id",
+      "id, email, full_name, role, active, is_lead, lead_id",
+    ]);
+  });
+
+  it("falls back to the level only on a project without teams, and says so", async () => {
     const { client, queries } = fakeClient((query) =>
       selected(query).includes("is_lead")
         ? { data: null, error: MISSING }
@@ -70,10 +96,32 @@ describe("readPerson", () => {
     );
     expect(await readPerson(client, LEAD)).toEqual({
       teams: false,
-      person: { id: LEAD, email: "lina@test.local", full_name: "Lina Lead", role: "inspector", active: true, is_lead: false, lead_id: null },
+      person: {
+        id: LEAD,
+        email: "lina@test.local",
+        full_name: "Lina Lead",
+        role: "inspector",
+        active: true,
+        is_lead: false,
+        lead_id: null,
+        role_id: null,
+      },
       error: null,
     });
+    // Without teams there are no roles either: straight to the level.
     expect(queries).toHaveLength(2);
+  });
+
+  it("reads three times when the role is reported missing first, then the teams", async () => {
+    const { client, queries } = fakeClient((query) =>
+      selected(query).includes("role_id")
+        ? { data: null, error: MISSING_ROLE }
+        : selected(query).includes("is_lead")
+          ? { data: null, error: MISSING }
+          : { data: { id: LEAD, email: "lina@test.local", full_name: "Lina Lead", role: "admin", active: true }, error: null },
+    );
+    expect(await readPerson(client, LEAD)).toMatchObject({ teams: false, person: { role: "admin", is_lead: false, role_id: null } });
+    expect(queries).toHaveLength(3);
   });
 
   it("passes any other error on", async () => {

@@ -5,8 +5,9 @@ import { createAdminClient, isAdminClientConfigured } from "@/lib/supabase/admin
 import type { Database } from "@/lib/supabase/database.types";
 import { createClient } from "@/lib/supabase/server";
 import { fullNameSchema, OptionalPhoneSchema } from "./fields";
-import { RoleChoiceSchema, TEAM_MESSAGES, canLead, roleChoiceOf, type RoleChoice } from "./org";
-import { isMissingTeamColumn } from "./team";
+import { TEAM_MESSAGES, canLead, roleChoiceOf, sortRoles, standInRole, type RoleOption } from "./org";
+import { BUILT_IN_ROLES, isBuiltInRole, isRoleAccess } from "./permissions";
+import { isMissingRoleColumn, isMissingTeamColumn } from "./team";
 
 /**
  * User management for /admin/users (BUILD_SPEC 3 and 10): input schemas, the
@@ -15,12 +16,16 @@ import { isMissingTeamColumn } from "./team";
  * sign-in details with the secret key.
  *
  * Joining by invitation (Kenneth, 27 October 2026): an admin invites an email
- * address in a role; the person gives their name, phone and password on
- * Account Creation (/create-account), which sets profiles.joined_at. Until
- * then the list shows them as Invited, by their email.
+ * address in a role, by email or with a link to send by hand; the person
+ * gives their name, phone and password on Account Creation (/create-account),
+ * which sets profiles.joined_at. Until then the list shows them as Invited,
+ * by their email.
+ *
+ * Roles (migration 20261027150000): the roles to choose from are the rows of
+ * public.roles, the built-in ones first, then custom roles. A project
+ * without them works with the three built-in roles, as before.
  */
 
-export type UserRole = Database["public"]["Enums"]["user_role"];
 type Profile = Database["public"]["Tables"]["profiles"]["Row"];
 type ServerClient = Awaited<ReturnType<typeof createClient>>;
 
@@ -51,10 +56,31 @@ const LeadChoiceSchema = z.preprocess(
 /** The longest name the app saves for someone; the name rules live in ./fields.ts, shared with Account Creation. */
 export { NAME_MAX_LENGTH } from "./fields";
 
+const CHOOSE_ROLE = "Choose their role.";
+
 /**
- * An invite: the address and the role chosen (with an inspector's lead
- * inspector). No name: the invitee gives their own name, phone and password
- * on Account Creation.
+ * The role chosen in a form: a role's id (public.roles), lower-cased like
+ * every id, or a built-in role by its kind ("admin", "lead", "inspector"),
+ * which is what the Role field sends on a project without roles and what
+ * forms from before roles sent. The action reads the role itself (findRole):
+ * nothing about it but which one comes from the form.
+ */
+export const RoleFieldSchema = z.union(
+  [z.uuid({ error: CHOOSE_ROLE }).toLowerCase(), z.enum(BUILT_IN_ROLES, { error: CHOOSE_ROLE })],
+  { error: CHOOSE_ROLE },
+);
+
+/** How an invite reaches its person: an email from Supabase, or a link the admin sends by hand. */
+export const INVITE_DELIVERIES = ["email", "link"] as const;
+export type InviteDelivery = (typeof INVITE_DELIVERIES)[number];
+
+/**
+ * An invite: the address and the role chosen (with the lead inspector of a
+ * role that needs one), and how it goes out: Send Email, or Create Link
+ * (Kenneth, 27 October 2026: Supabase's built-in mailer only reaches the
+ * project's team). A form without the choice sends an email, as before. No
+ * name: the invitee gives their own name, phone and password on Account
+ * Creation.
  */
 export const InviteUserSchema = z.object({
   email: z
@@ -64,13 +90,17 @@ export const InviteUserSchema = z.object({
     .min(1, "Enter their email address.")
     .max(254, "That email address is too long.")
     .pipe(z.email({ error: "Enter a valid email address, like name@example.com." })),
-  role: RoleChoiceSchema,
+  role: RoleFieldSchema,
   leadId: LeadChoiceSchema,
+  delivery: z.preprocess(
+    (value) => (value === "" || value === null ? undefined : value),
+    z.enum(INVITE_DELIVERIES, { error: "Choose Send Email or Create Link." }).default("email"),
+  ),
 });
 export type InviteUserInput = z.infer<typeof InviteUserSchema>;
 
 /** Fields a user form can mark: the invite's, the role and lead in every dialog, and Edit Details'. */
-export type UserField = "email" | "fullName" | "phone" | "role" | "leadId";
+export type UserField = "email" | "fullName" | "phone" | "role" | "leadId" | "delivery";
 
 /**
  * Edit Details: someone's name and phone number, by Account Creation's rules
@@ -85,8 +115,8 @@ export const UserDetailsSchema = z.object({
   phone: z.preprocess((value) => (value === null ? undefined : value), OptionalPhoneSchema.optional()),
 });
 
-/** Change Role: inspector (in a lead's team), lead inspector or admin. */
-export const ChangeRoleSchema = z.object({ userId: UserIdSchema, role: RoleChoiceSchema, leadId: LeadChoiceSchema });
+/** Change Role: any role, with the lead inspector of a role that needs one. */
+export const ChangeRoleSchema = z.object({ userId: UserIdSchema, role: RoleFieldSchema, leadId: LeadChoiceSchema });
 /** Change Lead Inspector: move an inspector to another team. */
 export const AssignLeadSchema = z.object({
   userId: UserIdSchema,
@@ -95,10 +125,10 @@ export const AssignLeadSchema = z.object({
     z.uuid({ error: TEAM_MESSAGES.chooseLead }).toLowerCase(),
   ),
 });
-/** Activate or reactivate; an inspector who has no lead gets their role and lead here. */
+/** Activate or reactivate; someone whose role needs a lead and who has none gets their role and lead here. */
 export const ActivateSchema = z.object({
   userId: UserIdSchema,
-  role: z.preprocess((value) => (value === "" || value === null ? undefined : value), RoleChoiceSchema.optional()),
+  role: z.preprocess((value) => (value === "" || value === null ? undefined : value), RoleFieldSchema.optional()),
   leadId: LeadChoiceSchema,
 });
 export const UserTargetSchema = z.object({ userId: UserIdSchema });
@@ -137,17 +167,17 @@ export function authConfirmUrl(): string {
 }
 
 /**
- * How /auth/confirm checks each kind of link Copy Invite Link hands out. An
- * invite keeps its type. A magic link, for someone who opened their invite
- * but never finished, is checked as an email link, which the route accepts
- * (it accepts no "magiclink"): Supabase finds the token either way, and the
- * route sends them into the app, which takes an account that has not joined
- * to Account Creation.
+ * How /auth/confirm checks each kind of link the admin is handed (Invite User
+ * by Create Link, Copy Invite Link). An invite keeps its type. A magic link,
+ * for someone who opened their invite but never finished, is checked as an
+ * email link, which the route accepts (it accepts no "magiclink"): Supabase
+ * finds the token either way, and the route sends them into the app, which
+ * takes an account that has not joined to Account Creation.
  */
 const CONFIRM_TYPE: Readonly<Partial<Record<string, "invite" | "email">>> = { invite: "invite", magiclink: "email" };
 
 /**
- * The address Copy Invite Link gives the admin, from what
+ * The address an invite link gives the admin, from what
  * auth.admin.generateLink() answers; null for any other kind of link. It
  * lands on /auth/confirm, which verifies the token hash itself, on any
  * device. Never Supabase's own action_link: that verifies on Supabase's
@@ -245,10 +275,19 @@ export type UserListItem = {
    * not run migration 20261027140000.
    */
   phone: string | null;
-  role: UserRole;
-  /** Inspector, lead inspector or admin (lib/auth/org.ts). */
-  roleChoice: RoleChoice;
+  /**
+   * Their role (public.roles): its name, what it sees and whether it comes
+   * with the app. On a project without roles, the built-in role for their
+   * level (lib/auth/org.ts).
+   */
+  role: RoleOption;
   status: AccountStatus;
+  /**
+   * False while an invite is unanswered: they have not created their account
+   * (profiles.joined_at is null), whatever its status. True on a project
+   * without Account Creation (migration 20261027140000).
+   */
+  joined: boolean;
   createdAt: string;
   /** Null when they never signed in, or when sign-in details are unavailable. */
   lastSignInAt: string | null;
@@ -261,11 +300,12 @@ export type UserListItem = {
   isSelf: boolean;
   /** The lead inspector who manages them, when they are in a team. */
   lead: { id: string; name: string } | null;
-  /** For a lead inspector: the people in their team, by name, active or not. Empty for everyone else. */
+  /** For someone whose role sees their team's inspections: the people in their team, by name, active or not. Empty for everyone else. */
   team: TeamMemberItem[];
   /**
-   * An active inspector who is not a lead and is in no team: an account from
-   * before lead inspectors, or one a script set up. For an admin to fix.
+   * Active, with a role that sees their own inspections, and in no team: an
+   * account from before lead inspectors, or one a script set up. For an
+   * admin to fix.
    */
   missingLead: boolean;
 };
@@ -297,6 +337,13 @@ export type UserDirectory = {
   uids: boolean;
   /** Active lead inspectors by name: who an inspector can work under. */
   leads: LeadOption[];
+  /**
+   * The roles to choose from: the built-in ones first (Admin, Lead
+   * Inspector, Inspector), then custom roles by name. Until the project has
+   * run migration 20261027150000, the built-in roles standing in for the
+   * levels, without ids (and without Lead Inspector before lead inspectors).
+   */
+  roles: RoleOption[];
 };
 
 /** How a person is named in the list, dialogs and messages. */
@@ -312,6 +359,7 @@ type DirectoryRow = Pick<Profile, "id" | "email" | "full_name" | "role" | "activ
   uid?: string | null;
   phone?: string | null;
   joined_at?: string | null;
+  role_id?: string | null;
 };
 
 /**
@@ -338,6 +386,16 @@ export function isMissingAccountColumn(error: ErrorLike | null | undefined): boo
   );
 }
 
+/**
+ * The database has no roles table yet (migration 20261027150000). PostgREST
+ * answers PGRST205 for a table missing from its schema cache ("Could not
+ * find the table 'public.roles' in the schema cache"); Postgres itself, 42P01.
+ */
+export function isMissingRolesTable(error: ErrorLike | null | undefined): boolean {
+  if (!error) return false;
+  return (error.code === "PGRST205" || error.code === "42P01") && /roles/.test(error.message ?? "");
+}
+
 function listError(error: ErrorLike): Error {
   return new Error(`Could not load the user list: ${error.message}`);
 }
@@ -349,63 +407,78 @@ type ListRead = {
   teams: boolean;
   uids: boolean;
   accounts: boolean;
+  roles: boolean;
   read: () => PromiseLike<{ data: DirectoryRow[] | null; error: ErrorLike | null }>;
 };
 
 /**
- * Everyone's profile, with their place in the teams, their UID, phone and
- * whether they have joined, as far as the database has them. A project that
- * has not run a migration (20261007170000 lead inspectors, 20261008140000
- * UIDs, 20261027140000 phones and Account Creation) answers 42703 for the
- * first missing column it meets: the list is read again without that column,
- * so the screen works as before. The migrations run in order, so a project
- * without one has none of the later ones either; without the last, phone is
- * null and everyone has joined.
+ * Everyone's profile, with their place in the teams, their UID, phone,
+ * whether they have joined and their role, as far as the database has them.
+ * A project that has not run a migration (20261007170000 lead inspectors,
+ * 20261008140000 UIDs, 20261027140000 phones and Account Creation,
+ * 20261027150000 roles) answers 42703 for the first missing column it meets:
+ * the list is read again without that column, so the screen works as before.
+ * The migrations run in order, so a project without one has none of the
+ * later ones either; without phones, phone is null and everyone has joined.
  */
 async function readProfiles(supabase: ServerClient): Promise<ProfileRead> {
+  const profiles = () => supabase.from("profiles");
   const reads: readonly ListRead[] = [
     {
       teams: true,
       uids: true,
       accounts: true,
+      roles: true,
       read: () =>
-        supabase
-          .from("profiles")
-          .select("id, email, full_name, role, active, created_at, updated_at, is_lead, lead_id, uid, phone, joined_at"),
+        profiles().select(
+          "id, email, full_name, role, active, created_at, updated_at, is_lead, lead_id, uid, phone, joined_at, role_id",
+        ),
+    },
+    {
+      teams: true,
+      uids: true,
+      accounts: true,
+      roles: false,
+      read: () =>
+        profiles().select("id, email, full_name, role, active, created_at, updated_at, is_lead, lead_id, uid, phone, joined_at"),
     },
     {
       teams: true,
       uids: true,
       accounts: false,
-      read: () =>
-        supabase.from("profiles").select("id, email, full_name, role, active, created_at, updated_at, is_lead, lead_id, uid"),
+      roles: false,
+      read: () => profiles().select("id, email, full_name, role, active, created_at, updated_at, is_lead, lead_id, uid"),
     },
     {
       teams: true,
       uids: false,
       accounts: false,
-      read: () => supabase.from("profiles").select("id, email, full_name, role, active, created_at, updated_at, is_lead, lead_id"),
+      roles: false,
+      read: () => profiles().select("id, email, full_name, role, active, created_at, updated_at, is_lead, lead_id"),
     },
     {
       teams: false,
       uids: false,
       accounts: false,
-      read: () => supabase.from("profiles").select("id, email, full_name, role, active, created_at, updated_at"),
+      roles: false,
+      read: () => profiles().select("id, email, full_name, role, active, created_at, updated_at"),
     },
   ];
 
   for (let index = 0; index < reads.length; ) {
     const { data, error } = await reads[index].read();
     if (!error) return { rows: data ?? [], teams: reads[index].teams, uids: reads[index].uids };
-    const missing = isMissingAccountColumn(error)
-      ? "accounts"
-      : isMissingUidColumn(error)
-        ? "uids"
-        : isMissingTeamColumn(error)
-          ? "teams"
-          : null;
+    const missing = isMissingRoleColumn(error)
+      ? "roles"
+      : isMissingAccountColumn(error)
+        ? "accounts"
+        : isMissingUidColumn(error)
+          ? "uids"
+          : isMissingTeamColumn(error)
+            ? "teams"
+            : null;
     // On to the next read without the missing column.
-    const next = missing ? reads.findIndex((read, at) => at > index && !read[missing]) : -1;
+    const next = missing ? reads.findIndex((candidate, at) => at > index && !candidate[missing]) : -1;
     if (next === -1) throw listError(error);
     index = next;
   }
@@ -413,16 +486,67 @@ async function readProfiles(supabase: ServerClient): Promise<ProfileRead> {
   throw new Error("Could not load the user list.");
 }
 
+type RoleRow = { id: string; built_in: string | null; name: string; access: string };
+
+const ROLE_COLUMNS = "id, built_in, name, access";
+
+/** A row of public.roles as the Users screen shows it; null for one the app cannot read (an access it does not know). */
+function roleOption(row: RoleRow): RoleOption | null {
+  if (!isRoleAccess(row.access)) return null;
+  return { id: row.id, builtIn: isBuiltInRole(row.built_in) ? row.built_in : null, name: row.name, access: row.access };
+}
+
+/**
+ * Every role (RLS lets every active user read them), or null on a project
+ * without roles. Any other failure stops the page: without the roles, the
+ * list could not say who has which.
+ */
+async function readRoles(supabase: ServerClient): Promise<RoleOption[] | null> {
+  const { data, error } = await supabase.from("roles").select(ROLE_COLUMNS);
+  if (isMissingRolesTable(error)) return null;
+  if (error) throw new Error(`Could not load the roles: ${error.message}`);
+  return (data ?? []).map(roleOption).filter((role) => role !== null);
+}
+
+/** The roles' stand-ins on a project without roles: the built-in roles for the levels it has. */
+function standInRoles(teams: boolean): RoleOption[] {
+  return BUILT_IN_ROLES.filter((kind) => teams || kind !== "lead").map(standInRole);
+}
+
+/** The role chosen in a form, read again (findRole). */
+export type RoleRead = { ok: true; role: RoleOption } | { ok: false; message: string };
+
+/**
+ * The role a Role field chose (RoleFieldSchema), read through the caller's
+ * own client: a role's id, or a built-in role by its kind. On a project
+ * without roles a kind stands in for its level, as the screen offers it.
+ */
+export async function findRole(supabase: ServerClient, value: string): Promise<RoleRead> {
+  const kind = isBuiltInRole(value) ? value : null;
+  const roles = supabase.from("roles").select(ROLE_COLUMNS);
+  const { data, error } = await (kind ? roles.eq("built_in", kind) : roles.eq("id", value)).maybeSingle();
+  if (isMissingRolesTable(error)) {
+    return kind ? { ok: true, role: standInRole(kind) } : { ok: false, message: MESSAGES.rolesMissing };
+  }
+  if (error) return { ok: false, message: `The role could not be read: ${error.message || "the database did not say why"}. Try again.` };
+  const role = data ? roleOption(data) : null;
+  return role ? { ok: true, role } : { ok: false, message: MESSAGES.roleGone };
+}
+
 /**
  * Everyone with a profile, read through the signed-in admin's own client (RLS
  * lets admins read every profile), merged with sign-in details from Supabase
  * Auth when the secret key is set (last sign-in, bans), with each person's
- * lead inspector and each lead inspector's team. Call it only after
- * requireAdmin().
+ * role, lead inspector and team, and the roles to choose from. Call it only
+ * after requirePermission("users").
  */
 export async function getUserDirectory(viewerId: string): Promise<UserDirectory> {
   const supabase = await createClient();
-  const { rows, teams, uids } = await readProfiles(supabase);
+  const [{ rows, teams, uids }, roleList] = await Promise.all([readProfiles(supabase), readRoles(supabase)]);
+  const rolesById = new Map((roleList ?? []).map((role) => [role.id, role]));
+  // Their role, else the built-in one for their level: where there are no roles, or one went in the meantime.
+  const roleOf = (row: DirectoryRow): RoleOption =>
+    (row.role_id ? rolesById.get(row.role_id) : undefined) ?? standInRole(roleChoiceOf({ role: row.role, isLead: row.is_lead }));
 
   let adminApi: AdminApiState = "missing-key";
   let signIns: Map<string, SignInDetails> | null = null;
@@ -450,7 +574,7 @@ export async function getUserDirectory(viewerId: string): Promise<UserDirectory>
   const now = Date.now();
   const users = rows.map((profile): UserListItem => {
     const signIn = signIns?.get(profile.id) ?? null;
-    const roleChoice = roleChoiceOf({ role: profile.role, isLead: profile.is_lead });
+    const role = roleOf(profile);
     const leadId = profile.lead_id ?? null;
     const lead = leadId ? byId.get(leadId) : undefined;
     return {
@@ -459,16 +583,16 @@ export async function getUserDirectory(viewerId: string): Promise<UserDirectory>
       email: profile.email ?? "",
       fullName: profile.full_name,
       phone: profile.phone ?? null,
-      role: profile.role,
-      roleChoice,
+      role,
       status: accountStatus(profile, signIn?.bannedUntil, now),
+      joined: profile.joined_at !== null,
       createdAt: profile.created_at,
       lastSignInAt: signIn?.lastSignInAt ?? null,
       signInBlocked: profile.active && isBanned(signIn?.bannedUntil, now),
       isSelf: profile.id === viewerId,
       lead: leadId ? { id: leadId, name: lead ? nameOf(lead) : "Unknown lead inspector" } : null,
-      team: roleChoice === "lead" ? (members.get(profile.id) ?? []) : [],
-      missingLead: teams && profile.active && roleChoice === "inspector" && leadId === null,
+      team: role.access === "team" ? (members.get(profile.id) ?? []) : [],
+      missingLead: teams && profile.active && role.access === "own" && leadId === null,
     };
   });
   users.sort(
@@ -484,7 +608,8 @@ export async function getUserDirectory(viewerId: string): Promise<UserDirectory>
         .sort((a, b) => byName.compare(a.name, b.name))
     : [];
 
-  return { users, adminApi, teams, uids, leads };
+  const roles = roleList ? sortRoles(roleList) : standInRoles(teams);
+  return { users, adminApi, teams, uids, leads, roles };
 }
 
 const PAGE_SIZE = 1000;
@@ -542,13 +667,18 @@ export const MESSAGES = {
   userNotFound: "That user could not be found. Reload the page and try again.",
   unexpected: "Something went wrong. Try again, and reload the page if it keeps happening.",
   selfDeactivate: "You cannot deactivate your own account. Ask another admin to do it.",
-  selfDemote: "You cannot remove your own admin role. Ask another admin to do it.",
+  selfDemote: "You cannot remove your own Admin role. Ask another admin to do it.",
   selfCancel: "You cannot cancel your own account.",
-  lastAdmin: "This would leave the app without an active admin. Make someone else an admin first.",
+  lastAdmin: "This would leave nobody active with the Admin role. Give someone else the Admin role first.",
   notAllowed: "You do not have permission to do that.",
   accountsMissing:
     "Phone numbers and Account Creation need a database update first: apply supabase/migrations/20261027140000_profile_phone_and_joined.sql, then reload this page.",
   phoneRefused: "The database did not take that phone number. Enter it like +60 12-345 6789 or 012-345 6789.",
+  roleGone: "That role no longer exists. Reload the page and choose another.",
+  rolesMissing:
+    "Custom roles need a database update first: apply supabase/migrations/20261027150000_roles_and_permissions.sql, then reload this page.",
+  addressRefused:
+    "Supabase refused this address: it does not look able to receive email (for example, its domain does not exist). Check it for typos.",
 } as const;
 
 type ErrorLike = { code?: string | null; status?: number | null; message?: string | null };
@@ -611,7 +741,7 @@ export function describeEmailError(error: ErrorLike, what: "invite" | "password 
   }
   if (isEmailRejected(error)) {
     return what === "invite"
-      ? "Supabase refused this address: it does not look able to receive email (for example, its domain does not exist). Check it for typos."
+      ? MESSAGES.addressRefused
       : "The password link could not be sent: Supabase refused this address because it does not look able to receive email.";
   }
   if (/error sending|smtp|mailer/i.test(message)) {
@@ -621,9 +751,9 @@ export function describeEmailError(error: ErrorLike, what: "invite" | "password 
 }
 
 /**
- * True when an email failed for a reason a link sent by hand avoids (Copy
- * Invite Link): the mailer's limits, its settings, the address. Not when
- * Supabase refused the server's key, which the link needs too.
+ * True when an email failed for a reason a link sent by hand avoids (Create
+ * Link, Copy Invite Link): the mailer's limits, its settings, the address.
+ * Not when Supabase refused the server's key, which the link needs too.
  */
 export function linkWouldHelp(error: ErrorLike): boolean {
   return !isKeyRefused(error);
@@ -636,11 +766,13 @@ export function isUserGone(error: ErrorLike): boolean {
 
 /**
  * An Auth error from making an invite link (auth.admin.generateLink).
- * Nothing is emailed, so the mailer's limits never apply.
+ * Nothing is emailed, so the mailer's limits never apply; Supabase still
+ * checks the address of a new account as it would for an email.
  */
 export function describeLinkError(error: ErrorLike): string {
   if (isKeyRefused(error)) return `The invite link was not created: Supabase refused the server's key. ${KEY_HELP}`;
   if (isUserGone(error)) return MESSAGES.userNotFound;
+  if (isEmailRejected(error)) return MESSAGES.addressRefused;
   if (error.code === "over_request_rate_limit" || error.status === 429) {
     return "The invite link was not created: too many requests to Supabase just now. Wait a minute and try again.";
   }
@@ -689,8 +821,11 @@ export function describeProfileError(error: ErrorLike): string {
     if (rule) return rule[1];
   }
   if (isPhoneRefused(error)) return MESSAGES.phoneRefused;
+  // The role was deleted between the page and the change (profiles_role_id_fkey).
+  if (error.code === "23503" && /role_id/.test(message)) return MESSAGES.roleGone;
   if (isMissingTeamColumn(error)) return TEAM_MESSAGES.teamsMissing;
   if (isMissingAccountColumn(error)) return MESSAGES.accountsMissing;
+  if (isMissingRoleColumn(error)) return MESSAGES.rolesMissing;
   if (error.code === "42501") return MESSAGES.notAllowed;
   return `The change could not be saved: ${message || "the database did not say why"}.`;
 }

@@ -47,7 +47,7 @@ export function UsersScreen({
   /** The ?q= value: a name, email, phone number or UID to find. */
   search?: string | string[] | undefined;
 }) {
-  const { users, adminApi, teams, uids, leads } = directory;
+  const { users, adminApi, teams, uids, leads, roles } = directory;
   const canInvite = adminApi !== "missing-key";
   const onlyYou = users.every((user) => user.isSelf);
   const filter: TeamFilterState = teams ? readTeamFilter(team, users) : { kind: "everyone" };
@@ -65,7 +65,7 @@ export function UsersScreen({
         <PageHeader
           eyebrow="Admin"
           title="Users"
-          actions={<InviteUserDialog disabled={!canInvite} teams={teams} leads={leads} />}
+          actions={<InviteUserDialog disabled={!canInvite} teams={teams} leads={leads} roles={roles} />}
         />
 
         {adminApi === "missing-key" && (
@@ -73,9 +73,9 @@ export function UsersScreen({
             <TriangleAlertIcon aria-hidden />
             <AlertTitle>Invites Are Switched Off</AlertTitle>
             <AlertDescription className="text-warn">
-              The server needs SUPABASE_SECRET_KEY to send invites, show who has signed in and stop deactivated users
-              signing in. Add it to the environment (.env.local, or the Vercel project settings) and restart the app.
-              Roles and deactivation still work.
+              The server needs SUPABASE_SECRET_KEY to invite people, by email or by link, show who has signed in and
+              stop deactivated users signing in. Add it to the environment (.env.local, or the Vercel project settings)
+              and restart the app. Roles and deactivation still work.
             </AlertDescription>
           </Alert>
         )}
@@ -115,6 +115,7 @@ export function UsersScreen({
           teams={teams}
           uids={uids}
           leads={leads}
+          roles={roles}
           invites={canInvite}
           emptyMessage={emptyMessage(filter)}
           filter={filter}
@@ -129,13 +130,13 @@ export function UsersScreen({
               <EmptyTitle>Only You So Far</EmptyTitle>
               <EmptyDescription>
                 {teams
-                  ? "Invite your lead inspectors first, then their inspectors. Each one gets an email with a link to create their account."
-                  : "Invite your inspectors. Each one gets an email with a link to create their account."}
+                  ? "Invite your lead inspectors first, then their inspectors. Each one creates their account from a link: we email it, or you send it yourself."
+                  : "Invite your inspectors. Each one creates their account from a link: we email it, or you send it yourself."}
               </EmptyDescription>
             </EmptyHeader>
             {canInvite && (
               <EmptyContent>
-                <InviteUserDialog label="Invite Your First User" teams={teams} leads={leads} />
+                <InviteUserDialog label="Invite Your First User" teams={teams} leads={leads} roles={roles} />
               </EmptyContent>
             )}
           </Empty>

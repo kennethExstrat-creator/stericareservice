@@ -1,6 +1,7 @@
 import { LockIcon } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import type { RoleOption } from "@/lib/auth/org";
 import { displayName, type LeadOption, type UserListItem } from "@/lib/auth/users";
 import { cn } from "@/lib/utils";
 import type { TeamFilter } from "../_lib/team-filter";
@@ -83,6 +84,7 @@ export function UsersTable({
   teams = true,
   uids = true,
   leads = [],
+  roles = [],
   invites = true,
   emptyMessage = "Nobody here yet.",
   filter = EVERYONE,
@@ -95,6 +97,8 @@ export function UsersTable({
   uids?: boolean;
   /** Active lead inspectors, for the row dialogs' lead pickers. */
   leads?: readonly LeadOption[];
+  /** The roles to choose from, for the row dialogs' role pickers. */
+  roles?: readonly RoleOption[];
   /** False without the secret key: the row menus offer no invite actions. */
   invites?: boolean;
   /** Shown when a filter leaves nobody. */
@@ -138,7 +142,15 @@ export function UsersTable({
             rows={users.map((user) => ({
               id: user.id,
               row: (
-                <UserRow user={user} showSignIns={showSignIns} teams={teams} uids={uids} leads={leads} invites={invites} />
+                <UserRow
+                  user={user}
+                  showSignIns={showSignIns}
+                  teams={teams}
+                  uids={uids}
+                  leads={leads}
+                  roles={roles}
+                  invites={invites}
+                />
               ),
             }))}
           />
@@ -154,6 +166,7 @@ function UserRow({
   teams,
   uids,
   leads,
+  roles,
   invites,
 }: {
   user: UserListItem;
@@ -161,13 +174,14 @@ function UserRow({
   teams: boolean;
   uids: boolean;
   leads: readonly LeadOption[];
+  roles: readonly RoleOption[];
   invites: boolean;
 }) {
   const name = displayName(user.fullName, user.email);
   const named = Boolean(user.fullName?.trim());
   const showEmailUnderName = named && user.email !== "";
   return (
-    <TableRow data-status={user.status} data-role={user.roleChoice}>
+    <TableRow data-status={user.status} data-role={user.role.builtIn ?? "custom"} data-access={user.role.access}>
       {uids && (
         <TableCell className={cn("pl-4 whitespace-nowrap tabular-nums", CELL)} data-slot="uid">
           {user.uid}
@@ -214,9 +228,9 @@ function UserRow({
       </TableCell>
       <TableCell className={cn("whitespace-normal", CELL)}>
         <div className="flex flex-col items-start gap-1">
-          <RoleLabel role={user.roleChoice} />
+          <RoleLabel role={user.role} />
           {/* The Lead Inspector column starts at 1024 px; below that the lead sits here. */}
-          {teams && user.roleChoice !== "admin" && (
+          {teams && user.role.access !== "all" && (
             <span className="text-muted-foreground lg:hidden" data-slot="team-under-role">
               {user.lead && "Lead: "}
               <TeamCell user={user} />
@@ -253,6 +267,7 @@ function UserRow({
         <UserActions
           teams={teams}
           leads={leads}
+          roles={roles}
           invites={invites}
           user={{
             id: user.id,
@@ -261,8 +276,9 @@ function UserRow({
             fullName: user.fullName,
             phone: user.phone,
             email: user.email,
-            role: user.roleChoice,
+            role: user.role,
             status: user.status,
+            joined: user.joined,
             signInBlocked: user.signInBlocked,
             isSelf: user.isSelf,
             lead: user.lead,

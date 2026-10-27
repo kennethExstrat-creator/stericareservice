@@ -7,7 +7,8 @@
 // Then it copies the link and shows it in a field, with Copy Link for when
 // the browser would not copy it by itself: the iPad copies only straight from
 // a tap, and the server's answer comes after the tap; the app opened by its
-// local network address (plain http) has no Clipboard API at all.
+// local network address (plain http) has no Clipboard API at all. Invite
+// User's Create Link shows its link the same way (InviteLinkView).
 import { useActionState, useEffect, useId, useRef, useState, type RefObject } from "react";
 import { CopyIcon, OctagonXIcon } from "lucide-react";
 import { toast } from "sonner";
@@ -68,6 +69,21 @@ function copyFromField(field: HTMLInputElement | null, text: string): Promise<bo
   return Promise.resolve(copySelection(field));
 }
 
+/** A link the server just made, onto the clipboard where the browser lets it, said in a toast. True once copied. */
+export async function copyNewLink(link: string, name: string): Promise<boolean> {
+  const done = await writeClipboard(link);
+  if (done) toast.success(`Invite link for ${name} copied.`);
+  return done;
+}
+
+/** Copy Link's tap: copied again, else left selected in its field to copy by hand. True once copied. */
+export async function copyLinkAgain(field: HTMLInputElement | null, link: string): Promise<boolean> {
+  const done = await copyFromField(field, link);
+  if (done) toast.success("Invite link copied.");
+  else toast.error("The browser would not copy the link. It is selected in the field: copy it from there.");
+  return done;
+}
+
 export function InviteLinkDialog({
   user,
   onClose,
@@ -78,25 +94,13 @@ export function InviteLinkDialog({
   returnFocusTo: RefObject<HTMLButtonElement | null>;
 }) {
   const [copied, setCopied] = useState(false);
-  const linkRef = useRef<HTMLInputElement>(null);
 
   const [state, formAction, pending] = useActionState(async (previous: InviteLinkResult, formData: FormData) => {
     const result = await createInviteLink(previous, formData).catch(unreachable);
-    if (result.status === "link") {
-      const done = await writeClipboard(result.link);
-      setCopied(done);
-      if (done) toast.success(`Invite link for ${user.name} copied.`);
-    }
+    if (result.status === "link") setCopied(await copyNewLink(result.link, user.name));
     return result;
   }, IDLE);
   const created = state.status === "link" ? state : null;
-
-  // The link in view: into its field, all of it selected, to copy by hand if need be.
-  useEffect(() => {
-    if (!created) return;
-    linkRef.current?.focus();
-    linkRef.current?.select();
-  }, [created]);
 
   return (
     <Dialog
@@ -124,13 +128,7 @@ export function InviteLinkDialog({
             link={created.link}
             message={created.message}
             copied={copied}
-            linkRef={linkRef}
-            onCopy={async () => {
-              const done = await copyFromField(linkRef.current, created.link);
-              setCopied(done);
-              if (done) toast.success("Invite link copied.");
-              else toast.error("The browser would not copy the link. It is selected in the field: copy it from there.");
-            }}
+            onCopy={async (field) => setCopied(await copyLinkAgain(field, created.link))}
           />
         ) : (
           <form action={formAction} className="grid gap-6" data-testid="invite-link-form">
@@ -174,15 +172,15 @@ export function InviteLinkDialog({
 }
 
 /**
- * The link once made: in a read-only field (selected when it shows), with
- * what it does, whether it is on the clipboard, Copy Link and Done.
+ * The link once made: in a read-only field, focused and selected as it
+ * shows, with what it does, whether it is on the clipboard, Copy Link and
+ * Done.
  */
 export function InviteLinkView({
   user,
   link,
   message,
   copied,
-  linkRef,
   onCopy,
 }: {
   user: Pick<UserActionsTarget, "uid" | "name">;
@@ -191,10 +189,18 @@ export function InviteLinkView({
   message: string;
   /** On the clipboard already. */
   copied: boolean;
-  linkRef?: RefObject<HTMLInputElement | null>;
-  onCopy: () => void;
+  /** Copy Link: given the field, to copy from by hand when the browser will not. */
+  onCopy: (field: HTMLInputElement | null) => void;
 }) {
   const id = useId();
+  const fieldRef = useRef<HTMLInputElement>(null);
+
+  // The link in view: into its field, all of it selected, to copy by hand if need be.
+  useEffect(() => {
+    fieldRef.current?.focus();
+    fieldRef.current?.select();
+  }, []);
+
   return (
     <div className="grid gap-6" data-testid="invite-link">
       <DialogHeader>
@@ -207,7 +213,7 @@ export function InviteLinkView({
       <Field>
         <FieldLabel htmlFor={`${id}-link`}>Invite Link</FieldLabel>
         <Input
-          ref={linkRef}
+          ref={fieldRef}
           id={`${id}-link`}
           readOnly
           value={link}
@@ -226,7 +232,7 @@ export function InviteLinkView({
       </Field>
 
       <DialogFooter>
-        <Button type="button" variant="outline" onClick={onCopy}>
+        <Button type="button" variant="outline" onClick={() => onCopy(fieldRef.current)}>
           <CopyIcon aria-hidden />
           Copy Link
         </Button>

@@ -32,14 +32,40 @@ const LEAD_TWO = "2c3d4e5f-6071-4b8c-9d0e-1f2a3b4c5d6e";
 const MEMBER = "3d4e5f60-7182-4c9d-8e0f-2a3b4c5d6e7f";
 /** Invited and activated, not joined yet: no name, and no password. */
 const INVITED = "4e5f6071-8293-4d0e-9f1a-3b4c5d6e7f80";
+/** Someone with a custom role that sees every inspection. */
+const QUINN = "6a7b8c9d-0e1f-4a2b-9c3d-4e5f6a7b8c9d";
 const IDLE: ActionResult = { status: "idle" };
 /** At the role field when no active lead inspector other than the person exists: the lead picker is empty. */
 const NOBODY = "Nobody can lead them yet. Choose Lead Inspector or Admin, or make someone a lead inspector first.";
 
+/** The roles (public.roles): the built-in ones, and a custom role for each access. */
+const ADMIN_ROLE = "11111111-1111-4111-8111-111111111111";
+const LEAD_ROLE = "22222222-2222-4222-8222-222222222222";
+const INSPECTOR_ROLE = "33333333-3333-4333-8333-333333333333";
+const REVIEWER_ROLE = "44444444-4444-4444-8444-444444444444";
+const SENIOR_ROLE = "55555555-5555-4555-8555-555555555555";
+const FIELD_ROLE = "66666666-6666-4666-8666-666666666666";
+/** A role's id nobody has: deleted since the page loaded. */
+const GONE_ROLE = "77777777-7777-4777-8777-777777777777";
+
 /* ------------------------------------------------------------------ *
- * A fake Supabase: one profiles table that the admin's client and the
- * secret-key client both read and write, with every query recorded.
+ * A fake Supabase: one profiles table and the roles, which the admin's
+ * client and the secret-key client both read and write, with every query
+ * recorded. Like the profiles guard, writing a role_id gives role and
+ * is_lead the role's access.
  * ------------------------------------------------------------------ */
+
+type Access = "own" | "team" | "all";
+type RoleRow = { id: string; built_in: "admin" | "lead" | "inspector" | null; name: string; access: Access };
+
+const ROLE_ROWS: readonly RoleRow[] = [
+  { id: ADMIN_ROLE, built_in: "admin", name: "Admin", access: "all" },
+  { id: LEAD_ROLE, built_in: "lead", name: "Lead Inspector", access: "team" },
+  { id: INSPECTOR_ROLE, built_in: "inspector", name: "Inspector", access: "own" },
+  { id: REVIEWER_ROLE, built_in: null, name: "QA Reviewer", access: "all" },
+  { id: SENIOR_ROLE, built_in: null, name: "Senior Lead", access: "team" },
+  { id: FIELD_ROLE, built_in: null, name: "Field Inspector", access: "own" },
+];
 
 type Row = {
   id: string;
@@ -53,9 +79,10 @@ type Row = {
   created_at: string;
   updated_at: string;
   joined_at: string | null;
+  role_id: string;
 };
 
-type Query = { client: "user" | "admin"; calls: Array<[string, unknown[]]> };
+type Query = { client: "user" | "admin"; table: string; calls: Array<[string, unknown[]]> };
 type Failure = { code?: string; message: string };
 
 const CREATED = "2026-10-01T00:00:00.123456+00:00";
@@ -73,6 +100,7 @@ function row(id: string, email: string, fullName: string | null, extra: Partial<
     created_at: CREATED,
     updated_at: "2026-10-02T00:00:00Z",
     joined_at: "2026-10-02T00:00:00Z",
+    role_id: INSPECTOR_ROLE,
     ...extra,
   };
 }
@@ -83,28 +111,45 @@ let queries: Query[];
 let teams: boolean;
 /** False: a project that has not run migration 20261027140000 (phones and joined_at). */
 let accounts: boolean;
-/** Makes the matching operations fail: updates, reads, or only the count of lead inspectors. */
-let failures: { update?: Failure; read?: Failure; leads?: Failure };
+/** False: a project that has not run migration 20261027150000 (roles). */
+let roles: boolean;
+/** Makes the matching operations fail: updates, reads, only the count of lead inspectors, or the roles. */
+let failures: { update?: Failure; read?: Failure; leads?: Failure; roles?: Failure };
+/** What is_full_admin() answers. */
+let fullAdmin: { data: boolean | null; error: Failure | null };
 
 const MISSING_READ = { code: "42703", message: "column profiles.is_lead does not exist" };
 const MISSING_WRITE = { code: "PGRST204", message: "Could not find the 'is_lead' column of 'profiles' in the schema cache" };
 const MISSING_ACCOUNT_READ = { code: "42703", message: "column profiles.phone does not exist" };
 const MISSING_ACCOUNT_WRITE = { code: "PGRST204", message: "Could not find the 'phone' column of 'profiles' in the schema cache" };
+const MISSING_ROLE_READ = { code: "42703", message: "column profiles.role_id does not exist" };
+const MISSING_ROLE_WRITE = { code: "PGRST204", message: "Could not find the 'role_id' column of 'profiles' in the schema cache" };
+const NO_ROLES_TABLE = { code: "PGRST205", message: "Could not find the table 'public.roles' in the schema cache" };
 
-function project(source: Row | undefined, columns: string): Record<string, unknown> | null {
+function project<T extends object>(source: T | undefined, columns: string): Record<string, unknown> | null {
   if (!source) return null;
-  return Object.fromEntries(columns.split(",").map((name) => [name.trim(), source[name.trim() as keyof Row]]));
+  return Object.fromEntries(columns.split(",").map((name) => [name.trim(), source[name.trim() as keyof T]]));
 }
 
 function fakeClient(kind: "user" | "admin") {
   const from = vi.fn((table: string) => {
-    expect(table).toBe("profiles");
-    const query: Query = { client: kind, calls: [] };
+    expect(["profiles", "roles"]).toContain(table);
+    const query: Query = { client: kind, table, calls: [] };
     queries.push(query);
     const arg = (method: string) => query.calls.find(([name]) => name === method)?.[1];
     const eqs = () => query.calls.filter(([name]) => name === "eq").map(([, args]) => args as [string, unknown]);
 
+    /** public.roles: read only, by id or by kind. */
+    function readRoles(single: boolean): { data: unknown; error: unknown } {
+      if (!roles) return { data: null, error: NO_ROLES_TABLE };
+      if (failures.roles) return { data: null, error: failures.roles };
+      const found = ROLE_ROWS.filter((candidate) => eqs().every(([column, value]) => candidate[column as keyof RoleRow] === value));
+      const data = found.map((target) => project(target, String(arg("select")?.[0] ?? "")));
+      return { data: single ? (data[0] ?? null) : data, error: null };
+    }
+
     function run(single: boolean): { data: unknown; error: unknown } {
+      if (table === "roles") return readRoles(single);
       const columns = String(arg("select")?.[0] ?? "");
       const update = arg("update")?.[0] as Partial<Row> | undefined;
       const touchesTeams =
@@ -114,6 +159,8 @@ function fakeClient(kind: "user" | "admin") {
       if (!teams && touchesTeams) return { data: null, error: update ? MISSING_WRITE : MISSING_READ };
       const touchesAccounts = /phone|joined_at/.test(columns) || (update && ("phone" in update || "joined_at" in update));
       if (!accounts && touchesAccounts) return { data: null, error: update ? MISSING_ACCOUNT_WRITE : MISSING_ACCOUNT_READ };
+      const touchesRoles = /role_id/.test(columns) || (update && "role_id" in update);
+      if (!roles && touchesRoles) return { data: null, error: update ? MISSING_ROLE_WRITE : MISSING_ROLE_READ };
 
       const matching = [...rows.values()].filter((candidate) =>
         eqs().every(([column, value]) => candidate[column as keyof Row] === value),
@@ -125,7 +172,19 @@ function fakeClient(kind: "user" | "admin") {
 
       if (update) {
         if (failures.update) return { data: null, error: failures.update };
-        for (const target of found) Object.assign(target, update, { updated_at: "2026-10-07T00:00:00Z" });
+        const changes: Partial<Row> = { ...update };
+        if (update.role_id !== undefined) {
+          // profiles_role_id_fkey, then the guard: role and is_lead follow the role's access.
+          const role = ROLE_ROWS.find((candidate) => candidate.id === update.role_id);
+          if (!role) {
+            return {
+              data: null,
+              error: { code: "23503", message: 'insert or update on table "profiles" violates foreign key constraint "profiles_role_id_fkey"' },
+            };
+          }
+          Object.assign(changes, { role: role.access === "all" ? "admin" : "inspector", is_lead: role.access === "team" });
+        }
+        for (const target of found) Object.assign(target, changes, { updated_at: "2026-10-07T00:00:00Z" });
         const data = found.map((target) => project(target, columns || "id"));
         return { data: single ? (data[0] ?? null) : data, error: null };
       }
@@ -148,20 +207,23 @@ function fakeClient(kind: "user" | "admin") {
       Promise.resolve(run(false)).then(resolve, reject);
     return builder;
   });
+  /** What the sign-up trigger makes for a new auth user: an inactive inspector, untouched, with no name and not joined. */
+  const signUp = (email: string) =>
+    rows.set(NEW, row(NEW, email, null, { active: false, updated_at: CREATED, joined_at: null }));
   const auth = {
     resetPasswordForEmail: vi.fn().mockResolvedValue({ data: {}, error: null }),
     admin: {
-      inviteUserByEmail: vi.fn(async () => {
-        // Supabase Auth creates the user; the sign-up trigger makes an inactive inspector, with no
-        // name (the invite gives none) and not joined (no password).
-        rows.set(NEW, row(NEW, "jane.tan@example.com", null, { active: false, updated_at: CREATED, joined_at: null }));
+      inviteUserByEmail: vi.fn(async (email: string) => {
+        // Supabase Auth creates the user; the invite gives no name, and no password.
+        signUp(email);
         return { data: { user: { id: NEW } }, error: null };
       }),
       updateUserById: vi.fn().mockResolvedValue({ data: { user: {} }, error: null }),
       // Deactivated accounts are banned; tests that need a pending one say so.
       getUserById: vi.fn().mockResolvedValue({ data: { user: { banned_until: "2126-09-12T08:00:00Z" } }, error: null }),
-      // A link, nothing emailed: for the user who has the address.
+      // A link, nothing emailed: for the user who has the address. An invite link to a new address makes its account.
       generateLink: vi.fn(async ({ type, email }: { type: string; email: string }) => {
+        if (type === "invite" && ![...rows.values()].some((candidate) => candidate.email === email)) signUp(email);
         const user = [...rows.values()].find((candidate) => candidate.email === email);
         return {
           data: {
@@ -184,7 +246,12 @@ function fakeClient(kind: "user" | "admin") {
       }),
     },
   };
-  return { from, auth };
+  /** is_full_admin(): whether the caller has the built-in Admin role, as the database says. */
+  const rpc = vi.fn(async (name: string) => {
+    expect(name).toBe("is_full_admin");
+    return fullAdmin;
+  });
+  return { from, auth, rpc };
 }
 
 let userClient: ReturnType<typeof fakeClient>;
@@ -212,23 +279,33 @@ beforeEach(() => {
   vi.stubEnv("NEXT_PUBLIC_SITE_URL", "https://qc.example.com");
   vi.mocked(authorizeAction).mockResolvedValue({
     ok: true,
-    user: { id: SELF, email: "admin@test.local", fullName: "Test Admin", role: "admin" },
+    user: {
+      id: SELF,
+      email: "admin@test.local",
+      fullName: "Test Admin",
+      role: "admin",
+      // Only the built-in Admin role gets past authorizeAction({ permission: "users" }).
+      grant: { id: ADMIN_ROLE, name: "Admin", builtIn: "admin", access: "all", permissions: [] },
+    },
   });
   vi.mocked(isAdminClientConfigured).mockReturnValue(true);
   vi.spyOn(console, "error").mockImplementation(() => {});
   teams = true;
   accounts = true;
+  roles = true;
   failures = {};
+  fullAdmin = { data: true, error: null };
   queries = [];
   rows = new Map(
     [
-      row(SELF, "admin@test.local", "Test Admin", { role: "admin" }),
-      row(LEAD, "lina@test.local", "Lina Lead", { is_lead: true }),
-      row(LEAD_TWO, "leo@test.local", "Leo Lead", { is_lead: true }),
+      row(SELF, "admin@test.local", "Test Admin", { role: "admin", role_id: ADMIN_ROLE }),
+      row(LEAD, "lina@test.local", "Lina Lead", { is_lead: true, role_id: LEAD_ROLE }),
+      row(LEAD_TWO, "leo@test.local", "Leo Lead", { is_lead: true, role_id: LEAD_ROLE }),
       row(MEMBER, "ivan@test.local", "Ivan Inspector", { lead_id: LEAD }),
       row(OTHER, "olga@test.local", "Olga Other", { lead_id: LEAD_TWO }),
       // In no team, so the team counts of the tests below stay as they are.
       row(INVITED, "zed@example.com", null, { joined_at: null }),
+      row(QUINN, "quinn@test.local", "Quinn Reviewer", { role: "admin", role_id: REVIEWER_ROLE }),
     ].map((entry) => [entry.id, entry]),
   );
   userClient = fakeClient("user");
@@ -257,14 +334,62 @@ describe("every action", () => {
     ["cancelInvite", () => cancelInvite(IDLE, form({ userId: INVITED }))],
   ];
 
-  it.each(calls)("%s refuses anyone who is not an active admin", async (_name, run) => {
+  it.each(calls)("%s asks for the users permission, and refuses anyone without it before anything else", async (_name, run) => {
+    // As authorizeAction answers an inspector, or a custom role that sees every inspection: only the
+    // built-in Admin role manages users.
     vi.mocked(authorizeAction).mockResolvedValue({ ok: false, error: "You do not have permission to do that." });
 
     expect(await run()).toEqual({ status: "error", message: "You do not have permission to do that." });
-    expect(authorizeAction).toHaveBeenCalledWith("admin");
+    expect(authorizeAction).toHaveBeenCalledExactlyOnceWith({ permission: "users" });
     expect(createClient).not.toHaveBeenCalled();
     expect(createAdminClient).not.toHaveBeenCalled();
     expect(refresh).not.toHaveBeenCalled();
+  });
+
+  it("asks the database nothing more when the session read the Admin role", async () => {
+    expect(await deactivateUser(IDLE, form({ userId: OTHER }))).toMatchObject({ status: "success" });
+    expect(userClient.rpc).not.toHaveBeenCalled();
+  });
+
+  describe("when the session could not read the caller's role, and stood in the built-in role for their level", () => {
+    beforeEach(() => {
+      // An admin at the database's level: the built-in Admin role, or a custom role that sees every inspection.
+      vi.mocked(authorizeAction).mockResolvedValue({
+        ok: true,
+        user: { id: SELF, email: "admin@test.local", fullName: "Test Admin", role: "admin" },
+      });
+    });
+
+    it.each(calls)("%s refuses a custom role that sees every inspection, before any work with the secret key", async (_name, run) => {
+      fullAdmin = { data: false, error: null };
+      expect(await run()).toEqual({ status: "error", message: MESSAGES.notAllowed });
+      expect(userClient.rpc).toHaveBeenCalledExactlyOnceWith("is_full_admin");
+      expect(createAdminClient).not.toHaveBeenCalled();
+      expect(updates()).toEqual([]);
+      expect(refresh).not.toHaveBeenCalled();
+    });
+
+    it("goes on for the built-in Admin role, as the database confirms", async () => {
+      expect(await deactivateUser(IDLE, form({ userId: OTHER }))).toMatchObject({ status: "success" });
+      expect(userClient.rpc).toHaveBeenCalledOnce();
+    });
+
+    it("goes on by the level on a project without roles, which has no such function", async () => {
+      fullAdmin = {
+        data: null,
+        error: { code: "PGRST202", message: "Could not find the function public.is_full_admin without parameters in the schema cache" },
+      };
+      expect(await deactivateUser(IDLE, form({ userId: OTHER }))).toMatchObject({ status: "success" });
+    });
+
+    it("says so plainly when the database cannot say", async () => {
+      fullAdmin = { data: null, error: { code: "57014", message: "statement timeout" } };
+      expect(await deactivateUser(IDLE, form({ userId: OTHER }))).toEqual({
+        status: "error",
+        message: "Your role could not be checked just now. Try again.",
+      });
+      expect(updates()).toEqual([]);
+    });
   });
 
   it.each(calls.slice(1))("%s refuses a user id that is not a uuid", async (name) => {
@@ -305,7 +430,8 @@ describe("inviteUser", () => {
     expect(updates()).toEqual([
       {
         client: "admin",
-        fields: { role: "admin", is_lead: false, lead_id: null, active: true },
+        // The role's id; the profiles guard gives role and is_lead its access.
+        fields: { role_id: ADMIN_ROLE, lead_id: null, active: true },
         // Only if nobody changed it since the read.
         eq: [
           ["id", NEW],
@@ -313,19 +439,82 @@ describe("inviteUser", () => {
         ],
       },
     ]);
+    expect(rows.get(NEW)).toMatchObject({ role: "admin", is_lead: false, role_id: ADMIN_ROLE, active: true });
     expect(refresh).toHaveBeenCalledOnce();
+  });
+
+  it("reads the role chosen again, through the admin's own client: what it sees never comes from the form", async () => {
+    await inviteUser(IDLE, inviteForm({ role: REVIEWER_ROLE.toUpperCase(), access: "own" }));
+    const read = queries.find((query) => query.table === "roles");
+    expect(read).toMatchObject({ client: "user", calls: expect.arrayContaining([["eq", ["id", REVIEWER_ROLE]]]) });
+    expect(updates()[0].fields).toEqual({ role_id: REVIEWER_ROLE, lead_id: null, active: true });
+    expect(rows.get(NEW)).toMatchObject({ role: "admin", is_lead: false });
   });
 
   it("invites an inspector into the lead inspector's team chosen", async () => {
     const result = await inviteUser(IDLE, inviteForm({ role: "inspector", leadId: LEAD }));
 
     expect(result).toMatchObject({ status: "success", message: expect.stringMatching(/They work in Lina Lead's team\.$/) });
-    expect(updates()[0].fields).toEqual({ role: "inspector", is_lead: false, lead_id: LEAD, active: true });
+    expect(updates()[0].fields).toEqual({ role_id: INSPECTOR_ROLE, lead_id: LEAD, active: true });
   });
 
-  it("invites a lead inspector", async () => {
-    await inviteUser(IDLE, inviteForm({ role: "lead" }));
-    expect(updates()[0].fields).toMatchObject({ role: "inspector", is_lead: true, lead_id: null });
+  it("invites a lead inspector, with no lead even if one was sent", async () => {
+    await inviteUser(IDLE, inviteForm({ role: "lead", leadId: LEAD }));
+    expect(updates()[0].fields).toEqual({ role_id: LEAD_ROLE, lead_id: null, active: true });
+    expect(rows.get(NEW)).toMatchObject({ role: "inspector", is_lead: true });
+  });
+
+  it("invites in a custom role: one that sees its own inspections into a team, any other in none", async () => {
+    expect(await inviteUser(IDLE, inviteForm({ role: FIELD_ROLE, leadId: LEAD }))).toMatchObject({
+      status: "success",
+      message: expect.stringMatching(/They work in Lina Lead's team\.$/),
+    });
+    expect(updates()[0].fields).toEqual({ role_id: FIELD_ROLE, lead_id: LEAD, active: true });
+
+    rows.delete(NEW);
+    expect(await inviteUser(IDLE, inviteForm({ role: FIELD_ROLE }))).toEqual({
+      status: "error",
+      message: "Choose their lead inspector.",
+      fieldErrors: { leadId: "Choose their lead inspector." },
+    });
+
+    for (const role of [REVIEWER_ROLE, SENIOR_ROLE]) {
+      rows.delete(NEW);
+      expect(await inviteUser(IDLE, inviteForm({ role, leadId: LEAD })), role).toMatchObject({ status: "success" });
+      expect(updates().at(-1)?.fields, role).toEqual({ role_id: role, lead_id: null, active: true });
+    }
+  });
+
+  it("refuses a role deleted since the page loaded, at the role field, before any email", async () => {
+    expect(await inviteUser(IDLE, inviteForm({ role: GONE_ROLE }))).toEqual({
+      status: "error",
+      message: "That role no longer exists. Reload the page and choose another.",
+      fieldErrors: { role: "That role no longer exists. Reload the page and choose another." },
+    });
+    expect(adminClient.auth.admin.inviteUserByEmail).not.toHaveBeenCalled();
+  });
+
+  it("says plainly when the roles could not be read, before any email", async () => {
+    failures.roles = { code: "57014", message: "statement timeout" };
+    expect(await inviteUser(IDLE, inviteForm())).toMatchObject({
+      status: "error",
+      fieldErrors: { role: "The role could not be read: statement timeout. Try again." },
+    });
+    expect(adminClient.auth.admin.inviteUserByEmail).not.toHaveBeenCalled();
+  });
+
+  it("invites with the built-in roles standing in for the levels on a project without roles", async () => {
+    roles = false;
+    expect(await inviteUser(IDLE, inviteForm({ role: "lead" }))).toMatchObject({ status: "success" });
+    expect(updates()[0].fields).toEqual({ role: "inspector", is_lead: true, lead_id: null, active: true });
+
+    // A role's id needs the roles: refused at the field, before any email.
+    rows.delete(NEW);
+    expect(await inviteUser(IDLE, inviteForm({ role: REVIEWER_ROLE }))).toMatchObject({
+      status: "error",
+      fieldErrors: { role: expect.stringContaining("20261027150000_roles_and_permissions.sql") },
+    });
+    expect(adminClient.auth.admin.inviteUserByEmail).toHaveBeenCalledOnce();
   });
 
   it("asks for an inspector's lead, at the field, before any email", async () => {
@@ -371,8 +560,10 @@ describe("inviteUser", () => {
     expect(adminClient.auth.admin.inviteUserByEmail).not.toHaveBeenCalled();
   });
 
-  it("invites with roles only on a project without lead inspectors, and refuses a lead inspector there", async () => {
+  it("invites with the level only on a project without lead inspectors, and refuses a lead inspector there", async () => {
+    // The migrations run in order: no lead inspectors, no roles either.
     teams = false;
+    roles = false;
     expect(await inviteUser(IDLE, inviteForm({ role: "inspector" }))).toMatchObject({ status: "success" });
     expect(updates()[0].fields).toEqual({ role: "inspector", active: true });
 
@@ -460,6 +651,8 @@ describe("inviteUser", () => {
     expect(result.status).toBe("error");
     expect(result).toMatchObject({ message: expect.stringContaining("The invite email could not be sent") });
     expect(result).toMatchObject({ message: expect.stringContaining("custom SMTP") });
+    // A link sent by hand gets round the mailer: the same dialog makes one.
+    expect(result).toMatchObject({ message: expect.stringMatching(/ Or choose Create Link and send them the link yourself\.$/) });
     expect(updates()).toEqual([]);
     expect(refresh).not.toHaveBeenCalled();
   });
@@ -476,6 +669,8 @@ describe("inviteUser", () => {
       status: "error",
       fieldErrors: { email: expect.stringContaining("does not look able to receive email") },
     });
+    // Check the address: a link would go to the same one.
+    expect(result).not.toMatchObject({ message: expect.stringContaining("Create Link") });
     expect(updates()).toEqual([]);
   });
 
@@ -526,17 +721,148 @@ describe("inviteUser", () => {
   });
 
   it("returns field errors and sends nothing for an invalid form", async () => {
-    const result = await inviteUser(IDLE, form({ email: "jane@", role: "owner" }));
+    const result = await inviteUser(IDLE, form({ email: "jane@", role: "owner", delivery: "fax" }));
 
     expect(result).toEqual({
       status: "error",
       message: "Check the highlighted fields.",
       fieldErrors: {
         email: "Enter a valid email address, like name@example.com.",
-        role: "Choose Inspector, Lead Inspector or Admin.",
+        role: "Choose their role.",
+        delivery: "Choose Send Email or Create Link.",
       },
     });
     expect(createClient).not.toHaveBeenCalled();
+    expect(createAdminClient).not.toHaveBeenCalled();
+  });
+});
+
+describe("inviteUser by Create Link", () => {
+  const CONFIRM = "https://qc.example.com/auth/confirm";
+  const linkForm = (overrides: Record<string, string> = {}) => inviteForm({ delivery: "link", ...overrides });
+  const MESSAGE =
+    "Nothing was emailed: send this link to jane.tan@example.com yourself, by WhatsApp or any chat. From it they create their account: name, phone and password. It works once, within an hour; for a new one, choose Copy Invite Link next to their email.";
+
+  it("makes the account with the secret key, emailing nothing, and hands the admin a link on /auth/confirm", async () => {
+    expect(await inviteUser(IDLE, linkForm())).toEqual({
+      status: "link",
+      link: `${CONFIRM}?token_hash=invite-hash&type=invite`,
+      message: MESSAGE,
+    });
+    expect(adminClient.auth.admin.generateLink).toHaveBeenCalledExactlyOnceWith({ type: "invite", email: "jane.tan@example.com" });
+    expect(adminClient.auth.admin.inviteUserByEmail).not.toHaveBeenCalled();
+    expect(adminClient.auth.resetPasswordForEmail).not.toHaveBeenCalled();
+    // The link signs its holder in: it goes to the admin who asked, never into a log.
+    expect(console.error).not.toHaveBeenCalled();
+  });
+
+  it("activates and places the account exactly as the email invite does", async () => {
+    await inviteUser(IDLE, linkForm({ role: "inspector", leadId: LEAD }));
+    expect(updates()).toEqual([
+      {
+        client: "admin",
+        fields: { role_id: INSPECTOR_ROLE, lead_id: LEAD, active: true },
+        eq: [
+          ["id", NEW],
+          ["updated_at", CREATED],
+        ],
+      },
+    ]);
+    expect(rows.get(NEW)).toMatchObject({ active: true, role: "inspector", is_lead: false, lead_id: LEAD, joined_at: null, full_name: null });
+  });
+
+  it("says the team in the words over the link", async () => {
+    expect(await inviteUser(IDLE, linkForm({ role: FIELD_ROLE, leadId: LEAD }))).toMatchObject({
+      status: "link",
+      message: `${MESSAGE} They work in Lina Lead's team.`,
+    });
+  });
+
+  it("never hands out Supabase's own action_link", async () => {
+    expect(JSON.stringify(await inviteUser(IDLE, linkForm()))).not.toContain("supabase.co");
+  });
+
+  it("leaves the list to the dialog, which refreshes it when it closes: the new row could take the dialog away", async () => {
+    await inviteUser(IDLE, linkForm());
+    expect(refresh).not.toHaveBeenCalled();
+  });
+
+  it("settles the role and the lead before any account is made", async () => {
+    expect(await inviteUser(IDLE, linkForm({ role: "inspector" }))).toMatchObject({ fieldErrors: { leadId: "Choose their lead inspector." } });
+    expect(await inviteUser(IDLE, linkForm({ role: GONE_ROLE }))).toMatchObject({ fieldErrors: { role: MESSAGES.roleGone } });
+    expect(adminClient.auth.admin.generateLink).not.toHaveBeenCalled();
+    expect(rows.has(NEW)).toBe(false);
+  });
+
+  it("stops at an address that has an account, before making anything", async () => {
+    expect(await inviteUser(IDLE, linkForm({ email: "Zed@Example.com" }))).toMatchObject({
+      fieldErrors: { email: expect.stringContaining("choose Resend Invite or Copy Invite Link") },
+    });
+    expect(adminClient.auth.admin.generateLink).not.toHaveBeenCalled();
+  });
+
+  it("explains a refused link in plain words, an address Supabase refuses at the email field", async () => {
+    adminClient.auth.admin.generateLink.mockResolvedValueOnce({
+      data: { properties: null, user: null },
+      error: { code: "email_exists", status: 422, message: "A user with this email address has already been registered" },
+    } as never);
+    expect(await inviteUser(IDLE, linkForm())).toMatchObject({ fieldErrors: { email: expect.stringContaining("already has an account") } });
+
+    adminClient.auth.admin.generateLink.mockResolvedValueOnce({
+      data: { properties: null, user: null },
+      error: { code: "email_address_invalid", status: 400, message: 'Email address "x@nowhere.example" is invalid' },
+    } as never);
+    expect(await inviteUser(IDLE, linkForm({ email: "x@nowhere.example" }))).toEqual({
+      status: "error",
+      message: MESSAGES.addressRefused,
+      fieldErrors: { email: MESSAGES.addressRefused },
+    });
+
+    adminClient.auth.admin.generateLink.mockResolvedValueOnce({
+      data: { properties: null, user: null },
+      error: { status: 401, message: "Invalid API key" },
+    } as never);
+    expect(await inviteUser(IDLE, linkForm())).toEqual({
+      status: "error",
+      message:
+        "The invite link was not created: Supabase refused the server's key. Check that SUPABASE_SECRET_KEY is the secret key of this project.",
+    });
+    expect(updates()).toEqual([]);
+  });
+
+  it("shows no link when the account could not be activated: it would not let them in", async () => {
+    failures.update = { code: "57014", message: "statement timeout" };
+    expect(await inviteUser(IDLE, linkForm())).toEqual({
+      status: "warning",
+      message:
+        "The account for jane.tan@example.com was made, but it could not be activated, so a link would not let them in. Choose Activate next to jane.tan@example.com, then make them an admin, then Copy Invite Link.",
+    });
+    // The new row, as sign-up made it, shows in the list: the dialog closes on a warning.
+    expect(refresh).toHaveBeenCalledOnce();
+  });
+
+  it("says what to do when Supabase answers a link of another kind, which is never handed out", async () => {
+    adminClient.auth.admin.generateLink.mockImplementationOnce(async ({ email }: { type: string; email: string }) => {
+      rows.set(NEW, row(NEW, email, null, { active: false, updated_at: CREATED, joined_at: null }));
+      return {
+        data: {
+          properties: { action_link: "", email_otp: "", hashed_token: "signup-hash", redirect_to: "", verification_type: "signup" },
+          user: { id: NEW },
+        },
+        error: null,
+      };
+    });
+    expect(await inviteUser(IDLE, linkForm())).toEqual({
+      status: "warning",
+      message:
+        "jane.tan@example.com is invited, but Supabase answered a link of another kind. Choose Copy Invite Link next to jane.tan@example.com for one.",
+    });
+    expect(rows.get(NEW)).toMatchObject({ active: true });
+  });
+
+  it("is switched off without the secret key, as the email invite is", async () => {
+    vi.mocked(isAdminClientConfigured).mockReturnValue(false);
+    expect(await inviteUser(IDLE, linkForm())).toEqual({ status: "error", message: MESSAGES.missingSecretKey });
     expect(createAdminClient).not.toHaveBeenCalled();
   });
 });
@@ -664,7 +990,7 @@ describe("editUserDetails", () => {
     vi.mocked(authorizeAction).mockResolvedValue({ ok: false, error: "This account has been deactivated." });
 
     expect(await edit(OTHER, "Olga Tan")).toEqual({ status: "error", message: "This account has been deactivated." });
-    expect(authorizeAction).toHaveBeenCalledWith("admin");
+    expect(authorizeAction).toHaveBeenCalledWith({ permission: "users" });
     expect(createClient).not.toHaveBeenCalled();
     expect(createAdminClient).not.toHaveBeenCalled();
   });
@@ -758,9 +1084,60 @@ describe("changeRole", () => {
     const result = await changeRole(IDLE, form({ userId: OTHER, role: "admin" }));
 
     expect(result).toEqual({ status: "success", message: "Olga Other is now an admin." });
-    expect(updates()).toEqual([{ client: "user", fields: { role: "admin", is_lead: false, lead_id: null }, eq: [["id", OTHER]] }]);
+    // The role's id and the lead in one write: the team rules never clear a lead for you.
+    expect(updates()).toEqual([{ client: "user", fields: { role_id: ADMIN_ROLE, lead_id: null }, eq: [["id", OTHER]] }]);
+    expect(rows.get(OTHER)).toMatchObject({ role: "admin", is_lead: false, lead_id: null });
     expect(createAdminClient).not.toHaveBeenCalled();
     expect(refresh).toHaveBeenCalledOnce();
+  });
+
+  it("gives a custom role by its id, its words by its name: out of the team for one that sees more than its own", async () => {
+    expect(await changeRole(IDLE, form({ userId: OTHER, role: REVIEWER_ROLE, leadId: LEAD }))).toEqual({
+      status: "success",
+      message: "Olga Other's role is now QA Reviewer.",
+    });
+    expect(updates()).toEqual([{ client: "user", fields: { role_id: REVIEWER_ROLE, lead_id: null }, eq: [["id", OTHER]] }]);
+    expect(rows.get(OTHER)).toMatchObject({ role: "admin", is_lead: false, lead_id: null, role_id: REVIEWER_ROLE });
+  });
+
+  it("puts someone in a team with a custom role that sees its own inspections, and asks for the lead first", async () => {
+    expect(await changeRole(IDLE, form({ userId: OTHER, role: FIELD_ROLE }))).toEqual({
+      status: "error",
+      message: "Choose their lead inspector.",
+      fieldErrors: { leadId: "Choose their lead inspector." },
+    });
+    expect(await changeRole(IDLE, form({ userId: OTHER, role: FIELD_ROLE, leadId: LEAD }))).toEqual({
+      status: "success",
+      message: "Olga Other's role is now Field Inspector, in Lina Lead's team.",
+    });
+    expect(rows.get(OTHER)).toMatchObject({ role: "inspector", is_lead: false, lead_id: LEAD, role_id: FIELD_ROLE });
+  });
+
+  it("refuses a role deleted since the page loaded, at the role field, and changes nothing", async () => {
+    expect(await changeRole(IDLE, form({ userId: OTHER, role: GONE_ROLE }))).toEqual({
+      status: "error",
+      message: MESSAGES.roleGone,
+      fieldErrors: { role: MESSAGES.roleGone },
+    });
+    expect(updates()).toEqual([]);
+  });
+
+  it("says so in plain words when the role goes between the read and the change", async () => {
+    // profiles_role_id_fkey refuses it: the role is gone by the time of the write.
+    failures.update = {
+      code: "23503",
+      message: 'insert or update on table "profiles" violates foreign key constraint "profiles_role_id_fkey"',
+    };
+    expect(await changeRole(IDLE, form({ userId: OTHER, role: "admin" }))).toEqual({ status: "error", message: MESSAGES.roleGone });
+  });
+
+  it("lets someone who leads a team move to another role that sees their team's: they keep leading it", async () => {
+    expect(await changeRole(IDLE, form({ userId: LEAD, role: SENIOR_ROLE }))).toEqual({
+      status: "success",
+      message: "Lina Lead's role is now Senior Lead.",
+    });
+    expect(rows.get(LEAD)).toMatchObject({ is_lead: true, role_id: SENIOR_ROLE });
+    expect(rows.get(MEMBER)?.lead_id).toBe(LEAD);
   });
 
   it("makes an inspector a lead inspector, who leaves their own lead's team", async () => {
@@ -804,10 +1181,10 @@ describe("changeRole", () => {
     expect(updates()).toEqual([]);
   });
 
-  it("refuses to demote a lead inspector whose team has members, naming them", async () => {
-    for (const role of ["inspector", "admin"]) {
+  it("refuses a role that leads no team to a lead inspector whose team has members, naming them", async () => {
+    for (const role of ["inspector", "admin", FIELD_ROLE, REVIEWER_ROLE]) {
       const result = await changeRole(IDLE, form({ userId: LEAD, role, leadId: LEAD_TWO }));
-      expect(result).toEqual({
+      expect(result, role).toEqual({
         status: "error",
         message:
           "Lina Lead leads 1 inspector: Ivan Inspector. Choose another lead inspector for them first (Change Lead Inspector, next to their name).",
@@ -828,11 +1205,24 @@ describe("changeRole", () => {
   // Postgres and Supabase Auth match ids in any case: an upper-case copy of
   // your own id must not slip past the check.
   it.each([
-    ["as the page sends it", SELF],
-    ["in upper case", SELF.toUpperCase()],
-  ])("refuses to let admins demote themselves (their id %s)", async (_case, userId) => {
-    expect(await changeRole(IDLE, form({ userId, role: "lead" }))).toEqual({ status: "error", message: MESSAGES.selfDemote });
+    ["as the page sends it", SELF, "lead"],
+    ["in upper case", SELF.toUpperCase(), "lead"],
+    ["for a custom role that sees every inspection", SELF, REVIEWER_ROLE],
+    ["for a role id in upper case", SELF, REVIEWER_ROLE.toUpperCase()],
+  ])("refuses to let admins leave the Admin role themselves (their id %s)", async (_case, userId, role) => {
+    expect(await changeRole(IDLE, form({ userId, role }))).toEqual({ status: "error", message: MESSAGES.selfDemote });
+    expect(MESSAGES.selfDemote).toBe("You cannot remove your own Admin role. Ask another admin to do it.");
     expect(createClient).not.toHaveBeenCalled();
+  });
+
+  it("lets admins keep their own Admin role, by its kind or its id: nothing changes", async () => {
+    for (const role of ["admin", ADMIN_ROLE]) {
+      expect(await changeRole(IDLE, form({ userId: SELF, role })), role).toEqual({
+        status: "success",
+        message: "Test Admin is now an admin.",
+      });
+    }
+    expect(rows.get(SELF)).toMatchObject({ role: "admin", role_id: ADMIN_ROLE });
   });
 
   it("surfaces the database's own rules in plain words", async () => {
@@ -840,7 +1230,7 @@ describe("changeRole", () => {
     rows.get(OTHER)!.role = "admin";
     expect(await changeRole(IDLE, form({ userId: OTHER, role: "lead" }))).toEqual({
       status: "error",
-      message: "This would leave the app without an active admin. Make someone else an admin first.",
+      message: "This would leave nobody active with the Admin role. Give someone else the Admin role first.",
     });
     failures.update = { code: "23514", message: "the lead inspector must be an active lead inspector" };
     expect(await changeRole(IDLE, form({ userId: MEMBER, role: "inspector", leadId: LEAD }))).toEqual({
@@ -854,8 +1244,9 @@ describe("changeRole", () => {
     expect(await changeRole(IDLE, form({ userId: NEW, role: "admin" }))).toEqual({ status: "error", message: MESSAGES.userNotFound });
   });
 
-  it("changes roles only on a project without lead inspectors", async () => {
+  it("changes the level only on a project without lead inspectors", async () => {
     teams = false;
+    roles = false;
     expect(await changeRole(IDLE, form({ userId: OTHER, role: "admin" }))).toEqual({
       status: "success",
       message: "Olga Other is now an admin.",
@@ -868,6 +1259,20 @@ describe("changeRole", () => {
     expect(await changeRole(IDLE, form({ userId: OTHER, role: "lead" }))).toMatchObject({
       status: "error",
       message: expect.stringMatching(/^Lead inspectors need a database update first/),
+    });
+  });
+
+  it("works with the built-in roles standing in for the levels on a project without roles", async () => {
+    roles = false;
+    expect(await changeRole(IDLE, form({ userId: OTHER, role: "lead" }))).toEqual({
+      status: "success",
+      message: "Olga Other is now a lead inspector.",
+    });
+    expect(updates().at(-1)?.fields).toEqual({ role: "inspector", is_lead: true, lead_id: null });
+    expect(await changeRole(IDLE, form({ userId: OTHER, role: REVIEWER_ROLE }))).toEqual({
+      status: "error",
+      message: MESSAGES.rolesMissing,
+      fieldErrors: { role: MESSAGES.rolesMissing },
     });
   });
 });
@@ -893,9 +1298,32 @@ describe("assignLead", () => {
   it.each([
     [LEAD, "Lina Lead is a lead inspector, so they work in no lead inspector's team."],
     [SELF, "Test Admin is an admin, so they work in no lead inspector's team."],
-  ])("refuses to put a lead inspector or an admin in a team", async (userId, message) => {
+    [QUINN, "Quinn Reviewer has the QA Reviewer role, so they work in no lead inspector's team."],
+  ])("refuses to put someone whose role sees more than their own in a team (%s), naming the role", async (userId, message) => {
     expect(await assignLead(IDLE, form({ userId, leadId: LEAD_TWO }))).toEqual({ status: "error", message });
     expect(updates()).toEqual([]);
+  });
+
+  it("moves someone with a custom role that sees their own inspections, as an inspector", async () => {
+    rows.get(OTHER)!.role_id = FIELD_ROLE;
+    expect(await assignLead(IDLE, form({ userId: OTHER, leadId: LEAD }))).toEqual({
+      status: "success",
+      message: "Olga Other now works in Lina Lead's team.",
+    });
+  });
+
+  it("names the level when the role cannot be read, on a project without roles too", async () => {
+    failures.roles = { code: "57014", message: "statement timeout" };
+    expect(await assignLead(IDLE, form({ userId: QUINN, leadId: LEAD }))).toEqual({
+      status: "error",
+      message: "Quinn Reviewer is an admin, so they work in no lead inspector's team.",
+    });
+    failures.roles = undefined;
+    roles = false;
+    expect(await assignLead(IDLE, form({ userId: LEAD, leadId: LEAD_TWO }))).toEqual({
+      status: "error",
+      message: "Lina Lead is a lead inspector, so they work in no lead inspector's team.",
+    });
   });
 
   it("refuses a lead who is deactivated", async () => {
@@ -1049,14 +1477,46 @@ describe("reactivateUser", () => {
         status: "success",
         message: "Olga Other is active and can sign in. They work in Lina Lead's team.",
       });
-      expect(updates()[0].fields).toEqual({ role: "inspector", is_lead: false, lead_id: LEAD, active: true });
+      expect(updates()[0].fields).toEqual({ role_id: INSPECTOR_ROLE, lead_id: LEAD, active: true });
     });
 
-    it("can come back as a lead inspector or an admin instead", async () => {
+    it("keeps the role they have when the dialog sends none, a custom one too", async () => {
+      rows.get(OTHER)!.role_id = FIELD_ROLE;
+      expect(await reactivateUser(IDLE, form({ userId: OTHER, leadId: LEAD }))).toEqual({
+        status: "success",
+        message: "Olga Other is active and can sign in. Their role is Field Inspector, in Lina Lead's team.",
+      });
+      expect(updates()[0].fields).toEqual({ role_id: FIELD_ROLE, lead_id: LEAD, active: true });
+    });
+
+    it("can come back as a lead inspector, an admin or in a custom role instead", async () => {
       expect(await reactivateUser(IDLE, form({ userId: OTHER, role: "lead" }))).toMatchObject({
         message: "Olga Other is active and can sign in. They are a lead inspector.",
       });
-      expect(updates()[0].fields).toEqual({ role: "inspector", is_lead: true, lead_id: null, active: true });
+      expect(updates()[0].fields).toEqual({ role_id: LEAD_ROLE, lead_id: null, active: true });
+
+      rows.get(OTHER)!.active = false;
+      rows.get(OTHER)!.is_lead = false;
+      expect(await reactivateUser(IDLE, form({ userId: OTHER, role: REVIEWER_ROLE }))).toMatchObject({
+        message: "Olga Other is active and can sign in. Their role is QA Reviewer.",
+      });
+      expect(updates().at(-1)?.fields).toEqual({ role_id: REVIEWER_ROLE, lead_id: null, active: true });
+    });
+
+    it("refuses a role deleted since the page loaded, and lifts no sign-in block", async () => {
+      expect(await reactivateUser(IDLE, form({ userId: OTHER, role: GONE_ROLE }))).toEqual({
+        status: "error",
+        message: MESSAGES.roleGone,
+        fieldErrors: { role: MESSAGES.roleGone },
+      });
+      expect(adminClient.auth.admin.updateUserById).not.toHaveBeenCalled();
+      expect(updates()).toEqual([]);
+    });
+
+    it("places them by their level on a project without roles", async () => {
+      roles = false;
+      expect(await reactivateUser(IDLE, form({ userId: OTHER, leadId: LEAD }))).toMatchObject({ status: "success" });
+      expect(updates()[0].fields).toEqual({ role: "inspector", is_lead: false, lead_id: LEAD, active: true });
     });
 
     it("asks nothing when only a sign-in block is lifted from an active inspector from before teams", async () => {
@@ -1071,6 +1531,7 @@ describe("reactivateUser", () => {
 
     it("is activated as before on a project without lead inspectors", async () => {
       teams = false;
+      roles = false;
       expect(await reactivateUser(IDLE, form({ userId: OTHER }))).toEqual({
         status: "success",
         message: "Olga Other is active and can sign in.",
