@@ -2,7 +2,8 @@
 // conclusion's one-line verdict worked out from them. One row per check the
 // inspection judged: each test module with a result (pass, fail, warning or
 // not done; a module that only records, "info", has none), Visual
-// Inspection once per defect class and the packing check's aged sample on a
+// Inspection once per defect class inspected (a class left out of every size
+// has none: Kenneth, 30 October 2026) and the packing check's aged sample on a
 // row of its own, not done for a size with none entered (every size needs
 // one: Kenneth, 27 October 2026). The order, the sampling plan and the
 // box/carton numbers are records, not checks: they show only when they hold
@@ -253,16 +254,35 @@ function watertightRow(module: ExportModule, sizes: readonly string[]): RowParts
   };
 }
 
+/**
+ * Visual Inspection once per class inspected (Kenneth, 30 October 2026): a
+ * class the inspector left out of every size (computed result
+ * not_inspected) has no row, and none counts in the verdict. A row judges
+ * the sizes its class was inspected in, and a size with no class inspected
+ * yet as not done; a size where only another class was inspected is not its
+ * concern. With no class inspected in any size, Visual Inspection is one row,
+ * not done.
+ */
 function visualRows(module: ExportModule, doc: InspectionExport, sizes: readonly string[], short: string): RowParts[] {
   const { computed } = module;
-  return VISUAL_CLASSES.flatMap(({ key, word }): RowParts[] => {
+  const included = VISUAL_CLASSES.filter(({ key }) => {
     const definition = rec(at(computed, "classes", key));
-    if (definition.include === false || Object.keys(definition).length === 0) return [];
+    return definition.include !== false && Object.keys(definition).length > 0;
+  });
+  const inspectedIn = (size: string, key: string) => at(computed, "sizes", size, key, "result") !== "not_inspected";
+  const sizeInspected = sizes.map((size) => included.some(({ key }) => inspectedIn(size, key)));
+  // Nothing inspected yet (no sizes ordered either): the module's own row, not done.
+  if (included.length > 0 && !sizeInspected.some(Boolean)) return [{ criterion: null, result: null }];
+  return included.flatMap(({ key, word }): RowParts[] => {
+    const definition = rec(at(computed, "classes", key));
+    // The sizes the row judges: those the class was inspected in, and those with nothing inspected yet.
+    const judged = sizes.filter((size, index) => inspectedIn(size, key) || !sizeInspected[index]);
+    if (!judged.some((size) => inspectedIn(size, key))) return [];
     const aql = num(definition.aql);
-    const perSize = sizes.map((size) => rec(at(computed, "sizes", size, key)));
+    const perSize = judged.map((size) => rec(at(computed, "sizes", size, key)));
     const inspected = sumOf(perSize.map((entry) => num(entry.inspected) ?? num(entry.n)));
     const found = sumOf(perSize.map((entry) => num(entry.total)));
-    const verdicts = perSize.map((entry) => entry.result);
+    const verdicts = perSize.map((entry) => (entry.result === "not_inspected" ? "not_done" : entry.result));
     return [
       {
         key: `visual:${key}`,
@@ -270,7 +290,7 @@ function visualRows(module: ExportModule, doc: InspectionExport, sizes: readonly
         criterion: aql === null ? null : aql === 0 ? `${aqlText(aql)}, accept 0` : aqlText(aql),
         result: inspected === null ? null : `${formatCount(found ?? 0)} in ${counted(inspected, "glove")}`,
         status: worstOf(verdicts, module.result.status),
-        failedSizes: sizes.filter((_, index) => verdicts[index] === "fail").map((size) => sizeLabel(doc, size)),
+        failedSizes: judged.filter((_, index) => verdicts[index] === "fail").map((size) => sizeLabel(doc, size)),
       },
     ];
   });

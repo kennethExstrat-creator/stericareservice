@@ -40,7 +40,12 @@ export type VisualCounts = z.infer<typeof VisualCountsSchema>;
 
 /** One class of one size: the gloves inspected for it, and its defects without a hand split. */
 export const VisualClassSchema = VisualCountsSchema.extend({
-  /** No. of Sample Inspected: n for the class's AQL plan. Offered from the sampling plan, confirmed by the inspector. */
+  /**
+   * No. of Sample Inspected: n for the class's AQL plan. Offered from the
+   * sampling plan, confirmed by the inspector. Empty with nothing counted,
+   * the class is not inspected for the size, and out of its result (Kenneth,
+   * 30 October 2026).
+   */
   inspected: CountCellSchema,
 });
 export type VisualClass = z.infer<typeof VisualClassSchema>;

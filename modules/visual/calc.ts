@@ -3,9 +3,15 @@
 // Accept / Reject and totals are computed here (6.2 rule 2). A class is
 // accepted at Ac or fewer defects and rejected at Re or more; any critical
 // defect fails (AQL 0: Accept 0 / Reject 1), even before the gloves inspected
-// are entered. A class is not done until its gloves inspected are entered, or
-// while the sample is too small for its AQL (6.2 rule 5). A size takes its
-// worst class. With handSplit the defects of both hands count together. The
+// are entered. A class is inspected once its gloves inspected are entered, or
+// once a defect is counted in it (counting is inspecting: it then asks for
+// the gloves inspected); with neither it is not inspected (Kenneth, 30
+// October 2026: "only major defect inspection"), which is no result, no
+// warning and nothing to do. An inspected class is not done until its gloves
+// inspected are entered, or while the sample is too small for its AQL (6.2
+// rule 5). A size takes its inspected classes only: failed if one fails, else
+// not done if one is not done, else passed; not done while none is
+// inspected. With handSplit the defects of both hands count together. The
 // classes' AQLs go into the context (AQL_SOURCES), so the sampling plan checks
 // the sample against the AQLs this module applies, and none of a class off.
 import { AqlSchema, CODE_LETTERS, decide, formatAql, planFromSampleSize, type Aql, type CodeLetter } from "@/lib/aql";
@@ -71,8 +77,21 @@ export type VisualClassComputed = {
   /** Every defect of the class, both hands, one-offs included: printed as total / inspected. */
   total: number;
   decision: "accept" | "reject" | "incomplete" | null;
-  result: "pass" | "fail" | "not_done";
+  /**
+   * The class's result for the size; not_inspected while its gloves
+   * inspected are empty and nothing is counted: the inspector left the class
+   * out, and the size's result leaves it out too.
+   */
+  result: VisualClassResult;
 };
+
+/** A class's result for a size: a module status, or not inspected (the class left out). */
+export type VisualClassResult = "pass" | "fail" | "not_done" | "not_inspected";
+
+/** True for a class inspected for the size: its gloves inspected entered, or a defect counted in it. */
+export function isInspectedClass(computed: Pick<VisualClassComputed, "result"> | null | undefined): boolean {
+  return computed !== null && computed !== undefined && computed.result !== "not_inspected";
+}
 
 /** A size's classes; a class the template switches off is null. */
 export type VisualSizeComputed = {
@@ -184,18 +203,23 @@ function calcSize({ size, entry, split, included, aqls, classes, labels, context
     return { cls, ...outcome };
   });
 
-  const status = worstStatus(outcomes.map((outcome) => outcome.computed.result));
+  // Only the classes inspected judge the size (Kenneth, 30 October 2026): the worst of them, and not
+  // done while there is none (worstStatus of nothing).
+  const judged = outcomes.flatMap((outcome) =>
+    outcome.computed.result === "not_inspected" ? [] : [{ ...outcome, status: outcome.computed.result }],
+  );
+  const skipped = outcomes.filter((outcome) => outcome.computed.result === "not_inspected").map((outcome) => outcome.name);
+  const status = worstStatus(judged.map((outcome) => outcome.status));
   const planned = samplingFor(context, size).watertightVisual;
-  const nothingInspected = outcomes.every((outcome) => outcome.computed.inspected === null && outcome.computed.result === "not_done");
-  const line = nothingInspected
-    ? `not done, ${labelFor(labels, "inspected")} missing${planned === null ? "" : ` (sampling plan: ${planned})`}`
-    : `${outcomes.map((outcome) => outcome.brief).join(", ")}: ${VERDICT[status]}`;
-  return {
-    computed,
-    result: { status, summary: `${outcomes.map((outcome) => outcome.summary).join("; ")}.` },
-    line,
-    issues,
-  };
+  const missing = `${labelFor(labels, "inspected")} missing${planned === null ? "" : ` (sampling plan: ${planned})`}`;
+  // No gloves inspected entered for any class yet: the size's line asks for them, as before.
+  const nothingEntered = judged.every((outcome) => outcome.computed.inspected === null && outcome.computed.result === "not_done");
+  const line = nothingEntered ? `not done, ${missing}` : `${judged.map((outcome) => outcome.brief).join(", ")}: ${VERDICT[status]}`;
+  const summary =
+    judged.length === 0
+      ? missing
+      : [...judged.map((outcome) => outcome.summary), ...(skipped.length > 0 ? [`${andList(skipped)} not inspected`] : [])].join("; ");
+  return { computed, result: { status, summary: `${summary}.` }, line, issues };
 }
 
 const VERDICT: Readonly<Record<ModuleStatus, string>> = {
@@ -219,6 +243,8 @@ type ClassInput = {
 };
 
 type ClassOutcome = {
+  /** The class in the template's wording: "Major Defects". */
+  name: string;
   computed: VisualClassComputed;
   /** For the size's summary: what was found against the limit, and the verdict. */
   summary: string;
@@ -266,14 +292,17 @@ function calcClass({ size, cls, entry, split, aql, defects, labels, context, whe
         : inspected === null || inspected < 2
           ? `${name} ${counted.total} found`
           : `${name} ${counted.total} / ${inspected}`;
-    return { computed, summary, brief, issues };
+    return { name, computed, summary, brief, issues };
   };
   // AQL 0 rejects at one defect whatever the sample: a critical defect fails before n is known.
   const criticalFound = () =>
     finish("fail", `${name} ${counted.total} found${foundList(counted, defects)}: Failed (any critical defect fails)`);
 
   if (inspected === null) {
-    if (cls === "critical" && counted.total > 0) return criticalFound();
+    // Nothing entered and nothing counted: the inspector left the class out (Kenneth, 30 October 2026).
+    if (counted.total === 0) return finish("not_inspected", `${name} not inspected`);
+    // A defect counted is the class being inspected: a critical one fails, else the gloves inspected are asked for.
+    if (cls === "critical") return criticalFound();
     const hint = planned === null ? "" : ` (sampling plan: ${planned})`;
     return finish("not_done", `${name}: ${inspectedLabel} missing${hint}`);
   }
@@ -538,6 +567,11 @@ export function aqlCaption(aql: number): string {
 /** Fills `{name}` placeholders in a caption; an unknown placeholder stays as written. */
 export function fillCaption(caption: string, values: Readonly<Record<string, string>>): string {
   return caption.replace(/\{(\w+)\}/g, (match, name: string) => values[name] ?? match);
+}
+
+/** "Critical Defects and Minor Defects"; three or more with commas before the "and". */
+function andList(items: readonly string[]): string {
+  return items.length <= 1 ? (items[0] ?? "") : `${items.slice(0, -1).join(", ")} and ${items[items.length - 1]}`;
 }
 
 function plural(count: number, noun: string): string {

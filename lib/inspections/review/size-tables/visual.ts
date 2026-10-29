@@ -6,8 +6,12 @@
 // Visual 1"), as the module's summary writes them. A class rejected for a
 // size is red; a defect the template does not list (an inspector's one-off
 // label, "Ring mark 2", or a code it lacks) is amber on the second line, and
-// so are the gloves inspected the module warns about.
-import { classLabel, type VisualClassComputed, type VisualComputed } from "@/modules/visual/calc";
+// so are the gloves inspected the module warns about. A class the inspector
+// left out of a size that has another class inspected reads Not Inspected,
+// with no limit (Kenneth, 30 October 2026); a size with no class inspected
+// yet shows nothing (—), as before.
+import { NOT_INSPECTED_LABEL } from "@/lib/design/status";
+import { classLabel, isInspectedClass, type VisualClassComputed, type VisualComputed } from "@/modules/visual/calc";
 import { DEFECT_CLASSES } from "@/modules/visual/schema";
 import type { SizeTableAdapter, SizeTableCell, SizeTableRow } from "../size-table";
 import { cellsBySize, EMPTY_CELL } from "./cells";
@@ -17,6 +21,8 @@ export const visualTable: SizeTableAdapter = (entry, context) => {
   const computed = entry.computed as VisualComputed;
   if (!isRecord(computed.sizes) || !isRecord(computed.classes)) return null;
   const rows: SizeTableRow[] = [];
+  /** The size has a class inspected: one it does not is then left out, not still to come. */
+  const inspectedSize = (size: string) => DEFECT_CLASSES.some((cls) => isInspectedClass(computed.sizes[size]?.[cls]));
 
   for (const cls of DEFECT_CLASSES) {
     const info = computed.classes[cls];
@@ -24,16 +30,23 @@ export const visualTable: SizeTableAdapter = (entry, context) => {
     const name = classLabel(entry.labels, cls);
     const of = (size: string): VisualClassComputed | null => computed.sizes[size]?.[cls] ?? null;
 
+    /** Left out of a size that has another class inspected. */
+    const leftOut = (size: string) => {
+      const own = of(size);
+      return own !== null && !isInspectedClass(own) && inspectedSize(size);
+    };
+
     const totals = cellsBySize(context, (size) => {
       const own = of(size);
       if (!own) return EMPTY_CELL;
+      if (leftOut(size)) return cellOf(NOT_INSPECTED_LABEL);
       return cellOf(countText(own.total, own.inspected), {
         tone: toneOf(own.result === "fail", hasIssueAt(entry.issues, ["sizes", size, cls, "inspected"])),
       });
     });
     const limits = context.sizes.map((size) => {
       const own = of(size);
-      return own && own.accept !== null && own.reject !== null ? `Limit ${own.accept} / ${own.reject}` : null;
+      return own && !leftOut(size) && own.accept !== null && own.reject !== null ? `Limit ${own.accept} / ${own.reject}` : null;
     });
     rows.push(rowWithLimits({ key: cls, label: name, cells: totals }, limits));
 

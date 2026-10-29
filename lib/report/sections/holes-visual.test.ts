@@ -329,6 +329,60 @@ describe("an inspection not entered yet", () => {
   });
 });
 
+describe("visual classes left out (Kenneth, 30 October 2026: only major defect inspection)", () => {
+  const majorOnly = { S: ["major"], M: ["major"], L: ["major"], XL: ["major"] } as const;
+  const statuses = (section: HolesVisualContent) => section.limits?.rows.map((entry) => entry.cells.map((cell) => `${cell.key} ${cell.status}`));
+
+  it("leaves out a class left out of every size: no column, no table, the lead names it, and every size stays inside its limits", () => {
+    const section = sectionOf(fourSizeExport({ inspectedClasses: majorOnly }));
+    expect(section.lead).toBe(
+      "Watertight and visual checks on the same 840 gloves. Not inspected: Critical Defects and Minor Defects. Every size stayed inside its acceptance limit.",
+    );
+    expect(section.limits?.columns.map((column) => column.label)).toEqual(["Freedom from Holes", "Visual: Major"]);
+    expect(statuses(section)?.[0]).toEqual(["holes pass", "major pass"]);
+    expect(section.tables.critical).toBeNull();
+    expect(section.tables.visual?.title).toBe("Visual: Major Defects");
+    expect(section.tables.visual?.rows.filter((entry) => entry.kind === "group").map((entry) => entry.label)).toEqual(["Major"]);
+    expect(row(section.tables.visual, "Samples Inspected")?.values.map((value) => value.text)).toEqual(["200", "315", "200", "125"]);
+    // The pages hold what is there: the holes on the left, the major defects on the right, on one page.
+    expect(section.pageCount).toBe(1);
+    expect(section.pages[0].columns.map(slotsOf)).toEqual([["pinholes"], ["visual"]]);
+  });
+
+  it("reads Not Inspected in the grid and dashes in the table for a class left out of some sizes, the lead naming them", () => {
+    // Size S left out its minor class, size M its critical.
+    const section = sectionOf(fourSizeExport({ inspectedClasses: { S: ["critical", "major"], M: ["major", "minor"] } }));
+    expect(section.lead).toBe(
+      "Watertight and visual checks on the same 840 gloves. Not inspected for size M: Critical Defects. Not inspected for size S: Minor Defects. Every size stayed inside its acceptance limit.",
+    );
+    expect(section.limits?.columns.map((column) => column.key)).toEqual(["holes", "major", "minor", "critical"]);
+    expect(statuses(section)?.slice(0, 2)).toEqual([
+      ["holes pass", "major pass", "minor not_inspected", "critical pass"],
+      ["holes pass", "major pass", "minor pass", "critical not_inspected"],
+    ]);
+    // Dashes where the class was left out, never zeros.
+    expect(row(section.tables.critical, "Total Critical")?.values.map((value) => value.text)).toEqual(["0", "—", "0", "0"]);
+    expect(row(section.tables.critical, "Embedded Insects")?.values.map((value) => value.tone)).toEqual(["zero", "missing", "zero", "zero"]);
+    expect(row(section.tables.visual, "Total Minor")?.values.map((value) => value.text)).toEqual(["—", "2", "0", "1"]);
+    const limits = section.tables.visual?.rows.filter((entry) => entry.kind === "limits").map((entry) => entry.values.map((value) => value.text));
+    expect(limits?.[1]).toEqual(["—", "21 / 22", "14 / 15", "10 / 11"]);
+  });
+
+  it("keeps a size with no class inspected not done, as before, beside the classes left out", () => {
+    const section = sectionOf(fourSizeExport({ inspectedClasses: { ...majorOnly, XL: [] } }));
+    expect(section.lead).toBe(
+      "Watertight test on 840 gloves and visual inspection on 715 gloves. Not inspected: Critical Defects and Minor Defects. No size has gone over an acceptance limit so far. Size XL is not done yet.",
+    );
+    expect(statuses(section)?.[3]).toEqual(["holes pass", "major not_done"]);
+    // Nothing inspected anywhere: every class shows, not done, and none is called left out.
+    const none = sectionOf(fourSizeExport({ inspectedClasses: { S: [], M: [], L: [], XL: [] } }));
+    expect(none.limits?.columns.map((column) => column.key)).toEqual(["holes", "major", "minor", "critical"]);
+    expect(statuses(none)?.every((cells) => cells.slice(1).every((cell) => cell.endsWith(" not_done")))).toBe(true);
+    expect(none.lead).not.toContain("Not inspected");
+    expect(none.tables.critical).not.toBeNull();
+  });
+});
+
 describe("the options and the template", () => {
   it("leave out each block switched off", () => {
     const doc = makeStdEgExport();

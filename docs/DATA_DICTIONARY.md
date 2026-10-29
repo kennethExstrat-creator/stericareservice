@@ -391,7 +391,7 @@ Report module. Captures: Per size (R and L when handSplit): gloves tested and ho
 
 ### `visual`: Visual Inspection
 
-Report module. Captures: Per size (R and L when handSplit), per class: gloves inspected and defect counts. Result: Per size and class: accept or reject from the AQL engine; any critical defect fails. Fail if any class fails; not_done until inspected is entered. Rules (6.2): 1, 2, 4, 5, 8.
+Report module. Captures: Per size (R and L when handSplit), per class: gloves inspected and defect counts. Result: Per size and class: accept or reject from the AQL engine; any critical defect fails. A class with no inspected entered and nothing counted is not inspected and left out. The size from its inspected classes: fail if one fails, not_done if one is incomplete, else pass; not_done while none is inspected. Rules (6.2): 1, 2, 4, 5, 8.
 
 | Key | Label (STD_EG) | Other wording | Type | Unit | Per | Entry | Rules | Notes |
 |---|---|---|---|---|---|---|---|---|

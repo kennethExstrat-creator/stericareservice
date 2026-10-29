@@ -176,6 +176,28 @@ describe("four sizes, S to XL: the Minor class under the critical defects", () =
   });
 });
 
+describe("visual classes left out (Kenneth, 30 October 2026: only major defect inspection)", () => {
+  it("prints Not Inspected in not done's slate in the grid cell of a class left out of a size, never Not Done or a zero's track", () => {
+    // Size S left out its minor class.
+    const [page] = sectionPages(fourSizeExport({ inspectedClasses: { S: ["critical", "major"] } }));
+    const grid = part(page, 'data-slot="report-defect-limits"');
+    const cell = part(part(grid, 'data-row="S"'), 'data-cell="minor"');
+    expect(cell).toContain('data-status="not_inspected"');
+    expect(cell).toMatch(/data-slot="report-status-chip" data-status="not_done"[^>]*>.*Not Inspected<\/span>/);
+    expect(cell).not.toContain("report-track");
+    expect(text(part(part(grid, 'data-row="M"'), 'data-cell="minor"'))).toBe("2 found · accept ≤ 21");
+  });
+
+  it("leaves the critical defects and the minor class out where only the major class was inspected, the lead naming them", () => {
+    const [page] = sectionPages(fourSizeExport({ inspectedClasses: { S: ["major"], M: ["major"], L: ["major"], XL: ["major"] } }));
+    expect(text(part(page, 'data-slot="report-section-heading"'))).toContain("Not inspected: Critical Defects and Minor Defects.");
+    expect(page).not.toContain('data-table="critical"');
+    expect(page).not.toContain('data-cell="minor"');
+    expect(page).not.toContain("Not Inspected");
+    expect(text(part(page, 'data-table="visual"'))).toMatch(/^Visual: Major Defects /);
+  });
+});
+
 describe("the defect photos: never a page of their own, captioned as the design captions them", () => {
   it("print a row of two 3:2 tiles under the major defects on INS-2026-2442 as it stands: a pinhole and the thin area, plain", () => {
     const pages = sectionPages(describedDefectsExport());

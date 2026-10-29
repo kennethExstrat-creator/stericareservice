@@ -6,6 +6,7 @@ import { describe, expect, it } from "vitest";
 import type { InspectionExport } from "@/lib/schemas/export";
 import { makeSafedonExport, makeStdEgExport, withReportOptions } from "../__fixtures__/exports";
 import { packingBoxes, packingExport } from "../__fixtures__/packing-export";
+import { fourSizeExport } from "./__fixtures__/holes-visual";
 import { buildReportModel, type LabellingConclusionSection, type ReportPlanEntryFor } from "../model";
 import {
   buildLabellingConclusion,
@@ -211,6 +212,28 @@ describe("the results matrix", () => {
     const rows = sectionOf(doc).matrix?.rows ?? [];
     expect(rows.find((row) => row.key === "dispensing_packing")?.cells).toEqual(["pass", "pass"]);
     expect(rows.some((row) => row.key === "dispensing_packing:aged")).toBe(false);
+  });
+
+  it("names the visual classes inspected, its ticks following each size's visual result (Kenneth, 30 October 2026)", () => {
+    const visualRow = (doc: InspectionExport) => sectionOf(doc).matrix?.rows.find((row) => row.key === "visual");
+    // Only the major class inspected: each size passes on it.
+    expect(visualRow(fourSizeExport({ inspectedClasses: { S: ["major"], M: ["major"], L: ["major"], XL: ["major"] } }))).toEqual({
+      key: "visual",
+      label: "Visual Inspection: Major",
+      cells: ["pass", "pass", "pass", "pass"],
+    });
+    // Size XL with no class inspected is not done; size S without its minor class still passes.
+    expect(visualRow(fourSizeExport({ inspectedClasses: { S: ["critical", "major"], XL: [] } }))).toEqual({
+      key: "visual",
+      label: "Visual Inspection: Critical, Major, Minor",
+      cells: ["pass", "pass", "pass", "not_done"],
+    });
+    // None inspected anywhere: Visual Inspection once, not done.
+    expect(visualRow(fourSizeExport({ inspectedClasses: { S: [], M: [], L: [], XL: [] } }))).toEqual({
+      key: "visual",
+      label: "Visual Inspection",
+      cells: ["not_done", "not_done", "not_done", "not_done"],
+    });
   });
 
   it("is left out while switched off", () => {

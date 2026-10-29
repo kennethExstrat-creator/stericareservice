@@ -3,7 +3,8 @@
 // the heading and lead; Defects Found against Acceptance Limit, a table of
 // the sizes against each check, each cell the count found over a track that
 // ends at the reject number (a limit of 0, the critical defects, with a
-// chip instead: None, or Failed in red); then each page's columns of
+// chip instead: None, or Failed in red; a visual class left out of the size,
+// Not Inspected in not done's slate); then each page's columns of
 // defect tables and photos. The tables are the report's own (plain: no
 // hairlines, a class's heading in blue, totals tinted), a defect found in
 // bold, a zero in grey, a total over its limit and any critical defect in
@@ -19,6 +20,7 @@ import type {
   HolesVisualPage,
   HolesVisualSlot,
 } from "@/lib/report/sections/holes-visual";
+import { NOT_INSPECTED_LABEL } from "@/lib/design/status";
 import { cn } from "@/lib/utils";
 import { ChartKey } from "../chart-parts";
 import { PhotoGrid } from "../photo-grid";
@@ -131,9 +133,14 @@ function LimitsGrid({ limits }: { limits: DefectLimits }) {
   );
 }
 
-/** "2 found · accept ≤ 10" over its track; a limit of 0 with its chip; Not Done until calc can judge the size. Set close, for the row's 11 mm. */
+/**
+ * "2 found · accept ≤ 10" over its track; a limit of 0 with its chip; Not
+ * Done until calc can judge the size; Not Inspected for a class left out of
+ * it. Set close, for the row's 11 mm.
+ */
 function LimitCell({ cell }: { cell: DefectLimitCell }) {
   const words = "[&>p]:whitespace-nowrap [&>p]:leading-[1.15]";
+  if (cell.status === "not_inspected") return <StatusChip status="not_done" label={NOT_INSPECTED_LABEL} size="sm" />;
   if (cell.status === "not_done" || cell.accept === null) {
     return (
       <div className="flex flex-col items-start gap-[0.8mm]">

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { lowerCaseWords, SMALL_WORDS, staysLowerCase, UNITS } from "./capitalisation";
-import { STATUSES, STATUS_LABEL } from "./status";
+import { NOT_INSPECTED_LABEL, STATUSES, STATUS_LABEL } from "./status";
 
 describe("lowerCaseWords (docs/DESIGN.md, Capitalisation)", () => {
   it.each([
@@ -12,6 +12,8 @@ describe("lowerCaseWords (docs/DESIGN.md, Capitalisation)", () => {
     "Inspector in Charge",
     "Submit for Review",
     "Not Done",
+    "Not Inspected",
+    "Enter by Class",
     "On Hold",
     "New Inspection",
     "Follow-Up",
@@ -111,5 +113,10 @@ describe("the pill words", () => {
       info: "Info",
       not_done: "Not Done",
     });
+  });
+
+  it("say Not Inspected for a part of a check left out, in Title Case (Kenneth, 30 October 2026)", () => {
+    expect(NOT_INSPECTED_LABEL).toBe("Not Inspected");
+    expect(lowerCaseWords(NOT_INSPECTED_LABEL)).toEqual([]);
   });
 });

@@ -1220,7 +1220,7 @@ const visual = defineModule({
   groups: ["critical", "major", "minor"],
   captures: "Per size (R and L when handSplit), per class: gloves inspected and defect counts.",
   result:
-    "Per size and class: accept or reject from the AQL engine; any critical defect fails. Fail if any class fails; not_done until inspected is entered.",
+    "Per size and class: accept or reject from the AQL engine; any critical defect fails. A class with no inspected entered and nothing counted is not inspected and left out. The size from its inspected classes: fail if one fails, not_done if one is incomplete, else pass; not_done while none is inspected.",
   rules: [1, 2, 4, 5, 8],
   data: [
     {

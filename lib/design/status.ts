@@ -15,6 +15,14 @@ export const STATUS_LABEL: Readonly<Record<Status, string>> = {
   not_done: "Not Done",
 };
 
+/**
+ * A part of a check the inspector left out, with no result of its own: a
+ * visual class with no sample entered and nothing counted (Kenneth, 30
+ * October 2026). It wears not_done's look, the dashed slate pill, with this
+ * word, wherever the class shows: the capture card, the review, the report.
+ */
+export const NOT_INSPECTED_LABEL = "Not Inspected";
+
 /** Tinted pill: status text on its tint. not_done is dashed, so empty reads as empty. */
 export const STATUS_TINT_CLASS: Readonly<Record<Status, string>> = {
   pass: "border-pass-border bg-pass-tint text-pass",

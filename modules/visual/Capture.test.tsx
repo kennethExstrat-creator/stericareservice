@@ -87,6 +87,9 @@ const valueOf = (input: string) => /value="([^"]*)"/.exec(input)?.[1];
 const statuses = (html: string) =>
   tagsWith(html, 'data-slot="status-pill"').map((pill) => /data-status="(\w+)"/.exec(pill)?.[1]);
 
+/** Each card's chip's words. */
+const statusWords = (html: string) => slotTexts(html, "status-pill");
+
 /** The attribute that marks a control for issue links at `path`, as the markup prints it. */
 const pathAttribute = (path: readonly (string | number)[]) =>
   `data-issue-path="${JSON.stringify(path).replaceAll('"', "&quot;")}"`;
@@ -253,6 +256,47 @@ describe("visual capture", () => {
     expect(fields.map(valueOf)).toEqual(["500", "", ""]);
     expect(fields.some((field) => field.includes(" placeholder="))).toBe(false);
     expect(statuses(html)).toEqual(["pass", "not_done", "not_done"]);
+    expect(statusWords(html)).toEqual(["Passed", "Not Inspected", "Not Inspected"]);
+  });
+
+  describe("classes left out (Kenneth, 30 October 2026: only major defect inspection)", () => {
+    it("reads Not Inspected in not done's slate on a card with no sample and nothing counted, with nothing allowed or not", () => {
+      const html = render({ sizes: { M: { major: { inspected: 500, counts: { thin_spot: 3 } } } }, context: M_500() });
+      expect(statusWords(html)).toEqual(["Not Inspected", "Passed", "Not Inspected"]);
+      expect(statuses(html)).toEqual(["not_done", "pass", "not_done"]);
+      // No "of 0 allowed" under the critical class: its limits are known, but it was not inspected.
+      expect(totals(html)).toEqual(["Found 0", "Found 3 of 21 allowed", "Found 0"]);
+      expect(limits(html)).toEqual(["Acc. = 0 / Rej. = 1", "Accept 21 / Reject 22", "Accept — / Reject —"]);
+      // The size passes on its major class: its tab says so.
+      expect(tagsWith(html, 'data-slot="result-chip"').map((chip) => /data-status="(\w+)"/.exec(chip)?.[1])).toEqual(["pass"]);
+      // Nothing to check under any field.
+      expect(warningBlocks(html)).toEqual([]);
+    });
+
+    it("keeps a class with a defect counted and no sample not done, and a critical defect failed", () => {
+      const counted = render({ sizes: { M: { critical: { inspected: 500 }, major: { counts: { thin_spot: 2 } } } }, context: M_500() });
+      expect(statusWords(counted)).toEqual(["Passed", "Not Done", "Not Inspected"]);
+      expect(totals(counted)).toEqual(["Found 0 of 0 allowed", "Found 2", "Found 0"]);
+      const critical = render({ sizes: { M: { critical: { counts: { embedded_insect: 1 } } } }, context: M_500() });
+      expect(statusWords(critical)).toEqual(["Failed", "Not Inspected", "Not Inspected"]);
+      expect(totals(critical)).toEqual(["Found 1 of 0 allowed", "Found 0", "Found 0"]);
+    });
+
+    it("offers Enter by Class beside the size's field, so a class can be left out; never read-only, with one class, or with the cards' own fields", () => {
+      const html = render({ sizes: {}, context: M_500() });
+      const button = /<button[^>]*data-slot="enter-by-class"[^>]*>([\s\S]*?)<\/button>/.exec(html);
+      expect(button?.[1]).toBe('Enter by Class<span class="sr-only">, size M</span>');
+      // 16 px text on touch, as the Use button beside it.
+      expect(button?.[0]).toContain("touch:text-base");
+      expect(html.indexOf("Use 500")).toBeLessThan(html.indexOf("Enter by Class"));
+      // Filled for every class, it stays: one class can still be emptied there.
+      expect(render({ sizes: { M: inspectedAll(500) }, context: M_500() })).toContain("Enter by Class");
+      expect(render({ sizes: {}, context: M_500(), readOnly: true })).not.toContain("Enter by Class");
+      expect(render({ sizes: { M: { major: { inspected: 500 } } }, context: M_500() })).not.toContain("Enter by Class");
+      const off = (cls: keyof VisualConfig["classes"]) => ({ ...VISUAL_DEFAULT_CONFIG.classes[cls], include: false });
+      const majorOnly = { ...VISUAL_DEFAULT_CONFIG, classes: { critical: { ...off("critical"), aql: 0 as const }, major: VISUAL_DEFAULT_CONFIG.classes.major, minor: off("minor") } };
+      expect(render({ sizes: {}, context: M_500(), config: majorOnly })).not.toContain("Enter by Class");
+    });
   });
 
   it("shows the critical limit before the gloves inspected are entered, beside a critical defect's failure", () => {

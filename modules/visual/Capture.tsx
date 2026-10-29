@@ -8,11 +8,15 @@
 // template's order and wording (a Right and a Left stepper when the template
 // splits hands and both show), then the class's total and result. One field
 // takes the gloves inspected for every class of the size, the sampling
-// plan's n one tap away, and it is never filled in for the inspector: a class
-// stays not done until its gloves inspected are entered, the inspector's word
-// that the size was inspected (6.2 rule 5). Data entered with a different
-// number per class keeps a field in each card. Limits and results are calc's
-// (6.2 rule 2); the total and its chip follow every tap. Every change goes
+// plan's n one tap away, and it is never filled in for the inspector: its
+// gloves inspected are the inspector's word that a class was inspected (6.2
+// rule 5). A class may be left out (Kenneth, 30 October 2026: "only major
+// defect inspection"): Enter by Class gives each card a field of its own, and
+// a card with none entered and nothing counted reads Not Inspected, out of
+// the size's result; counting a defect in it asks for its gloves inspected.
+// Data entered with a different number per class keeps a field in each card
+// too. Limits and results are calc's (6.2 rule 2); the total and its chip
+// follow every tap. Every change goes
 // through useDataUpdater and starts from the latest data, so two taps in one
 // event both land (docs/CAPTURE_KIT.md).
 import { useEffect, useId, useRef, useState, type FormEvent, type ReactNode, type RefObject } from "react";
@@ -36,13 +40,13 @@ import {
 import { HAND_WORD } from "@/components/qc/hand-toggle";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { STATUS_LABEL, type Status } from "@/lib/design/status";
+import { NOT_INSPECTED_LABEL, STATUS_LABEL, type Status } from "@/lib/design/status";
 import { formatLimitParts, formatSize, formatSizeHand } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { HANDS, initialSize, labelFor, samplingFor, type CaptureProps, type Hand, type Labels } from "@/modules/_framework";
 import { ShownSizeReport } from "@/modules/_framework/shown-size";
 import type { VisualComputed, VisualConfig, VisualData } from ".";
-import { classLabel, effectiveClasses } from "./calc";
+import { classLabel, effectiveClasses, type VisualClassResult } from "./calc";
 import {
   addOneOff,
   fillInspected,
@@ -213,7 +217,18 @@ function SizePanel({
   const sizeName = formatSize(size, { sizes: context.templateSizes });
   const planned = samplingFor(context, size).watertightVisual;
   const inspectedLabel = labelFor(labels, "inspected");
-  const shared = sharedInspected(data, size, included);
+  // Enter by Class: a field in each card, so a class can be left out (Kenneth, 30 October 2026). For this
+  // size while its tab is open; data with a different number per class keeps the cards' fields anyway.
+  const [byClass, setByClass] = useState(false);
+  const shared = byClass ? null : sharedInspected(data, size, included);
+  const cards = useRef<HTMLDivElement>(null);
+  const focusFirstField = useRef(false);
+  // The button goes with the size's field: the focus moves on to the first card's field.
+  useEffect(() => {
+    if (!byClass || !focusFirstField.current) return;
+    focusFirstField.current = false;
+    cards.current?.querySelector<HTMLInputElement>('input[data-slot="numeric-cell"]')?.focus();
+  }, [byClass]);
   const pathOf = (cls: DefectClass): IssuePath => ["sizes", size, cls, "inspected"];
   /** calc's messages about the value at `path`: errors show in red under the field, warnings in amber. */
   const messagesAt = (path: IssuePath, level: "error" | "warning") => {
@@ -243,12 +258,31 @@ function SizePanel({
           onValueChange={(inspected) => update((current) => setSizeInspected(current, size, included, inspected))}
           onUsePlanned={(n) => update((current) => fillInspected(current, size, included, n))}
           onFocus={reportSize}
+          after={
+            !readOnly && included.length > 1 ? (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                data-slot="enter-by-class"
+                // Level with the field's box, as the Use button; 16 px text on touch.
+                className="mb-0.5 text-muted-foreground touch:mb-0 touch:text-base"
+                onClick={() => {
+                  focusFirstField.current = true;
+                  setByClass(true);
+                }}
+              >
+                Enter by Class<span className="sr-only">{`, size ${sizeName}`}</span>
+              </Button>
+            ) : null
+          }
         />
       )}
       {/* One run where each card has its own gloves inspected: Enter goes from one to the next, and a
           pasted column fills them. */}
       <EnterGroup>
         <div
+          ref={cards}
           className={cn("grid items-start gap-3 touch:gap-4", shownHands.length > 1 ? CARD_COLUMNS.both : CARD_COLUMNS.one)}
         >
           {included.map((cls) => (
@@ -318,6 +352,7 @@ function InspectedField({
   onUsePlanned,
   onFocus,
   className,
+  after,
 }: {
   label: ReactNode;
   value: number | null;
@@ -335,6 +370,8 @@ function InspectedField({
   onFocus: () => void;
   /** The field's box, beside the Use button. */
   className?: string;
+  /** After the Use button, in the field's row: the size's Enter by Class. */
+  after?: ReactNode;
 }) {
   const [own, ...others] = paths;
   const hint =
@@ -373,6 +410,7 @@ function InspectedField({
           {`Use ${planned}`}
         </Button>
       )}
+      {after}
     </div>
   );
 }
@@ -457,14 +495,14 @@ function ClassCard({
     (sum, row) => sum + recorded.reduce((count, hand) => count + countAt(row, cellAt(size, hand)), 0),
     0,
   );
-  const status = shownResult(total, limits, values?.result);
+  const status = shownResult(total, limits, values?.result, data.sizes[size]?.[cls].inspected ?? null);
 
   // The count last changed and the row last taken off. What is said is worked out from the data rendered
   // after the change, so the verdict spoken is the one on the chip.
   const [touched, setTouched] = useState<{ row: string; hand?: Hand } | null>(null);
   const [removed, setRemoved] = useState<string | null>(null);
   const touchedRow = touched ? rows.find((row) => row.key === touched.row) : undefined;
-  const verdict = status === "not_done" ? "" : `, ${STATUS_LABEL[status]}`;
+  const verdict = status === "not_done" ? "" : `, ${status === "not_inspected" ? NOT_INSPECTED_LABEL : STATUS_LABEL[status]}`;
   const announcement =
     removed !== null
       ? `${removed} removed.`
@@ -613,10 +651,17 @@ function ClassCard({
       <footer className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5 border-t border-border bg-slate-50 px-3 py-2 touch:px-4 touch:py-2.5">
         <p data-slot="class-total" className="text-sm font-semibold tabular-nums touch:text-base">
           {`Found ${total}`}
-          {limits && <span className="font-normal text-muted-foreground">{` of ${limits.ac} allowed`}</span>}
+          {/* A class not inspected has nothing allowed or not: its limits wait for a sample. */}
+          {limits && status !== "not_inspected" && (
+            <span className="font-normal text-muted-foreground">{` of ${limits.ac} allowed`}</span>
+          )}
         </p>
-        {/* The class's result for the size, never the size's (docs/CAPTURE_KIT.md). */}
-        <StatusPill size="sm" status={status} />
+        {/* The class's result for the size, never the size's (docs/CAPTURE_KIT.md); Not Inspected in not done's slate. */}
+        {status === "not_inspected" ? (
+          <StatusPill size="sm" status="not_done" label={NOT_INSPECTED_LABEL} />
+        ) : (
+          <StatusPill size="sm" status={status} />
+        )}
       </footer>
       <p className="sr-only" aria-live="polite">
         {announcement}
@@ -625,17 +670,29 @@ function ClassCard({
   );
 }
 
+/** A class card's chip: a result, or Not Inspected for a class left out. */
+type CardStatus = Status | "not_inspected";
+
 /**
  * The class's chip as a CounterTable column decides it (docs/CAPTURE_KIT.md):
- * with limits, the total on screen against Ac, so the chip changes with the
- * tap that changes the total while calc is a frame behind; calc's own result
- * where it says the class is not done (it knows what is missing), and
- * without limits.
+ * Not Inspected while the screen's data has no gloves inspected and nothing
+ * counted for the class (Kenneth, 30 October 2026), whatever calc said a
+ * frame before; with limits, the total on screen against Ac, so the chip
+ * changes with the tap that changes the total while calc is a frame behind;
+ * calc's own result where it says the class is not done (it knows what is
+ * missing), and without limits, where a class calc had as not inspected is
+ * not done until calc catches up.
  */
-function shownResult(total: number, limits: { ac: number; re: number } | null, result: Status | undefined): Status {
+function shownResult(
+  total: number,
+  limits: { ac: number; re: number } | null,
+  result: VisualClassResult | undefined,
+  inspected: number | null,
+): CardStatus {
+  if (inspected === null && total === 0) return "not_inspected";
   if (result === "not_done") return "not_done";
   if (limits) return total <= limits.ac ? "pass" : "fail";
-  return result ?? "not_done";
+  return result === undefined || result === "not_inspected" ? "not_done" : result;
 }
 
 /**

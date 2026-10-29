@@ -12,7 +12,12 @@
 // from Holes"; the limits and results are calc's (modules/watertight/calc.ts,
 // modules/visual/calc.ts), never worked out again here. With a hand split
 // (surgical gloves) the counts are both hands added together, as calc counts
-// them against one limit per size, and the section says so.
+// them against one limit per size, and the section says so. A visual class
+// the inspector left out (Kenneth, 30 October 2026: "only major defect
+// inspection") is no column and no table where it was left out of every
+// size, the lead naming it ("Not inspected: Critical Defects and Minor
+// Defects."); left out of some sizes, its grid cells there read Not Inspected
+// and its table prints dashes for them, never zeros or Not Done.
 //
 // The first page follows the design: the grid across the page, then two
 // columns, the holes and the critical defects down the left, the major and
@@ -67,8 +72,12 @@ export { lineCount } from "../measure";
  * The content
  * ------------------------------------------------------------------ */
 
-/** A check's verdict for one size: calc's own. */
-export type DefectStatus = "pass" | "fail" | "not_done";
+/**
+ * A check's verdict for one size: calc's own; not_inspected for a visual
+ * class the inspector left out of a size that has another class inspected
+ * (Kenneth, 30 October 2026), which is no verdict at all.
+ */
+export type DefectStatus = "pass" | "fail" | "not_done" | "not_inspected";
 
 /** A column of the grid: the watertight test, or a visual class. */
 export type DefectLimitColumn = {
@@ -187,6 +196,8 @@ export type HolesVisualContent = {
 
 /** The visual classes in the design's order: the grid's columns, the tables. */
 const CLASS_ORDER: readonly DefectClass[] = ["major", "minor", "critical"];
+/** The classes in the report's order, as a sentence names them. */
+const READING_ORDER: readonly DefectClass[] = ["critical", "major", "minor"];
 const CLASS_WORD: Readonly<Record<DefectClass, string>> = { critical: "Critical", major: "Major", minor: "Minor" };
 
 /** The design's names: the watertight check, a visual check ("Visual: Major"), the rows around the defects (TG35 page 6). */
@@ -251,26 +262,32 @@ type Check = {
   sizes: (SizeCounts | null)[];
 };
 
+/** A visual class left out (Kenneth, 30 October 2026): its name in the template's words, and the sizes (indexes) it was left out of; null for every size. */
+type NotInspected = { key: DefectClass; label: string; sizes: number[] | null };
+
 type Reading = {
   sizes: readonly string[];
   sizeLabels: string[];
   holes: Check | null;
-  /** The visual classes switched on, in the design's order (major, minor, critical). */
+  /** The visual classes switched on and inspected in some size, in the design's order (major, minor, critical). */
   classes: Check[];
   /** The grid's columns: the holes, then the classes. */
   columns: Check[];
+  /** The classes switched on that were left out, of every size or of some, in the report's order (critical, major, minor). */
+  notInspected: NotInspected[];
   handSplit: boolean;
 };
 
 function readChecks(doc: InspectionExport, sizes: readonly string[], holes: ExportModule | null, visual: ExportModule | null): Reading {
   const holesCheck = holes ? holesOf(holes, sizes) : null;
-  const classes = visual ? classesOf(visual, sizes) : [];
+  const { classes, notInspected } = visual ? classesOf(visual, sizes) : { classes: [], notInspected: [] };
   return {
     sizes,
     sizeLabels: sizes.map((size) => sizeLabel(doc, size)),
     holes: holesCheck,
     classes,
     columns: [...(holesCheck ? [holesCheck] : []), ...classes],
+    notInspected,
     handSplit: splitsHands(holes) || splitsHands(visual),
   };
 }
@@ -293,28 +310,56 @@ function holesOf(module: ExportModule, sizes: readonly string[]): Check {
   };
 }
 
-function classesOf(module: ExportModule, sizes: readonly string[]): Check[] {
-  return CLASS_ORDER.flatMap((cls): Check[] => {
+/**
+ * The visual classes switched on, as calc computed them, and those the
+ * inspector left out (computed result not_inspected; Kenneth, 30 October
+ * 2026). A class left out of every size is no column and no table: the lead
+ * names it instead. One left out of some sizes reads Not Inspected in their
+ * grid cells and dashes in its table. A size with no class inspected yet is
+ * not done in every class, as before, and with none inspected in any size
+ * every class shows, not done.
+ */
+function classesOf(module: ExportModule, sizes: readonly string[]): { classes: Check[]; notInspected: NotInspected[] } {
+  const included = CLASS_ORDER.flatMap((cls) => {
     const info = rec(at(module.computed, "classes", cls));
     const config = rec(at(module.config, "classes", cls));
     if (Object.keys(info).length === 0 && Object.keys(config).length === 0) return [];
     if ((info.include ?? config.include) === false) return [];
+    return [{ cls, info, config }];
+  });
+  const entryOf = (size: string, cls: DefectClass) => at(module.computed, "sizes", size, cls);
+  const inspected = (size: string, cls: DefectClass) => {
+    const entry = entryOf(size, cls);
+    return isRecord(entry) && entry.result !== "not_inspected";
+  };
+  const sizeInspected = sizes.map((size) => included.some(({ cls }) => inspected(size, cls)));
+  const anyInspected = sizeInspected.some(Boolean);
+  const notInspected: NotInspected[] = [];
+
+  const classes = included.flatMap(({ cls, info, config }): Check[] => {
+    // Left out of a size that has another class inspected: no verdict there, and not one still to come.
+    const leftOut = sizes.flatMap((size, index) => (sizeInspected[index] && isRecord(entryOf(size, cls)) && !inspected(size, cls) ? [index] : []));
+    const shown = !anyInspected || sizes.some((size) => inspected(size, cls));
+    if (leftOut.length > 0) notInspected.push({ key: cls, label: className(module, cls), sizes: shown ? leftOut : null });
+    if (!shown) return [];
     return [
       {
         key: cls,
         label: `${VISUAL}: ${classWord(module, cls)}`,
         aql: num(info.aql) ?? num(config.aql) ?? (cls === "critical" ? 0 : null),
         list: entriesOf(info.defects ?? config.defects),
-        sizes: sizes.map((size) => {
-          const entry = at(module.computed, "sizes", size, cls);
-          return isRecord(entry) ? sizeCounts(entry, entry.inspected, entry.counts, entry.total) : null;
+        sizes: sizes.map((size, index) => {
+          const entry = entryOf(size, cls);
+          return isRecord(entry) ? sizeCounts(entry, entry.inspected, entry.counts, entry.total, leftOut.includes(index)) : null;
         }),
       },
     ];
   });
+  notInspected.sort((a, b) => READING_ORDER.indexOf(a.key) - READING_ORDER.indexOf(b.key));
+  return { classes, notInspected };
 }
 
-function sizeCounts(entry: Record<string, unknown>, n: unknown, counts: unknown, total: unknown): SizeCounts {
+function sizeCounts(entry: Record<string, unknown>, n: unknown, counts: unknown, total: unknown, leftOut = false): SizeCounts {
   return {
     n: num(n),
     accept: num(entry.accept),
@@ -331,7 +376,7 @@ function sizeCounts(entry: Record<string, unknown>, n: unknown, counts: unknown,
       return label && found ? [{ label, count: found }] : [];
     }),
     total: num(total) ?? 0,
-    status: entry.result === "pass" || entry.result === "fail" ? entry.result : "not_done",
+    status: entry.result === "pass" || entry.result === "fail" ? entry.result : leftOut ? "not_inspected" : "not_done",
   };
 }
 
@@ -381,6 +426,7 @@ function leadOf(doc: InspectionExport, reading: Reading): string {
   else if (holesTotal !== null) checked = `Watertight test on ${gloves(holesTotal)}`;
   else if (visualTotal !== null) checked = `Visual inspection on ${gloves(visualTotal)}`;
   const sentences = checked ? [`${checked}${reading.handSplit ? ", right and left hands counted together" : ""}.`] : [];
+  sentences.push(...notInspectedSentences(reading));
   if (reading.columns.length === 0) return sentences.join(" ");
 
   // Each size's checks that failed, by their names; the sizes with a check not done.
@@ -413,6 +459,26 @@ function leadOf(doc: InspectionExport, reading: Reading): string {
     if (notDone.length > 0) sentences.push(`${capitalised(sizesNamed(notDone))} ${notDone.length === 1 ? "is" : "are"} not done yet.`);
   }
   return sentences.join(" ");
+}
+
+/**
+ * The visual classes left out, by the template's names: "Not inspected:
+ * Critical Defects and Minor Defects." for those of every size, "Not
+ * inspected for size S: Minor Defects." for those of some, the classes
+ * left out of the same sizes together.
+ */
+function notInspectedSentences(reading: Reading): string[] {
+  const groups = new Map<string, { labels: string[]; sizes: number[] | null }>();
+  for (const entry of reading.notInspected) {
+    const key = entry.sizes?.join(",") ?? "every";
+    const group = groups.get(key) ?? { labels: [], sizes: entry.sizes };
+    group.labels.push(entry.label);
+    groups.set(key, group);
+  }
+  return [...groups.values()].map(({ labels, sizes }) => {
+    const where = sizes === null ? "" : ` for ${sizes.length === 1 ? "size" : "sizes"} ${andList(sizes.map((index) => reading.sizeLabels[index]))}`;
+    return `Not inspected${where}: ${andList(labels)}.`;
+  });
 }
 
 function sumOf(values: readonly (number | null)[] | null): number | null {
@@ -461,13 +527,16 @@ function countValue(value: number, failing: boolean): DefectValue {
   return { text: formatCount(value), tone: value === 0 ? "zero" : failing ? "fail" : "found" };
 }
 
-/** The gloves tested or inspected per size. */
-function samplesRow(key: string, label: string, check: Check): DefectRow {
+/** The gloves tested or inspected per size: the first of the checks' with a number, as a class left out of a size has none. */
+function samplesRow(key: string, label: string, checks: readonly Check[]): DefectRow {
   return {
     key,
     kind: "samples",
     label,
-    values: check.sizes.map((entry) => (entry?.n === null || entry?.n === undefined ? MISSING : { text: formatCount(entry.n), tone: "plain" })),
+    values: (checks[0]?.sizes ?? []).map((_, index) => {
+      const n = checks.map((check) => check.sizes[index]?.n ?? null).find((value) => value !== null) ?? null;
+      return n === null ? MISSING : { text: formatCount(n), tone: "plain" };
+    }),
   };
 }
 
@@ -534,7 +603,7 @@ function pinholesTable(module: ExportModule, reading: Reading): DefectTable | nu
     aside: splitsHands(module) ? HANDS_TOGETHER : null,
     firstHeader: "Location",
     rows: [
-      samplesRow("pinholes:tested", WORDS.tested, check),
+      samplesRow("pinholes:tested", WORDS.tested, [check]),
       ...defectRows(check, "pinholes", labelOf(module, "unmapped", "Defect Not in the List"), {
         // "Other :" says where its holes were, as the reports print it ("Other : Glove Burst"); with nothing said, "Other".
         rename: (code, label) => (code !== OTHER_LOCATION ? label : descriptions.length > 0 ? `${label.trimEnd()} ${descriptions.join(", ")}` : label.replace(/\s*:\s*$/, "")),
@@ -592,7 +661,7 @@ function visualTable(module: ExportModule, reading: Reading): DefectTable | null
     aside: splitsHands(module) ? HANDS_TOGETHER : null,
     firstHeader: "Defect",
     rows: [
-      samplesRow("visual:inspected", WORDS.inspected, checks[0]),
+      samplesRow("visual:inspected", WORDS.inspected, checks),
       ...checks.flatMap((check, index): DefectRow[] => {
         const cls = check.key as DefectClass;
         return [

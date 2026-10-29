@@ -6,6 +6,7 @@ import { describe, expect, it } from "vitest";
 import { checkRows, checksVerdict, type CheckRow } from "./checks";
 import { makeSafedonExport, makeStdEgExport } from "./__fixtures__/exports";
 import { packingBoxes, packingExport } from "./__fixtures__/packing-export";
+import { fourSizeExport } from "./sections/__fixtures__/holes-visual";
 
 const row = (check: string, status: CheckRow["status"]): CheckRow => ({
   key: check,
@@ -160,6 +161,44 @@ describe("checkRows", () => {
     // Answered Yes, the row is back, the failed one failing it.
     const yes = checkRows(packingExport(sizes, { hasAgedSample: "yes" })).find((entry) => entry.key === "dispensing_packing:aged");
     expect(yes).toMatchObject({ status: "fail", failedSizes: ["S"] });
+  });
+
+  describe("visual classes left out (Kenneth, 30 October 2026: only major defect inspection)", () => {
+    const visualRows = (rows: readonly CheckRow[]) => rows.filter((entry) => entry.moduleKey === "visual");
+    const majorOnly = { S: ["major"], M: ["major"], L: ["major"], XL: ["major"] } as const;
+
+    it("gives a row to each class inspected only, and counts no other in the verdict", () => {
+      const all = checkRows(fourSizeExport());
+      const rows = checkRows(fourSizeExport({ inspectedClasses: majorOnly }));
+      expect(visualRows(rows).map((entry) => [entry.key, entry.check, entry.criterion, entry.result, entry.status])).toEqual([
+        ["visual:major", "Visual Inspection: Major", "AQL 2.5", "10 in 840 gloves", "pass"],
+      ]);
+      expect(rows).toHaveLength(all.length - 2);
+      expect(rows.filter((entry) => entry.moduleKey !== "visual")).toEqual(all.filter((entry) => entry.moduleKey !== "visual"));
+      const verdict = checksVerdict(rows, ["S", "M", "L", "XL"]);
+      expect(verdict).not.toMatch(/Critical|Minor/);
+    });
+
+    it("judges a class on the sizes it was inspected in, a size where only another was not its concern", () => {
+      // Size S left its minor class out; size M its critical.
+      const rows = visualRows(checkRows(fourSizeExport({ inspectedClasses: { S: ["critical", "major"], M: ["major", "minor"] } })));
+      expect(rows.map((entry) => [entry.key, entry.result, entry.status])).toEqual([
+        ["visual:critical", "0 in 525 gloves", "pass"],
+        ["visual:major", "10 in 840 gloves", "pass"],
+        ["visual:minor", "3 in 640 gloves", "pass"],
+      ]);
+    });
+
+    it("keeps a size with no class inspected not done in every row, and gives Visual Inspection one row while none is inspected anywhere", () => {
+      const partly = visualRows(checkRows(fourSizeExport({ inspectedClasses: { S: ["major"], M: ["major"], L: ["major"], XL: [] } })));
+      expect(partly.map((entry) => [entry.key, entry.result, entry.status])).toEqual([["visual:major", "9 in 715 gloves", "not_done"]]);
+      const none = checkRows(fourSizeExport({ inspectedClasses: { S: [], M: [], L: [], XL: [] } }));
+      expect(visualRows(none)).toEqual([
+        expect.objectContaining({ key: "visual", check: "Visual Inspection", criterion: null, result: null, status: "not_done" }),
+      ]);
+      // Named once among the checks not done, never once per class.
+      expect(checksVerdict(none, ["S", "M", "L", "XL"]).match(/Visual Inspection/g)).toEqual(["Visual Inspection"]);
+    });
   });
 
   it("reads an inspection with nothing ordered or entered without failing", () => {

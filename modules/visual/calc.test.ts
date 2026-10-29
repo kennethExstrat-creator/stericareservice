@@ -199,24 +199,23 @@ describe("visual", () => {
       const counted = calcVisual(input({ M: inspectedAll(500, { critical: { embedded_insect: 1 } }) }));
       expect(counted.computed.sizes.M.critical).toMatchObject({ accept: 0, reject: 1, total: 1, result: "fail" });
       expect(counted.result).toMatchObject({ status: "fail", perSize: { M: { status: "fail" } } });
+      // A critical defect counted is the class inspected: it fails; the classes with nothing are not inspected.
       const early = calcVisual(input({ M: { critical: { counts: { embedded_metal: 1 } } } }));
       expect(early.computed.sizes.M.critical).toMatchObject({ inspected: null, accept: 0, reject: 1, total: 1, result: "fail" });
-      expect(early.result.summary).toBe(
-        "Size M: Critical Defects 1 found, Major Defects not done, Minor Defects not done: Failed.",
-      );
+      expect(early.result.summary).toBe("Size M: Critical Defects 1 found: Failed.");
       expect(early.result.perSize?.M).toEqual({
         status: "fail",
         summary:
-          "Critical Defects 1 found (Embedded Metal Debris 1): Failed (any critical defect fails); Major Defects: No. of Sample Inspected missing (sampling plan: 500); Minor Defects: No. of Sample Inspected missing (sampling plan: 500).",
+          "Critical Defects 1 found (Embedded Metal Debris 1): Failed (any critical defect fails); Major Defects and Minor Defects not inspected.",
       });
     });
 
     it("sets the critical limits before the gloves inspected are entered: AQL 0 is Accept 0 / Reject 1 whatever n", () => {
       const empty = calcVisual(input({ M: {} })).computed.sizes.M;
-      expect(empty.critical).toMatchObject({ inspected: null, codeLetter: null, accept: 0, reject: 1, result: "not_done" });
+      expect(empty.critical).toMatchObject({ inspected: null, codeLetter: null, accept: 0, reject: 1, result: "not_inspected" });
       // Major and minor take their limits from the plan for n.
-      expect(empty.major).toMatchObject({ accept: null, reject: null, result: "not_done" });
-      expect(empty.minor).toMatchObject({ accept: null, reject: null, result: "not_done" });
+      expect(empty.major).toMatchObject({ accept: null, reject: null, result: "not_inspected" });
+      expect(empty.minor).toMatchObject({ accept: null, reject: null, result: "not_inspected" });
       const tooFew = calcVisual(input({ M: { critical: { inspected: 1 } } })).computed.sizes.M.critical;
       expect(tooFew).toMatchObject({ accept: 0, reject: 1, result: "not_done" });
     });
@@ -233,13 +232,82 @@ describe("visual", () => {
       });
     });
 
-    it("is not done for a class until its gloves inspected are entered, and the size takes its worst class", () => {
-      const output = calcVisual(input({ M: { critical: { inspected: 500 }, major: { inspected: 500 } } }));
-      expect(output.computed.sizes.M.minor).toMatchObject({ inspected: null, planned: 500, result: "not_done" });
-      expect(output.result.perSize?.M?.status).toBe("not_done");
-      expect(output.result.summary).toBe(
-        "Size M: Critical Defects 0 / 500, Major Defects 0 / 500, Minor Defects not done: Not done.",
-      );
+    describe("classes left out (Kenneth, 30 October 2026: only major defect inspection)", () => {
+      it("passes a size on its one inspected class: no sample entered and nothing counted is not inspected", () => {
+        const output = calcVisual(input({ M: { major: { inspected: 500, counts: { thin_spot: 3 } } } }));
+        expect(output.computed.sizes.M.critical).toMatchObject({ inspected: null, total: 0, result: "not_inspected" });
+        expect(output.computed.sizes.M.minor).toMatchObject({ inspected: null, planned: 500, total: 0, result: "not_inspected" });
+        expect(output.computed.sizes.M.major).toMatchObject({ accept: 21, reject: 22, total: 3, result: "pass" });
+        expect(output.result).toEqual({
+          status: "pass",
+          summary: "Size M: Major Defects 3 / 500: Passed.",
+          perSize: {
+            M: {
+              status: "pass",
+              summary:
+                "Major Defects 3 / 500 (Thin Spot on Glove Body 3), Defect Limit 21 / 22: Passed; Critical Defects and Minor Defects not inspected.",
+            },
+          },
+        });
+        // Not inspected is no warning and nothing to do.
+        expect(output.issues).toEqual([]);
+      });
+
+      it("fails a size on its one inspected class", () => {
+        const output = calcVisual(input({ M: { major: { inspected: 500, counts: { thin_spot: 22 } } } }));
+        expect(output.computed.sizes.M.major?.result).toBe("fail");
+        expect(output.result).toMatchObject({ status: "fail", perSize: { M: { status: "fail" } } });
+        expect(output.result.summary).toBe("Size M: Major Defects 22 / 500: Failed.");
+      });
+
+      it("takes the worst of the inspected classes: failed, then not done, then passed", () => {
+        const sizeOf = (sizes: Record<string, unknown>) => calcVisual(input({ M: sizes })).result.perSize?.M?.status;
+        expect(sizeOf({ critical: { inspected: 500 }, major: { inspected: 500 } })).toBe("pass");
+        // Too few for the minor AQL's plan: the inspected class is incomplete.
+        expect(sizeOf({ major: { inspected: 500 }, minor: { inspected: 1 } })).toBe("not_done");
+        expect(sizeOf({ major: { inspected: 500, counts: { thin_spot: 22 } }, minor: { inspected: 1 } })).toBe("fail");
+      });
+
+      it("is not done while no class is inspected", () => {
+        const output = calcVisual(input({ M: {} }));
+        expect(DEFECT_CLASSES.map((cls) => output.computed.sizes.M[cls]?.result)).toEqual(["not_inspected", "not_inspected", "not_inspected"]);
+        expect(output.result).toEqual({
+          status: "not_done",
+          summary: "Size M: not done, No. of Sample Inspected missing (sampling plan: 500).",
+          perSize: { M: { status: "not_done", summary: "No. of Sample Inspected missing (sampling plan: 500)." } },
+        });
+        // A one-off row added with nothing counted is still nothing inspected.
+        const oneOff = calcVisual(input({ M: { minor: { unmapped: [{ label: "Faint print", count: 0 }] } } }));
+        expect(oneOff.computed.sizes.M.minor?.result).toBe("not_inspected");
+        expect(oneOff.result.perSize?.M?.status).toBe("not_done");
+      });
+
+      it("still asks for the gloves inspected of a class with a defect counted and none entered: counting is inspecting", () => {
+        const output = calcVisual(input({ M: { critical: { inspected: 500 }, major: { counts: { thin_spot: 2 } } } }));
+        expect(output.computed.sizes.M.major).toMatchObject({ inspected: null, total: 2, result: "not_done" });
+        expect(output.computed.sizes.M.minor?.result).toBe("not_inspected");
+        expect(output.result.perSize?.M).toEqual({
+          status: "not_done",
+          summary:
+            "Critical Defects 0 / 500, Defect Limit 0 / 1: Passed; Major Defects: No. of Sample Inspected missing (sampling plan: 500); Minor Defects not inspected.",
+        });
+        expect(output.result.summary).toBe("Size M: Critical Defects 0 / 500, Major Defects not done: Not done.");
+        // Alone, the module's line asks for the gloves inspected, as for a size with nothing entered.
+        const alone = calcVisual(input({ M: { minor: { counts: { dirt_small: 1 } } } }));
+        expect(alone.result.summary).toBe("Size M: not done, No. of Sample Inspected missing (sampling plan: 500).");
+      });
+
+      it("lets each size leave out its own classes", () => {
+        const context = makeTestContext({
+          sizes: ["S", "M"],
+          sampling: { S: makeSampling({ watertightVisual: 200 }), M: makeSampling({ watertightVisual: 500 }) },
+        });
+        const output = calcVisual(input({ S: { major: { inspected: 200 } }, M: inspectedAll(500) }, { context }));
+        expect(output.result).toMatchObject({ status: "pass", perSize: { S: { status: "pass" }, M: { status: "pass" } } });
+        expect(output.result.summary).toBe(
+          "Size S: Major Defects 0 / 200: Passed; size M: Critical Defects 0 / 500, Major Defects 0 / 500, Minor Defects 0 / 500: Passed.",
+        );
+      });
     });
 
     it("never passes an ordered size with nothing entered", () => {

@@ -1,7 +1,9 @@
 // Visual Inspection (BUILD_SPEC 6.1): defects per class (critical, major,
 // minor) per ordered size, accepted or rejected per class and size by the
-// AQL engine; any critical defect fails. The classes' AQLs from the template
-// go into the context for the sampling plan's lot check.
+// AQL engine; any critical defect fails. A size goes by the classes the
+// inspector inspected: one with no sample entered and nothing counted is not
+// inspected, and left out (Kenneth, 30 October 2026). The classes' AQLs from
+// the template go into the context for the sampling plan's lot check.
 import { defineModule } from "@/modules/_framework";
 import { calcVisual, contributeVisual, type VisualComputed } from "./calc";
 import { VISUAL_DEFAULT_CONFIG, VISUAL_LABELS, VISUAL_TITLE, VisualConfigSchema, type VisualConfig } from "./config";

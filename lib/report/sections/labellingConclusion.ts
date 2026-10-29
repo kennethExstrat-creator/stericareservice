@@ -258,7 +258,9 @@ function worstOf(statuses: readonly (CheckStatus | null)[]): CheckStatus | null 
 /**
  * The checks of Results by Check (lib/report/checks.ts), each by size, in
  * its order and words: a module's verdict per size, Visual Inspection once
- * for its classes (TG35: "Visual: Critical, Major, Minor"), the packing
+ * for its classes inspected (TG35: "Visual: Critical, Major, Minor"; one
+ * left out of every size is not named), each size's tick its visual result,
+ * which leaves out the classes not inspected (Kenneth, 30 October 2026), the packing
  * check's boxes and its aged sample apart. Null with no size on the order
  * or no check judged.
  */
@@ -280,8 +282,9 @@ export function resultsMatrixOf(doc: InspectionExport, sizes: readonly string[])
     rows.push({ key: check.key, label: check.check, cells });
   }
   if (rows.length === 0) return null;
+  // Named by its classes inspected; with none inspected yet, Results by Check's one row keeps its own name.
   const visual = rows.find((row) => row.key === "visual");
-  if (visual) visual.label = `${shortTitleFor("visual", moduleOf(doc, "visual")?.title ?? "")}: ${visualClasses.join(", ")}`;
+  if (visual && visualClasses.length > 0) visual.label = `${shortTitleFor("visual", moduleOf(doc, "visual")?.title ?? "")}: ${visualClasses.join(", ")}`;
   const shown = new Set(rows.flatMap((row) => row.cells.map((status) => status ?? "none")));
   return { rows, legend: [...LEGEND_ORDER.filter((status) => shown.has(status)), ...(shown.has("none") ? (["none"] as const) : [])] };
 }

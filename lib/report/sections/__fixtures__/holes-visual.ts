@@ -56,10 +56,18 @@ export type FourSizeOptions = {
   photos?: boolean;
   /** STD_EG's version: 6 (the default, as the inspection was made) without Ring Mark in its majors, 7 with it. */
   version?: 6 | 7;
+  /**
+   * The visual classes inspected per size (Kenneth, 30 October 2026: a class
+   * may be left out); a size not named inspects all three. A class left out
+   * has no gloves inspected and nothing counted.
+   */
+  inspectedClasses?: Partial<Record<Size, readonly VisualClassKey[]>>;
 };
 
+type VisualClassKey = "critical" | "major" | "minor";
+
 /** The four-size inspection's export. */
-export function fourSizeExport({ photos = false, version = 6 }: FourSizeOptions = {}): InspectionExport {
+export function fourSizeExport({ photos = false, version = 6, inspectedClasses = {} }: FourSizeOptions = {}): InspectionExport {
   const data = stdEgInspectionData();
   const modules = data.modules as Record<string, Record<string, unknown>>;
   const perSize = <T>(value: (size: Size) => T) => Object.fromEntries(SIZES.map((size) => [size, value(size)]));
@@ -93,15 +101,21 @@ export function fourSizeExport({ photos = false, version = 6 }: FourSizeOptions 
   const majorCodes = ["thin_crotch_area", "thin_crotch_ring", "thin_body_area", "thin_spot", "dirt_nonremovable", "stain", "foreign_matter", "bead_defective", "lump_big", "skin_visual", "flow_mark"];
   const minorCodes = ["dirt_small", "sticky_pleats", "lump_small", "bead_poor", "bead_rolled", "bead_defective"];
   const ringMark = (size: Size) => (size === "M" ? 1 : 0);
+  const LEFT_OUT = { inspected: null, counts: {}, unmapped: [] };
+  const inspects = (size: Size, cls: VisualClassKey) => inspectedClasses[size]?.includes(cls) ?? true;
   modules.visual = {
     sizes: perSize((size) => ({
-      critical: { inspected: FOUR_SIZE_SAMPLES[size], counts: { embedded_insect: 0, embedded_metal: 0 }, unmapped: [] },
-      major: {
-        inspected: FOUR_SIZE_SAMPLES[size],
-        counts: { ...counts(majorCodes, MAJOR[size]), ...(version === 7 ? { [RING_MARK]: ringMark(size) } : {}) },
-        unmapped: version === 6 && ringMark(size) > 0 ? [{ label: FOUR_SIZE_ONE_OFF, count: ringMark(size) }] : [],
-      },
-      minor: { inspected: FOUR_SIZE_SAMPLES[size], counts: counts(minorCodes, MINOR[size]), unmapped: [] },
+      critical: inspects(size, "critical")
+        ? { inspected: FOUR_SIZE_SAMPLES[size], counts: { embedded_insect: 0, embedded_metal: 0 }, unmapped: [] }
+        : LEFT_OUT,
+      major: inspects(size, "major")
+        ? {
+            inspected: FOUR_SIZE_SAMPLES[size],
+            counts: { ...counts(majorCodes, MAJOR[size]), ...(version === 7 ? { [RING_MARK]: ringMark(size) } : {}) },
+            unmapped: version === 6 && ringMark(size) > 0 ? [{ label: FOUR_SIZE_ONE_OFF, count: ringMark(size) }] : [],
+          }
+        : LEFT_OUT,
+      minor: inspects(size, "minor") ? { inspected: FOUR_SIZE_SAMPLES[size], counts: counts(minorCodes, MINOR[size]), unmapped: [] } : LEFT_OUT,
     })),
   };
   const base = stdEgRecord();

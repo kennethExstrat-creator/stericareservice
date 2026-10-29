@@ -117,10 +117,41 @@ describe("visualTable", () => {
     expect(table?.rows.map((row) => row.cells)).toEqual([
       [{ text: "0 / 315" }, { text: "1 found", tone: "fail" }, { text: null }, { text: null }],
       [{ text: "None" }, { text: "Embedded Metal Debris 1" }, { text: null }, { text: null }],
-      // Only S has a limit yet: on its cell, not under the label.
-      [{ text: "2 / 315", note: "Limit 14 / 15" }, { text: null }, { text: null }, { text: null }],
+      // Only S has a limit yet: on its cell, not under the label. M inspected its critical class only: its
+      // major class is left out, not still to come; L and XL have nothing inspected yet.
+      [{ text: "2 / 315", note: "Limit 14 / 15" }, { text: "Not Inspected" }, { text: null }, { text: null }],
       [{ text: "Ring mark 2", tone: "warn" }, { text: null }, { text: null }, { text: null }],
     ]);
+  });
+
+  it("reads Not Inspected, with no limit, for a class left out of a size that has another inspected (Kenneth, 30 October 2026)", () => {
+    const { entry, context } = evaluated({
+      // Only major inspected in S and M; every class in L; nothing yet in XL.
+      S: { major: { inspected: 315, counts: { thin_spot: 2 } } },
+      M: { major: { inspected: 315 } },
+      L: inspected(315),
+    });
+    expect(entry.result.perSize).toMatchObject({ S: { status: "pass" }, M: { status: "pass" }, L: { status: "pass" }, XL: { status: "not_done" } });
+    const table = visualTable(entry, context);
+    expect(table?.rows.map((row) => [row.key, row.spec ?? null, row.cells])).toEqual([
+      ["critical", null, [{ text: "Not Inspected" }, { text: "Not Inspected" }, { text: "0 / 315", note: "Limit 0 / 1" }, { text: null, note: "Limit 0 / 1" }]],
+      [
+        "major",
+        null,
+        [
+          { text: "2 / 315", note: "Limit 14 / 15" },
+          { text: "0 / 315", note: "Limit 14 / 15" },
+          { text: "0 / 315", note: "Limit 14 / 15" },
+          { text: null },
+        ],
+      ],
+      ["majorFound", null, [{ text: "Thin Spot on Glove Body 2" }, { text: "None" }, { text: "None" }, { text: null }]],
+      ["minor", null, [{ text: "Not Inspected" }, { text: "Not Inspected" }, { text: "0 / 315", note: "Limit 21 / 22" }, { text: null }]],
+    ]);
+    // Not inspected raises nothing to check: the module is not done for XL alone, which has nothing yet.
+    expect(entry.issues.map((issue) => issue.code)).toEqual(["module_not_done"]);
+    expect(entry.issues[0]?.message).toContain("size XL: not done, No. of Sample Inspected missing (sampling plan: 315).");
+    expect(entry.issues[0]?.message).not.toMatch(/not inspected/i);
   });
 
   it("reads the SAFEDON_EG example: no defects, so no found rows, and each size's own limit where they differ", () => {

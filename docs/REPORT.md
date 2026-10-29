@@ -86,10 +86,20 @@ table prints whatever Aged Gloves and Stickiness Grades (the packing check's) sa
 "Aged Gloves" in the chart, in the aged gloves' table heading and in their photo record's note.
 
 Results by Check has a row per check the inspection judged: each test module with a result (a module that only
-records, "info", has none), Visual Inspection once per defect class, the packing check's aged sample on a row of its
-own. The order, the sampling plan and the box/carton numbers are records, listed only when they hold a failure or a
+records, "info", has none), Visual Inspection once per defect class inspected, the packing check's aged sample on a row
+of its own. The order, the sampling plan and the box/carton numbers are records, listed only when they hold a failure or a
 warning. Each row names the check by its short name, its criterion from the module's config and its result from the
 computed values; the status is the module's own.
+
+A visual class may be left out (Kenneth, 30 October 2026: "only major defect inspection"): with no sample entered and
+nothing counted, its computed result is `not_inspected`, and its size goes by the classes inspected. Results by Check
+gives it no row where it was inspected in no size, so it never counts in "All N checks passed"; a class's row judges
+the sizes it was inspected in, and a size with no class inspected as Not Done; with no class inspected anywhere, Visual
+Inspection is one row, Not Done. Section 06 leaves a class inspected in no size out of its grid and its tables, the
+lead naming it ("Not inspected: Critical Defects and Minor Defects."); one left out of some sizes reads Not Inspected
+in their grid cells (not done's slate chip) and prints dashes in its table, never zeros, the lead naming the sizes
+("Not inspected for size S: Minor Defects."). The pages are planned from the tables that are there. Section 08's
+results matrix names the classes inspected ("Visual Inspection: Major") and ticks each size by its visual result.
 
 Every size of the packing check has an aged sample (Kenneth, 27 October 2026): a size with none entered is Not Done
 in the aged sample's row of Results by Check and of the results matrix (Section 08), and Section 07's Box-Aged
