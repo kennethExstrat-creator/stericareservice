@@ -268,7 +268,8 @@ export function resultsMatrixOf(doc: InspectionExport, sizes: readonly string[])
   const visualClasses: string[] = [];
   for (const check of checkRows(doc)) {
     const source = moduleOf(doc, check.moduleKey);
-    if (!source) continue;
+    // A row that only records (the sampling plan's reduced sampling) has no verdict to tick.
+    if (!source || check.remark !== null) continue;
     if (check.key.startsWith("visual:")) {
       const word = check.key.slice("visual:".length);
       if (visualClasses.length === 0) rows.push({ key: "visual", label: "", cells: moduleCells(source, sizes) });

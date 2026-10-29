@@ -134,6 +134,7 @@ describe("sampling_plan", () => {
             putBack: 0,
             codeLetterReduced: false,
             reducedFrom: null,
+            belowLetter: false,
           },
         },
         totals: {
@@ -258,6 +259,7 @@ describe("sampling_plan", () => {
       putBack: 0,
       codeLetterReduced: false,
       reducedFrom: null,
+      belowLetter: false,
     });
     expect(output.issues).toEqual([]);
   });
@@ -724,21 +726,16 @@ describe("sampling_plan's code letter (Kenneth, 27 October 2026)", () => {
     expect(calcSamplingPlan(input({ M: lettered(null, 315) })).result.status).toBe("info");
   });
 
-  it("warns on the letter when # of Gloves Sample is not its sample, typed by hand, without blocking the size", () => {
+  it("never warns on gloves typed apart from the letter's sample; fewer than it is reduced sampling (Kenneth, 29 October 2026)", () => {
+    // "the warning is not needed": the size completes, and belowLetter tells the report.
     const output = calcSamplingPlan(input({ M: lettered("M", 300) }));
-    expect(output.issues).toEqual([
-      {
-        level: "warning",
-        code: "code_letter_mismatch",
-        message: "Size M, Code Letter: # of Gloves Sample 300 is not code M's 315.",
-        size: "M",
-        path: ["sizes", "M", "codeLetter"],
-      },
-    ]);
-    expect(output.result.perSize?.M).toEqual({ status: "warn", summary: "# of Gloves Sample 300 is not code M's 315." });
-    // The letter's sample, or no letter: nothing to say.
-    expect(calcSamplingPlan(input({ M: lettered("M", 315) })).issues).toEqual([]);
-    expect(calcSamplingPlan(input({ M: lettered(null, 300) })).issues).toEqual([]);
+    expect(output.issues).toEqual([]);
+    expect(output.result.perSize?.M.status).toBe("info");
+    expect(output.computed.sizes.M).toMatchObject({ belowLetter: true, codeLetterReduced: true });
+    // The letter's sample, more than it, or no letter: not reduced by the gloves.
+    expect(calcSamplingPlan(input({ M: lettered("M", 315) })).computed.sizes.M.belowLetter).toBe(false);
+    expect(calcSamplingPlan(input({ M: lettered("M", 400) })).computed.sizes.M.belowLetter).toBe(false);
+    expect(calcSamplingPlan(input({ M: lettered(null, 300) })).computed.sizes.M.belowLetter).toBe(false);
   });
 
   it("takes every glove of a lot smaller than the letter's sample as its sample", () => {
@@ -746,9 +743,11 @@ describe("sampling_plan's code letter (Kenneth, 27 October 2026)", () => {
     const small = contextM({ order: { M: { qtyCases: 1, lotNumbers: [] } }, packing: { innerUnit: "inner box", glovesPerInner: 20, innersPerCase: 10, glovesPerCase: 200 } });
     const whole = { ...lettered("M", 200), cases: 1, innerUnits: 1 };
     expect(calcSamplingPlan(input({ M: whole }, SAMPLING_PLAN_DEFAULT_CONFIG, small)).issues).toEqual([]);
-    expect(calcSamplingPlan(input({ M: { ...whole, gloves: 150 } }, SAMPLING_PLAN_DEFAULT_CONFIG, small)).issues.map((issue) => issue.message)).toEqual([
-      "Size M, Code Letter: # of Gloves Sample 150 is not code M's 200, every glove of the lot.",
-    ]);
+    expect(calcSamplingPlan(input({ M: whole }, SAMPLING_PLAN_DEFAULT_CONFIG, small)).computed.sizes.M.belowLetter).toBe(false);
+    // Fewer than every glove of the lot: reduced sampling, no warning.
+    const fewer = calcSamplingPlan(input({ M: { ...whole, gloves: 150 } }, SAMPLING_PLAN_DEFAULT_CONFIG, small));
+    expect(fewer.issues).toEqual([]);
+    expect(fewer.computed.sizes.M.belowLetter).toBe(true);
   });
 
   it("checks and shows no letter where the template shows no gloves (STD_SG)", () => {
@@ -851,6 +850,7 @@ describe("sampling_plan with the example reports (docs/examples/expected-results
         putBack: 0,
         codeLetterReduced: false,
         reducedFrom: null,
+        belowLetter: false,
       },
     });
     expect(evaluation.issues).toEqual([]);

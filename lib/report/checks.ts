@@ -37,7 +37,16 @@ export type CheckRow = {
   failedSizes: string[];
   /** "Failed for size S": under the result, when the check failed in some of the sizes on the order and not all. */
   sizesNote: string | null;
+  /**
+   * A row that records rather than judges, its words in the status column
+   * instead of a verdict: the sampling plan's "Reduced Sampling is Used".
+   * It counts in no verdict and has no row in the results matrix.
+   */
+  remark: string | null;
 };
+
+/** The sampling plan's row where a size's sampling is reduced (Kenneth, 29 October 2026). */
+export const REDUCED_SAMPLING = "Reduced Sampling is Used";
 
 /** Modules that judge the gloves: a row whenever they have a result. */
 const CHECK_MODULES: readonly ModuleKey[] = [
@@ -69,7 +78,7 @@ const VISUAL_CLASSES = [
   { key: "minor", word: "Minor" },
 ] as const;
 
-type RowParts = Pick<CheckRow, "criterion" | "result"> & Partial<Pick<CheckRow, "key" | "check" | "status" | "failedSizes">>;
+type RowParts = Pick<CheckRow, "criterion" | "result"> & Partial<Pick<CheckRow, "key" | "check" | "status" | "failedSizes" | "remark">>;
 
 /** The Results by Check rows, in the template's order. */
 export function checkRows(doc: InspectionExport): CheckRow[] {
@@ -77,6 +86,28 @@ export function checkRows(doc: InspectionExport): CheckRow[] {
   return doc.modules.flatMap((module): CheckRow[] => {
     const status = module.result.status;
     const record = RECORD_MODULES.includes(module.key);
+    // The sampling plan with a size sampled below its plan or code letter, or its letter lowered: a row that says so,
+    // never a warning (Kenneth, 29 October 2026: "status in report also should just say 'Reduced Sampling is Used'").
+    if (module.key === "sampling_plan" && status !== "fail" && status !== "warn") {
+      const reduced = reducedSamplingSizes(doc, module, sizes);
+      if (reduced.length > 0) {
+        const short = shortTitleFor(module.key, module.title);
+        const names = reduced.map((size) => sizeLabel(doc, size));
+        return [
+          {
+            key: module.key,
+            moduleKey: module.key,
+            check: short,
+            criterion: null,
+            result: `${names.length === 1 ? "Size" : "Sizes"} ${andList(names)}`,
+            status: "pass",
+            failedSizes: [],
+            sizesNote: null,
+            remark: REDUCED_SAMPLING,
+          },
+        ];
+      }
+    }
     if (status === "info" || (!CHECK_MODULES.includes(module.key) && !(record && (status === "fail" || status === "warn")))) return [];
     const short = REPORT_CHECK_NAMES[module.key] ?? shortTitleFor(module.key, module.title);
     const moduleFailed = sizesWhere(doc, module, "fail");
@@ -93,6 +124,7 @@ export function checkRows(doc: InspectionExport): CheckRow[] {
         status: rowStatus,
         failedSizes,
         sizesNote: some ? `Failed for ${failedSizes.length === 1 ? "size" : "sizes"} ${andList(failedSizes)}` : null,
+        remark: parts.remark ?? null,
       };
     });
   });
@@ -330,7 +362,9 @@ function dyeLeakRow(module: ExportModule): RowParts {
  * checks passed for size M; Weight has a warning."). `sizes` as the template
  * shows them.
  */
-export function checksVerdict(rows: readonly CheckRow[], sizes: readonly string[]): string {
+export function checksVerdict(all: readonly CheckRow[], sizes: readonly string[]): string {
+  // A row that only records (the sampling plan's reduced sampling) is no check.
+  const rows = all.filter((row) => row.remark === null);
   const total = rows.length;
   if (total === 0) return "No checks are recorded yet.";
   const named = (status: CheckStatus) => rows.filter((row) => row.status === status).map((row) => row.check);
@@ -385,6 +419,14 @@ function worstOf(verdicts: readonly unknown[], none: ModuleStatus): CheckStatus 
 }
 
 /** The sizes whose own verdict is `status`, as the template shows them. */
+/** The sizes on the order sampled below their plan or their code letter's sample, or whose letter was lowered. */
+function reducedSamplingSizes(doc: InspectionExport, module: ExportModule, sizes: readonly string[]): string[] {
+  return sizes.filter((size) => {
+    const plan = rec(at(module.computed, "sizes", size));
+    return plan.codeLetterReduced === true || plan.belowLetter === true || plan.belowPlan === true;
+  });
+}
+
 function sizesWhere(doc: InspectionExport, module: ExportModule, status: ModuleStatus): string[] {
   const perSize = module.result.perSize ?? {};
   return orderedSizes(doc)

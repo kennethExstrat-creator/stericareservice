@@ -581,20 +581,12 @@ describe("sampling_plan Capture's Code Letter (Kenneth, 27 October 2026)", () =>
     expect(letterCell(read, "M")).toContain('title="Reduced from N"');
   });
 
-  it("warns on the letter when # of Gloves Sample is not its sample: amber, read with the letter, listed under the table", () => {
+  it("says nothing on the letter when # of Gloves Sample is not its sample (Kenneth, 29 October 2026: \"the warning is not needed\")", () => {
     const html = render(props(SAFEDON_EG_EXAMPLE, LEVEL_I, SAMPLING_PLAN_LABELS, lettered({ M: { gloves: 300 } })));
     const cell = letterCell(html, "M");
-    expect(cell).toMatch(/data-code-letter="M"[^>]*class="[^"]*\bbg-warn-tint\b/);
-    expect(cell).toContain("Size M, Code Letter: # of Gloves Sample 300 is not code M&#x27;s 315.");
-    // An issue link lands on the letter itself.
-    expect(cell).toContain(`${pathAttribute(["sizes", "M", "codeLetter"])} tabindex="-1"`);
-    expect(html).toMatch(/data-slot="sampling-issues"[\s\S]*Size M, Code Letter: # of Gloves Sample 300 is not code M&#x27;s 315\./);
-    // The size is not blocked: a warning, never a red cell.
+    expect(cell).not.toMatch(/data-code-letter="M"[^>]*class="[^"]*\bbg-warn-tint\b/);
+    expect(html).not.toContain("is not code M");
     expect(redCells(html)).toEqual([]);
-    // The cell itself is not tinted (its reduced badge is amber in its own right).
-    expect(letterCell(render(props(SAFEDON_EG_EXAMPLE, LEVEL_I, SAMPLING_PLAN_LABELS, lettered())), "M")).not.toMatch(
-      /data-code-letter="M"[^>]*class="[^"]*\bbg-warn-tint\b/,
-    );
   });
 
   it("is read-only for an approved inspection: the letter and its note, no buttons", () => {

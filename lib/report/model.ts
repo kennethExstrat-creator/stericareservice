@@ -922,7 +922,8 @@ function checkRowHeight(row: CheckRow): number {
     wrappedLines(row.check, SUMMARY_ROOM.checkText, { pt: 9, bold: true }),
     Math.ceil((row.criterion ?? "").length / criterion),
     Math.ceil(((row.result ?? "").length + (row.sizesNote ? result : 0)) / result),
-    1,
+    // "Reduced Sampling is Used" wraps to two lines in the status column.
+    row.remark ? 2 : 1,
   );
   return SUMMARY_ROOM.checkRow + (lines - 1) * SUMMARY_ROOM.checkLine;
 }

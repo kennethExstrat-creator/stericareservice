@@ -16,6 +16,7 @@ const row = (check: string, status: CheckRow["status"]): CheckRow => ({
   status,
   failedSizes: [],
   sizesNote: null,
+  remark: null,
 });
 
 describe("checksVerdict", () => {
@@ -47,6 +48,8 @@ describe("checkRows", () => {
   it("names physical properties, Safedon dispensing and both labelling levels in the template's words", () => {
     const rows = checkRows(makeSafedonExport());
     expect(rows.map((entry) => entry.key)).toEqual([
+      // Its samples are below their plans: the sampling plan says so, never as a warning (Kenneth, 29 October 2026).
+      "sampling_plan",
       "dimensions",
       "tensile",
       "watertight",
@@ -56,6 +59,7 @@ describe("checkRows", () => {
       "dispensing_safedon",
       "labeling",
     ]);
+    expect(rows[0]).toMatchObject({ check: "Sampling Plan", status: "pass", remark: "Reduced Sampling is Used" });
     expect(rows.find((entry) => entry.key === "tensile")).toMatchObject({
       check: "Physical Properties",
       criterion: "Tensile strength ≥ 14.00 MPa, elongation ≥ 500%; ASTM D6319",

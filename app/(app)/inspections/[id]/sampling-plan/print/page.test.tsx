@@ -123,8 +123,8 @@ describe("/inspections/[id]/sampling-plan/print", () => {
     const html = await render(exported(missing));
     expect(html).toContain(PLAN_NOT_COMPLETE);
     expect(PLAN_NOT_COMPLETE).toBe("The Sampling Plan is not complete yet: counts not entered print as dashes.");
-    // 210 gloves where M's code letter L takes 200: a warning on the step.
-    const warned = makePlanExport({ sampling_plan: { ...data, sizes: { ...data.sizes, M: { ...data.sizes.M, gloves: 210 } } } });
+    // A total of inner boxes that is not cases × inner boxes per case: a warning on the step.
+    const warned = makePlanExport({ sampling_plan: { ...data, sizes: { ...data.sizes, M: { ...data.sizes.M, innerUnits: (data.sizes.M.innerUnits ?? 0) + 1 } } } });
     expect(warned.modules.find((module) => module.key === "sampling_plan")?.result.status).toBe("warn");
     const warnedHtml = await render(exported(warned));
     expect(warnedHtml).toContain(PLAN_HAS_WARNINGS);

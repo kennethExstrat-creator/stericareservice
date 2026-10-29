@@ -68,7 +68,7 @@ describe("samplingPlanTable", () => {
     ]);
   });
 
-  it("shows the inner boxes per case and a code letter where entered: one lowered says so, gloves that are not its sample are amber", () => {
+  it("shows the inner boxes per case and a code letter where entered: one lowered says so, gloves apart from its sample no warning", () => {
     const table = stdEgWith((sizeM) => ({
       ...sizeM,
       innerUnitsPerCase: 1,
@@ -92,11 +92,11 @@ describe("samplingPlanTable", () => {
     const row = (key: string) => table?.rows.find((entry) => entry.key === key);
     expect(row("innerUnitsPerCase")).toEqual({ key: "innerUnitsPerCase", label: "Inner Box Taken per Case", cells: [{ text: "1" }] });
     expect(row("glovesPerInnerBox")?.cells).toEqual([{ text: "2" }]);
-    // Code J samples 80 gloves: 100 is a warning on the letter.
+    // Code J samples 80 gloves: 100 is no warning (Kenneth, 29 October 2026), the lowered letter still says so.
     expect(row("codeLetter")).toEqual({
       key: "codeLetter",
       label: "Code Letter",
-      cells: [{ text: "J", note: "Reduced From N", tone: "warn" }],
+      cells: [{ text: "J", note: "Reduced From N" }],
     });
   });
 

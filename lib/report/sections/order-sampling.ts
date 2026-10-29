@@ -406,7 +406,6 @@ const ISSUE_COUNT: Readonly<Record<string, SamplingKey>> = {
   cases_zero: "cases",
   cases_above_order: "cases",
   inner_units_mismatch: "innerUnits",
-  code_letter_mismatch: "gloves",
   invalid_sample_size: "glovesWatertightVisual",
   nonstandard_sample: "glovesWatertightVisual",
 };

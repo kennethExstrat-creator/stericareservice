@@ -8,8 +8,9 @@
 // where a size has a value. A code letter lowered on purpose says so ("Reduced
 // From N"), as the summary does. Each cell takes the tone of the module's
 // issues on it: an error (more cases than ordered, a sample below 2) red, a
-// warning (a total that is not cases x inner boxes per case, gloves that are
-// not the code letter's sample, a sample size that is not standard) amber.
+// warning (a total that is not cases x inner boxes per case, a sample size
+// that is not standard) amber. Gloves apart from the code letter's sample are
+// no warning (Kenneth, 29 October 2026).
 import { labelFor } from "@/modules/_framework";
 import type { SamplingPlanComputed, SamplingPlanConfig, SamplingPlanData } from "@/modules/sampling_plan";
 import { countGroups, type PlanRow } from "@/modules/sampling_plan/rows";

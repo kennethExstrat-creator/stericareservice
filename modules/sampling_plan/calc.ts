@@ -102,6 +102,12 @@ export type SizePlan = {
   codeLetterReduced: boolean;
   /** The lot's code letter while the size's is below it; null otherwise. */
   reducedFrom: CodeLetter | null;
+  /**
+   * Fewer gloves sampled than the size's code letter's sample (every glove
+   * of a smaller lot): reduced sampling, as a lowered letter is, which the
+   * report says (Kenneth, 29 October 2026). False where either is missing.
+   */
+  belowLetter: boolean;
 };
 
 export type SamplingPlanComputed = {
@@ -347,16 +353,12 @@ function checkSize({ size, row, config, level, labels, context }: SizeCheckInput
     });
   }
 
-  // The gloves are the code letter's sample, every glove of a smaller lot (Kenneth, 27 October 2026): gloves typed
-  // otherwise are a warning on the letter, as a total that is not its product is, never a block.
+  // The gloves are the code letter's sample, every glove of a smaller lot (Kenneth, 27 October 2026). Gloves typed
+  // otherwise are no warning (Kenneth, 29 October 2026: "the warning is not needed"): fewer than the letter's sample
+  // is reduced sampling (belowLetter), which the report says.
   const letter = showsCodeLetter(config) ? row.codeLetter : null;
   const sampled = value("gloves");
   const letterGloves = letter === null ? null : letterSample(letter, lot);
-  if (letter !== null && letterGloves !== null && sampled !== null && sampled !== letterGloves) {
-    const whole = letterGloves < SAMPLE_SIZES[letter] ? ", every glove of the lot" : "";
-    const brief = `${label("gloves")} ${formatCount(sampled)} is not code ${letter}'s ${formatCount(letterGloves)}${whole}`;
-    findings.push({ level: "warning", code: "code_letter_mismatch", column: "codeLetter", brief, detail: `${brief}.` });
-  }
 
   // The sample's issues carry lib/aql's codes, as watertight and visual pass them on for their own n.
   const sample = value("glovesWatertightVisual");
@@ -410,6 +412,7 @@ function checkSize({ size, row, config, level, labels, context }: SizeCheckInput
     putBack: glovesPutBack(gloves, innerUnits),
     codeLetterReduced: reducedFrom !== null,
     reducedFrom,
+    belowLetter: letterGloves !== null && sampled !== null && sampled < letterGloves,
   };
   return { plan: sizePlan, issues, result: sizeResult({ row, config, findings, label, plan: sizePlan }) };
 }
