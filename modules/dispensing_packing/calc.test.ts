@@ -507,6 +507,7 @@ describe("dispensing_packing", () => {
     });
 
     it("keeps the size not done while nothing is entered in it, with a warning at its first value once the boxes are complete (Kenneth, 27 October 2026)", () => {
+      // "Aged Sample?" unanswered: the warning offers No too (30 October 2026).
       for (const agedSample of [undefined, {}, { note: "  " }]) {
         const output = sizeS(agedSample);
         const where = JSON.stringify(agedSample);
@@ -519,7 +520,7 @@ describe("dispensing_packing", () => {
           {
             level: "warning",
             code: "aged_sample_missing",
-            message: "Aged Sample for size S is not entered yet.",
+            message: "Aged Sample for size S is not entered yet, or answer No to Aged Sample?",
             size: "S",
             path: ["sizes", "S", "agedSample", "layeringPct"],
           },
@@ -601,7 +602,14 @@ describe("dispensing_packing", () => {
       expect(partly.issues[0].message).toBe("Retained Sample for size S: Layering (%) and Stickiness are not entered yet.");
       expect(partly.result.perSize?.S.summary).toContain("\nRetained Sample is incomplete.");
       const empty = calcDispensingPacking(input({ sizes: { S: { boxes: ROWS } } }, eight, DISPENSING_PACKING_DEFAULT_CONFIG, labels));
-      expect(empty.issues[0].message).toBe("Retained Sample for size S is not entered yet.");
+      expect(empty.issues[0].message).toBe("Retained Sample for size S is not entered yet, or answer No to Retained Sample?");
+      const yes = calcDispensingPacking(input({ hasAgedSample: "yes", sizes: { S: { boxes: ROWS } } }, eight, DISPENSING_PACKING_DEFAULT_CONFIG, labels));
+      expect(yes.issues[0].message).toBe("Retained Sample for size S is not entered yet.");
+      const no = calcDispensingPacking(input({ hasAgedSample: "no", sizes: { S: { boxes: ROWS } } }, eight, DISPENSING_PACKING_DEFAULT_CONFIG, labels));
+      expect(no.result.perSize?.S).toEqual({
+        status: "pass",
+        summary: "Layering (%) 90.4% (min. 70%), Dispensing 92.4% (min. 80%), Stickiness A: Passed.\nNo Retained Sample.",
+      });
       expect(empty.result.perSize?.S.summary).toContain("\nRetained Sample is not entered yet.");
     });
 
@@ -626,6 +634,111 @@ describe("dispensing_packing", () => {
         ["warning", "module_not_done", []],
       ]);
       expect(own.issues[1].message).toBe(`Glove Packing Check is not done: Size S: ${BOXES_LINE}\nAged Sample is not entered yet.`);
+    });
+  });
+
+  describe('"Aged Sample?" (Kenneth, 30 October 2026: "no aged sample then turn it off and let the page complete")', () => {
+    // Two sizes of 8 planned boxes, placeholder box/carton numbers.
+    const two = makeTestContext({
+      sizes: ["S", "M"],
+      sampling: { S: makeSampling({ packagingDispensing: 8 }), M: makeSampling({ packagingDispensing: 8 }) },
+    });
+    const ROWS = boxes(8, { layeringPct: 90, dispensingPct: 92 }, 101);
+    const BOXES_LINE = "Layering 90.0% (min. 70%), Dispensing 92.0% (min. 80%), Stickiness A: Passed.";
+    const AGED: PackingAgedSample = { layeringPct: 88, dispensingPct: 86, stickiness: "B", note: "Aged sample" };
+    const AGED_LINE = "Aged Sample: Layering 88.0% (min. 70%), Dispensing 86.0% (min. 80%), Stickiness B: Passed.";
+    const run = (hasAgedSample: DispensingPackingData["hasAgedSample"], sizes: Record<string, PackingSize>) =>
+      calcDispensingPacking(input(hasAgedSample === undefined ? { sizes } : { hasAgedSample, sizes }, two));
+    /** Size S's boxes complete with no aged sample, size M's with one that passes. */
+    const MIXED: Record<string, PackingSize> = { S: { boxes: ROWS }, M: { boxes: ROWS, agedSample: AGED } };
+
+    it("unanswered, expects every size's aged sample: an empty one keeps its size not done, the warning asking for it or for No", () => {
+      const output = run(undefined, MIXED);
+      expect(output.result.status).toBe("not_done");
+      expect(output.result.perSize).toEqual({
+        S: { status: "not_done", summary: `${BOXES_LINE}\n${AGED_NOT_ENTERED}` },
+        M: { status: "pass", summary: `${BOXES_LINE}\n${AGED_LINE}` },
+      });
+      expect(output.issues).toEqual([
+        {
+          level: "warning",
+          code: "aged_sample_missing",
+          message: "Aged Sample for size S is not entered yet, or answer No to Aged Sample?",
+          size: "S",
+          path: ["sizes", "S", "agedSample", "layeringPct"],
+        },
+      ]);
+      // Null reads as unanswered, as absent does (data saved before the question).
+      expect(run(null, MIXED)).toEqual(output);
+      // A value entered counts as Yes: judged as ever, a failed one failing its size.
+      const failed = run(undefined, { M: { boxes: ROWS, agedSample: { ...AGED, dispensingPct: 76 } } });
+      expect(failed.result.perSize?.M.status).toBe("fail");
+      expect(failed.computed.sizes.M.agedSample).toMatchObject({ dispensingResult: "fail", result: "fail" });
+    });
+
+    it("Yes is as before: an empty one keeps its size not done, the warning asking for it alone", () => {
+      const output = run("yes", MIXED);
+      expect(output.result.status).toBe("not_done");
+      expect(output.result.perSize?.S).toEqual({ status: "not_done", summary: `${BOXES_LINE}\n${AGED_NOT_ENTERED}` });
+      expect(output.result.perSize?.M).toEqual({ status: "pass", summary: `${BOXES_LINE}\n${AGED_LINE}` });
+      expect(output.issues.map(({ code, message }) => [code, message])).toEqual([
+        ["aged_sample_missing", "Aged Sample for size S is not entered yet."],
+      ]);
+      expect(run("yes", { S: { boxes: ROWS, agedSample: AGED }, M: { boxes: ROWS, agedSample: AGED } }).result.status).toBe("pass");
+    });
+
+    it("No with nothing entered: each size completes on its boxes alone, with no warning", () => {
+      const output = run("no", { S: { boxes: ROWS }, M: { boxes: ROWS } });
+      expect(output.result.status).toBe("pass");
+      expect(output.result.perSize).toEqual({
+        S: { status: "pass", summary: `${BOXES_LINE}\nNo Aged Sample.` },
+        M: { status: "pass", summary: `${BOXES_LINE}\nNo Aged Sample.` },
+      });
+      expect(output.issues).toEqual([]);
+      expect(output.computed.sizes.S).toMatchObject({ layeringResult: "pass", dispensingResult: "pass", stickinessResult: "pass", agedSample: null });
+      expect(boxesLineOf(output.result.perSize!.S.summary!)).toBe(BOXES_LINE);
+      // The boxes still decide: still to come, the size is not done; failing, it fails.
+      expect(run("no", { S: { boxes: ROWS.slice(0, 5) }, M: { boxes: ROWS } }).result.perSize?.S).toEqual({
+        status: "not_done",
+        summary: "5 of 8 boxes complete.\nNo Aged Sample.",
+      });
+      const low = run("no", { S: { boxes: ROWS.map((row) => ({ ...row, dispensingPct: 70 })) }, M: { boxes: ROWS } });
+      expect(low.result.perSize?.S).toEqual({
+        status: "fail",
+        summary: "Layering 90.0% (min. 70%), Dispensing 70.0% (min. 80%), Stickiness A: Failed (Dispensing).\nNo Aged Sample.",
+      });
+      expect(low.issues).toEqual([]);
+    });
+
+    it("No with values saved: they are kept and never counted, a failed, partial or wrong one changing nothing", () => {
+      const sizes: Record<string, PackingSize> = {
+        S: { boxes: ROWS, agedSample: { ...AGED, layeringPct: 60, stickiness: "D" } },
+        M: { boxes: ROWS, agedSample: { ...emptyAgedSample(), layeringPct: 880, stickiness: "E" } },
+      };
+      const output = run("no", sizes);
+      expect(output.result.status).toBe("pass");
+      expect(output.result.perSize?.S).toEqual({ status: "pass", summary: `${BOXES_LINE}\nNo Aged Sample.` });
+      expect(output.issues).toEqual([]);
+      expect(output.computed.sizes.S.agedSample).toBeNull();
+      expect(output.computed.sizes.M.agedSample).toBeNull();
+      // Answered Yes again, they count as before.
+      const yes = run("yes", sizes);
+      expect(yes.result.perSize?.S.status).toBe("fail");
+      expect(yes.issues.map((issue) => issue.code)).toEqual(["layering_out_of_range", "stickiness_code_unknown", "aged_sample_incomplete"]);
+    });
+
+    it("goes through the engine: No completes the module on its boxes, and the answer is Yes, No or none", () => {
+      const template = makeTestTemplate(MODULE_REGISTRY, ["order_lots", "dispensing_packing"]);
+      const evaluate = (data: unknown) =>
+        evaluateInspection({ template, data: { modules: { dispensing_packing: data }, custom: {} }, context: two }, MODULE_REGISTRY).modules.find(
+          (entry) => entry.key === "dispensing_packing",
+        )!;
+      const off = evaluate({ hasAgedSample: "no", sizes: { S: { boxes: ROWS }, M: { boxes: ROWS, agedSample: { layeringPct: 60 } } } });
+      expect(off.result).toMatchObject({ status: "pass", perSize: { S: { status: "pass" }, M: { status: "pass" } } });
+      expect(off.issues).toEqual([]);
+      // The export carries the answer with the values kept.
+      expect(off.data).toMatchObject({ hasAgedSample: "no", sizes: { M: { agedSample: { layeringPct: 60 } } } });
+      expect(evaluate({ hasAgedSample: "maybe", sizes: {} }).issues.map((issue) => issue.code)).toContain("invalid_data");
     });
   });
 

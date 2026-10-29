@@ -1377,9 +1377,9 @@ const dispensingPacking = defineModule({
   alwaysOn: false,
   title: "Glove Packing Check",
   captures:
-    "Per size, per box (its box/carton number typed): layering %, dispensing %, stickiness code, note. Per size, one aged sample: the same four values, no box/carton number.",
+    "Per size, per box (its box/carton number typed): layering %, dispensing %, stickiness code, note. Per size, one aged sample: the same four values, no box/carton number. Once for the step: \"Aged Sample?\", Yes or No.",
   result:
-    "Per size: layering and dispensing averages against the minimums; any box with a failing stickiness code fails; an aged sample that fails the same minimums or codes fails, the boxes done or not. not_done until the size's boxes and its aged sample are entered.",
+    "Per size: layering and dispensing averages against the minimums; any box with a failing stickiness code fails; an aged sample that fails the same minimums or codes fails, the boxes done or not. not_done until the size's boxes and its aged sample are entered; with \"Aged Sample?\" answered No, the boxes alone.",
   rules: [1, 2, 4, 5, 7],
   data: [
     {
@@ -1520,11 +1520,16 @@ const dispensingPacking = defineModule({
       meaning: "Full heading as printed: code letters of the box counts and the two minimums.",
     },
     { key: "itemColumn", label: "Item", meaning: "Caption of the box row number column." },
-    { key: "agedSample", label: "Aged Sample", meaning: "Heading of each size's aged sample, and its name in summaries and messages." },
+    {
+      key: "agedSample",
+      label: "Aged Sample",
+      meaning: "Heading of each size's aged sample, and its name in summaries and messages; with a question mark, the step's question \"Aged Sample?\".",
+    },
     { key: "stickinessLegend", label: "**Glove Stickiness Code", meaning: "Caption of the stickiness code legend." },
   ],
   notes: [
     "Aged sample (Kenneth, 26 October 2026: \"each size has aged sample for packing check, give aged sample a special section\"): each size's data may hold `agedSample`, one aged box's layeringPct, dispensingPct, stickiness and note, typed as a box row's, with no box/carton number; optional, so data saved before has none. It is never a box: not in the boxes counted, the code letter, the averages or the stickiness summary. It is judged on its own against the same minimums and codes (computed `agedSample`: layeringResult, dispensingResult, stickinessResult and result; null while nothing is entered in it), and a failed one fails the size, even while boxes are still to come. One entered in part keeps the size not_done, with a warning at the first value missing (`aged_sample_incomplete`). An empty one, or none (as data saved before holds), keeps the size not_done too (Kenneth, 27 October 2026: every size has one), though boxes that fail still fail it; once the size's boxes are complete, a warning at its first value says it is not entered yet (`aged_sample_missing`, \"Aged Sample for size M is not entered yet.\"). Summaries give it a line of its own after the boxes' (\"Aged Sample: Layering 88.0% (min. 70%), Dispensing 86.0% (min. 80%), Stickiness B: Passed.\"; \"Aged Sample is not entered yet.\" while empty).",
+    "\"Aged Sample?\" (Kenneth, 30 October 2026: \"give a query for to ask if there is aged sample, no aged sample then turn it off and let the page complete\"): the data may hold `hasAgedSample` beside `sizes`, the step's one answer, \"yes\" or \"no\"; absent or null is unanswered, as data saved before holds. The capture screen asks it beside each size's aged sample heading, the label `agedSample` with a question mark; a value typed in an aged sample while it is unanswered answers it Yes. Steri-AI never sets it (\"Never set from a document.\"). Unanswered and \"yes\" expect every size's aged sample as above; unanswered, `aged_sample_missing` reads \"Aged Sample for size M is not entered yet, or answer No to Aged Sample?\". \"no\" turns it off: computed `agedSample` is null whatever is saved, no size waits for one, no warning asks for it, each size's result comes from its boxes alone and its summary's second line is \"No Aged Sample.\"; values saved in it are kept, not counted, and count again once answered Yes. The report then leaves out the Aged Gloves chart row, the Box-Aged Gloves table, the aged sample's row of Results by Check and of the results matrix, and the aged photo record's note.",
   ],
 });
 

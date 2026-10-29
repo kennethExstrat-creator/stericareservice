@@ -48,7 +48,11 @@ function render({
   /** As the engine returns a module whose settings are invalid: no computed values. */
   broken?: boolean;
 } = {}): string {
-  const ordered = { sizes: Object.fromEntries(context.sizes.flatMap((size) => (data.sizes[size] ? [[size, data.sizes[size]]] : []))) };
+  // As the engine hands calc the data: the ordered sizes, and the step's own fields ("Aged Sample?") as saved.
+  const ordered = {
+    ...data,
+    sizes: Object.fromEntries(context.sizes.flatMap((size) => (data.sizes[size] ? [[size, data.sizes[size]]] : []))),
+  };
   const output = calcDispensingPacking({ data: ordered, config, title: "Glove Packing Check", labels, context, results: {}, hasData: true });
   const evaluation: ModuleEvaluation<DispensingPackingComputed> = {
     key: "dispensing_packing",
@@ -283,7 +287,8 @@ describe("dispensing_packing capture: the aged sample (Kenneth, 26 October 2026)
     const section = agedSection(html);
     const list = /<ul[^>]*data-slot="box-issues"[^>]*>[\s\S]*?<\/ul>/.exec(section)?.[0] ?? "";
     expect(count(list, "<button")).toBe(1);
-    expect(list).toContain("Aged Sample for size M is not entered yet.");
+    // "Aged Sample?" is unanswered: the warning offers No too (Kenneth, 30 October 2026).
+    expect(list).toContain("Aged Sample for size M is not entered yet, or answer No to Aged Sample?");
     expect(list).toContain("text-warn");
     expect(list).toContain("touch:min-h-11");
     // An empty cell is no error: it does not turn red.
@@ -365,12 +370,92 @@ describe("dispensing_packing capture: the aged sample (Kenneth, 26 October 2026)
     expect(empty).toMatch(/<h3[^>]*>Aged Sample<\/h3>/);
     expect(empty).not.toContain("<select");
     expect(/<header[\s\S]*?<\/header>/.exec(empty)?.[0]).toContain('data-status="not_done"');
-    expect(empty).toContain("Aged Sample for size M is not entered yet.");
+    expect(empty).toContain("Aged Sample for size M is not entered yet, or answer No to Aged Sample?");
   });
 
   it("is headed in the template's wording", () => {
     const html = render({ labels: { ...DISPENSING_PACKING_LABELS, agedSample: "Retained Sample" } });
     expect(html).toMatch(/<h3[^>]*>Retained Sample<\/h3>/);
     expect(html).toContain('aria-label="Layering %, Retained Sample"');
+  });
+});
+
+describe('dispensing_packing capture: "Aged Sample?" (Kenneth, 30 October 2026: "no aged sample then turn it off and let the page complete")', () => {
+  const AGED = { layeringPct: 88, dispensingPct: 86, stickiness: "B", note: "Aged sample" };
+  const answered = (hasAgedSample: "yes" | "no", agedSample?: Partial<typeof AGED>) =>
+    DispensingPackingDataSchema.parse({ hasAgedSample, sizes: { M: { boxes: stdEgData().sizes.M.boxes, ...(agedSample ? { agedSample } : {}) } } });
+  const agedSection = (html: string) =>
+    /<section[^>]*data-issue-path="\[&quot;sizes&quot;,&quot;M&quot;,&quot;agedSample&quot;\]"[^>]*>[\s\S]*?<\/section>/.exec(html)?.[0] ?? "";
+  const header = (html: string) => /<header[\s\S]*?<\/header>/.exec(agedSection(html))?.[0] ?? "";
+  const sizeTab = (html: string) => /<button[^>]*role="tab"[^>]*data-size="M"[^>]*>[\s\S]*?<\/button>/.exec(html)?.[0] ?? "";
+  const chosen = (html: string, answer: "Yes" | "No") => new RegExp(`aria-checked="true"[^>]*>${answer}<`).test(header(html));
+
+  it("asks it beside the section's heading, Yes or No, neither chosen while unanswered", () => {
+    const html = render();
+    const head = header(html);
+    expect(head).toContain(">Aged Sample?</span>");
+    expect(head).toMatch(/role="radiogroup"[^>]*aria-label="Aged Sample\?"|aria-label="Aged Sample\?"[^>]*role="radiogroup"/);
+    expect(head).toMatch(/aria-checked="false"[^>]*>Yes</);
+    expect(head).toMatch(/aria-checked="false"[^>]*>No</);
+    // Issue links can reach it, and its answers are 44 px on a touchscreen.
+    expect(head).toContain('data-issue-path="[&quot;hasAgedSample&quot;]"');
+    expect(head).toContain("touch:h-11");
+    // Unanswered, the aged sample is expected: its row, Not Done, and the warning offering No.
+    expect(agedSection(html)).toContain("<table");
+    expect(head).toContain('data-slot="status-pill" data-status="not_done"');
+  });
+
+  it("Yes: chosen, and the section as before, the warning asking for the aged sample alone", () => {
+    const html = render({ data: answered("yes") });
+    expect(chosen(html, "Yes")).toBe(true);
+    expect(chosen(html, "No")).toBe(false);
+    const section = agedSection(html);
+    expect(section).toContain("<table");
+    expect(section).toContain("Aged Sample for size M is not entered yet.");
+    expect(section).not.toContain("or answer No");
+    expect(sizeTab(html)).toContain('data-slot="result-chip" data-status="not_done"');
+    expect(sizeTab(render({ data: answered("yes", AGED) }))).toContain('data-slot="result-chip" data-status="pass"');
+  });
+
+  it("No with nothing entered: no row and no status, a line saying there is none, and the size complete on its boxes", () => {
+    const html = render({ data: answered("no") });
+    expect(chosen(html, "No")).toBe(true);
+    const section = agedSection(html);
+    expect(section).toContain("No Aged Sample for any size.");
+    expect(section).not.toContain("Values entered are kept");
+    expect(section).not.toContain("<table");
+    expect(section).not.toContain("<input");
+    expect(section).not.toContain('data-slot="status-pill"');
+    expect(section).not.toContain('data-slot="box-issues"');
+    expect(html).not.toContain("is not entered yet");
+    // The boxes pass, and so does the size: nothing keeps it Not Done.
+    expect(count(html.slice(0, html.indexOf(section)), 'data-outcome="pass"')).toBe(3);
+    expect(sizeTab(html)).toContain('data-slot="result-chip" data-status="pass"');
+  });
+
+  it("No with values saved: says they are kept, not counted, shows none of them, and they change nothing", () => {
+    const html = render({ data: answered("no", { ...AGED, layeringPct: 60 }) });
+    const section = agedSection(html);
+    expect(section).toContain("No Aged Sample for any size.");
+    expect(section).toContain("Values entered are kept, not counted.");
+    expect(section).not.toContain("Aged sample");
+    expect(section).not.toContain("60.0");
+    expect(section).not.toContain('data-slot="requirement-list"');
+    // The failing value fails nothing while No.
+    expect(sizeTab(html)).toContain('data-slot="result-chip" data-status="pass"');
+    // Answered Yes, it counts again.
+    expect(sizeTab(render({ data: answered("yes", { ...AGED, layeringPct: 60 }) }))).toContain('data-slot="result-chip" data-status="fail"');
+  });
+
+  it("shows the answer read-only with the inspection, and speaks the template's wording", () => {
+    const html = render({ data: answered("no"), readOnly: true });
+    expect(chosen(html, "No")).toBe(true);
+    expect(/<button[^>]*role="radio"[^>]*>/.exec(header(html))?.[0]).toContain("disabled");
+    expect(agedSection(html)).toContain("No Aged Sample for any size.");
+    const labels = { ...DISPENSING_PACKING_LABELS, agedSample: "Retained Sample" };
+    const worded = render({ data: answered("no"), labels });
+    expect(worded).toContain(">Retained Sample?</span>");
+    expect(worded).toContain('aria-label="Retained Sample?"');
+    expect(worded).toContain("No Retained Sample for any size.");
   });
 });

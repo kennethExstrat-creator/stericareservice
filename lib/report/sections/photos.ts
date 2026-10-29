@@ -54,7 +54,7 @@ import { hasRings } from "../markers";
 import { clipToLines, lineCount, textWidth } from "../measure";
 import type { PhotoBlock, PhotoRecordPage, PhotoRecordPart, PhotosSection, PhotoTile } from "../model";
 import { describedCheck, describedFamily, photoShows, photoWords, type PhotoShows } from "../photo-reading";
-import { at, labelOf, list, moduleOf, num, orderedSizes, rec, sizeLabel, text } from "../read";
+import { at, labelOf, list, moduleOf, noAgedSample, num, orderedSizes, rec, sizeLabel, text } from "../read";
 import type { SectionBuilder } from "./index";
 import { checkedFor, contentWidthOf, levelChecks, paperRoom } from "./labellingConclusion";
 
@@ -387,6 +387,8 @@ function noteWordings(doc: InspectionExport, key: PhotoBlockKey, entries: readon
       return wordings(gloves ? `${counted(gloves, "glove")} inspected` : null);
     }
     case "aged": {
+      // "Aged Sample?" answered No (Kenneth, 30 October 2026): no aged boxes to speak of.
+      if (noAgedSample(moduleOf(doc, "dispensing_packing"))) return [];
       // The ageing as TG35 states it (AGEING_CONDITION), then the samples: "Aged at 70 °C for 7 days, one box per size: S, M, L and XL".
       const aged = sizes.filter((size) => Object.keys(rec(at(computed("dispensing_packing"), "sizes", size, "agedSample"))).length > 0).map((size) => sizeLabel(doc, size));
       if (aged.length === 0) return wordings(AGEING_SENTENCE);

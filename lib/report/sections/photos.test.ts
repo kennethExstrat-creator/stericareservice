@@ -224,6 +224,16 @@ describe("the notes beside each group's heading", () => {
     expect(blockIn(doc, "forceAtBreak").note).toBe("13 specimens tested");
     expect(blockIn(doc, "watertight").title).toBe("Watertight Testing for Pinholes");
   });
+
+  it('claim no aged boxes with "Aged Sample?" answered No, whatever is saved (Kenneth, 30 October 2026)', () => {
+    const doc = withPhotos([photo("dispensing_packing", null, "Ageing")]);
+    const packing = doc.modules.find((candidate) => candidate.key === "dispensing_packing");
+    if (!packing) throw new Error("STD_EG has no packing check.");
+    // The example carries an aged sample; answered No, it is no aged box.
+    expect(blockIn(doc, "aged").note).toBe("Aged at 70 °C for 7 days, one box, size M");
+    packing.data = { ...packing.data, hasAgedSample: "no" };
+    expect(blockIn(doc, "aged").note).toBeNull();
+  });
 });
 
 describe("Photos per Group and the numbering", () => {

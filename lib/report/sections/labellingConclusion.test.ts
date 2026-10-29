@@ -200,6 +200,19 @@ describe("the results matrix", () => {
     expect(sectionOf(missing).matrix?.legend).toContain("not_done");
   });
 
+  it('has no aged sample row with "Aged Sample?" answered No, the boxes\' row as it is (Kenneth, 30 October 2026)', () => {
+    const doc = packingExport(
+      {
+        S: { boxes: packingBoxes(5), aged: { layeringPct: 60, dispensingPct: 85, stickiness: "B" } },
+        M: { boxes: packingBoxes(5, {}, 8001) },
+      },
+      { hasAgedSample: "no" },
+    );
+    const rows = sectionOf(doc).matrix?.rows ?? [];
+    expect(rows.find((row) => row.key === "dispensing_packing")?.cells).toEqual(["pass", "pass"]);
+    expect(rows.some((row) => row.key === "dispensing_packing:aged")).toBe(false);
+  });
+
   it("is left out while switched off", () => {
     expect(sectionOf(withBlocks(makeStdEgExport(), { resultsMatrix: false })).matrix).toBeNull();
   });

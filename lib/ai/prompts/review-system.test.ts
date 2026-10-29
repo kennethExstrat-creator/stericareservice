@@ -41,6 +41,10 @@ describe("the review's system prompt", () => {
     expect(packing).toContain(
       "Every size needs one: with none entered (computed agedSample null) the size is not done, though boxes that fail still fail it, and once its boxes are complete the app warns aged_sample_missing.",
     );
+    // Kenneth, 30 October 2026: "Aged Sample?" answered No turns it off.
+    expect(packing).toContain(
+      'The inspector\'s answer to "Aged Sample?" (data hasAgedSample, one for the step): "no" means the inspection has no aged sample, so no size needs one, each size\'s result comes from its boxes alone, and any aged values saved are not counted (computed agedSample null); unanswered or "yes", every size needs one.',
+    );
   });
 
   it("reads weight as one average per size, an older inspection's gloves averaged (Kenneth, 26 October 2026)", () => {

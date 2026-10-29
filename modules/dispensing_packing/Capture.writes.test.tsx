@@ -14,9 +14,21 @@ import Capture from "./Capture";
 import { DISPENSING_PACKING_DEFAULT_CONFIG, DISPENSING_PACKING_LABELS } from "./config";
 import { emptyPackingBox, type DispensingPackingData } from "./schema";
 
+/** What the screen hands a toggle group: "Aged Sample?" is one. */
+type ToggleProps = { "aria-label"?: string; value?: string; onValueChange?: (value: string) => void };
+
 const kit = vi.hoisted(() => ({
   percent: [] as ComponentProps<typeof PercentField>[],
   boxNumbers: [] as ComponentProps<typeof BoxNumberField>[],
+  toggles: [] as ToggleProps[],
+}));
+
+vi.mock("@/components/ui/toggle-group", () => ({
+  ToggleGroup: (props: ToggleProps) => {
+    kit.toggles.push(props);
+    return null;
+  },
+  ToggleGroupItem: () => null,
 }));
 
 vi.mock("@/components/qc", async (importOriginal) => ({
@@ -41,6 +53,7 @@ const CONTEXT = makeTestContext({
 function renderScreen(data: DispensingPackingData, onChange: (next: DispensingPackingData) => void) {
   kit.percent.length = 0;
   kit.boxNumbers.length = 0;
+  kit.toggles.length = 0;
   renderToStaticMarkup(
     <Capture
       data={data}
@@ -61,6 +74,7 @@ function renderScreen(data: DispensingPackingData, onChange: (next: DispensingPa
     boxNumbers: [...kit.boxNumbers],
     // The aged sample's cells: their own run, in no box column.
     aged: kit.percent.filter((field) => field.issuePath?.[2] === "agedSample"),
+    question: kit.toggles.find((toggle) => toggle["aria-label"] === "Aged Sample?"),
   };
 }
 
@@ -120,5 +134,26 @@ describe("dispensing_packing capture writes", () => {
       boxes: saved.sizes.M.boxes,
       agedSample: { layeringPct: 88, dispensingPct: 86, stickiness: null, note: null },
     });
+    // The first value answers "Aged Sample?" Yes (Kenneth, 30 October 2026).
+    expect(changes[0].hasAgedSample).toBe("yes");
+  });
+
+  it('answers "Aged Sample?" for the whole step, every size\'s aged sample kept, and clears it chosen again (Kenneth, 30 October 2026)', () => {
+    const changes: DispensingPackingData[] = [];
+    const aged = { layeringPct: 88, dispensingPct: null, stickiness: null, note: null };
+    const saved: DispensingPackingData = { sizes: { M: { boxes: [], agedSample: aged }, XL: { boxes: [], agedSample: aged } } };
+    const unanswered = renderScreen(saved, (next) => changes.push(next));
+    expect(unanswered.question?.value).toBe("");
+    expect(unanswered.aged).toHaveLength(2);
+
+    unanswered.question?.onValueChange?.("no");
+    expect(changes).toEqual([{ hasAgedSample: "no", sizes: saved.sizes }]);
+
+    // Answered No: the aged sample's cells are gone, its values kept.
+    const no = renderScreen(changes[0], (next) => changes.push(next));
+    expect(no.question?.value).toBe("no");
+    expect(no.aged).toEqual([]);
+    no.question?.onValueChange?.("");
+    expect(changes[1]).toEqual(saved);
   });
 });

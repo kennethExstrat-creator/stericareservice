@@ -98,6 +98,11 @@ averages the samples entered, and is left out while none is. The aged sample's r
 ten rows, which leave page 1 no room for an Inspection Summary, and its results matrix eight, which run Section 08's
 conclusion on to a second page (239.2 mm estimated of A4's 236).
 
+Unless the inspector answers No to the packing check's "Aged Sample?" (Kenneth, 30 October 2026; data
+`hasAgedSample`, read with `noAgedSample` in `lib/report/read.ts`): the inspection then has no aged sample, whatever
+is saved in one, so Section 07 prints no Aged Gloves chart row and no Box-Aged Gloves table, Results by Check and the
+results matrix have no aged sample row, and the aged gloves' photo record has no note.
+
 ## The primitives
 
 In `components/report`, each with a test (`report.test.tsx`); the arithmetic in `lib/report/geometry.ts`.

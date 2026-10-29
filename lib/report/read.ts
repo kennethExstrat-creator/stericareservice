@@ -80,6 +80,15 @@ export function inTemplateOrder(doc: Pick<InspectionExport, "template">, sizes: 
   return sizes.map((size, index) => ({ size, index })).sort((a, b) => rank(a.size) - rank(b.size) || a.index - b.index).map(({ size }) => size);
 }
 
+/**
+ * The packing check's "Aged Sample?" answered No (Kenneth, 30 October 2026):
+ * there is no aged sample, so the report leaves its parts out, whatever is
+ * saved in one. Unanswered, as in exports written before it, expects one.
+ */
+export function noAgedSample(packing: Pick<ExportModule, "data"> | null): boolean {
+  return packing?.data.hasAgedSample === "no";
+}
+
 /** A size as the template shows it: its "Shown As", else the size. */
 export function sizeLabel(doc: Pick<InspectionExport, "template">, size: string): string {
   return text(doc.template.sizes?.find((entry) => entry.value === size)?.label) ?? size;

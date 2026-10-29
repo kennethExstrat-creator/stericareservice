@@ -23,6 +23,8 @@ export type PackingExportOptions = {
   config?: Partial<DispensingPackingConfig>;
   /** Over the module's default labels: a template's own wording. */
   labels?: Readonly<Record<string, string>>;
+  /** The answer to "Aged Sample?" (Kenneth, 30 October 2026); unanswered unless given. */
+  hasAgedSample?: "yes" | "no";
 };
 
 /** `count` boxes numbered from `first` (placeholders, from 3,000 up), every value the same unless `values` says. */
@@ -53,6 +55,7 @@ export function packingExport(sizes: Readonly<Record<string, PackingSizeInput>>,
   };
   const labels = { ...DISPENSING_PACKING_LABELS, ...options.labels };
   const data = DispensingPackingDataSchema.parse({
+    ...(options.hasAgedSample ? { hasAgedSample: options.hasAgedSample } : {}),
     sizes: Object.fromEntries(
       entries.map(([size, input]) => [
         size,

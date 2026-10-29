@@ -333,6 +333,27 @@ describe("missing data", () => {
     expect(none.chart?.aged).toBeNull();
   });
 
+  it('leaves the aged gloves out with "Aged Sample?" answered No, whatever is saved in one: no chart row, no table (Kenneth, 30 October 2026)', () => {
+    const sizes: Record<string, PackingSizeInput> = {
+      S: { boxes: packingBoxes(8), aged: { layeringPct: 60, dispensingPct: 85, stickiness: "D" } },
+      M: { boxes: packingBoxes(13, {}, 8001) },
+    };
+    const content = contentOf(packingExport(sizes, { hasAgedSample: "no" }));
+    expect(content.chart?.rows.map((row) => row.label)).toEqual(["S", "M"]);
+    expect(content.chart?.aged).toBeNull();
+    expect(content.aged).toBeNull();
+    // The grades still close the section.
+    expect(content.grades?.map((grade) => grade.code)).toEqual(["A", "B", "B1", "C", "D"]);
+    expect(content.pages).toEqual([{ parts: [{ kind: "chart" }, { kind: "perBox", from: 0, to: 13 }, { kind: "agedAndGrades" }] }]);
+    // Answered Yes, they print as ever.
+    const yes = contentOf(packingExport(sizes, { hasAgedSample: "yes" }));
+    expect(yes.chart?.aged).toMatchObject({ sublabel: "70 °C · 7 days · 1 box" });
+    expect(yes.aged?.rows.map((row) => [row.label, row.status])).toEqual([
+      ["S", "fail"],
+      ["M", "not_done"],
+    ]);
+  });
+
   it("says when no box is entered or graded yet", () => {
     const empty = contentOf(packingExport({ M: { boxes: [] } }));
     expect(empty.perBox?.items).toBe(0);

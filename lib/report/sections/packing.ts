@@ -12,7 +12,9 @@
 // its item, size by size, with each size's averages; the aged gloves' table
 // each size on the order with its aged sample and its result, a size with
 // none entered Not Done (every size needs one: Kenneth, 27 October 2026); the
-// grades the template's stickiness codes. Labels are the template's
+// grades the template's stickiness codes. With "Aged Sample?" answered No
+// (Kenneth, 30 October 2026) there is none: the chart has no Aged Gloves row
+// and Box-Aged Gloves is left out, whatever is saved in one. Labels are the template's
 // (docs/DESIGN.md: the report keeps the template's words); the averages, the
 // worst grades and the results are the module's own (calc), worked out here
 // only where an export lacks them. A value below its minimum and a failing
@@ -43,7 +45,7 @@ import type {
   PackingSlot,
   ReportSectionPlanEntry,
 } from "../model";
-import { at, labelOf, list, moduleOf, num, orderedSizes, rec, sizeLabel, text } from "../read";
+import { at, labelOf, list, moduleOf, noAgedSample, num, orderedSizes, rec, sizeLabel, text } from "../read";
 import { buildGloveDispensing } from "./glove-dispensing";
 import { defineSection } from "./index";
 
@@ -375,7 +377,8 @@ function buildPacking(doc: InspectionExport, entry: ReportSectionPlanEntry<"pack
   const minimums: Minimums = { layering: num(check.config?.minLayeringPct), dispensing: num(check.config?.minDispensingPct) };
   const grades = gradesOf(check);
   const sizes = sizesOf(doc, check, grades);
-  const samples = agedSamplesOf(sizes, minimums, grades);
+  // Answered No to "Aged Sample?": no aged gloves, in the chart or in a table of their own.
+  const samples = noAgedSample(check) ? null : agedSamplesOf(sizes, minimums, grades);
   const body: Omit<PackingSection, "pages" | "pageCount"> = {
     lead: leadOf(doc, words, minimums, grades),
     words,

@@ -115,6 +115,19 @@ describe("a size with no aged sample entered", () => {
   });
 });
 
+describe('"Aged Sample?" answered No (Kenneth, 30 October 2026)', () => {
+  it("prints no Aged Gloves row in the chart and no Box-Aged Gloves table, whatever is saved in one; the grades stay", () => {
+    const { pages } = packingPages(fourSizeExport({ hasAgedSample: "no" }));
+    expect(pages).toHaveLength(1);
+    const chart = slot(pages[0], "report-packing-chart");
+    expect(Array.from(chart.matchAll(/data-row="(\w+)"/g), (match) => match[1])).toEqual(["S", "M", "L", "XL"]);
+    expect(text(chart)).not.toContain("Aged Gloves");
+    expect(slot(pages[0], "report-packing-aged")).toBe("");
+    expect(text(pages[0])).not.toContain("Box-Aged Gloves");
+    expect(text(slot(pages[0], "report-packing-grades"))).toContain("Non sticky");
+  });
+});
+
 describe("four sizes with aged samples, as TG35 page 7", () => {
   const { pages } = packingPages(fourSizeExport());
   const page = pages[0];

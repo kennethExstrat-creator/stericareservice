@@ -18,7 +18,10 @@
 // October 2026): one row of the same values with no box/carton number, its
 // own Passed / Failed once judged, never one of the boxes. Every size needs
 // one (27 October 2026): Not Done while empty, read-only too, with calc's
-// warning under it once the boxes are complete.
+// warning under it once the boxes are complete. "Aged Sample?" heads each
+// size's section, one answer for the step (Kenneth, 30 October 2026): No
+// hides the row, the sizes complete on their boxes, and values saved in it
+// are kept, not counted.
 import { useEffect, useRef, useState, type CSSProperties, type KeyboardEvent, type RefObject } from "react";
 import { ChevronDownIcon, PlusIcon } from "lucide-react";
 import {
@@ -41,6 +44,7 @@ import {
   type InvalidEntry,
 } from "@/components/qc";
 import { Button } from "@/components/ui/button";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { formatSize, formatSpec } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import {
@@ -55,8 +59,23 @@ import { sizeOnTabs, useReportShownSize } from "@/modules/_framework/shown-size"
 import type { DispensingPackingComputed, DispensingPackingConfig, DispensingPackingData } from ".";
 import { AVERAGE_DECIMALS, boxesLineOf, packingHeading, plannedBoxes, type AgedSampleComputed } from "./calc";
 import { MAX_BOXES_PER_SIZE } from "./config";
-import { agedSampleOf, boxesOf, rowsShown, updateAgedSample, updatePackingBox } from "./edit";
-import { emptyPackingBox, type PackingAgedSample, type PackingBox } from "./schema";
+import {
+  agedSampleAnswerOf,
+  agedSampleOf,
+  boxesOf,
+  rowsShown,
+  setAgedSampleAnswer,
+  updateAgedSample,
+  updatePackingBox,
+} from "./edit";
+import {
+  AGED_SAMPLE_ANSWERS,
+  emptyPackingBox,
+  isBlankAgedSample,
+  type AgedSampleAnswer,
+  type PackingAgedSample,
+  type PackingBox,
+} from "./schema";
 import { plainLabel } from "./text";
 
 type Props = CaptureProps<DispensingPackingData, DispensingPackingConfig, DispensingPackingComputed>;
@@ -328,10 +347,13 @@ function PackingSizePanel({ size, props, update, requested, onRequest, rejected,
         ]}
       />
 
-      {/* Every size needs its aged sample: an empty one shows, read-only too, as what keeps the size not done. */}
+      {/* Every size needs its aged sample unless "Aged Sample?" is No: an empty one shows, read-only too, as what
+          keeps the size not done. */}
       <AgedSampleSection
         size={size}
         sizeName={sizeName}
+        answer={agedSampleAnswerOf(data)}
+        onAnswer={(answer) => update((current) => setAgedSampleAnswer(current, answer))}
         sample={aged}
         computed={computed?.agedSample ?? null}
         judged={computed !== undefined}
@@ -356,6 +378,9 @@ type AgedSampleProps = {
   size: string;
   /** "Size M", as the size's tables are named. */
   sizeName: string;
+  /** The step's answer to "Aged Sample?", the same in every size; null while unanswered. */
+  answer: AgedSampleAnswer | null;
+  onAnswer: (answer: AgedSampleAnswer | null) => void;
   sample: PackingAgedSample;
   /** calc's checks of it; null while nothing is in it (or the engine could not compute the module). */
   computed: AgedSampleComputed | null;
@@ -382,11 +407,16 @@ type AgedSampleProps = {
  * count and averages. Not Done while nothing is in it: every size needs one
  * (27 October 2026). Its refused entries and calc's problems in it (a value
  * still missing, or the whole sample once the boxes are complete, is a
- * warning) are listed under its row.
+ * warning) are listed under its row. "Aged Sample?" sits beside its heading
+ * (Kenneth, 30 October 2026): answered No, the section says there is none,
+ * with no row and no status, and that values saved in it are kept but not
+ * counted.
  */
 function AgedSampleSection({
   size,
   sizeName,
+  answer,
+  onAnswer,
   sample,
   computed,
   judged,
@@ -424,10 +454,31 @@ function AgedSampleSection({
     />
   );
 
+  const question = (
+    <AgedSampleQuestion question={`${title}?`} answer={answer} readOnly={readOnly} onAnswer={onAnswer} onFocus={onFocus} />
+  );
+
+  if (answer === "no") {
+    return (
+      <ModuleSection
+        title={title}
+        description={
+          <>
+            <p>{`No ${title} for any size.`}</p>
+            {!isBlankAgedSample(sample) && <p>Values entered are kept, not counted.</p>}
+          </>
+        }
+        actions={question}
+        issuePath={["sizes", size, AGED]}
+      />
+    );
+  }
+
   return (
     <ModuleSection
       title={title}
       description="Judged on its own: not counted with the boxes or in their averages."
+      actions={question}
       status={computed?.result ?? (judged ? "not_done" : undefined)}
       issuePath={["sizes", size, AGED]}
     >
@@ -528,6 +579,54 @@ function AgedSampleSection({
         />
       )}
     </ModuleSection>
+  );
+}
+
+const ANSWER_WORDS: Readonly<Record<AgedSampleAnswer, string>> = { yes: "Yes", no: "No" };
+const isAnswer = (value: string): value is AgedSampleAnswer => (AGED_SAMPLE_ANSWERS as readonly string[]).includes(value);
+
+type QuestionProps = {
+  /** "Aged Sample?", in the template's wording. */
+  question: string;
+  answer: AgedSampleAnswer | null;
+  readOnly: boolean;
+  onAnswer: (answer: AgedSampleAnswer | null) => void;
+  onFocus: () => void;
+};
+
+/**
+ * "Aged Sample?" with Yes and No, as a plain form asks yes or no: neither
+ * chosen while unanswered, and the answer chosen again clears it. One answer
+ * for the step, so every size's section shows the same.
+ */
+function AgedSampleQuestion({ question, answer, readOnly, onAnswer, onFocus }: QuestionProps) {
+  return (
+    <div className="flex items-center gap-2" {...issuePathProps(["hasAgedSample"])}>
+      {/* The group is named by the same words: read out once. */}
+      <span aria-hidden className="text-sm font-medium text-foreground touch:text-base">
+        {question}
+      </span>
+      <ToggleGroup
+        type="single"
+        variant="outline"
+        spacing={0}
+        value={answer ?? ""}
+        onValueChange={(next) => onAnswer(isAnswer(next) ? next : null)}
+        disabled={readOnly}
+        aria-label={question}
+        onFocus={onFocus}
+      >
+        {AGED_SAMPLE_ANSWERS.map((value) => (
+          <ToggleGroupItem
+            key={value}
+            value={value}
+            className="min-w-16 px-4 data-[state=on]:bg-primary data-[state=on]:text-primary-foreground data-[state=on]:hover:bg-brand-600"
+          >
+            {ANSWER_WORDS[value]}
+          </ToggleGroupItem>
+        ))}
+      </ToggleGroup>
+    </div>
   );
 }
 

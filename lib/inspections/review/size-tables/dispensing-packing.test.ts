@@ -7,15 +7,18 @@ import { dispensingPackingTable } from "./dispensing-packing";
 
 const SIZES = ["S", "M", "L"];
 
-/** The Glove Packing Check as the engine evaluates it on its defaults (min. 70% / 80%, D fails), two boxes planned per size. */
-function evaluated(sizes: Record<string, unknown>): { entry: ModuleEvaluation; context: InspectionContext } {
+/**
+ * The Glove Packing Check as the engine evaluates it on its defaults (min. 70% / 80%, D fails), two boxes planned
+ * per size; `step` holds the step's own fields, such as the answer to "Aged Sample?".
+ */
+function evaluated(sizes: Record<string, unknown>, step: Record<string, unknown> = {}): { entry: ModuleEvaluation; context: InspectionContext } {
   const context = makeTestContext({
     sizes: SIZES,
     sampling: Object.fromEntries(SIZES.map((size) => [size, makeSampling({ packagingDispensing: 2 })])),
   });
   const template = makeTestTemplate(MODULE_REGISTRY, ["dispensing_packing"]);
   const evaluation = evaluateInspection(
-    { template, data: { modules: { dispensing_packing: { sizes } }, custom: {} }, context },
+    { template, data: { modules: { dispensing_packing: { ...step, sizes } }, custom: {} }, context },
     MODULE_REGISTRY,
   );
   const entry = evaluation.modules.find((module) => module.key === "dispensing_packing");
@@ -93,6 +96,16 @@ describe("dispensingPackingTable", () => {
       { text: "91.0%" },
       { text: "B", note: "A 1, B 1" },
     ]);
+  });
+
+  it('leaves the aged sample\'s rows out with "Aged Sample?" answered No, whatever is saved in one (Kenneth, 30 October 2026)', () => {
+    const sizes = { S: { boxes: [box(1, 88, 90, "A"), box(2, 90, 92, "B")], agedSample: { layeringPct: 60, dispensingPct: 85, stickiness: "B" } } };
+    const { entry, context } = evaluated(sizes, { hasAgedSample: "no" });
+    expect(entry.result.perSize?.S?.status).toBe("pass");
+    expect(dispensingPackingTable(entry, context)?.rows.map((row) => row.key)).toEqual(["boxesComplete", "layeringPct", "dispensingPct", "stickiness"]);
+    // Answered Yes, they are back.
+    const yes = evaluated(sizes, { hasAgedSample: "yes" });
+    expect(dispensingPackingTable(yes.entry, yes.context)?.rows.map((row) => row.key)).toContain("agedSample.layeringPct");
   });
 
   it("reads the STD_EG example: 88.3% and 90.3%, box 2336, not in M's sampled box/carton numbers, amber, and the placeholder aged sample", () => {

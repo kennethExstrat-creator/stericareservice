@@ -280,6 +280,16 @@ describe("applyProposals on the packing check's aged sample (Kenneth, 26 October
     expect(packing(result.data).sizes.S.boxes).toHaveLength(8);
     expect(packing(result.data).sizes.S).not.toHaveProperty("agedSample");
   });
+
+  it('fills the values and leaves "Aged Sample?" as the inspector left it, answered or not (Kenneth, 30 October 2026)', () => {
+    const unanswered = applyProposals({ modules: {}, custom: {} }, { dispensing_packing: { sizes: { S: { agedSample: AGED } } } }, MODULE_REGISTRY, included);
+    expect(packing(unanswered.data)).not.toHaveProperty("hasAgedSample");
+    expect(packing(unanswered.data).sizes.S.agedSample).toEqual(AGED);
+    // Answered No: the values go in, kept and not counted while No.
+    const off = { modules: { dispensing_packing: { hasAgedSample: "no", sizes: { S: { boxes: BOXES } } } }, custom: {} };
+    const filled = applyProposals(off, { dispensing_packing: { sizes: { S: { agedSample: AGED } } } }, MODULE_REGISTRY, included);
+    expect(filled.data.modules.dispensing_packing).toMatchObject({ hasAgedSample: "no", sizes: { S: { agedSample: AGED } } });
+  });
 });
 
 describe("applyProposals on Packing Configuration (Kenneth, 27 October 2026: the gloves per case is worked out)", () => {

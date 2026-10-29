@@ -295,9 +295,32 @@ describe("the STD_EG example's export, through the real modules", () => {
         },
       },
     });
-    expect(dispensing.warnings).toContainEqual({ code: "aged_sample_missing", message: "Aged Sample for size M is not entered yet.", size: "M" });
+    // "Aged Sample?" unanswered: the warning offers No too (Kenneth, 30 October 2026).
+    expect(dispensing.warnings).toContainEqual({
+      code: "aged_sample_missing",
+      message: "Aged Sample for size M is not entered yet, or answer No to Aged Sample?",
+      size: "M",
+    });
     expect(dispensing.errors).toEqual([]);
     expect(doc.conclusion.suggestedResult).toBe("hold");
+  });
+
+  it('exports "Aged Sample?" answered No: the size passed on its boxes, the values saved kept and not counted (Kenneth, 30 October 2026)', async () => {
+    const data = stdEgInspectionData({ labReportFileId: STD_EG_IDS.fileLabReport });
+    const packing = data.modules.dispensing_packing as { sizes: { M: { boxes: unknown[] } } };
+    const saved = { hasAgedSample: "no", sizes: { M: { boxes: packing.sizes.M.boxes, agedSample: { layeringPct: 60, dispensingPct: null, stickiness: null, note: null } } } };
+    const record = stdEgRecord({ data: { ...data, modules: { ...data.modules, dispensing_packing: saved } } });
+    const { doc } = await exportOf(stdEgTables(record), stdEgObjects(record));
+    expect(ExportSchema.safeParse(doc).success).toBe(true);
+    const dispensing = moduleOf(doc, "dispensing_packing");
+    expect(dispensing.data).toEqual(saved);
+    expect(dispensing.computed).toMatchObject({ sizes: { M: { agedSample: null, layeringResult: "pass", dispensingResult: "pass", stickinessResult: "pass" } } });
+    expect(dispensing.result).toMatchObject({
+      status: "pass",
+      perSize: { M: { status: "pass", summary: "Layering 88.3% (min. 70%), Dispensing 90.3% (min. 80%), Stickiness A: Passed.\nNo Aged Sample." } },
+    });
+    expect(dispensing.warnings.filter((warning) => warning.code.startsWith("aged_sample"))).toEqual([]);
+    expect(dispensing.errors).toEqual([]);
   });
 
   it("exports the Sampling Quantity in Kenneth's words, with the inner boxes per case, the gloves per inner box and those put back (27 October 2026)", async () => {

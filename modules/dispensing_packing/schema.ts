@@ -4,9 +4,12 @@
 // from the suggestions), with layering %, dispensing % and a stickiness
 // code. Each size also has one aged sample (Kenneth, 26 October 2026: "each
 // size has aged sample for packing check"): the same values as a box row,
-// no box/carton number, and never one of the boxes. Every value may be
-// missing while the inspection is a draft. Averages, code letters and
-// results are computed (rule 2), never stored here.
+// no box/carton number, and never one of the boxes. Whether the step has an
+// aged sample at all is the inspector's answer to "Aged Sample?", one for
+// every size (Kenneth, 30 October 2026: "no aged sample then turn it off and
+// let the page complete"). Every value may be missing while the inspection
+// is a draft. Averages, code letters and results are computed (rule 2),
+// never stored here.
 import { z } from "zod";
 import { BoxNumberCellSchema, DecimalCellSchema, perSizeData, TextCellSchema } from "@/modules/_framework";
 
@@ -44,8 +47,29 @@ export const PackingSizeSchema = z.strictObject({
 });
 export type PackingSize = z.infer<typeof PackingSizeSchema>;
 
-export const DispensingPackingDataSchema = perSizeData(PackingSizeSchema);
+/** The answers to "Aged Sample?". */
+export const AGED_SAMPLE_ANSWERS = ["yes", "no"] as const;
+export type AgedSampleAnswer = (typeof AGED_SAMPLE_ANSWERS)[number];
+
+export const DispensingPackingDataSchema = perSizeData(PackingSizeSchema).extend({
+  /**
+   * "Aged Sample?" for the whole step (Kenneth, 30 October 2026). Unanswered
+   * (absent or null, as data saved before holds) and "yes" expect every
+   * size's aged sample; "no" turns it off: no size waits for one, and the
+   * values saved in it are kept but not counted.
+   */
+  hasAgedSample: z
+    .enum(AGED_SAMPLE_ANSWERS)
+    .nullable()
+    .optional()
+    .describe("Whether the inspection has an aged sample, as the inspector answered on screen. Never set from a document."),
+});
 export type DispensingPackingData = z.infer<typeof DispensingPackingDataSchema>;
+
+/** The inspector answered No to "Aged Sample?": no size waits for its aged sample, and what is saved in one is not counted. */
+export function agedSampleOff(data: Pick<DispensingPackingData, "hasAgedSample">): boolean {
+  return data.hasAgedSample === "no";
+}
 
 export function emptyDispensingPacking(): DispensingPackingData {
   return DispensingPackingDataSchema.parse({});

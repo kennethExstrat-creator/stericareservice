@@ -105,7 +105,8 @@ export const dispensingPackingTable: SizeTableAdapter = (entry, context) => {
     },
   ];
 
-  // Each size's aged sample (26 October 2026), apart from the boxes: once any size has one.
+  // Each size's aged sample (26 October 2026), apart from the boxes: once any size has one. "Aged Sample?" answered No
+  // (30 October 2026), calc gives none, whatever is saved, so the rows are left out.
   if (context.sizes.some((size) => of(size)?.agedSample)) {
     // Its values as entered (calc keeps only its checks), each judged by its own check.
     const aged = (field: AgedField, text: (sample: PackingAgedSample | null) => string | null) =>

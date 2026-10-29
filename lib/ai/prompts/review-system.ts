@@ -18,7 +18,8 @@ import { MODULE_KEYS, type ModuleKey } from "@/lib/schemas";
  * and one the size's list does not hold is the app's warning, never an error.
  * Since 26 October 2026 a size's packing check may hold an aged sample,
  * judged apart from its boxes; since 27 October a size with none entered is
- * not done.
+ * not done; since 30 October the inspector may answer No to "Aged Sample?"
+ * (hasAgedSample), and no size then needs one.
  * ------------------------------------------------------------------ */
 
 const MODULE_GUIDE: Record<ModuleKey, string> = {
@@ -46,7 +47,7 @@ const MODULE_GUIDE: Record<ModuleKey, string> = {
   visual:
     "per size and class: gloves inspected and defect counts. Critical (AQL 0), major (default 2.5) and minor (default 4.0) are judged separately; any critical defect fails.",
   dispensing_packing:
-    "per size, per box, by its box/carton number (one of the size's sampled box/carton numbers; one the size's list does not hold is a warning box_not_in_carton_list): layering %, dispensing % and stickiness code. Averages against the minimums (70% and 80%); any failing stickiness code fails. A size may also hold one aged sample (data agedSample: the same values, no box/carton number), judged on its own against the same minimums and codes (computed agedSample) and never counted with the boxes or in their averages: a failed one fails the size, boxes done or not, one entered in part leaves it not done. Every size needs one: with none entered (computed agedSample null) the size is not done, though boxes that fail still fail it, and once its boxes are complete the app warns aged_sample_missing.",
+    "per size, per box, by its box/carton number (one of the size's sampled box/carton numbers; one the size's list does not hold is a warning box_not_in_carton_list): layering %, dispensing % and stickiness code. Averages against the minimums (70% and 80%); any failing stickiness code fails. A size may also hold one aged sample (data agedSample: the same values, no box/carton number), judged on its own against the same minimums and codes (computed agedSample) and never counted with the boxes or in their averages: a failed one fails the size, boxes done or not, one entered in part leaves it not done. Every size needs one: with none entered (computed agedSample null) the size is not done, though boxes that fail still fail it, and once its boxes are complete the app warns aged_sample_missing. The inspector's answer to \"Aged Sample?\" (data hasAgedSample, one for the step): \"no\" means the inspection has no aged sample, so no size needs one, each size's result comes from its boxes alone, and any aged values saved are not counted (computed agedSample null); unanswered or \"yes\", every size needs one.",
   dispensing_safedon:
     "per size, per box, by its box/carton number (one of the size's sampled box/carton numbers; one the size's list does not hold is a warning box_not_in_carton_list): counts of six dispensing defects. The size's defect rate is checked against the maximum (default 5%).",
   labeling:

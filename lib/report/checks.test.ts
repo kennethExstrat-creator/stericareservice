@@ -149,6 +149,19 @@ describe("checkRows", () => {
     expect(none).toMatchObject({ result: null, status: "not_done" });
   });
 
+  it('gives the aged sample no row with "Aged Sample?" answered No, whatever is saved in one (Kenneth, 30 October 2026)', () => {
+    const sizes = {
+      S: { boxes: packingBoxes(5), aged: { layeringPct: 60, dispensingPct: 85, stickiness: "B" } },
+      M: { boxes: packingBoxes(5, {}, 8001) },
+    };
+    const rows = checkRows(packingExport(sizes, { hasAgedSample: "no" }));
+    expect(rows.some((entry) => entry.key === "dispensing_packing:aged")).toBe(false);
+    expect(rows.find((entry) => entry.key === "dispensing_packing")).toMatchObject({ check: "Packing Check", status: "pass" });
+    // Answered Yes, the row is back, the failed one failing it.
+    const yes = checkRows(packingExport(sizes, { hasAgedSample: "yes" })).find((entry) => entry.key === "dispensing_packing:aged");
+    expect(yes).toMatchObject({ status: "fail", failedSizes: ["S"] });
+  });
+
   it("reads an inspection with nothing ordered or entered without failing", () => {
     const doc = makeStdEgExport();
     for (const entry of doc.modules) {

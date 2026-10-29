@@ -20,6 +20,14 @@
 // that fail still fail it. Once the boxes are complete, a warning at its
 // first value says it is not entered yet. Summaries give it a line of its
 // own after the boxes', its figures once judged, else what it lacks.
+//
+// "Aged Sample?", one answer for the step (Kenneth, 30 October 2026: "no
+// aged sample then turn it off and let the page complete"): Yes is all of
+// the above. Unanswered is too, any value entered counting as Yes, and the
+// warning for an empty one asks for it or for No. No turns it off: no size
+// waits for one, no warning asks for it, each size's result comes from its
+// boxes alone, and the values saved in one are kept but not counted
+// (computed agedSample null). Its summary line then says there is none.
 import { codeLetterForSampleSize } from "@/lib/aql";
 import type { PerSizeResult } from "@/lib/schemas/module-result";
 import { formatDecimal, mean, roundTo } from "@/lib/stats";
@@ -86,7 +94,11 @@ export type PackingSizeComputed = {
   layeringResult: CheckResult;
   dispensingResult: CheckResult;
   stickinessResult: CheckResult;
-  /** The aged sample's checks, apart from the boxes'; null while nothing is entered in it (the size not done). */
+  /**
+   * The aged sample's checks, apart from the boxes'; null while nothing is
+   * entered in it (the size not done), and while "Aged Sample?" is answered
+   * No (none, whatever is saved in it).
+   */
   agedSample: AgedSampleComputed | null;
 };
 
@@ -104,8 +116,9 @@ export function calcDispensingPacking({
 }: CalcInput<DispensingPackingData, DispensingPackingConfig>): CalcOutput<DispensingPackingComputed> {
   const issues: CalcIssue[] = [];
   const sizes: Record<string, PackingSizeComputed> = {};
+  const answer = data.hasAgedSample ?? null;
   const perSize = perSizeResults(context.sizes, (size) => {
-    const evaluated = evaluateSize(size, data.sizes[size] ?? { boxes: [] }, { config, labels, context });
+    const evaluated = evaluateSize(size, data.sizes[size] ?? { boxes: [] }, { config, labels, context, answer });
     sizes[size] = evaluated.computed;
     issues.push(...evaluated.issues);
     return evaluated.result;
@@ -161,6 +174,8 @@ type SizeInput = {
   config: DispensingPackingConfig;
   labels: Labels;
   context: InspectionContext;
+  /** The step's answer to "Aged Sample?"; null while unanswered. */
+  answer: DispensingPackingData["hasAgedSample"];
 };
 
 type SizeOutcome = { result: PerSizeResult; computed: PackingSizeComputed; issues: CalcIssue[] };
@@ -178,7 +193,7 @@ type Reading = {
 
 type CheckResults = Pick<AgedSampleComputed, "layeringResult" | "dispensingResult" | "stickinessResult">;
 
-function evaluateSize(size: string, entry: PackingSize, { config, labels, context }: SizeInput): SizeOutcome {
+function evaluateSize(size: string, entry: PackingSize, { config, labels, context, answer }: SizeInput): SizeOutcome {
   const reading: Reading = {
     size,
     config,
@@ -232,8 +247,10 @@ function evaluateSize(size: string, entry: PackingSize, { config, labels, contex
     else firstIncomplete ??= index + 1;
   }
 
-  // After the boxes, apart from them: its issues follow theirs, and it is in none of their figures.
-  const aged = evaluateAgedSample(reading, entry.agedSample);
+  // After the boxes, apart from them: its issues follow theirs, and it is in none of their figures. Answered No,
+  // there is none: what is saved in it is not read.
+  const off = answer === "no";
+  const aged: AgedOutcome = off ? { computed: null, line: `No ${words.aged}.` } : evaluateAgedSample(reading, entry.agedSample);
   const withAgedLine = (line: string) => `${line}${SUMMARY_LINE_BREAK}${aged.line}`;
 
   const planned = plannedBoxes(context, config, size);
@@ -272,13 +289,13 @@ function evaluateSize(size: string, entry: PackingSize, { config, labels, contex
   };
   const failed = failedChecks(reading, checks);
   const boxesLine = `${figures(reading, formatAverage(layeringAverage), formatAverage(dispensingAverage), known.stickinessSummary)}: ${verdict(failed)}.`;
-  // The boxes are done: an empty aged sample is what the size still lacks.
-  if (aged.computed === null) issues.push(agedSampleMissing(reading));
+  // The boxes are done: an empty aged sample is what the size still lacks, unless there is none (No).
+  if (aged.computed === null && !off) issues.push(agedSampleMissing(reading, answer === "yes"));
   // A failure fails the size, the boxes' or the aged sample's, whatever the aged sample still lacks: a failure is
-  // never hidden. Otherwise the size passes only with its aged sample passed too; one empty or entered in part
-  // keeps it not done.
+  // never hidden. Otherwise the size passes only with its aged sample passed too, or with none (No); one empty or
+  // entered in part keeps it not done.
   const agedResult = aged.computed?.result ?? null;
-  const status = failed.length > 0 || agedResult === "fail" ? "fail" : agedResult === "pass" ? "pass" : "not_done";
+  const status = failed.length > 0 || agedResult === "fail" ? "fail" : off || agedResult === "pass" ? "pass" : "not_done";
   return {
     result: { status, summary: withAgedLine(boxesLine) },
     computed: { ...known, ...checks },
@@ -348,10 +365,12 @@ function evaluateAgedSample(reading: Reading, sample: PackingAgedSample | undefi
 /**
  * The size's boxes are complete and its aged sample holds nothing: what the
  * size still lacks, a warning at the aged sample's first value, where the
- * capture screen lists it and Pending's link lands.
+ * capture screen lists it, beside "Aged Sample?", and Pending's link lands.
+ * While that is unanswered, it says No is the other way to complete it.
  */
-function agedSampleMissing({ size, words }: Reading): CalcIssue {
-  return warningIssue("aged_sample_missing", `${words.aged} for size ${words.size} is not entered yet.`, {
+function agedSampleMissing({ size, words }: Reading, answeredYes: boolean): CalcIssue {
+  const missing = `${words.aged} for size ${words.size} is not entered yet`;
+  return warningIssue("aged_sample_missing", answeredYes ? `${missing}.` : `${missing}, or answer No to ${words.aged}?`, {
     size,
     path: ["sizes", size, "agedSample", "layeringPct"],
   });

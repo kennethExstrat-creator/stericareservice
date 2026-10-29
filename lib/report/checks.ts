@@ -17,7 +17,7 @@ import type { Spec } from "@/lib/stats";
 import { shortTitleFor } from "@/lib/templates/short-titles";
 import { SpecSchema } from "@/modules/_framework/config-schemas";
 import { andList, aqlText, counted, rangeText } from "./format";
-import { at, labelOf, list, num, orderedSizes, rec, sizeLabel, text } from "./read";
+import { at, labelOf, list, noAgedSample, num, orderedSizes, rec, sizeLabel, text } from "./read";
 
 /** A check's verdict: a module's own result, never info (a check that only records has no row). */
 export type CheckStatus = Exclude<ModuleStatus, "info">;
@@ -301,8 +301,9 @@ function packingRows(module: ExportModule, doc: InspectionExport, sizes: readonl
   ];
 
   // The aged sample (Kenneth, 26 October 2026): judged on its own, against the boxes' minimums. Every size
-  // needs one (27 October 2026): a size with none entered (no verdict of its own) is not done.
-  if (sizes.length > 0) {
+  // needs one (27 October 2026): a size with none entered (no verdict of its own) is not done. "Aged Sample?"
+  // answered No (30 October 2026): there is none, and no row; the results matrix then has none either.
+  if (sizes.length > 0 && !noAgedSample(module)) {
     const agedVerdicts = sizes.map((size) => at(computed, "sizes", size, "agedSample", "result") ?? "not_done");
     rows.push({
       key: "dispensing_packing:aged",

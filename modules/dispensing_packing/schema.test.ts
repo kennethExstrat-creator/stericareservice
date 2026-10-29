@@ -141,6 +141,32 @@ describe("dispensing_packing aged sample (Kenneth, 26 October 2026)", () => {
   });
 });
 
+describe('dispensing_packing "Aged Sample?" (Kenneth, 30 October 2026)', () => {
+  it("holds the step's one answer, Yes or No, unanswered absent or null as data saved before holds", () => {
+    expect(emptyDispensingPacking()).toEqual({ sizes: {} });
+    expect(DispensingPackingDataSchema.parse({ sizes: { M: { boxes: [BOX] } } })).toEqual({ sizes: { M: { boxes: [BOX] } } });
+    for (const hasAgedSample of ["yes", "no", null]) {
+      const data = { hasAgedSample, sizes: { M: { boxes: [BOX], agedSample: AGED } } };
+      expect(DispensingPackingDataSchema.parse(data), String(hasAgedSample)).toEqual(data);
+    }
+    for (const hasAgedSample of ["No", "maybe", true, 0]) {
+      expect(DispensingPackingDataSchema.safeParse({ hasAgedSample, sizes: {} }).success, String(hasAgedSample)).toBe(false);
+    }
+    // One answer for the step, never per size.
+    expect(DispensingPackingDataSchema.safeParse({ sizes: { M: { boxes: [], hasAgedSample: "no" } } }).success).toBe(false);
+  });
+
+  it("tells Steri-AI that a document never answers it", () => {
+    const schema = z.toJSONSchema(DispensingPackingDataSchema, { io: "input" }) as unknown as {
+      properties: Record<string, { description?: string }>;
+      required?: string[];
+    };
+    expect(Object.keys(schema.properties)).toEqual(["sizes", "hasAgedSample"]);
+    expect(schema.properties.hasAgedSample.description).toContain("as the inspector answered on screen. Never set from a document.");
+    expect(schema.required ?? []).not.toContain("hasAgedSample");
+  });
+});
+
 /** A template's config as lib/templates resolves it: the module defaults, then each seed from the root down. */
 function resolvedConfig(code: TemplateCode): JsonObject {
   const chain: TemplateCode[] = [];

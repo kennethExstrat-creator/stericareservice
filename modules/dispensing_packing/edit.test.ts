@@ -1,5 +1,14 @@
 import { describe, expect, it } from "vitest";
-import { agedSampleOf, boxesOf, rowsShown, updateAgedSample, updatePackingBox, withoutTrailingBlanks } from "./edit";
+import {
+  agedSampleAnswerOf,
+  agedSampleOf,
+  boxesOf,
+  rowsShown,
+  setAgedSampleAnswer,
+  updateAgedSample,
+  updatePackingBox,
+  withoutTrailingBlanks,
+} from "./edit";
 import { DispensingPackingDataSchema, emptyAgedSample, emptyPackingBox, type DispensingPackingData } from "./schema";
 
 const A = { ...emptyPackingBox(), boxNo: 13, layeringPct: 90, dispensingPct: 92, stickiness: "A" };
@@ -48,7 +57,8 @@ describe("dispensing_packing editing", () => {
 describe("dispensing_packing aged sample editing (Kenneth, 26 October 2026)", () => {
   it("changes the size's aged sample, never a box, creating the size when it has none yet", () => {
     const next = updateAgedSample({ sizes: {} }, "S", { layeringPct: 88 });
-    expect(next).toEqual({ sizes: { S: { boxes: [], agedSample: { ...emptyAgedSample(), layeringPct: 88 } } } });
+    // The first value answers "Aged Sample?" Yes (Kenneth, 30 October 2026).
+    expect(next).toEqual({ hasAgedSample: "yes", sizes: { S: { boxes: [], agedSample: { ...emptyAgedSample(), layeringPct: 88 } } } });
     expect(DispensingPackingDataSchema.parse(next)).toEqual(next);
     expect(agedSampleOf(next, "S")).toEqual({ ...emptyAgedSample(), layeringPct: 88 });
     expect(agedSampleOf(next, "M")).toEqual(emptyAgedSample());
@@ -68,5 +78,33 @@ describe("dispensing_packing aged sample editing (Kenneth, 26 October 2026)", ()
     const data: DispensingPackingData = { sizes: { M: { boxes: [A], agedSample: { ...emptyAgedSample(), note: "Aged sample" } } } };
     expect(updateAgedSample(data, "M", { note: null })).toEqual({ sizes: { M: { boxes: [A] } } });
     expect(updateAgedSample({ sizes: {} }, "S", { note: " " })).toEqual({ sizes: { S: { boxes: [] } } });
+  });
+});
+
+describe('dispensing_packing "Aged Sample?" (Kenneth, 30 October 2026)', () => {
+  const aged = { ...emptyAgedSample(), layeringPct: 88 };
+
+  it("answers it for the whole step, every size's aged sample kept as saved, and clears it with null", () => {
+    const data: DispensingPackingData = { sizes: { M: { boxes: [A], agedSample: aged }, XL: { boxes: [A] } } };
+    expect(agedSampleAnswerOf(data)).toBeNull();
+    const no = setAgedSampleAnswer(data, "no");
+    expect(no).toEqual({ hasAgedSample: "no", sizes: data.sizes });
+    expect(no.sizes).toBe(data.sizes);
+    expect(agedSampleAnswerOf(no)).toBe("no");
+    expect(DispensingPackingDataSchema.parse(no)).toEqual(no);
+    expect(setAgedSampleAnswer(no, "yes")).toEqual({ hasAgedSample: "yes", sizes: data.sizes });
+    // Unanswered again: no answer saved, as before the question.
+    expect(setAgedSampleAnswer(no, null)).toEqual(data);
+    expect(agedSampleAnswerOf({ hasAgedSample: null, sizes: {} })).toBeNull();
+  });
+
+  it("is answered Yes by a value entered while unanswered, never over an answer, and never by an empty one", () => {
+    expect(updateAgedSample({ sizes: {} }, "M", { stickiness: "B" }).hasAgedSample).toBe("yes");
+    expect(updateAgedSample({ hasAgedSample: null, sizes: {} }, "M", { note: "Aged sample" }).hasAgedSample).toBe("yes");
+    expect(updateAgedSample({ hasAgedSample: "no", sizes: {} }, "M", { layeringPct: 88 }).hasAgedSample).toBe("no");
+    expect(updateAgedSample({ sizes: {} }, "M", { note: " " })).toEqual({ sizes: { M: { boxes: [] } } });
+    // Emptied, the answer stays: the step has one.
+    const data: DispensingPackingData = { hasAgedSample: "yes", sizes: { M: { boxes: [], agedSample: aged } } };
+    expect(updateAgedSample(data, "M", { layeringPct: null })).toEqual({ hasAgedSample: "yes", sizes: { M: { boxes: [] } } });
   });
 });
