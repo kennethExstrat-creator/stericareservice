@@ -105,6 +105,10 @@ describe("the reading's system prompt", () => {
     // Its results come with every size it reports, entered or not, so a report read again is linked with its sizes.
     const leaveOut = lines.find((line) => line.startsWith("- Leave out fields that already hold a value in the current data")) ?? "";
     expect(leaveOut).toContain("So are a lab report's results: give them for every size it reports (the lab report guide below).");
+    // One set of results for several sizes goes to each of them (Kenneth, 29 October 2026).
+    expect(guide.find((line) => line.startsWith("- Each result goes under the size the report names"))).toContain(
+      "A report that names several sizes for one set of results (its Line / Size or Size field lists them, e.g. \"SMALL, MEDIUM, LARGE, XLARGE\", and no size stands beside the results) tested them together: give those same results under each size it names.",
+    );
     expect(guide.at(-1)).toBe(
       "- Give the results of every size the report holds, also where the current data already holds them: the app keeps what is entered, and links the report with the sizes it gives results for.",
     );
