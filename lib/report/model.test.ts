@@ -318,3 +318,17 @@ describe("the photo records", () => {
     expect(recordsOf(makeSafedonExport())).toBeNull();
   });
 });
+
+describe("page 1's Results by Check (Kenneth, 30 October 2026: hide the items not done in this table only)", () => {
+  it("leaves out a check not done, while the verdict, the sections and the results matrix keep it", () => {
+    const doc = makeStdEgExport();
+    const labeling = doc.modules.find((module) => module.key === "labeling");
+    if (!labeling) throw new Error("STD_EG has labelling");
+    labeling.result = { ...labeling.result, status: "not_done" };
+    const model = buildReportModel(doc);
+    expect(model.summary.checks?.some((row) => row.moduleKey === "labeling")).toBe(false);
+    expect(model.summary.checks?.every((row) => row.status !== "not_done")).toBe(true);
+    expect(model.summary.conclusion.verdict).toContain("not done");
+    expect(model.plan.some((entry) => entry.kind === "section" && entry.key === "labellingConclusion")).toBe(true);
+  });
+});

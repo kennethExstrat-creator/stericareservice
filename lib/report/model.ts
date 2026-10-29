@@ -773,7 +773,9 @@ function summaryOf(doc: InspectionExport, paper: ReportPaper): SummaryModel {
     facts: factsOf(doc),
     orderMix: doc.report.summary.orderMix ? orderMixOf(doc) : null,
     inspectionSummary: doc.report.summary.inspectionSummary ? summaryTextOf(doc) : null,
-    checks: doc.report.summary.resultsByCheck ? rows : null,
+    // Page 1's table leaves out the checks not done (Kenneth, 30 October 2026); the verdict, the sections and the
+    // results matrix keep them.
+    checks: doc.report.summary.resultsByCheck ? rows.filter((row) => row.status !== "not_done") : null,
   };
   return { ...summary, summaryPlacement: summaryPlacement(summary, paper, { footerNote: doc.report.footerNote !== null }) };
 }

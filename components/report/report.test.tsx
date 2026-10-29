@@ -395,3 +395,14 @@ describe("the primitives", () => {
     expect(chip).toMatch(/data-slot="report-size-chip" data-size="XL" class="[^"]*bg-brand-900 text-white[^"]*">XL<\/span>/);
   });
 });
+
+describe("page 1's Results by Check, Kenneth's way (30 October 2026)", () => {
+  it("says Reduced Sampling is Used with a green downward arrow, and shows no check not done", () => {
+    const html = renderToStaticMarkup(<ReportDocument model={buildReportModel(makeSafedonExport())} />);
+    const checks = html.slice(html.indexOf('data-slot="report-checks"'), html.indexOf("</table>", html.indexOf('data-slot="report-checks"')));
+    const remark = /<span data-slot="report-check-remark"[^>]*>(?:(?!<\/span>)[\s\S])*<\/span>/.exec(checks)?.[0] ?? "";
+    expect(remark).toContain("Reduced Sampling is Used");
+    expect(remark).toMatch(/<svg[^>]*class="[^"]*lucide-arrow-down[^"]*text-pass/);
+    expect(checks).not.toContain('data-status="not_done"');
+  });
+});

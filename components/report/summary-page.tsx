@@ -5,7 +5,7 @@
 // address), the order mix by size, the inspector's Inspection Summary and
 // Results by Check. A summary too long for page 1 prints on a page of its
 // own after it (SummaryModel.summaryPlacement).
-import { InfoIcon } from "lucide-react";
+import { ArrowDownIcon } from "lucide-react";
 import type { ReactNode } from "react";
 import { RichTextView } from "@/components/qc/rich-text-view";
 import { formatCount } from "@/lib/format";
@@ -192,7 +192,8 @@ export function ChecksBlock({ rows }: { rows: readonly CheckRow[] }) {
               // A row that records says so in words that may wrap ("Reduced Sampling is Used"), never as a verdict.
               status: row.remark ? (
                 <span data-slot="report-check-remark" className={cn("inline-flex items-start gap-[1mm] font-semibold text-slate-600", TYPE.small)}>
-                  <InfoIcon aria-hidden strokeWidth={2.5} className="mt-[0.6mm] size-[3mm] shrink-0" />
+                  {/* A green downward arrow: fewer gloves than the plan, on purpose (Kenneth, 30 October 2026). */}
+                  <ArrowDownIcon aria-hidden strokeWidth={3} className="mt-[0.5mm] size-[3.2mm] shrink-0 text-pass" />
                   {row.remark}
                 </span>
               ) : (
