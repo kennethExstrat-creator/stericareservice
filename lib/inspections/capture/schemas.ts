@@ -58,6 +58,17 @@ export const SwitchOnInputSchema = z.object({
 });
 export type SwitchOnInput = z.infer<typeof SwitchOnInputSchema>;
 
+/**
+ * General Information's Client Name or Manufacturer / Supplier changed
+ * (changeInspectionParty): the client's id, or null for no client, as New
+ * Inspection allows; a factory's id, never none.
+ */
+export const PartyChangeInputSchema = z.discriminatedUnion("party", [
+  z.object({ inspectionId: z.uuid(), party: z.literal("client"), id: z.uuid().nullable() }),
+  z.object({ inspectionId: z.uuid(), party: z.literal("manufacturer"), id: z.uuid() }),
+]);
+export type PartyChangeInput = z.infer<typeof PartyChangeInputSchema>;
+
 /** The `?module=` search parameter: a module or custom module key. */
 export const SectionParamSchema = z.string().regex(/^[a-z][a-z0-9_]{0,63}$/);
 

@@ -4,7 +4,7 @@ import { redirect, unstable_rethrow } from "next/navigation";
 import { after } from "next/server";
 import { authorizeAction } from "@/lib/auth/session";
 import { scheduleAiReviewOnSubmit } from "@/lib/inspections/ai";
-import { captureAccess, isEditableStatus } from "@/lib/inspections/capture/access";
+import { captureAccess, readOnlyMessage } from "@/lib/inspections/capture/access";
 import { changedEntryProblems, describeProblems } from "@/lib/inspections/capture/changes";
 import { evaluateCapture, storedTemplateWithShownTitles } from "@/lib/inspections/capture/evaluate";
 import { blockedSubmitMessage, neededSectionCount } from "@/lib/inspections/capture/issues";
@@ -108,7 +108,7 @@ export async function saveCaptureData(input: unknown): Promise<CaptureSaveOutcom
       userId: auth.user.id,
       inspectorId: row.inspectorId,
     });
-    if (!access.editable) return { ok: false, reason: "forbidden", message: readOnlyMessage(row), state: stateOf(row) };
+    if (!access.editable) return { ok: false, reason: "forbidden", message: readOnlyMessage(row.status), state: stateOf(row) };
 
     // Someone saved in between: the device decides (see the note at the top).
     if (row.updatedAt !== request.baseUpdatedAt) {
@@ -201,7 +201,7 @@ export async function submitInspection(input: unknown): Promise<SubmitResult> {
         userId: auth.user.id,
         inspectorId: row.inspectorId,
       });
-      if (!access.editable) return { status: "error", message: readOnlyMessage(row) };
+      if (!access.editable) return { status: "error", message: readOnlyMessage(row.status) };
 
       if (contentHash(row.data) !== dataHash) {
         return {
@@ -463,10 +463,4 @@ function shownTemplate(row: CaptureInspection): ResolvedTemplate {
 function titleOf(template: ResolvedTemplate, key: ModuleKey): string {
   const entry = template.modules.find((candidate) => candidate.key === key);
   return entry ? shortTitleFor(entry.key, entry.title) : key;
-}
-
-function readOnlyMessage(row: Pick<CaptureInspection, "status">): string {
-  if (row.status === "approved") return "This inspection is approved and can no longer be changed.";
-  if (!isEditableStatus(row.status)) return "This inspection has been submitted and can no longer be changed here.";
-  return "This inspection can no longer be changed from this account.";
 }

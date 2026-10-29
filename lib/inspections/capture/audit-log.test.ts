@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { AuditRow } from "@/lib/inspections/review/audit";
 import { auditLogEntries } from "./audit-log";
 import { PASS_FAIL_CHANGED, SPEC_CHANGED } from "./dimension-events";
+import { CLIENT_CHANGED, MANUFACTURER_CHANGED, partyChangedEvent } from "./party-events";
 import { CODE_LETTER_CHANGED } from "./sampling-events";
 
 const INSPECTOR = "00000000-0000-4000-8000-000000000001";
@@ -203,5 +204,41 @@ describe("auditLogEntries: the Audit Log page in plain words (Kenneth, 26 Octobe
       ["Test Inspector", "Steri-AI Described Photos", "4 photos", false],
       ["Test Inspector", "Steri-AI Described Photos", "1 photo", false],
     ]);
+  });
+
+  // Kenneth, 30 October 2026: "manufacturer and client should be editable" on General Information.
+  it("says a client or manufacturer changed from what to what, by name, in Malaysia's time", () => {
+    const clientA = { id: "00000000-0000-4000-8000-0000000000c1", name: "Client A" };
+    const clientB = { id: "00000000-0000-4000-8000-0000000000c2", name: "Client B" };
+    const factoryA = { id: "00000000-0000-4000-8000-0000000000f1", name: "Manufacturer A · Factory A1" };
+    const factoryB = { id: "00000000-0000-4000-8000-0000000000f2", name: "Manufacturer B" };
+    const event = (changed: { action: string; changes: unknown }, at: string, actorId?: string) =>
+      row(changed.action, changed.changes, at, actorId);
+    const entries = auditLogEntries(
+      [
+        event(partyChangedEvent("manufacturer", factoryA, factoryB), "2026-10-30T06:05:00.000Z"),
+        event(partyChangedEvent("client", clientA, clientB), "2026-10-30T06:00:00.000Z"),
+        event(partyChangedEvent("client", clientB, null), "2026-10-30T05:00:00.000Z", ADMIN),
+        event(partyChangedEvent("client", null, clientA), "2026-10-30T04:00:00.000Z"),
+      ],
+      WORDS,
+    );
+    expect(entries.map(({ when, who, title, detail, special }) => ({ when, who, title, detail, special }))).toEqual([
+      {
+        when: "30 Oct 2026, 14:05",
+        who: "Test Inspector",
+        title: "Manufacturer Changed",
+        detail: "Manufacturer changed from Manufacturer A · Factory A1 to Manufacturer B.",
+        special: false,
+      },
+      { when: "30 Oct 2026, 14:00", who: "Test Inspector", title: "Client Changed", detail: "Client changed from Client A to Client B.", special: false },
+      { when: "30 Oct 2026, 13:00", who: "An admin", title: "Client Changed", detail: "Client changed from Client B to No Client.", special: false },
+      { when: "30 Oct 2026, 12:00", who: "Test Inspector", title: "Client Changed", detail: "Client changed from No Client to Client A.", special: false },
+    ]);
+    expect(partyChangedEvent("client", clientA, clientB).action).toBe(CLIENT_CHANGED);
+    expect(partyChangedEvent("manufacturer", factoryA, factoryB)).toEqual({
+      action: MANUFACTURER_CHANGED,
+      changes: { from: factoryA, to: factoryB },
+    });
   });
 });

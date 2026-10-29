@@ -1,8 +1,8 @@
 // Defaults a template can override: the heading, the field labels (STD_EG's
 // wording) and the config (BUILD_SPEC 6.1: fields on/off). The manufacturer
-// and the client are picked when the inspection is created and the inspector
-// is recorded by the app (6.2 rule 11), so their switches only show or hide
-// the row.
+// and the client are picked when the inspection is created (and changed on
+// the capture screen's General Information) and the inspector is recorded by
+// the app (6.2 rule 11), so their switches only show or hide the row.
 import { z } from "zod";
 
 export const HEADER_TITLE = "Manufacturer Information";

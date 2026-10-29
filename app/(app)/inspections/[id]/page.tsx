@@ -13,6 +13,7 @@ import { canExportInspection } from "@/lib/export/access";
 import { captureAccess } from "@/lib/inspections/capture/access";
 import { loadDefectUsage, type DefectUsage } from "@/lib/inspections/capture/defect-usage";
 import { loadCaptureInspection, loadOverrideAuthors } from "@/lib/inspections/capture/load";
+import { loadPickerOptions } from "@/lib/inspections/picker-options";
 import { loadReopenNote } from "@/lib/inspections/capture/reopen";
 import { readSectionParam } from "@/lib/inspections/capture/schemas";
 import { personLabel } from "@/lib/inspections/format";
@@ -56,7 +57,9 @@ export async function generateMetadata({ params }: PageProps<"/inspections/[id]"
  * why it was reopened, when it was, how often each defect was counted
  * before, so the defect lists open on the most-used ones, where the
  * inspection can be changed here, the Steri-AI Summary's menu from the house
- * style (docs/AI.md, "Steri-AI Summary"), and for the Report page, whether
+ * style (docs/AI.md, "Steri-AI Summary") and New Inspection's clients and
+ * manufacturers, for General Information's pickers (Kenneth, 30 October
+ * 2026: "manufacturer and client should be editable"), and for the Report page, whether
  * this user may download the PDF (the export's rule, which the print route
  * checks again) and the template version's facts its preview needs. What
  * the user's role switches off is not offered (lib/auth/permissions.ts):
@@ -100,7 +103,7 @@ export default async function CapturePage({ params, searchParams }: PageProps<"/
   });
   // Download PDF: the role's Export Reports on top of the export's rule.
   const exportsReports = userCan(user, "export_reports");
-  const [authors, query, reopen, defectUsage, summaryMenu] = await Promise.all([
+  const [authors, query, reopen, defectUsage, summaryMenu, pickers] = await Promise.all([
     loadOverrideAuthors(supabase, inspection.overrides),
     searchParams,
     loadReopenNote(
@@ -123,6 +126,9 @@ export default async function CapturePage({ params, searchParams }: PageProps<"/
       : Promise.resolve<DefectUsage>({}),
     // Only where the button can show, for a role with Steri-AI Summary; never throws (the house style's defaults stand in).
     access.editable && userCan(user, "ai_summary") ? loadSummaryMenu() : Promise.resolve(null),
+    // General Information's pickers, where the inspection can be changed here; null (the lists did not load) leaves
+    // the client and manufacturer read-only.
+    access.editable ? loadPickerOptions(supabase, "Capture") : Promise.resolve(null),
   ]);
 
   return (
@@ -154,6 +160,7 @@ export default async function CapturePage({ params, searchParams }: PageProps<"/
         reopenNote={reopen}
         defectUsage={defectUsage}
         summaryMenu={summaryMenu}
+        pickers={pickers ? { clients: pickers.clients, manufacturers: pickers.manufacturers } : null}
         reportPage={{
           // The export's rule, which the print route checks again: the inspection's inspector, their lead inspector
           // (a team member's inspection, read-only here) or an admin.

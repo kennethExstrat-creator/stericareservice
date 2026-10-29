@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 import { createDataUpdater } from "@/components/qc/data-updater";
 import { STD_EG_EXAMPLE } from "@/tests/fixtures/examples";
 import { headerData } from "./__fixtures__/examples";
-import { setDate, setText, tidyText } from "./edit";
+import { followFactoryAddress, setDate, setText, tidyText } from "./edit";
 import { emptyHeader, HEADER_TEXT_FIELDS, HeaderDataSchema, TEXT_MAX_LENGTH, type HeaderData } from "./schema";
 
 const FILLED = headerData(STD_EG_EXAMPLE.header);
@@ -56,5 +56,40 @@ describe("header edits", () => {
     updater.update((current) => setText(current, "productCode", "P"));
     updater.update((current) => setDate(current, "mfgDate", "2025-04-01"));
     expect(changes.at(-1)).toEqual({ ...emptyHeader(), poNo: "PO-0001", productCode: "P", mfgDate: "2025-04-01" });
+  });
+
+  describe("the factory address when the manufacturer changes", () => {
+    const OLD = "Lot 1, Jalan Placeholder 1,\nTown A, Malaysia";
+    const NEW = "Lot 2, Jalan Placeholder 2,\nTown B, Malaysia";
+
+    it("takes the new factory's address while the field still holds the old one's", () => {
+      expect(followFactoryAddress({ ...FILLED, factoryAddress: OLD }, OLD, NEW)).toEqual({ ...FILLED, factoryAddress: NEW });
+      // As the field keeps it once left: trimmed.
+      expect(followFactoryAddress({ ...FILLED, factoryAddress: OLD }, ` ${OLD}\n`, ` ${NEW} `).factoryAddress).toBe(NEW);
+    });
+
+    it("fills a blank field, and clears the old factory's address when the new one has none", () => {
+      expect(followFactoryAddress(emptyHeader(), OLD, NEW).factoryAddress).toBe(NEW);
+      expect(followFactoryAddress(emptyHeader(), null, NEW).factoryAddress).toBe(NEW);
+      expect(followFactoryAddress({ ...FILLED, factoryAddress: OLD }, OLD, null).factoryAddress).toBeNull();
+      expect(followFactoryAddress({ ...FILLED, factoryAddress: OLD }, OLD, "   ").factoryAddress).toBeNull();
+    });
+
+    it("never overwrites an address the inspector changed", () => {
+      const typed = { ...FILLED, factoryAddress: "Warehouse C, Town C" };
+      expect(followFactoryAddress(typed, OLD, NEW)).toBe(typed);
+      // The old factory had no address, so whatever is there was typed.
+      expect(followFactoryAddress(typed, null, NEW)).toBe(typed);
+    });
+
+    it("returns the data itself when nothing changes, and keeps no more than the schema keeps", () => {
+      const blank = emptyHeader();
+      expect(followFactoryAddress(blank, OLD, null)).toBe(blank);
+      const same = { ...FILLED, factoryAddress: NEW };
+      expect(followFactoryAddress(same, NEW, NEW)).toBe(same);
+      const long = followFactoryAddress(blank, null, "x".repeat(TEXT_MAX_LENGTH + 10));
+      expect(long.factoryAddress).toBe("x".repeat(TEXT_MAX_LENGTH));
+      expect(HeaderDataSchema.safeParse(long).success).toBe(true);
+    });
   });
 });

@@ -24,7 +24,7 @@ import { HEADER_DATE_FIELDS, type HeaderData } from "./schema";
 
 /** The header as the report prints it, with what the inspection row and the app fill in. Exported. */
 export type HeaderComputed = {
-  /** The inspection's manufacturer, picked on /inspections/new. */
+  /** The inspection's manufacturer, picked on /inspections/new (changed on General Information). */
   manufacturer: string | null;
   /** The inspection's client; may be empty. */
   client: string | null;

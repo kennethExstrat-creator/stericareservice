@@ -1,8 +1,15 @@
 "use client";
 
 // The header, General Information on screen. The manufacturer, the client
-// and the inspector are the inspection's and show read-only (6.2 rules 10
-// and 11); the rest is typed once here and reused everywhere. Dates come
+// and the inspector are the inspection's, never typed (6.2 rules 10 and 11).
+// The manufacturer and the client are pickers with New Inspection's lists
+// while the inspection can be changed here (Kenneth, 30 October 2026:
+// "manufacturer and client should be editable"): a pick changes the
+// inspection row at once through the screen's slot (inspection-parties.tsx),
+// and a new factory brings its address unless the inspector typed their own
+// (followFactoryAddress). Read-only, and where the screen gives no slot, they
+// show as text. The inspector is always read-only. The rest is typed once
+// here and reused everywhere. Dates come
 // from pickers (rule 3): a calendar, or month and year where the template
 // prints only those. Enter moves to the next field. Every label is the
 // template's (rule 11). Every change goes through useDataUpdater, built from
@@ -10,17 +17,24 @@
 // in the narrow column left of Source Documents' files from 1024 px, full
 // width below (Kenneth, 26 October 2026).
 import { useId, useRef, useState, type FocusEvent, type KeyboardEvent, type ReactNode } from "react";
+import { toast } from "sonner";
 import { DateField, findIssue, issuePathProps, StatusIcon, useDataUpdater, useIssueFocus } from "@/components/qc";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Select, SelectContent, SelectItem, SelectSeparator, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import { labelFor, type CaptureProps } from "@/modules/_framework";
+import {
+  useInspectionParties,
+  type InspectionParties,
+  type InspectionParty,
+  type PartyOption,
+} from "@/modules/_framework/inspection-parties";
 import { headerRows, type HeaderComputed } from "./calc";
 import type { HeaderConfig, HeaderField } from "./config";
 import { monthDate, yearMonth } from "./dates";
-import { setDate, setText, tidyText } from "./edit";
+import { followFactoryAddress, setDate, setText, tidyText } from "./edit";
 import { TEXT_MAX_LENGTH, type HeaderData, type HeaderDateField, type HeaderTextField } from "./schema";
 
 const FIELD_ATTRIBUTE = "data-header-field";
@@ -32,6 +46,13 @@ const YEARS_AROUND = 10;
 
 type FromInspection = Extract<HeaderField, "manufacturer" | "client" | "inspector">;
 const FROM_INSPECTION: readonly FromInspection[] = ["manufacturer", "client", "inspector"];
+
+/** Under the facts, where the inspector's row shows. */
+const INSPECTOR_HINT = "The inspector is recorded automatically.";
+
+/** The client picker's entry for an inspection without a client, worded as on New Inspection. */
+const NO_CLIENT = "none";
+const NO_CLIENT_LABEL = "No Client";
 
 export default function Capture({
   data,
@@ -49,6 +70,11 @@ export default function Capture({
   const id = useId();
   const [fallbackYear] = useState(() => new Date().getFullYear());
   const update = useDataUpdater(data, onChange);
+  // The screen's pickers, where the inspection can be changed here; the facts stay text while it cannot.
+  const parties = useInspectionParties();
+  const pickers = readOnly ? null : parties;
+  // A client or manufacturer picked and on its way to the server: shown as picked, both pickers waiting.
+  const [picking, setPicking] = useState<{ party: InspectionParty; value: string } | null>(null);
 
   const rows = headerRows(data, config, context);
   const shown = (field: HeaderField) => config.fields[field];
@@ -60,6 +86,55 @@ export default function Capture({
   const typeText = (field: HeaderTextField, value: string) => update((current) => setText(current, field, value));
   const leaveText = (field: HeaderTextField) => update((current) => tidyText(current, field));
   const pickDate = (field: HeaderDateField, value: string | null) => update((current) => setDate(current, field, value));
+
+  // The inspection's client (or none) or factory, changed on the server; a new factory brings its address.
+  const pickParty = async (slot: InspectionParties, party: InspectionParty, value: string) => {
+    const next = party === "client" && value === NO_CLIENT ? null : value;
+    if (picking !== null || next === (context.inspection[party]?.id ?? null)) return;
+    setPicking({ party, value });
+    const result = await slot.change(party, next);
+    setPicking(null);
+    if (!result.ok) {
+      toast.error(result.message);
+      return;
+    }
+    if (result.warning) toast.warning(result.warning);
+    const address = result.address;
+    if (address && shown("factoryAddress")) update((current) => followFactoryAddress(current, address.previous, address.next));
+  };
+
+  const partyPicker = (slot: InspectionParties, party: InspectionParty) => {
+    const current = context.inspection[party] ?? null;
+    const listed = party === "client" ? slot.clients : slot.manufacturers;
+    // The inspection's own, whatever the list holds, so the picker never reads blank.
+    const options: readonly PartyOption[] =
+      current === null || listed.some((option) => option.id === current.id)
+        ? listed
+        : [{ id: current.id, label: current.name }, ...listed];
+    const value = picking?.party === party ? picking.value : (current?.id ?? (party === "client" ? NO_CLIENT : ""));
+    return (
+      <Select value={value} onValueChange={(next) => void pickParty(slot, party, next)} disabled={picking !== null}>
+        <SelectTrigger
+          id={`${id}-${party}`}
+          aria-labelledby={`${id}-${party}-label`}
+          aria-busy={picking?.party === party ? true : undefined}
+          className="mt-1 w-full font-normal"
+          data-party-picker={party}
+        >
+          <SelectValue placeholder={party === "client" ? "Choose the client" : "Choose the manufacturer"} />
+        </SelectTrigger>
+        <SelectContent>
+          {options.map((option) => (
+            <SelectItem key={option.id} value={option.id}>
+              <span className="truncate">{option.label}</span>
+            </SelectItem>
+          ))}
+          {party === "client" && options.length > 0 && <SelectSeparator />}
+          {party === "client" && <SelectItem value={NO_CLIENT}>{NO_CLIENT_LABEL}</SelectItem>}
+        </SelectContent>
+      </Select>
+    );
+  };
 
   const textField = (field: HeaderTextField, { multiline = false, wide = false } = {}) => (
     <div key={field} className={cn("min-w-0 space-y-1.5", wide && "@xl:col-span-2")} {...issuePathProps([field])}>
@@ -153,12 +228,16 @@ export default function Capture({
           <dl className="grid gap-x-6 gap-y-3 rounded-lg border border-border bg-muted px-4 py-3 @lg:grid-cols-3">
             {facts.map((field) => (
               <div key={field} className="min-w-0">
-                <dt className="text-sm text-muted-foreground touch:text-base">{labelFor(labels, field)}</dt>
-                <dd className="font-medium break-words text-foreground">{factValue(rows[field])}</dd>
+                <dt id={`${id}-${field}-label`} className="text-sm text-muted-foreground touch:text-base">
+                  {labelFor(labels, field)}
+                </dt>
+                <dd className="font-medium break-words text-foreground">
+                  {pickers && field !== "inspector" ? partyPicker(pickers, field) : factValue(rows[field])}
+                </dd>
               </div>
             ))}
           </dl>
-          <p className="text-sm text-muted-foreground touch:text-base">{factsHint(facts)}</p>
+          {facts.includes("inspector") && <p className="text-sm text-muted-foreground touch:text-base">{INSPECTOR_HINT}</p>}
         </section>
       )}
 
@@ -272,12 +351,6 @@ function MonthPicker({
 /** "Feb 2025": the month as the picker names it, and the year. */
 function monthYearText({ year, month }: { year: number; month: number }): string {
   return `${MONTHS[month - 1] ?? month} ${year}`;
-}
-
-function factsHint(facts: readonly FromInspection[]): string {
-  const picked = facts.some((field) => field !== "inspector") ? "Chosen when the inspection was created." : null;
-  const recorded = facts.includes("inspector") ? "The inspector is recorded automatically." : null;
-  return [picked, recorded].filter((part) => part !== null).join(" ");
 }
 
 function factValue(value: string | null): ReactNode {

@@ -1,14 +1,16 @@
 // Server-rendered markup of the header's capture body: the template's
-// wording, read-only values from the inspection, date pickers, read-only
-// mode and issue links. Typing and picking are the kit's and the browser's.
+// wording, values from the inspection (pickers for the manufacturer and the
+// client where the screen gives them), date pickers, read-only mode and issue
+// links. Typing and picking are the kit's and the browser's.
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { labelOverrides } from "@/lib/coverage";
 import { baseContext, type CaptureProps } from "@/modules/_framework";
+import { InspectionPartiesProvider, type InspectionParties } from "@/modules/_framework/inspection-parties";
 import { makeTestTemplate } from "@/modules/_framework/testing";
 import { MODULE_REGISTRY } from "@/modules/registry";
 import { SAFEDON_EG_EXAMPLE, STD_EG_EXAMPLE } from "@/tests/fixtures/examples";
-import { headerData, headerMeta } from "./__fixtures__/examples";
+import { headerData, headerMeta, TEST_CLIENT_ID, TEST_MANUFACTURER_ID } from "./__fixtures__/examples";
 import Capture from "./Capture";
 import { calcHeader, type HeaderComputed } from "./calc";
 import { HEADER_DEFAULT_CONFIG, HEADER_LABELS, HEADER_TITLE, type HeaderConfig } from "./config";
@@ -161,5 +163,78 @@ describe("header capture", () => {
     for (const input of dates) expect(input).toContain('readOnly=""');
     expect(html).toContain(">Manufacturing Date</label>");
     expect(html).toContain(">Expiry Date</label>");
+  });
+
+  describe("the manufacturer and the client (Kenneth, 30 October 2026: \"manufacturer and client should be editable\")", () => {
+    const SLOT: InspectionParties = {
+      clients: [
+        { id: TEST_CLIENT_ID, label: "Client A" },
+        { id: "00000000-0000-4000-8000-000000000302", label: "Client B" },
+      ],
+      manufacturers: [
+        { id: TEST_MANUFACTURER_ID, label: "Manufacturer A · Factory A1" },
+        { id: "00000000-0000-4000-8000-000000000202", label: "Manufacturer B" },
+      ],
+      change: async () => ({ ok: true, address: null, warning: null }),
+    };
+    const withPickers = (overrides: Partial<Props> = {}, slot: InspectionParties | null = SLOT) =>
+      renderToStaticMarkup(
+        <InspectionPartiesProvider value={slot}>
+          <Capture {...props(overrides)} />
+        </InspectionPartiesProvider>,
+      );
+    const pickers = (html: string) => tagsWith(html, "data-party-picker=");
+
+    it("offers both as pickers, each labelled by its row and 44 px on touch, while the inspection can be changed", () => {
+      const html = withPickers();
+      const [manufacturer, client] = pickers(html);
+      expect(manufacturer).toContain('data-party-picker="manufacturer"');
+      expect(client).toContain('data-party-picker="client"');
+      for (const [picker, field] of [
+        [manufacturer, "manufacturer"],
+        [client, "client"],
+      ] as const) {
+        expect(picker).toContain('role="combobox"');
+        expect(picker).toContain("touch:data-[size=default]:h-11");
+        const labelledBy = /aria-labelledby="([^"]+)"/.exec(picker)?.[1];
+        expect(html).toContain(`<dt id="${labelledBy}"`);
+        expect(html).toContain(`id="${labelledBy}" class="text-sm text-muted-foreground touch:text-base">${HEADER_LABELS[field]}</dt>`);
+      }
+      // Their names are the pickers' now; the inspector stays text, as the app records it.
+      expect(html).not.toContain("Manufacturer A (Factory A1)");
+      expect(html).toContain("Inspector A");
+      expect(pickers(html)).toHaveLength(2);
+    });
+
+    it("says only that the inspector is recorded automatically", () => {
+      for (const html of [withPickers(), render(), render({ readOnly: true })]) {
+        expect(html).toContain(">The inspector is recorded automatically.</p>");
+        expect(html).not.toContain("Chosen when the inspection was created");
+      }
+      // No inspector row, no note.
+      const config: HeaderConfig = { ...HEADER_DEFAULT_CONFIG, fields: { ...HEADER_DEFAULT_CONFIG.fields, inspector: false } };
+      expect(withPickers({ config })).not.toContain("recorded automatically");
+      expect(pickers(withPickers({ config }))).toHaveLength(2);
+    });
+
+    it("shows them as text, exactly as before, when the inspection is read-only or the screen gives no pickers", () => {
+      for (const html of [withPickers({ readOnly: true }), withPickers({}, null), render()]) {
+        expect(pickers(html)).toEqual([]);
+        expect(tagsOf(html, "button")).toEqual([]);
+        expect(html).toContain('<dd class="font-medium break-words text-foreground">Manufacturer A (Factory A1)</dd>');
+        expect(html).toContain("Not set");
+        expect(html).toContain('<dd class="font-medium break-words text-foreground">Inspector A</dd>');
+      }
+    });
+
+    it("offers a picker only for a row the template shows", () => {
+      const html = withPickers({
+        data: headerData(SAFEDON_EG_EXAMPLE.header),
+        config: SAFEDON_CONFIG,
+        context: baseContext({ template: TEMPLATE, meta: headerMeta(SAFEDON_EG_EXAMPLE.header) }),
+      });
+      expect(pickers(html).map((picker) => /data-party-picker="(\w+)"/.exec(picker)?.[1])).toEqual(["manufacturer"]);
+      expect(html).not.toContain(HEADER_LABELS.client);
+    });
   });
 });

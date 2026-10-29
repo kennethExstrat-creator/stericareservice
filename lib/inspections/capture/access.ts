@@ -63,6 +63,13 @@ export function isEditableStatus(status: InspectionStatus): boolean {
   return EDITABLE_STATUSES.includes(status);
 }
 
+/** What a capture Server Action answers a change refused by the rule above (the save, submit, the client and manufacturer). */
+export function readOnlyMessage(status: InspectionStatus): string {
+  if (status === "approved") return "This inspection is approved and can no longer be changed.";
+  if (!isEditableStatus(status)) return "This inspection has been submitted and can no longer be changed here.";
+  return "This inspection can no longer be changed from this account.";
+}
+
 /** The viewer's role; the Lead Inspector's switches start as the Inspector's. */
 function roleOf(input: Pick<AccessInput, "role" | "grant">): RoleGrant {
   return input.grant ?? builtInGrant(input.role === "admin" ? "admin" : "inspector");

@@ -5,7 +5,9 @@
 // comment, and so is a size's code letter reduced on the Sampling Plan, with
 // its reason (Kenneth, 27 October 2026: "yes, reducing code letter go to
 // Audit Log"); a spec changed for the inspection reads "Size M Finger
-// Thickness spec changed from 0.18 ± 0.04 to NA". A size is named as the
+// Thickness spec changed from 0.18 ± 0.04 to NA", and a client or
+// manufacturer changed on General Information "Client changed from Client A
+// to Client B" (30 October 2026). A size is named as the
 // template labels it. Who acted is told as the viewer may know them
 // (review/actor.ts): a row the service role wrote names them in its changes
 // (`by`). Times are Malaysia's (review/format.ts), formatted on the server.
@@ -19,6 +21,7 @@ import { InspectionStatusSchema } from "@/lib/schemas/common";
 import { MEDIA_CATEGORIES } from "@/lib/inspections/source-documents";
 import { SAMPLING_QUANTITY_LABELS } from "@/modules/sampling_plan/config";
 import { PASS_FAIL_CHANGED, SPEC_CHANGED } from "./dimension-events";
+import { CLIENT_CHANGED, MANUFACTURER_CHANGED, partyChangeSentence, partyChangeTitle } from "./party-events";
 import { CODE_LETTER_CHANGED } from "./sampling-events";
 
 /** One line of the Audit Log. */
@@ -77,6 +80,10 @@ function describe(action: string, changes: Record<string, unknown>, words: Words
       return { title: "P/F Changed by the Inspector", detail: passFailDetail(changes, words), special: true };
     case SPEC_CHANGED:
       return event("Spec Changed", specDetail(changes, words));
+    case CLIENT_CHANGED:
+      return event(partyChangeTitle("client"), partyChangeSentence("client", changes));
+    case MANUFACTURER_CHANGED:
+      return event(partyChangeTitle("manufacturer"), partyChangeSentence("manufacturer", changes));
     case CODE_LETTER_CHANGED:
       return codeLetterEntry(changes, words);
     case "source_document_read": {

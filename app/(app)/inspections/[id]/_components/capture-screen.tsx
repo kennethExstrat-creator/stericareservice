@@ -18,8 +18,11 @@
 // saved first, as for submit, and the draft comes back as text for the
 // editor, never as data. The Sampling Plan's Export Sampling Plan opens the
 // plan for the manufacturer in a new tab through the inspection's links
-// (inspectionLinks), what is waiting saved first. Values saved for a size
-// the order does not list stay out of sight, unannounced (Kenneth, 27
+// (inspectionLinks), what is waiting saved first. General Information's
+// Client Name and Manufacturer / Supplier are pickers where the inspection
+// can be changed here, written to the row at once, never through the
+// autosave (use-capture-parties.ts; Kenneth, 30 October 2026). Values saved
+// for a size the order does not list stay out of sight, unannounced (Kenneth, 27
 // October 2026: "not all order consist of all sizes"). After the
 // Conclusion, the Report page: the report's options, saved
 // in the data (`report`) through the same autosave, the report's own pages
@@ -161,6 +164,7 @@ import {
 } from "@/modules/_framework";
 import { MODULE_REGISTRY } from "@/modules";
 import { InspectionLinksProvider, type InspectionLinks } from "@/modules/_framework/inspection-links";
+import { InspectionPartiesProvider } from "@/modules/_framework/inspection-parties";
 import type { SummaryAssist } from "@/modules/_framework/summary-assist";
 import { samplingPlanPrintPath } from "@/lib/sampling-plan/paths";
 import { applyProposals, SOURCE_DOCUMENTS_KEY, SOURCE_DOCUMENTS_TITLE } from "@/lib/inspections/source-documents";
@@ -184,6 +188,7 @@ import { SectionList } from "./section-list";
 import { SectionTabs, tabId } from "./section-tabs";
 import { SubmitControl, type SubmitBlocked, type SubmitPreparation } from "./submit-control";
 import { LEAVE_FLUSH_MS, useCaptureAutosave } from "./use-capture-autosave";
+import { useCaptureParties, type CapturePickers } from "./use-capture-parties";
 import { inspectorHasActed, landingExpected, STILL_LOADING, useLandingSpot } from "./use-landing-spot";
 import { useNoPullToRefresh } from "./use-no-pull-to-refresh";
 import { useRefusedEntries } from "./use-refused-entries";
@@ -208,13 +213,24 @@ export type CaptureScreenProps = {
   initialSection: string | null;
   /** Why an admin reopened it, while it is reopened. */
   reopenNote?: ReopenNote | null;
-  /** Defects counted in earlier inspections, by code: the defect lists open on the most-used ones. */
+  /**
+   * Defects counted in earlier inspections, by code: the defect lists open on
+   * the most-used ones. Read once: a refresh of the page (a client or
+   * manufacturer changed) never moves the rows while the screen is open.
+   */
   defectUsage?: DefectUsage;
   /**
    * The Steri-AI Summary's menu (loadSummaryMenu) where the inspection can be
    * changed here; null (or left out) shows no Steri-AI Summary button.
    */
   summaryMenu?: SummaryMenu | null;
+  /**
+   * New Inspection's clients and manufacturers where the inspection can be
+   * changed here: General Information's Client Name and Manufacturer /
+   * Supplier become pickers (Kenneth, 30 October 2026). Null (or left out):
+   * both read-only.
+   */
+  pickers?: CapturePickers | null;
   /**
    * The Report page's server facts: whether this user may download the PDF,
    * and the template version's and the row's facts the preview's export
@@ -254,10 +270,13 @@ export function CaptureScreen({
   access,
   initialSection,
   reopenNote = null,
-  defectUsage = NO_USAGE,
+  defectUsage: pageDefectUsage = NO_USAGE,
   summaryMenu = null,
+  pickers = null,
   reportPage = NO_REPORT,
 }: CaptureScreenProps) {
+  // As the screen opened with it (the prop's note).
+  const [defectUsage] = useState(pageDefectUsage);
   const idPrefix = useId();
   const panelId = `${idPrefix}-section`;
   const rootRef = useRef<HTMLDivElement>(null);
@@ -421,7 +440,20 @@ export function CaptureScreen({
 
   // The inspection's files, this device's queued ones included: whether a kept lab report is attached (docs/MODULES.md 10.1).
   const files = useInspectionFiles(inspectionId);
-  const liveMeta = useMemo<CaptureMeta>(() => ({ ...meta, files }), [meta, files]);
+  // The client and manufacturer as the row has them: one changed on General Information shows at once, everywhere
+  // (use-capture-parties.ts), and its pickers where the inspection can be changed here.
+  const { parties, slot: partiesSlot } = useCaptureParties({
+    inspectionId,
+    client: meta.client,
+    manufacturer: meta.manufacturer,
+    manufacturerBrand: heading.manufacturerName ?? null,
+    pickers,
+    editable: access.editable,
+  });
+  const liveMeta = useMemo<CaptureMeta>(
+    () => ({ ...meta, client: parties.client, manufacturer: parties.manufacturer, files }),
+    [meta, parties, files],
+  );
   const deferredData = useDeferredValue(data);
   const evaluation = useMemo(
     () => evaluateCapture({ template, overrides, data: deferredData, meta: liveMeta }),
@@ -497,14 +529,14 @@ export function CaptureScreen({
       evaluation,
       data: deferredData,
       meta: liveMeta,
-      manufacturerLabel: heading.manufacturerLabel,
+      // The factory's label, as the row's and the export's (heading.manufacturerLabel until one is changed here).
+      manufacturerLabel: liveMeta.manufacturer?.name ?? null,
     }),
     [
       inspectionId,
       heading.refNo,
       heading.inspectionDate,
       heading.templateVersion,
-      heading.manufacturerLabel,
       serverStatus,
       initialUpdatedAt,
       reportRecord,
@@ -1003,8 +1035,15 @@ export function CaptureScreen({
   // Another tab is the writer: read-only here on purpose, and the notice says so. No red pill for that.
   const quietSave = autosave.phase === "busy" || saveError?.reason === "other_tab";
   const saveStatus = !access.editable || quietSave ? null : (snapshot?.status ?? "saved");
-  // As the last save found it: submitted on another device shows here as submitted.
-  const shownHeading = serverStatus === heading.status ? heading : { ...heading, status: serverStatus };
+  // As the last save found it: submitted on another device shows here as submitted. The client and manufacturer as
+  // shown everywhere on the screen (a change on General Information at once).
+  const shownHeading: CaptureHeading = {
+    ...heading,
+    status: serverStatus,
+    clientName: parties.client?.name ?? null,
+    manufacturerLabel: parties.manufacturer?.name ?? null,
+    manufacturerName: parties.manufacturerBrand,
+  };
   const submitControl = (className?: string) =>
     access.editable ? (
       <SubmitControl
@@ -1164,49 +1203,51 @@ export function CaptureScreen({
 
           {activePage && (
             <InspectionLinksProvider value={inspectionLinks}>
-              <ActivePage
-                key={activePage.key}
-                page={activePage}
-                panelId={panelId}
-                titleRef={titleRef}
-                tabLabelledBy={wide ? undefined : tabId(idPrefix, activePage.key)}
-                documents={sourceDocuments}
-                template={template}
-                effective={evaluation.template}
-                overrides={overrides}
-                overrideAuthors={overrideAuthors}
-                userId={user.id}
-                data={data}
-                report={report}
-                context={context}
-                focusRequest={focusRequest}
-                readOnly={readOnly}
-                showRequired={submitTried}
-                access={access}
-                inspectionId={inspectionId}
-                keptFocus={keptFocus}
-                defectUsage={defectUsage}
-                summaryAssist={summaryAssist}
-                refusedStores={refusedStores}
-                onFocusReported={keepSize}
-                onUnreadableRemoved={focusTitleAfterRemoval}
-                // Each change from the form also marks its field as where the inspector stopped.
-                onModuleChange={(key, value) => {
-                  writeEntry("modules", key, value);
-                  landing.record();
-                }}
-                onCustomChange={(key, value) => {
-                  writeEntry("custom", key, value);
-                  landing.record();
-                }}
-                onMappedChange={(mapsTo, value) => {
-                  writeMapped(mapsTo, value);
-                  landing.record();
-                }}
-                onOverridesChange={onSwitched}
-                saveFirst={() => autosave.flush({ timeoutMs: LEAVE_FLUSH_MS })}
-                reportPage={{ ...reportPage, options: reportOptions, source: reportSource, onChange: writeReport }}
-              />
+              <InspectionPartiesProvider value={partiesSlot}>
+                <ActivePage
+                  key={activePage.key}
+                  page={activePage}
+                  panelId={panelId}
+                  titleRef={titleRef}
+                  tabLabelledBy={wide ? undefined : tabId(idPrefix, activePage.key)}
+                  documents={sourceDocuments}
+                  template={template}
+                  effective={evaluation.template}
+                  overrides={overrides}
+                  overrideAuthors={overrideAuthors}
+                  userId={user.id}
+                  data={data}
+                  report={report}
+                  context={context}
+                  focusRequest={focusRequest}
+                  readOnly={readOnly}
+                  showRequired={submitTried}
+                  access={access}
+                  inspectionId={inspectionId}
+                  keptFocus={keptFocus}
+                  defectUsage={defectUsage}
+                  summaryAssist={summaryAssist}
+                  refusedStores={refusedStores}
+                  onFocusReported={keepSize}
+                  onUnreadableRemoved={focusTitleAfterRemoval}
+                  // Each change from the form also marks its field as where the inspector stopped.
+                  onModuleChange={(key, value) => {
+                    writeEntry("modules", key, value);
+                    landing.record();
+                  }}
+                  onCustomChange={(key, value) => {
+                    writeEntry("custom", key, value);
+                    landing.record();
+                  }}
+                  onMappedChange={(mapsTo, value) => {
+                    writeMapped(mapsTo, value);
+                    landing.record();
+                  }}
+                  onOverridesChange={onSwitched}
+                  saveFirst={() => autosave.flush({ timeoutMs: LEAVE_FLUSH_MS })}
+                  reportPage={{ ...reportPage, options: reportOptions, source: reportSource, onChange: writeReport }}
+                />
+              </InspectionPartiesProvider>
             </InspectionLinksProvider>
           )}
 

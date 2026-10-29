@@ -465,8 +465,9 @@ test("the STD_EG example entered on the iPad gives every expected result", async
     const facts = frame.getByRole("region", { name: "From the inspection" });
     // Inspector: recorded automatically (the report has no inspector at all).
     await check(facts, EXPECTED.inspector.check).toContainText(`Inspected By${inspectorName}`, ANY_CASE);
+    // The inspector's own draft: both are pickers with New Inspection's lists (Kenneth, 30 October 2026).
     await check(facts).toContainText(`Manufacturer / Supplier${HARTALEGA.label}`);
-    await check(facts).toContainText("Client Name—");
+    await check(facts).toContainText("Client NameNo Client");
     const text = async (label: string, value: string) => {
       const field = frame.getByLabel(named(label));
       await field.tap();

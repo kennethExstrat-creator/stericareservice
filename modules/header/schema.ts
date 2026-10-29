@@ -1,8 +1,9 @@
 // Manufacturer Information (BUILD_SPEC 6.1 header): what the inspector enters
 // on page 1 of both reports. The manufacturer and the client are the
-// inspection's own (picked on /inspections/new) and the inspector is the
-// logged-in user, so the header shows them from the context instead of
-// keeping a second copy that could drift (6.2 rules 10 and 11). Every value
+// inspection's own (picked on /inspections/new, changed on the capture
+// screen's General Information: columns of the row, never this data) and the
+// inspector is the logged-in user, so the header shows them from the context
+// instead of keeping a second copy that could drift (6.2 rules 10 and 11). Every value
 // may be missing while the inspection is a draft.
 import { z } from "zod";
 import { DateCellSchema, TextCellSchema } from "@/modules/_framework";

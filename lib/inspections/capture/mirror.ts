@@ -15,7 +15,7 @@
 //   `remark`), blank as empty.
 //
 // client_id and manufacturer_id are chosen when the inspection is created and
-// never change here.
+// change only on General Information (party-actions.ts), never with a save.
 import type { MirroredColumns } from "@/lib/offline/supabase-transport";
 import { IsoDateSchema, type InspectionResult } from "@/lib/schemas/common";
 import type { ModuleStatus } from "@/lib/schemas/module-result";

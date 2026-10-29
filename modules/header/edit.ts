@@ -30,6 +30,21 @@ export function setDate(data: HeaderData, field: HeaderDateField, value: string 
   return data[field] === next ? data : { ...data, [field]: next };
 }
 
+/**
+ * The factory address when the inspection's manufacturer changes (Kenneth,
+ * 30 October 2026): the new factory's stored address where the field is
+ * blank or still the old factory's (as New Inspection filled it), blank when
+ * the new factory has none; an address the inspector typed stays. Compared
+ * as trimmed text, as the field keeps it once left.
+ */
+export function followFactoryAddress(data: HeaderData, previous: string | null, next: string | null): HeaderData {
+  const current = data.factoryAddress?.trim() ?? "";
+  if (current !== "" && current !== (previous?.trim() ?? "")) return data;
+  const address = next?.trim() ?? "";
+  const value = address === "" ? null : clampText(address, TEXT_MAX_LENGTH);
+  return data.factoryAddress === value ? data : { ...data, factoryAddress: value };
+}
+
 /** At most `max` UTF-16 units, as the schema and the field count them, without cutting a character in two. */
 function clampText(text: string, max: number): string {
   if (text.length <= max) return text;
